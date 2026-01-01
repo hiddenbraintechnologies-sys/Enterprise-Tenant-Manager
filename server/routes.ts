@@ -2,7 +2,13 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated } from "./replit_integrations/auth";
-import { insertCustomerSchema, insertServiceSchema, insertBookingSchema } from "@shared/schema";
+import { 
+  insertCustomerSchema, insertServiceSchema, insertBookingSchema,
+  insertNotificationTemplateSchema, insertInvoiceSchema, insertInvoiceItemSchema,
+  insertPaymentSchema, insertInventoryCategorySchema, insertInventoryItemSchema,
+  insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
+  insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
+} from "@shared/schema";
 import { 
   requirePermission, requireFeature, auditMiddleware, 
   tenantService, auditService, featureService, permissionService,
@@ -444,6 +450,572 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching audit logs:", error);
       res.status(500).json({ message: "Failed to fetch audit logs" });
+    }
+  });
+
+  // ==================== NOTIFICATION TEMPLATES ====================
+  app.get("/api/notification-templates", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const templates = await storage.getNotificationTemplates(tenantId);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching notification templates:", error);
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  app.post("/api/notification-templates", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertNotificationTemplateSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const template = await storage.createNotificationTemplate(parsed.data);
+      res.status(201).json(template);
+    } catch (error) {
+      console.error("Error creating notification template:", error);
+      res.status(500).json({ message: "Failed to create template" });
+    }
+  });
+
+  app.patch("/api/notification-templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getNotificationTemplate(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      const template = await storage.updateNotificationTemplate(req.params.id, req.body);
+      res.json(template);
+    } catch (error) {
+      console.error("Error updating notification template:", error);
+      res.status(500).json({ message: "Failed to update template" });
+    }
+  });
+
+  app.delete("/api/notification-templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getNotificationTemplate(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      await storage.deleteNotificationTemplate(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting notification template:", error);
+      res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  // ==================== NOTIFICATION LOGS ====================
+  app.get("/api/notification-logs", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const limit = parseInt(req.query.limit as string) || 100;
+      const logs = await storage.getNotificationLogs(tenantId, limit);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching notification logs:", error);
+      res.status(500).json({ message: "Failed to fetch logs" });
+    }
+  });
+
+  // ==================== INVOICES ====================
+  app.get("/api/invoices", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const invoices = await storage.getInvoices(tenantId);
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  app.get("/api/invoices/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice || invoice.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      const items = await storage.getInvoiceItems(req.params.id);
+      res.json({ ...invoice, items });
+    } catch (error) {
+      console.error("Error fetching invoice:", error);
+      res.status(500).json({ message: "Failed to fetch invoice" });
+    }
+  });
+
+  app.post("/api/invoices", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const { items, ...invoiceData } = req.body;
+      const parsed = insertInvoiceSchema.safeParse({ ...invoiceData, tenantId, createdBy: getUserId(req) });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const invoice = await storage.createInvoice(parsed.data);
+      if (items && Array.isArray(items)) {
+        for (const item of items) {
+          await storage.createInvoiceItem({ ...item, invoiceId: invoice.id });
+        }
+      }
+      res.status(201).json(invoice);
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      res.status(500).json({ message: "Failed to create invoice" });
+    }
+  });
+
+  app.patch("/api/invoices/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getInvoice(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      const invoice = await storage.updateInvoice(req.params.id, req.body);
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      res.status(500).json({ message: "Failed to update invoice" });
+    }
+  });
+
+  app.delete("/api/invoices/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getInvoice(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      await storage.deleteInvoice(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting invoice:", error);
+      res.status(500).json({ message: "Failed to delete invoice" });
+    }
+  });
+
+  // ==================== PAYMENTS ====================
+  app.get("/api/payments", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const payments = await storage.getPayments(tenantId);
+      res.json(payments);
+    } catch (error) {
+      console.error("Error fetching payments:", error);
+      res.status(500).json({ message: "Failed to fetch payments" });
+    }
+  });
+
+  app.post("/api/payments", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertPaymentSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const payment = await storage.createPayment(parsed.data);
+      if (payment.invoiceId) {
+        const invoice = await storage.getInvoice(payment.invoiceId);
+        if (invoice && invoice.tenantId === tenantId) {
+          const currentPaid = parseFloat(invoice.paidAmount || "0") || 0;
+          const paymentAmount = parseFloat(payment.amount) || 0;
+          const totalAmount = parseFloat(invoice.totalAmount) || 0;
+          const newPaidAmount = Math.max(0, currentPaid + paymentAmount);
+          await storage.updateInvoice(payment.invoiceId, { 
+            paidAmount: newPaidAmount.toFixed(2),
+            status: newPaidAmount >= totalAmount ? "paid" : "partial"
+          });
+        }
+      }
+      res.status(201).json(payment);
+    } catch (error) {
+      console.error("Error creating payment:", error);
+      res.status(500).json({ message: "Failed to create payment" });
+    }
+  });
+
+  // ==================== INVENTORY CATEGORIES ====================
+  app.get("/api/inventory/categories", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const categories = await storage.getInventoryCategories(tenantId);
+      res.json(categories);
+    } catch (error) {
+      console.error("Error fetching inventory categories:", error);
+      res.status(500).json({ message: "Failed to fetch categories" });
+    }
+  });
+
+  app.post("/api/inventory/categories", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertInventoryCategorySchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const category = await storage.createInventoryCategory(parsed.data);
+      res.status(201).json(category);
+    } catch (error) {
+      console.error("Error creating inventory category:", error);
+      res.status(500).json({ message: "Failed to create category" });
+    }
+  });
+
+  // ==================== INVENTORY ITEMS ====================
+  app.get("/api/inventory/items", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const items = await storage.getInventoryItems(tenantId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching inventory items:", error);
+      res.status(500).json({ message: "Failed to fetch items" });
+    }
+  });
+
+  app.post("/api/inventory/items", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertInventoryItemSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const item = await storage.createInventoryItem(parsed.data);
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error creating inventory item:", error);
+      res.status(500).json({ message: "Failed to create item" });
+    }
+  });
+
+  app.patch("/api/inventory/items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getInventoryItem(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+      const item = await storage.updateInventoryItem(req.params.id, req.body);
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating inventory item:", error);
+      res.status(500).json({ message: "Failed to update item" });
+    }
+  });
+
+  app.post("/api/inventory/items/:id/adjust", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const item = await storage.getInventoryItem(req.params.id);
+      if (!item || item.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+      const { quantity, type, notes } = req.body;
+      const qty = parseInt(quantity) || 0;
+      if (qty <= 0) return res.status(400).json({ message: "Quantity must be positive" });
+      const previousStock = item.currentStock || 0;
+      const newStock = type === "add" ? previousStock + qty : Math.max(0, previousStock - qty);
+      await storage.updateInventoryItem(req.params.id, { currentStock: newStock });
+      const transaction = await storage.createInventoryTransaction({
+        tenantId, itemId: req.params.id, type, quantity: qty, previousStock, newStock,
+        notes, createdBy: getUserId(req),
+      });
+      res.status(201).json(transaction);
+    } catch (error) {
+      console.error("Error adjusting inventory:", error);
+      res.status(500).json({ message: "Failed to adjust inventory" });
+    }
+  });
+
+  // ==================== MEMBERSHIP PLANS ====================
+  app.get("/api/membership-plans", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const plans = await storage.getMembershipPlans(tenantId);
+      res.json(plans);
+    } catch (error) {
+      console.error("Error fetching membership plans:", error);
+      res.status(500).json({ message: "Failed to fetch plans" });
+    }
+  });
+
+  app.post("/api/membership-plans", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertMembershipPlanSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const plan = await storage.createMembershipPlan(parsed.data);
+      res.status(201).json(plan);
+    } catch (error) {
+      console.error("Error creating membership plan:", error);
+      res.status(500).json({ message: "Failed to create plan" });
+    }
+  });
+
+  app.patch("/api/membership-plans/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getMembershipPlan(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Plan not found" });
+      }
+      const plan = await storage.updateMembershipPlan(req.params.id, req.body);
+      res.json(plan);
+    } catch (error) {
+      console.error("Error updating membership plan:", error);
+      res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
+  // ==================== CUSTOMER MEMBERSHIPS ====================
+  app.get("/api/customer-memberships", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const memberships = await storage.getCustomerMemberships(tenantId);
+      res.json(memberships);
+    } catch (error) {
+      console.error("Error fetching customer memberships:", error);
+      res.status(500).json({ message: "Failed to fetch memberships" });
+    }
+  });
+
+  app.post("/api/customer-memberships", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertCustomerMembershipSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const membership = await storage.createCustomerMembership(parsed.data);
+      res.status(201).json(membership);
+    } catch (error) {
+      console.error("Error creating customer membership:", error);
+      res.status(500).json({ message: "Failed to create membership" });
+    }
+  });
+
+  app.patch("/api/customer-memberships/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getCustomerMembership(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Membership not found" });
+      }
+      const membership = await storage.updateCustomerMembership(req.params.id, req.body);
+      res.json(membership);
+    } catch (error) {
+      console.error("Error updating customer membership:", error);
+      res.status(500).json({ message: "Failed to update membership" });
+    }
+  });
+
+  // ==================== PATIENTS (Healthcare) ====================
+  app.get("/api/patients", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const patients = await storage.getPatients(tenantId);
+      res.json(patients);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+      res.status(500).json({ message: "Failed to fetch patients" });
+    }
+  });
+
+  app.get("/api/patients/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const patient = await storage.getPatient(req.params.id);
+      if (!patient || patient.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      res.json(patient);
+    } catch (error) {
+      console.error("Error fetching patient:", error);
+      res.status(500).json({ message: "Failed to fetch patient" });
+    }
+  });
+
+  app.post("/api/patients", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertPatientSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const patient = await storage.createPatient(parsed.data);
+      res.status(201).json(patient);
+    } catch (error) {
+      console.error("Error creating patient:", error);
+      res.status(500).json({ message: "Failed to create patient" });
+    }
+  });
+
+  app.patch("/api/patients/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getPatient(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      const patient = await storage.updatePatient(req.params.id, req.body);
+      res.json(patient);
+    } catch (error) {
+      console.error("Error updating patient:", error);
+      res.status(500).json({ message: "Failed to update patient" });
+    }
+  });
+
+  // ==================== DOCTORS (Healthcare) ====================
+  app.get("/api/doctors", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const doctors = await storage.getDoctors(tenantId);
+      res.json(doctors);
+    } catch (error) {
+      console.error("Error fetching doctors:", error);
+      res.status(500).json({ message: "Failed to fetch doctors" });
+    }
+  });
+
+  app.post("/api/doctors", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertDoctorSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const doctor = await storage.createDoctor(parsed.data);
+      res.status(201).json(doctor);
+    } catch (error) {
+      console.error("Error creating doctor:", error);
+      res.status(500).json({ message: "Failed to create doctor" });
+    }
+  });
+
+  app.patch("/api/doctors/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getDoctor(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      const doctor = await storage.updateDoctor(req.params.id, req.body);
+      res.json(doctor);
+    } catch (error) {
+      console.error("Error updating doctor:", error);
+      res.status(500).json({ message: "Failed to update doctor" });
+    }
+  });
+
+  // ==================== APPOINTMENTS (Healthcare) ====================
+  app.get("/api/appointments", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const appointments = await storage.getAppointments(tenantId);
+      res.json(appointments);
+    } catch (error) {
+      console.error("Error fetching appointments:", error);
+      res.status(500).json({ message: "Failed to fetch appointments" });
+    }
+  });
+
+  app.post("/api/appointments", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertAppointmentSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const appointment = await storage.createAppointment(parsed.data);
+      res.status(201).json(appointment);
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      res.status(500).json({ message: "Failed to create appointment" });
+    }
+  });
+
+  app.patch("/api/appointments/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getAppointment(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      const appointment = await storage.updateAppointment(req.params.id, req.body);
+      res.json(appointment);
+    } catch (error) {
+      console.error("Error updating appointment:", error);
+      res.status(500).json({ message: "Failed to update appointment" });
+    }
+  });
+
+  // ==================== MEDICAL RECORDS (Healthcare) ====================
+  app.get("/api/patients/:patientId/medical-records", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const patient = await storage.getPatient(req.params.patientId);
+      if (!patient || patient.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      const records = await storage.getMedicalRecords(req.params.patientId);
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching medical records:", error);
+      res.status(500).json({ message: "Failed to fetch records" });
+    }
+  });
+
+  app.post("/api/medical-records", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertMedicalRecordSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const record = await storage.createMedicalRecord(parsed.data);
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error creating medical record:", error);
+      res.status(500).json({ message: "Failed to create record" });
+    }
+  });
+
+  app.patch("/api/medical-records/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getMedicalRecord(req.params.id);
+      if (!existing || existing.tenantId !== tenantId) {
+        return res.status(404).json({ message: "Record not found" });
+      }
+      const record = await storage.updateMedicalRecord(req.params.id, req.body);
+      res.json(record);
+    } catch (error) {
+      console.error("Error updating medical record:", error);
+      res.status(500).json({ message: "Failed to update record" });
     }
   });
 

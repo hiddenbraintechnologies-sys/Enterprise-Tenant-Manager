@@ -1,7 +1,7 @@
 # BizFlow - Multi-Tenant SaaS Business Management Platform
 
 ## Overview
-BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small and medium businesses including PGs/Hostels, Salons, Gyms, Coaching Institutes, and Service-based businesses.
+BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small and medium businesses including PGs/Hostels, Salons, Gyms, Coaching Institutes, Clinics, Diagnostics, and Service-based businesses.
 
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + Tailwind CSS + shadcn/ui
@@ -70,9 +70,16 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
   - `customer_management` - CRM features
   - `service_catalog` - Service management
   - `analytics_basic` / `analytics_advanced` - Analytics tiers
-  - `notifications_email/sms/whatsapp` - Notification channels
-  - `billing_invoices/subscriptions` - Billing features
-  - `inventory` - Stock management
+  - `notifications_engine` - Email/SMS/WhatsApp notifications (free)
+  - `notifications_whatsapp` - WhatsApp channel (pro)
+  - `billing_invoices` - Invoice management (free)
+  - `payment_tracking` - Payment tracking (free)
+  - `inventory_management` - Stock management (pro)
+  - `memberships_subscriptions` - Customer memberships (pro)
+  - `healthcare_module` - Full healthcare suite (enterprise)
+  - `patient_management` - Patient profiles (enterprise)
+  - `appointment_scheduling` - Doctor appointments (enterprise)
+  - `electronic_medical_records` - EMR system (enterprise)
   - `api_access` - External API access
 
 ### Role-Based Access Control (RBAC)
@@ -101,6 +108,30 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
 - `GET /api/bookings/upcoming` - Upcoming bookings
 - `GET /api/analytics` - Analytics data
 
+### Notifications
+- `GET/POST/PATCH/DELETE /api/notification-templates` - Template CRUD
+- `GET /api/notification-logs` - Notification history
+
+### Billing & Payments
+- `GET/POST/PATCH/DELETE /api/invoices` - Invoice CRUD
+- `GET/POST /api/payments` - Payment tracking
+
+### Inventory (Pro Tier)
+- `GET/POST /api/inventory/categories` - Category management
+- `GET/POST/PATCH /api/inventory/items` - Item management
+- `POST /api/inventory/items/:id/adjust` - Stock adjustments
+
+### Memberships (Pro Tier)
+- `GET/POST/PATCH /api/membership-plans` - Plan management
+- `GET/POST/PATCH /api/customer-memberships` - Customer memberships
+
+### Healthcare (Enterprise Tier)
+- `GET/POST/PATCH /api/patients` - Patient management
+- `GET/POST/PATCH /api/doctors` - Doctor profiles
+- `GET/POST/PATCH /api/appointments` - Appointment scheduling
+- `GET /api/patients/:id/medical-records` - Patient EMR
+- `POST/PATCH /api/medical-records` - Medical record management
+
 ## Database Schema
 
 ### Core Tables
@@ -125,6 +156,30 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
 - **bookings**: Booking/appointment records
 - **staff**: Staff members per tenant
 
+### Notification Tables
+- **notification_templates**: Email/SMS/WhatsApp templates with variables
+- **notification_logs**: Sent notification history with status tracking
+
+### Billing Tables
+- **invoices**: Invoice records with status tracking
+- **invoice_items**: Line items per invoice
+- **payments**: Payment records with method and gateway info
+
+### Inventory Tables
+- **inventory_categories**: Product/supply categories
+- **inventory_items**: Stock items with pricing
+- **inventory_transactions**: Stock movement history
+
+### Membership Tables
+- **membership_plans**: Subscription plans with features
+- **customer_memberships**: Customer subscriptions
+
+### Healthcare Tables (Enterprise)
+- **patients**: Patient profiles with medical history
+- **doctors**: Doctor profiles with specializations
+- **appointments**: Doctor appointments with token system
+- **medical_records**: EMR with diagnosis, prescriptions, lab tests
+
 ## Running the Application
 ```bash
 npm run dev          # Start development server
@@ -142,3 +197,4 @@ npm run db:push      # Push schema to database
 - **Microservices Ready**: Core services can be extracted
 - **JWT Extensible**: Token infrastructure in place
 - **Redis Ready**: Caching layer can be swapped to Redis
+- **Healthcare Module**: Feature-flagged for enterprise tier only

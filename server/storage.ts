@@ -1,11 +1,30 @@
 import { 
   tenants, customers, services, bookings, staff,
+  notificationTemplates, notificationLogs,
+  invoices, invoiceItems, payments,
+  inventoryCategories, inventoryItems, inventoryTransactions,
+  membershipPlans, customerMemberships,
+  patients, doctors, appointments, medicalRecords,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
   type Booking, type InsertBooking,
   type Staff, type InsertStaff,
   type BookingWithDetails,
+  type NotificationTemplate, type InsertNotificationTemplate,
+  type NotificationLog, type InsertNotificationLog,
+  type Invoice, type InsertInvoice,
+  type InvoiceItem, type InsertInvoiceItem,
+  type Payment, type InsertPayment,
+  type InventoryCategory, type InsertInventoryCategory,
+  type InventoryItem, type InsertInventoryItem,
+  type InventoryTransaction, type InsertInventoryTransaction,
+  type MembershipPlan, type InsertMembershipPlan,
+  type CustomerMembership, type InsertCustomerMembership,
+  type Patient, type InsertPatient,
+  type Doctor, type InsertDoctor,
+  type Appointment, type InsertAppointment,
+  type MedicalRecord, type InsertMedicalRecord,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -61,6 +80,92 @@ export interface IStorage {
     topServices: { name: string; bookings: number; revenue: number }[];
     recentTrend: { date: string; bookings: number; revenue: number }[];
   }>;
+
+  // Notification Templates
+  getNotificationTemplates(tenantId: string): Promise<NotificationTemplate[]>;
+  getNotificationTemplate(id: string): Promise<NotificationTemplate | undefined>;
+  createNotificationTemplate(template: InsertNotificationTemplate): Promise<NotificationTemplate>;
+  updateNotificationTemplate(id: string, template: Partial<InsertNotificationTemplate>): Promise<NotificationTemplate | undefined>;
+  deleteNotificationTemplate(id: string): Promise<void>;
+
+  // Notification Logs
+  getNotificationLogs(tenantId: string, limit?: number): Promise<NotificationLog[]>;
+  createNotificationLog(log: InsertNotificationLog): Promise<NotificationLog>;
+  updateNotificationLog(id: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined>;
+
+  // Invoices
+  getInvoices(tenantId: string): Promise<Invoice[]>;
+  getInvoice(id: string): Promise<Invoice | undefined>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoice(id: string, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined>;
+  deleteInvoice(id: string): Promise<void>;
+
+  // Invoice Items
+  getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]>;
+  createInvoiceItem(item: InsertInvoiceItem): Promise<InvoiceItem>;
+  deleteInvoiceItems(invoiceId: string): Promise<void>;
+
+  // Payments
+  getPayments(tenantId: string): Promise<Payment[]>;
+  getPayment(id: string): Promise<Payment | undefined>;
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  updatePayment(id: string, payment: Partial<InsertPayment>): Promise<Payment | undefined>;
+
+  // Inventory Categories
+  getInventoryCategories(tenantId: string): Promise<InventoryCategory[]>;
+  createInventoryCategory(category: InsertInventoryCategory): Promise<InventoryCategory>;
+  updateInventoryCategory(id: string, category: Partial<InsertInventoryCategory>): Promise<InventoryCategory | undefined>;
+  deleteInventoryCategory(id: string): Promise<void>;
+
+  // Inventory Items
+  getInventoryItems(tenantId: string): Promise<InventoryItem[]>;
+  getInventoryItem(id: string): Promise<InventoryItem | undefined>;
+  createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
+  updateInventoryItem(id: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined>;
+  deleteInventoryItem(id: string): Promise<void>;
+
+  // Inventory Transactions
+  getInventoryTransactions(itemId: string): Promise<InventoryTransaction[]>;
+  createInventoryTransaction(transaction: InsertInventoryTransaction): Promise<InventoryTransaction>;
+
+  // Membership Plans
+  getMembershipPlans(tenantId: string): Promise<MembershipPlan[]>;
+  getMembershipPlan(id: string): Promise<MembershipPlan | undefined>;
+  createMembershipPlan(plan: InsertMembershipPlan): Promise<MembershipPlan>;
+  updateMembershipPlan(id: string, plan: Partial<InsertMembershipPlan>): Promise<MembershipPlan | undefined>;
+  deleteMembershipPlan(id: string): Promise<void>;
+
+  // Customer Memberships
+  getCustomerMemberships(tenantId: string): Promise<CustomerMembership[]>;
+  getCustomerMembership(id: string): Promise<CustomerMembership | undefined>;
+  createCustomerMembership(membership: InsertCustomerMembership): Promise<CustomerMembership>;
+  updateCustomerMembership(id: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined>;
+
+  // Patients (Healthcare)
+  getPatients(tenantId: string): Promise<Patient[]>;
+  getPatient(id: string): Promise<Patient | undefined>;
+  createPatient(patient: InsertPatient): Promise<Patient>;
+  updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient | undefined>;
+  deletePatient(id: string): Promise<void>;
+
+  // Doctors (Healthcare)
+  getDoctors(tenantId: string): Promise<Doctor[]>;
+  getDoctor(id: string): Promise<Doctor | undefined>;
+  createDoctor(doctor: InsertDoctor): Promise<Doctor>;
+  updateDoctor(id: string, doctor: Partial<InsertDoctor>): Promise<Doctor | undefined>;
+
+  // Appointments (Healthcare)
+  getAppointments(tenantId: string): Promise<Appointment[]>;
+  getAppointment(id: string): Promise<Appointment | undefined>;
+  createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointment(id: string, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined>;
+  deleteAppointment(id: string): Promise<void>;
+
+  // Medical Records (Healthcare)
+  getMedicalRecords(patientId: string): Promise<MedicalRecord[]>;
+  getMedicalRecord(id: string): Promise<MedicalRecord | undefined>;
+  createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord>;
+  updateMedicalRecord(id: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -380,6 +485,289 @@ export class DatabaseStorage implements IStorage {
       topServices,
       recentTrend,
     };
+  }
+
+  // Notification Templates
+  async getNotificationTemplates(tenantId: string): Promise<NotificationTemplate[]> {
+    return db.select().from(notificationTemplates).where(eq(notificationTemplates.tenantId, tenantId)).orderBy(desc(notificationTemplates.createdAt));
+  }
+
+  async getNotificationTemplate(id: string): Promise<NotificationTemplate | undefined> {
+    const [template] = await db.select().from(notificationTemplates).where(eq(notificationTemplates.id, id));
+    return template;
+  }
+
+  async createNotificationTemplate(template: InsertNotificationTemplate): Promise<NotificationTemplate> {
+    const [created] = await db.insert(notificationTemplates).values(template).returning();
+    return created;
+  }
+
+  async updateNotificationTemplate(id: string, template: Partial<InsertNotificationTemplate>): Promise<NotificationTemplate | undefined> {
+    const [updated] = await db.update(notificationTemplates).set({ ...template, updatedAt: new Date() }).where(eq(notificationTemplates.id, id)).returning();
+    return updated;
+  }
+
+  async deleteNotificationTemplate(id: string): Promise<void> {
+    await db.delete(notificationTemplates).where(eq(notificationTemplates.id, id));
+  }
+
+  // Notification Logs
+  async getNotificationLogs(tenantId: string, limit = 100): Promise<NotificationLog[]> {
+    return db.select().from(notificationLogs).where(eq(notificationLogs.tenantId, tenantId)).orderBy(desc(notificationLogs.createdAt)).limit(limit);
+  }
+
+  async createNotificationLog(log: InsertNotificationLog): Promise<NotificationLog> {
+    const [created] = await db.insert(notificationLogs).values(log).returning();
+    return created;
+  }
+
+  async updateNotificationLog(id: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined> {
+    const [updated] = await db.update(notificationLogs).set(log).where(eq(notificationLogs.id, id)).returning();
+    return updated;
+  }
+
+  // Invoices
+  async getInvoices(tenantId: string): Promise<Invoice[]> {
+    return db.select().from(invoices).where(eq(invoices.tenantId, tenantId)).orderBy(desc(invoices.createdAt));
+  }
+
+  async getInvoice(id: string): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    return invoice;
+  }
+
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const [created] = await db.insert(invoices).values(invoice).returning();
+    return created;
+  }
+
+  async updateInvoice(id: string, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined> {
+    const [updated] = await db.update(invoices).set({ ...invoice, updatedAt: new Date() }).where(eq(invoices.id, id)).returning();
+    return updated;
+  }
+
+  async deleteInvoice(id: string): Promise<void> {
+    await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+    await db.delete(invoices).where(eq(invoices.id, id));
+  }
+
+  // Invoice Items
+  async getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]> {
+    return db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
+  }
+
+  async createInvoiceItem(item: InsertInvoiceItem): Promise<InvoiceItem> {
+    const [created] = await db.insert(invoiceItems).values(item).returning();
+    return created;
+  }
+
+  async deleteInvoiceItems(invoiceId: string): Promise<void> {
+    await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
+  }
+
+  // Payments
+  async getPayments(tenantId: string): Promise<Payment[]> {
+    return db.select().from(payments).where(eq(payments.tenantId, tenantId)).orderBy(desc(payments.createdAt));
+  }
+
+  async getPayment(id: string): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(eq(payments.id, id));
+    return payment;
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    const [created] = await db.insert(payments).values(payment).returning();
+    return created;
+  }
+
+  async updatePayment(id: string, payment: Partial<InsertPayment>): Promise<Payment | undefined> {
+    const [updated] = await db.update(payments).set(payment).where(eq(payments.id, id)).returning();
+    return updated;
+  }
+
+  // Inventory Categories
+  async getInventoryCategories(tenantId: string): Promise<InventoryCategory[]> {
+    return db.select().from(inventoryCategories).where(eq(inventoryCategories.tenantId, tenantId)).orderBy(inventoryCategories.sortOrder);
+  }
+
+  async createInventoryCategory(category: InsertInventoryCategory): Promise<InventoryCategory> {
+    const [created] = await db.insert(inventoryCategories).values(category).returning();
+    return created;
+  }
+
+  async updateInventoryCategory(id: string, category: Partial<InsertInventoryCategory>): Promise<InventoryCategory | undefined> {
+    const [updated] = await db.update(inventoryCategories).set(category).where(eq(inventoryCategories.id, id)).returning();
+    return updated;
+  }
+
+  async deleteInventoryCategory(id: string): Promise<void> {
+    await db.delete(inventoryCategories).where(eq(inventoryCategories.id, id));
+  }
+
+  // Inventory Items
+  async getInventoryItems(tenantId: string): Promise<InventoryItem[]> {
+    return db.select().from(inventoryItems).where(eq(inventoryItems.tenantId, tenantId)).orderBy(inventoryItems.name);
+  }
+
+  async getInventoryItem(id: string): Promise<InventoryItem | undefined> {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id));
+    return item;
+  }
+
+  async createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem> {
+    const [created] = await db.insert(inventoryItems).values(item).returning();
+    return created;
+  }
+
+  async updateInventoryItem(id: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined> {
+    const [updated] = await db.update(inventoryItems).set({ ...item, updatedAt: new Date() }).where(eq(inventoryItems.id, id)).returning();
+    return updated;
+  }
+
+  async deleteInventoryItem(id: string): Promise<void> {
+    await db.delete(inventoryItems).where(eq(inventoryItems.id, id));
+  }
+
+  // Inventory Transactions
+  async getInventoryTransactions(itemId: string): Promise<InventoryTransaction[]> {
+    return db.select().from(inventoryTransactions).where(eq(inventoryTransactions.itemId, itemId)).orderBy(desc(inventoryTransactions.createdAt));
+  }
+
+  async createInventoryTransaction(transaction: InsertInventoryTransaction): Promise<InventoryTransaction> {
+    const [created] = await db.insert(inventoryTransactions).values(transaction).returning();
+    return created;
+  }
+
+  // Membership Plans
+  async getMembershipPlans(tenantId: string): Promise<MembershipPlan[]> {
+    return db.select().from(membershipPlans).where(eq(membershipPlans.tenantId, tenantId)).orderBy(membershipPlans.sortOrder);
+  }
+
+  async getMembershipPlan(id: string): Promise<MembershipPlan | undefined> {
+    const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, id));
+    return plan;
+  }
+
+  async createMembershipPlan(plan: InsertMembershipPlan): Promise<MembershipPlan> {
+    const [created] = await db.insert(membershipPlans).values(plan).returning();
+    return created;
+  }
+
+  async updateMembershipPlan(id: string, plan: Partial<InsertMembershipPlan>): Promise<MembershipPlan | undefined> {
+    const [updated] = await db.update(membershipPlans).set({ ...plan, updatedAt: new Date() }).where(eq(membershipPlans.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMembershipPlan(id: string): Promise<void> {
+    await db.delete(membershipPlans).where(eq(membershipPlans.id, id));
+  }
+
+  // Customer Memberships
+  async getCustomerMemberships(tenantId: string): Promise<CustomerMembership[]> {
+    return db.select().from(customerMemberships).where(eq(customerMemberships.tenantId, tenantId)).orderBy(desc(customerMemberships.createdAt));
+  }
+
+  async getCustomerMembership(id: string): Promise<CustomerMembership | undefined> {
+    const [membership] = await db.select().from(customerMemberships).where(eq(customerMemberships.id, id));
+    return membership;
+  }
+
+  async createCustomerMembership(membership: InsertCustomerMembership): Promise<CustomerMembership> {
+    const [created] = await db.insert(customerMemberships).values(membership).returning();
+    return created;
+  }
+
+  async updateCustomerMembership(id: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined> {
+    const [updated] = await db.update(customerMemberships).set({ ...membership, updatedAt: new Date() }).where(eq(customerMemberships.id, id)).returning();
+    return updated;
+  }
+
+  // Patients (Healthcare)
+  async getPatients(tenantId: string): Promise<Patient[]> {
+    return db.select().from(patients).where(eq(patients.tenantId, tenantId)).orderBy(patients.firstName);
+  }
+
+  async getPatient(id: string): Promise<Patient | undefined> {
+    const [patient] = await db.select().from(patients).where(eq(patients.id, id));
+    return patient;
+  }
+
+  async createPatient(patient: InsertPatient): Promise<Patient> {
+    const [created] = await db.insert(patients).values(patient).returning();
+    return created;
+  }
+
+  async updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient | undefined> {
+    const [updated] = await db.update(patients).set({ ...patient, updatedAt: new Date() }).where(eq(patients.id, id)).returning();
+    return updated;
+  }
+
+  async deletePatient(id: string): Promise<void> {
+    await db.delete(patients).where(eq(patients.id, id));
+  }
+
+  // Doctors (Healthcare)
+  async getDoctors(tenantId: string): Promise<Doctor[]> {
+    return db.select().from(doctors).where(eq(doctors.tenantId, tenantId));
+  }
+
+  async getDoctor(id: string): Promise<Doctor | undefined> {
+    const [doctor] = await db.select().from(doctors).where(eq(doctors.id, id));
+    return doctor;
+  }
+
+  async createDoctor(doctor: InsertDoctor): Promise<Doctor> {
+    const [created] = await db.insert(doctors).values(doctor).returning();
+    return created;
+  }
+
+  async updateDoctor(id: string, doctor: Partial<InsertDoctor>): Promise<Doctor | undefined> {
+    const [updated] = await db.update(doctors).set({ ...doctor, updatedAt: new Date() }).where(eq(doctors.id, id)).returning();
+    return updated;
+  }
+
+  // Appointments (Healthcare)
+  async getAppointments(tenantId: string): Promise<Appointment[]> {
+    return db.select().from(appointments).where(eq(appointments.tenantId, tenantId)).orderBy(desc(appointments.appointmentDate));
+  }
+
+  async getAppointment(id: string): Promise<Appointment | undefined> {
+    const [appointment] = await db.select().from(appointments).where(eq(appointments.id, id));
+    return appointment;
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const [created] = await db.insert(appointments).values(appointment).returning();
+    return created;
+  }
+
+  async updateAppointment(id: string, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined> {
+    const [updated] = await db.update(appointments).set({ ...appointment, updatedAt: new Date() }).where(eq(appointments.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAppointment(id: string): Promise<void> {
+    await db.delete(appointments).where(eq(appointments.id, id));
+  }
+
+  // Medical Records (Healthcare)
+  async getMedicalRecords(patientId: string): Promise<MedicalRecord[]> {
+    return db.select().from(medicalRecords).where(eq(medicalRecords.patientId, patientId)).orderBy(desc(medicalRecords.visitDate));
+  }
+
+  async getMedicalRecord(id: string): Promise<MedicalRecord | undefined> {
+    const [record] = await db.select().from(medicalRecords).where(eq(medicalRecords.id, id));
+    return record;
+  }
+
+  async createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord> {
+    const [created] = await db.insert(medicalRecords).values(record).returning();
+    return created;
+  }
+
+  async updateMedicalRecord(id: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined> {
+    const [updated] = await db.update(medicalRecords).set({ ...record, updatedAt: new Date() }).where(eq(medicalRecords.id, id)).returning();
+    return updated;
   }
 }
 
