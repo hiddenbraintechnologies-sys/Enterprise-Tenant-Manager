@@ -8,6 +8,7 @@ import {
   insertPaymentSchema, insertInventoryCategorySchema, insertInventoryItemSchema,
   insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
+  insertSpaceSchema, insertDeskBookingSchema,
   users,
 } from "@shared/schema";
 import { 
@@ -1089,6 +1090,64 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating customer membership:", error);
       res.status(500).json({ message: "Failed to update membership" });
+    }
+  });
+
+  // ==================== COWORKING MODULE ====================
+
+  app.post("/api/coworking/spaces", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const parsed = insertSpaceSchema.safeParse({ ...req.body, tenantId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const space = await storage.createSpace(parsed.data);
+      res.status(201).json(space);
+    } catch (error) {
+      console.error("Error creating space:", error);
+      res.status(500).json({ message: "Failed to create space" });
+    }
+  });
+
+  app.get("/api/coworking/desks", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const spaceId = req.query.spaceId as string | undefined;
+      const desks = await storage.getDesks(tenantId, spaceId);
+      res.json(desks);
+    } catch (error) {
+      console.error("Error fetching desks:", error);
+      res.status(500).json({ message: "Failed to fetch desks" });
+    }
+  });
+
+  app.post("/api/coworking/book", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const userId = getUserId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      if (!userId) return res.status(401).json({ message: "User not authenticated" });
+      const parsed = insertDeskBookingSchema.safeParse({ ...req.body, tenantId, userId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const booking = await storage.createDeskBooking(parsed.data);
+      res.status(201).json(booking);
+    } catch (error) {
+      console.error("Error creating desk booking:", error);
+      res.status(500).json({ message: "Failed to create booking" });
+    }
+  });
+
+  app.get("/api/coworking/bookings", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const userId = getUserId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const bookings = await storage.getDeskBookings(tenantId, userId);
+      res.json(bookings);
+    } catch (error) {
+      console.error("Error fetching desk bookings:", error);
+      res.status(500).json({ message: "Failed to fetch bookings" });
     }
   });
 

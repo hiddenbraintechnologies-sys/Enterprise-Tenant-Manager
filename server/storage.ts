@@ -4,6 +4,7 @@ import {
   invoices, invoiceItems, payments,
   inventoryCategories, inventoryItems, inventoryTransactions,
   membershipPlans, customerMemberships,
+  spaces, desks, deskBookings,
   patients, doctors, appointments, medicalRecords,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
@@ -21,6 +22,9 @@ import {
   type InventoryTransaction, type InsertInventoryTransaction,
   type MembershipPlan, type InsertMembershipPlan,
   type CustomerMembership, type InsertCustomerMembership,
+  type Space, type InsertSpace,
+  type Desk, type InsertDesk,
+  type DeskBooking, type InsertDeskBooking,
   type Patient, type InsertPatient,
   type Doctor, type InsertDoctor,
   type Appointment, type InsertAppointment,
@@ -140,6 +144,17 @@ export interface IStorage {
   getCustomerMembership(id: string): Promise<CustomerMembership | undefined>;
   createCustomerMembership(membership: InsertCustomerMembership): Promise<CustomerMembership>;
   updateCustomerMembership(id: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined>;
+
+  // Coworking - Spaces
+  createSpace(space: InsertSpace): Promise<Space>;
+  getSpaces(tenantId: string): Promise<Space[]>;
+
+  // Coworking - Desks
+  getDesks(tenantId: string, spaceId?: string): Promise<Desk[]>;
+
+  // Coworking - Desk Bookings
+  createDeskBooking(booking: InsertDeskBooking): Promise<DeskBooking>;
+  getDeskBookings(tenantId: string, userId?: string): Promise<DeskBooking[]>;
 
   // Patients (Healthcare)
   getPatients(tenantId: string): Promise<Patient[]>;
@@ -680,6 +695,37 @@ export class DatabaseStorage implements IStorage {
   async updateCustomerMembership(id: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined> {
     const [updated] = await db.update(customerMemberships).set({ ...membership, updatedAt: new Date() }).where(eq(customerMemberships.id, id)).returning();
     return updated;
+  }
+
+  // Coworking - Spaces
+  async createSpace(space: InsertSpace): Promise<Space> {
+    const [created] = await db.insert(spaces).values(space).returning();
+    return created;
+  }
+
+  async getSpaces(tenantId: string): Promise<Space[]> {
+    return db.select().from(spaces).where(eq(spaces.tenantId, tenantId));
+  }
+
+  // Coworking - Desks
+  async getDesks(tenantId: string, spaceId?: string): Promise<Desk[]> {
+    if (spaceId) {
+      return db.select().from(desks).where(and(eq(desks.tenantId, tenantId), eq(desks.spaceId, spaceId)));
+    }
+    return db.select().from(desks).where(eq(desks.tenantId, tenantId));
+  }
+
+  // Coworking - Desk Bookings
+  async createDeskBooking(booking: InsertDeskBooking): Promise<DeskBooking> {
+    const [created] = await db.insert(deskBookings).values(booking).returning();
+    return created;
+  }
+
+  async getDeskBookings(tenantId: string, userId?: string): Promise<DeskBooking[]> {
+    if (userId) {
+      return db.select().from(deskBookings).where(and(eq(deskBookings.tenantId, tenantId), eq(deskBookings.userId, userId))).orderBy(desc(deskBookings.createdAt));
+    }
+    return db.select().from(deskBookings).where(eq(deskBookings.tenantId, tenantId)).orderBy(desc(deskBookings.createdAt));
   }
 
   // Patients (Healthcare)
