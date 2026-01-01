@@ -574,17 +574,15 @@ export const deskBookings = pgTable("desk_bookings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   deskId: varchar("desk_id").notNull().references(() => desks.id),
-  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
   status: bookingStatusEnum("status").default("pending"),
-  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }),
-  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_desk_bookings_tenant").on(table.tenantId),
   index("idx_desk_bookings_desk").on(table.deskId),
-  index("idx_desk_bookings_customer").on(table.customerId),
+  index("idx_desk_bookings_user").on(table.userId),
   index("idx_desk_bookings_time").on(table.startTime, table.endTime),
 ]);
 
