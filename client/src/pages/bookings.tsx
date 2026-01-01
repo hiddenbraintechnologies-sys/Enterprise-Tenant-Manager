@@ -1,0 +1,546 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Plus,
+  Search,
+  CalendarIcon,
+  Clock,
+  Check,
+  X,
+  Calendar as CalendarIconOutline,
+} from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Booking, Customer, Service, BookingWithDetails } from "@shared/schema";
+import { format, parseISO, isToday, isTomorrow } from "date-fns";
+import { cn } from "@/lib/utils";
+
+const bookingFormSchema = z.object({
+  customerId: z.string().min(1, "Customer is required"),
+  serviceId: z.string().min(1, "Service is required"),
+  bookingDate: z.date({ required_error: "Date is required" }),
+  startTime: z.string().min(1, "Start time is required"),
+  notes: z.string().optional(),
+});
+
+type BookingFormValues = z.infer<typeof bookingFormSchema>;
+
+const timeSlots = Array.from({ length: 24 }, (_, i) => {
+  const hour = i.toString().padStart(2, "0");
+  return [`${hour}:00`, `${hour}:30`];
+}).flat();
+
+function getStatusVariant(status: string) {
+  switch (status) {
+    case "confirmed":
+      return "default";
+    case "completed":
+      return "secondary";
+    case "cancelled":
+      return "destructive";
+    default:
+      return "outline";
+  }
+}
+
+function getPaymentStatusVariant(status: string) {
+  switch (status) {
+    case "paid":
+      return "default";
+    case "partial":
+      return "secondary";
+    case "refunded":
+      return "destructive";
+    default:
+      return "outline";
+  }
+}
+
+function BookingDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+
+  const { data: customers } = useQuery<Customer[]>({
+    queryKey: ["/api/customers"],
+  });
+
+  const { data: services } = useQuery<Service[]>({
+    queryKey: ["/api/services"],
+  });
+
+  const form = useForm<BookingFormValues>({
+    resolver: zodResolver(bookingFormSchema),
+    defaultValues: {
+      customerId: "",
+      serviceId: "",
+      startTime: "09:00",
+      notes: "",
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (data: BookingFormValues) => {
+      const selectedService = services?.find((s) => s.id === data.serviceId);
+      const startMinutes = parseInt(data.startTime.split(":")[0]) * 60 + parseInt(data.startTime.split(":")[1]);
+      const endMinutes = startMinutes + (selectedService?.duration ?? 60);
+      const endHour = Math.floor(endMinutes / 60).toString().padStart(2, "0");
+      const endMin = (endMinutes % 60).toString().padStart(2, "0");
+
+      return apiRequest("POST", "/api/bookings", {
+        ...data,
+        bookingDate: format(data.bookingDate, "yyyy-MM-dd"),
+        endTime: `${endHour}:${endMin}`,
+        amount: selectedService?.price,
+        status: "pending",
+        paymentStatus: "pending",
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Booking created",
+        description: "The booking has been scheduled.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/upcoming"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      onSuccess();
+      onOpenChange(false);
+      form.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: BookingFormValues) => {
+    mutation.mutate(data);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Booking</DialogTitle>
+          <DialogDescription>
+            Create a new booking for a customer.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="customerId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Customer</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-booking-customer">
+                        <SelectValue placeholder="Select customer" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {customers?.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="serviceId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Service</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-booking-service">
+                        <SelectValue placeholder="Select service" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {services?.filter((s) => s.isActive).map((service) => (
+                        <SelectItem key={service.id} value={service.id}>
+                          {service.name} - ₹{Number(service.price).toLocaleString()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="bookingDate"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          data-testid="button-booking-date"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {field.value ? format(field.value, "PPP") : "Pick a date"}
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="startTime"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Time</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-booking-time">
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="max-h-60">
+                      {timeSlots.filter((t) => {
+                        const hour = parseInt(t.split(":")[0]);
+                        return hour >= 6 && hour < 22;
+                      }).map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes (optional)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Additional notes..." {...field} data-testid="input-booking-notes" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={mutation.isPending} data-testid="button-save-booking">
+                {mutation.isPending ? "Creating..." : "Create Booking"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function Bookings() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { toast } = useToast();
+
+  const { data: bookings, isLoading } = useQuery<BookingWithDetails[]>({
+    queryKey: ["/api/bookings"],
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      return apiRequest("PATCH", `/api/bookings/${id}`, { status });
+    },
+    onSuccess: () => {
+      toast({ title: "Booking updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/upcoming"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filteredBookings = bookings?.filter((booking) => {
+    const matchesSearch =
+      booking.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      booking.service?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || booking.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const formatDate = (dateStr: string) => {
+    const date = parseISO(dateStr);
+    if (isToday(date)) return "Today";
+    if (isTomorrow(date)) return "Tomorrow";
+    return format(date, "MMM d, yyyy");
+  };
+
+  return (
+    <DashboardLayout title="Bookings" breadcrumbs={[{ label: "Bookings" }]}>
+      <Card>
+        <CardHeader className="flex flex-col gap-4 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-4">
+            <div className="relative max-w-sm flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search bookings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-bookings"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40" data-testid="select-status-filter">
+                <SelectValue placeholder="Filter status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => setDialogOpen(true)} data-testid="button-add-booking">
+            <Plus className="mr-2 h-4 w-4" />
+            New Booking
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-4 rounded-md border p-4">
+                  <Skeleton className="h-12 w-12 rounded-md" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                  <Skeleton className="h-6 w-20" />
+                </div>
+              ))}
+            </div>
+          ) : filteredBookings && filteredBookings.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Service</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredBookings.map((booking) => (
+                    <TableRow key={booking.id} data-testid={`booking-row-${booking.id}`}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 flex-col items-center justify-center rounded-md bg-muted">
+                            <span className="text-[10px] font-medium text-muted-foreground">
+                              {format(parseISO(booking.bookingDate), "MMM")}
+                            </span>
+                            <span className="text-sm font-bold leading-none">
+                              {format(parseISO(booking.bookingDate), "d")}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium">{formatDate(booking.bookingDate)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {booking.startTime?.slice(0, 5)} - {booking.endTime?.slice(0, 5)}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{booking.customer?.name || "-"}</TableCell>
+                      <TableCell>{booking.service?.name || "-"}</TableCell>
+                      <TableCell>₹{Number(booking.amount || 0).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusVariant(booking.status || "pending")}>
+                          {booking.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getPaymentStatusVariant(booking.paymentStatus || "pending")}>
+                          {booking.paymentStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {booking.status === "pending" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  updateStatusMutation.mutate({
+                                    id: booking.id,
+                                    status: "confirmed",
+                                  })
+                                }
+                                data-testid={`button-confirm-${booking.id}`}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  updateStatusMutation.mutate({
+                                    id: booking.id,
+                                    status: "cancelled",
+                                  })
+                                }
+                                data-testid={`button-cancel-${booking.id}`}
+                              >
+                                <X className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
+                          {booking.status === "confirmed" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                updateStatusMutation.mutate({
+                                  id: booking.id,
+                                  status: "completed",
+                                })
+                              }
+                              data-testid={`button-complete-${booking.id}`}
+                            >
+                              <Check className="h-4 w-4 text-green-600" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <CalendarIconOutline className="h-12 w-12 text-muted-foreground/50" />
+              <p className="mt-4 text-muted-foreground">
+                {searchQuery || statusFilter !== "all"
+                  ? "No bookings found"
+                  : "No bookings yet"}
+              </p>
+              {!searchQuery && statusFilter === "all" && (
+                <Button className="mt-4" onClick={() => setDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Your First Booking
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <BookingDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={() => {}}
+      />
+    </DashboardLayout>
+  );
+}
