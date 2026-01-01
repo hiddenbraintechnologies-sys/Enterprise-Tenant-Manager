@@ -16,8 +16,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  clinic: "Clinic / Healthcare",
+  salon: "Salon / Beauty",
+  pg: "PG / Hostel / Co-living",
+  coworking: "Coworking Space",
+  service: "General Service Business",
+};
+
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, tenant } = useAuth();
   const { theme, setTheme } = useTheme();
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
@@ -141,25 +149,23 @@ export default function Settings() {
                 <Label htmlFor="businessName">Business Name</Label>
                 <Input
                   id="businessName"
-                  defaultValue="My Business"
+                  defaultValue={tenant?.name || "My Business"}
                   placeholder="Business name"
                   data-testid="input-business-name"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="businessType">Business Type</Label>
-                <Select defaultValue="service">
-                  <SelectTrigger data-testid="select-business-type">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pg">PG / Hostel</SelectItem>
-                    <SelectItem value="salon">Salon & Beauty</SelectItem>
-                    <SelectItem value="gym">Gym & Fitness</SelectItem>
-                    <SelectItem value="coaching">Coaching Institute</SelectItem>
-                    <SelectItem value="service">Service Business</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="businessType"
+                  value={BUSINESS_TYPE_LABELS[tenant?.businessType || "service"] || "Service Business"}
+                  disabled
+                  className="bg-muted"
+                  data-testid="input-business-type"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Business type cannot be changed after registration
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="timezone">Timezone</Label>

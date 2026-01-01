@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -8,8 +8,11 @@ import { useAuth } from "@/hooks/use-auth";
 
 import Landing from "@/pages/landing";
 import Register from "@/pages/register";
-import Dashboard from "@/pages/dashboard";
+import ClinicDashboard from "@/pages/clinic-dashboard";
+import SalonDashboard from "@/pages/salon-dashboard";
+import PGDashboard from "@/pages/pg-dashboard";
 import CoworkingDashboard from "@/pages/coworking-dashboard";
+import ServiceDashboard from "@/pages/service-dashboard";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
@@ -17,8 +20,16 @@ import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
+const DASHBOARD_ROUTES = {
+  clinic: "/dashboard/clinic",
+  salon: "/dashboard/salon",
+  pg: "/dashboard/pg",
+  coworking: "/dashboard/coworking",
+  service: "/dashboard/service",
+} as const;
+
 function AppRouter() {
-  const { user, isLoading } = useAuth();
+  const { user, businessType, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -40,16 +51,29 @@ function AppRouter() {
     );
   }
 
+  const defaultDashboard = DASHBOARD_ROUTES[businessType] || DASHBOARD_ROUTES.service;
+
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/">
+        <Redirect to={defaultDashboard} />
+      </Route>
+      <Route path="/dashboard">
+        <Redirect to={defaultDashboard} />
+      </Route>
+      
+      <Route path="/dashboard/clinic" component={ClinicDashboard} />
+      <Route path="/dashboard/salon" component={SalonDashboard} />
+      <Route path="/dashboard/pg" component={PGDashboard} />
       <Route path="/dashboard/coworking" component={CoworkingDashboard} />
+      <Route path="/dashboard/service" component={ServiceDashboard} />
+      
       <Route path="/coworking" component={CoworkingDashboard} />
       <Route path="/coworking/desks" component={CoworkingDashboard} />
       <Route path="/coworking/bookings" component={CoworkingDashboard} />
       <Route path="/coworking/spaces" component={CoworkingDashboard} />
       <Route path="/coworking/book" component={CoworkingDashboard} />
+      
       <Route path="/customers" component={Customers} />
       <Route path="/customers/new" component={Customers} />
       <Route path="/services" component={Services} />
