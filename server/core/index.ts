@@ -7,3 +7,4 @@ export * from "./jwt";
 export * from "./auth-middleware";
 export * from "./tenant-isolation";
 export * from "./scoped-repository";
+export * from "./compliance";
