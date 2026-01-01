@@ -59,9 +59,86 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
 
 ### Multi-Tenant System
 - **Tenant Isolation**: All data scoped to tenant via tenant_id
-- **Tenant Resolution**: Middleware resolves tenant from authenticated user
+- **Tenant Resolution**: Multiple resolution strategies (JWT → Header → Subdomain → User Default)
 - **Auto-Assignment**: New users auto-assigned to default tenant
-- **Custom Domains**: Support for tenant custom domains (planned)
+- **Custom Domains**: Support for tenant custom domains
+- **Cross-Tenant Prevention**: Middleware stack prevents all unauthorized tenant access
+
+#### Tenant Resolution Strategies (Priority Order)
+1. **JWT Claim** (`tnt` field in JWT payload) - Primary for authenticated API calls
+2. **Header** (`X-Tenant-ID` header) - For service-to-service calls
+3. **Subdomain** (e.g., `acme.bizflow.app`) - For custom tenant URLs
+4. **User Default** - Falls back to user's default tenant
+
+#### Key Files
+- `server/core/tenant-isolation.ts` - Tenant resolver and isolation utilities
+- `server/core/scoped-repository.ts` - Query-level tenant isolation patterns
+- `server/core/context.ts` - Request context middleware
+
+#### Tenant Isolation Code Patterns
+
+```typescript
+// 1. Using TenantScopedRepository for automatic query-level isolation
+import { createScopedRepository } from "./core";
+import { customers } from "@shared/schema";
+
+app.get("/api/customers", async (req, res) => {
+  const tenantId = req.context.tenant.id;
+  const repo = createScopedRepository(tenantId, customers);
+  
+  // All queries automatically filtered by tenantId
+  const allCustomers = await repo.findAll();
+  const customer = await repo.findById(id); // Throws if not in tenant
+  
+  res.json(allCustomers);
+});
+
+// 2. Using TenantIsolation class for manual validation
+import { createTenantIsolation } from "./core";
+
+app.patch("/api/customers/:id", async (req, res) => {
+  const isolation = createTenantIsolation(req);
+  const customer = await storage.getCustomer(req.params.id);
+  
+  // Validates ownership - throws TenantIsolationError if cross-tenant
+  isolation.validateOwnership(customer);
+  
+  // Safe to update
+  const updated = await storage.updateCustomer(req.params.id, req.body);
+  res.json(updated);
+});
+
+// 3. Using middleware for route-level enforcement
+import { requireTenantIsolation, enforceTenantBoundary } from "./core";
+
+app.use("/api/customers", 
+  requireTenantIsolation(),      // Ensures tenant context exists
+  enforceTenantBoundary(),       // Validates user access to tenant
+);
+
+// 4. Scoping insert data
+import { scopeInsertData } from "./core";
+
+app.post("/api/customers", async (req, res) => {
+  const tenantId = req.context.tenant.id;
+  const data = scopeInsertData(req.body, tenantId);  // Adds tenantId
+  const customer = await storage.createCustomer(data);
+  res.json(customer);
+});
+
+// 5. Cross-tenant validation helper
+import { assertRecordBelongsToTenant } from "./core";
+
+const booking = await storage.getBooking(bookingId);
+assertRecordBelongsToTenant(booking, tenantId, "Booking");
+// Throws "Booking not found" (404) or "Booking access denied" (403)
+```
+
+#### Error Handling
+- `TenantIsolationError` with status codes:
+  - 404: Record not found
+  - 403: Cross-tenant access denied
+- Error response format: `{ message, code: "TENANT_ISOLATION_VIOLATION" }`
 
 ### Feature Flags
 - **Per-Tenant Features**: Enable/disable features per tenant
