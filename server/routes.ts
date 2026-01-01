@@ -16,7 +16,7 @@ import { z } from "zod";
 import { 
   requirePermission, requireFeature, auditMiddleware, 
   tenantService, auditService, featureService, permissionService,
-  FEATURES, PERMISSIONS,
+  FEATURES, PERMISSIONS, BUSINESS_TYPE_MODULES, type BusinessType,
   jwtAuthService, authenticateJWT, rateLimit, requireRole, requireMinimumRole,
   resolveTenantFromUser,
   phiAccessMiddleware, requireAccessReason, dataMaskingMiddleware,
@@ -104,6 +104,13 @@ export async function registerRoutes(
       });
 
       const { newTenant, newUser } = result;
+
+      const businessTypeKey = businessType as BusinessType;
+      const modulesToEnable = BUSINESS_TYPE_MODULES[businessTypeKey] || BUSINESS_TYPE_MODULES.service;
+      
+      for (const featureCode of modulesToEnable) {
+        await featureService.enableFeature(newTenant.id, featureCode);
+      }
 
       const tokens = await jwtAuthService.generateTokenPair(
         { id: newUser.id, email: newUser.email, firstName: newUser.firstName, lastName: newUser.lastName },

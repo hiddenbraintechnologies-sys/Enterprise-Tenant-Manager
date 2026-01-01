@@ -5,7 +5,7 @@ import {
   type TenantDomain, type InsertTenantDomain, type UserTenant
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { featureService, FEATURES } from "./features";
+import { featureService, FEATURES, BUSINESS_TYPE_MODULES, type BusinessType } from "./features";
 
 export class TenantService {
   async getTenant(id: string): Promise<Tenant | undefined> {
@@ -39,16 +39,10 @@ export class TenantService {
       tenantId: tenant.id,
     });
 
-    const defaultFeatures = [
-      FEATURES.BOOKING_SYSTEM,
-      FEATURES.CUSTOMER_MANAGEMENT,
-      FEATURES.SERVICE_CATALOG,
-      FEATURES.STAFF_MANAGEMENT,
-      FEATURES.ANALYTICS_BASIC,
-      FEATURES.NOTIFICATIONS_EMAIL,
-    ];
+    const businessType = (data.businessType || "service") as BusinessType;
+    const modulesToEnable = BUSINESS_TYPE_MODULES[businessType] || BUSINESS_TYPE_MODULES.service;
 
-    for (const featureCode of defaultFeatures) {
+    for (const featureCode of modulesToEnable) {
       await featureService.enableFeature(tenant.id, featureCode);
     }
 
@@ -56,6 +50,10 @@ export class TenantService {
   }
 
   async updateTenant(id: string, data: Partial<InsertTenant>): Promise<Tenant | undefined> {
+    if ("businessType" in data) {
+      delete data.businessType;
+    }
+
     const [updated] = await db.update(tenants)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(tenants.id, id))
