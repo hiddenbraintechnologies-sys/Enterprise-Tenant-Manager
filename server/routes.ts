@@ -38,6 +38,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  await featureService.seedFeatureFlags();
   await tenantService.getOrCreateDefaultTenant();
 
   // ==================== AUTH ROUTES ====================

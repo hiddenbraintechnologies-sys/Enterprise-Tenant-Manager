@@ -267,6 +267,44 @@ export class FeatureService {
       featureCache.clear();
     }
   }
+
+  async seedFeatureFlags(): Promise<void> {
+    const featureDefinitions = [
+      { code: FEATURES.BOOKING_SYSTEM, name: "Booking System", category: "core", defaultEnabled: true },
+      { code: FEATURES.CUSTOMER_MANAGEMENT, name: "Customer Management", category: "core", defaultEnabled: true },
+      { code: FEATURES.SERVICE_CATALOG, name: "Service Catalog", category: "core", defaultEnabled: true },
+      { code: FEATURES.STAFF_MANAGEMENT, name: "Staff Management", category: "core", defaultEnabled: true },
+      { code: FEATURES.ANALYTICS_BASIC, name: "Basic Analytics", category: "analytics", defaultEnabled: true },
+      { code: FEATURES.ANALYTICS_ADVANCED, name: "Advanced Analytics", category: "analytics", requiredTier: "pro" },
+      { code: FEATURES.INVENTORY, name: "Inventory Management", category: "operations", requiredTier: "pro" },
+      { code: FEATURES.NOTIFICATIONS_EMAIL, name: "Email Notifications", category: "notifications", defaultEnabled: true },
+      { code: FEATURES.NOTIFICATIONS_SMS, name: "SMS Notifications", category: "notifications", requiredTier: "pro" },
+      { code: FEATURES.NOTIFICATIONS_WHATSAPP, name: "WhatsApp Notifications", category: "notifications", requiredTier: "enterprise" },
+      { code: FEATURES.BILLING_INVOICES, name: "Invoicing", category: "billing", defaultEnabled: true },
+      { code: FEATURES.BILLING_SUBSCRIPTIONS, name: "Subscription Billing", category: "billing", requiredTier: "pro" },
+      { code: FEATURES.CUSTOM_DOMAINS, name: "Custom Domains", category: "branding", requiredTier: "enterprise" },
+      { code: FEATURES.WHITE_LABEL, name: "White Label", category: "branding", requiredTier: "enterprise" },
+      { code: FEATURES.API_ACCESS, name: "API Access", category: "developer", requiredTier: "pro" },
+      { code: FEATURES.MULTI_LOCATION, name: "Multi-Location", category: "operations", requiredTier: "enterprise" },
+      { code: FEATURES.PATIENTS, name: "Patient Management", category: "healthcare", defaultEnabled: false },
+      { code: FEATURES.APPOINTMENTS, name: "Appointments", category: "scheduling", defaultEnabled: true },
+      { code: FEATURES.EMR, name: "Electronic Medical Records", category: "healthcare", requiredTier: "enterprise" },
+      { code: FEATURES.PRESCRIPTIONS, name: "Prescriptions", category: "healthcare", requiredTier: "enterprise" },
+      { code: FEATURES.DESKS, name: "Desk Management", category: "coworking", defaultEnabled: false },
+      { code: FEATURES.SPACES, name: "Space Management", category: "coworking", defaultEnabled: false },
+      { code: FEATURES.MEMBERSHIPS, name: "Membership Plans", category: "billing", defaultEnabled: false },
+      { code: FEATURES.ROOMS, name: "Room Management", category: "accommodation", defaultEnabled: false },
+      { code: FEATURES.TENANTS_MANAGEMENT, name: "Tenant Management", category: "accommodation", defaultEnabled: false },
+      { code: FEATURES.SERVICES, name: "Services", category: "core", defaultEnabled: true },
+    ];
+
+    for (const feature of featureDefinitions) {
+      const [existing] = await db.select().from(featureFlags).where(eq(featureFlags.code, feature.code));
+      if (!existing) {
+        await db.insert(featureFlags).values(feature);
+      }
+    }
+  }
 }
 
 export const featureService = new FeatureService();
