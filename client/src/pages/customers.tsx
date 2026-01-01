@@ -241,20 +241,18 @@ export default function Customers() {
   return (
     <DashboardLayout title="Customers" breadcrumbs={[{ label: "Customers" }]}>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
-          <div className="flex flex-1 items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search customers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-                data-testid="input-search-customers"
-              />
-            </div>
+        <CardHeader className="flex flex-col gap-4 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search customers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-customers"
+            />
           </div>
-          <Button onClick={handleAdd} data-testid="button-add-customer">
+          <Button onClick={handleAdd} className="w-full sm:w-auto" data-testid="button-add-customer">
             <Plus className="mr-2 h-4 w-4" />
             Add Customer
           </Button>
@@ -273,70 +271,120 @@ export default function Customers() {
               ))}
             </div>
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Added</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCustomers.map((customer) => (
-                    <TableRow key={customer.id} data-testid={`customer-row-${customer.id}`}>
-                      <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell>
-                        {customer.email ? (
-                          <span className="flex items-center gap-2">
-                            <Mail className="h-3 w-3 text-muted-foreground" />
+            <>
+              {/* Mobile Card View */}
+              <div className="space-y-3 md:hidden">
+                {filteredCustomers.map((customer) => (
+                  <div
+                    key={customer.id}
+                    className="rounded-md border p-4"
+                    data-testid={`customer-card-${customer.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{customer.name}</p>
+                        {customer.email && (
+                          <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground truncate">
+                            <Mail className="h-3 w-3 shrink-0" />
                             {customer.email}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
+                          </p>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {customer.phone ? (
-                          <span className="flex items-center gap-2">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
+                        {customer.phone && (
+                          <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                            <Phone className="h-3 w-3 shrink-0" />
                             {customer.phone}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
+                          </p>
                         )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {customer.createdAt ? format(new Date(customer.createdAt), "MMM d, yyyy") : "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(customer)}
-                            data-testid={`button-edit-customer-${customer.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteMutation.mutate(customer.id)}
-                            disabled={deleteMutation.isPending}
-                            data-testid={`button-delete-customer-${customer.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(customer)}
+                          data-testid={`button-edit-customer-${customer.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(customer.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-customer-${customer.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop Table View */}
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Added</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCustomers.map((customer) => (
+                      <TableRow key={customer.id} data-testid={`customer-row-${customer.id}`}>
+                        <TableCell className="font-medium">{customer.name}</TableCell>
+                        <TableCell>
+                          {customer.email ? (
+                            <span className="flex items-center gap-2">
+                              <Mail className="h-3 w-3 text-muted-foreground" />
+                              {customer.email}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {customer.phone ? (
+                            <span className="flex items-center gap-2">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              {customer.phone}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {customer.createdAt ? format(new Date(customer.createdAt), "MMM d, yyyy") : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(customer)}
+                              data-testid={`button-edit-customer-${customer.id}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteMutation.mutate(customer.id)}
+                              disabled={deleteMutation.isPending}
+                              data-testid={`button-delete-customer-${customer.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="h-12 w-12 text-muted-foreground/50" />

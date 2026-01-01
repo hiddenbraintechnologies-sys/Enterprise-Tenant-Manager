@@ -282,7 +282,7 @@ function ServiceCard({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
             <Button
               variant="ghost"
               size="icon"
@@ -351,7 +351,7 @@ export default function Services() {
   return (
     <DashboardLayout title="Services" breadcrumbs={[{ label: "Services" }]}>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search services..."
@@ -361,7 +361,7 @@ export default function Services() {
             data-testid="input-search-services"
           />
         </div>
-        <Button onClick={handleAdd} data-testid="button-add-service">
+        <Button onClick={handleAdd} className="w-full sm:w-auto" data-testid="button-add-service">
           <Plus className="mr-2 h-4 w-4" />
           Add Service
         </Button>
