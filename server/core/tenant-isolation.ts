@@ -108,12 +108,13 @@ export class TenantResolver {
   }
 
   private async resolveByJwtClaim(req: Request): Promise<Tenant | null> {
-    const jwtPayload = (req as any).jwtPayload;
-    if (!jwtPayload?.tnt) {
+    const jwtPayload = (req as any).jwtPayload || (req as any).tokenPayload;
+    if (!jwtPayload?.tnt && !jwtPayload?.tenantId) {
       return null;
     }
 
-    return this.getTenantById(jwtPayload.tnt);
+    const tenantId = jwtPayload.tnt || jwtPayload.tenantId;
+    return this.getTenantById(tenantId);
   }
 
   private async resolveByPath(req: Request): Promise<Tenant | null> {
@@ -457,4 +458,195 @@ export function enforceTenantBoundary() {
 
     next();
   };
+}
+
+export interface UnauthorizedAccessLog {
+  userId?: string | null;
+  tenantId?: string | null;
+  action: string;
+  resource: string;
+  reason: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestBody?: Record<string, any>;
+  requestPath: string;
+  requestMethod: string;
+}
+
+export async function logUnauthorizedAccess(entry: UnauthorizedAccessLog): Promise<void> {
+  const { auditService } = await import("./audit");
+  
+  await auditService.logAsync({
+    tenantId: entry.tenantId,
+    userId: entry.userId,
+    action: "access",
+    resource: entry.resource,
+    metadata: {
+      unauthorized: true,
+      reason: entry.reason,
+      requestPath: entry.requestPath,
+      requestMethod: entry.requestMethod,
+      attemptedAction: entry.action,
+      requestBody: entry.requestBody ? sanitizeRequestBody(entry.requestBody) : undefined,
+    },
+    ipAddress: entry.ipAddress,
+    userAgent: entry.userAgent,
+  });
+
+  console.warn(`[SECURITY] Unauthorized access attempt: ${entry.reason}`, {
+    userId: entry.userId,
+    tenantId: entry.tenantId,
+    path: entry.requestPath,
+    method: entry.requestMethod,
+  });
+}
+
+function sanitizeRequestBody(body: Record<string, any>): Record<string, any> {
+  const sensitiveFields = ["password", "token", "secret", "apiKey", "creditCard"];
+  const sanitized: Record<string, any> = {};
+  
+  for (const [key, value] of Object.entries(body)) {
+    if (sensitiveFields.some(f => key.toLowerCase().includes(f.toLowerCase()))) {
+      sanitized[key] = "[REDACTED]";
+    } else if (typeof value === "object" && value !== null) {
+      sanitized[key] = sanitizeRequestBody(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  
+  return sanitized;
+}
+
+export function blockBusinessTypeModification() {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "POST" && req.method !== "PUT" && req.method !== "PATCH") {
+      return next();
+    }
+
+    const body = req.body;
+    if (!body || typeof body !== "object") {
+      return next();
+    }
+
+    const hasBusinessTypeField = "businessType" in body || "business_type" in body;
+    
+    if (!hasBusinessTypeField) {
+      return next();
+    }
+
+    const isTenantRoute = req.path.includes("/tenant") || req.path.includes("/organization");
+    
+    if (!isTenantRoute) {
+      return next();
+    }
+
+    await logUnauthorizedAccess({
+      userId: req.context?.user?.id,
+      tenantId: req.context?.tenant?.id,
+      action: "modify_business_type",
+      resource: "tenant",
+      reason: "Attempted to modify immutable business_type field",
+      ipAddress: req.ip || req.socket?.remoteAddress,
+      userAgent: req.get("user-agent"),
+      requestBody: body,
+      requestPath: req.path,
+      requestMethod: req.method,
+    });
+
+    return res.status(403).json({
+      message: "Business type cannot be modified after tenant creation",
+      code: "BUSINESS_TYPE_IMMUTABLE",
+    });
+  };
+}
+
+export function tenantIsolationMiddleware() {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.context?.tenant) {
+        return res.status(403).json({
+          message: "Tenant context required",
+          code: "TENANT_REQUIRED",
+        });
+      }
+
+      const tenantId = req.context.tenant.id;
+      const businessType = req.context.tenant.businessType;
+
+      (req as any).tenantId = tenantId;
+      (req as any).businessType = businessType;
+
+      const isolation = new TenantIsolation(tenantId);
+      (req as any).tenantIsolation = isolation;
+
+      if (req.context.user?.id) {
+        const hasAccess = await validateUserTenantAccess(req.context.user.id, tenantId);
+        
+        if (!hasAccess) {
+          await logUnauthorizedAccess({
+            userId: req.context.user.id,
+            tenantId: tenantId,
+            action: "access",
+            resource: req.path,
+            reason: "User does not have access to tenant",
+            ipAddress: req.ip || req.socket?.remoteAddress,
+            userAgent: req.get("user-agent"),
+            requestPath: req.path,
+            requestMethod: req.method,
+          });
+
+          return res.status(403).json({
+            message: "Access denied to this tenant",
+            code: "TENANT_ACCESS_DENIED",
+          });
+        }
+      }
+
+      next();
+    } catch (error) {
+      if (error instanceof TenantIsolationError) {
+        await logUnauthorizedAccess({
+          userId: req.context?.user?.id,
+          tenantId: req.context?.tenant?.id,
+          action: "access",
+          resource: req.path,
+          reason: error.message,
+          ipAddress: req.ip || req.socket?.remoteAddress,
+          userAgent: req.get("user-agent"),
+          requestPath: req.path,
+          requestMethod: req.method,
+        });
+
+        return res.status(error.statusCode).json({
+          message: error.message,
+          code: error.code,
+        });
+      }
+      next(error);
+    }
+  };
+}
+
+export function createTenantScopedMiddlewareStack(options?: { 
+  blockBusinessType?: boolean;
+  requireAuth?: boolean;
+}) {
+  const { authenticateJWT } = require("./auth-middleware");
+  const opts = { blockBusinessType: true, requireAuth: true, ...options };
+  
+  const stack: any[] = [];
+  
+  if (opts.requireAuth) {
+    stack.push(authenticateJWT({ required: true }));
+  }
+  
+  stack.push(tenantResolutionMiddleware());
+  stack.push(tenantIsolationMiddleware());
+  
+  if (opts.blockBusinessType) {
+    stack.push(blockBusinessTypeModification());
+  }
+  
+  return stack;
 }

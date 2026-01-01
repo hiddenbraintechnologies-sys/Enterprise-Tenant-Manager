@@ -9,7 +9,7 @@ import {
   insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
-  tenants, userTenants, users,
+  tenants, userTenants, users, roles,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -21,6 +21,8 @@ import {
   resolveTenantFromUser,
   phiAccessMiddleware, requireAccessReason, dataMaskingMiddleware,
   complianceService, createDataMasker,
+  tenantIsolationMiddleware, blockBusinessTypeModification, logUnauthorizedAccess,
+  tenantResolutionMiddleware, enforceTenantBoundary,
 } from "./core";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -77,6 +79,20 @@ export async function registerRoutes(
 
       const passwordHash = await bcrypt.hash(password, 12);
 
+      let [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
+      if (!adminRole) {
+        [adminRole] = await db.insert(roles).values({
+          id: "role_admin",
+          name: "Admin",
+          description: "Full administrative access",
+          isSystem: true,
+        }).onConflictDoNothing().returning();
+        
+        if (!adminRole) {
+          [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
+        }
+      }
+
       const result = await db.transaction(async (tx) => {
         const [newTenant] = await tx.insert(tenants).values({
           name: businessName,
@@ -96,9 +112,9 @@ export async function registerRoutes(
         await tx.insert(userTenants).values({
           userId: newUser.id,
           tenantId: newTenant.id,
-          role: "admin",
-          isOwner: true,
+          roleId: adminRole.id,
           isDefault: true,
+          isActive: true,
         });
 
         return { newTenant, newUser };
@@ -403,6 +419,122 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Revoke token error:", error);
       res.status(500).json({ message: "Failed to revoke token" });
+    }
+  });
+
+  // ==================== TENANT MANAGEMENT ROUTES ====================
+  
+  const tenantProtectedMiddleware = [
+    authenticateJWT({ required: true }),
+    tenantResolutionMiddleware(),
+    enforceTenantBoundary(),
+    tenantIsolationMiddleware(),
+    blockBusinessTypeModification(),
+  ];
+
+  app.get("/api/tenant", ...tenantProtectedMiddleware, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+
+      const tenant = await tenantService.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const settings = await tenantService.getTenantSettings(tenantId);
+      const features = await featureService.getTenantFeatures(tenantId);
+
+      res.json({
+        tenant,
+        settings,
+        features: features.map(f => f.featureCode),
+      });
+    } catch (error) {
+      console.error("Get tenant error:", error);
+      res.status(500).json({ message: "Failed to get tenant" });
+    }
+  });
+
+  app.patch("/api/tenant", ...tenantProtectedMiddleware, requireMinimumRole("admin"), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+
+      const { name, email, phone, address, timezone, currency, logo } = req.body;
+
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (email !== undefined) updateData.email = email;
+      if (phone !== undefined) updateData.phone = phone;
+      if (address !== undefined) updateData.address = address;
+      if (timezone !== undefined) updateData.timezone = timezone;
+      if (currency !== undefined) updateData.currency = currency;
+      if (logo !== undefined) updateData.logo = logo;
+
+      const updatedTenant = await tenantService.updateTenant(tenantId, updateData);
+
+      auditService.logAsync({
+        tenantId,
+        userId: getUserId(req),
+        action: "update",
+        resource: "tenant",
+        resourceId: tenantId,
+        newValue: updateData,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(updatedTenant);
+    } catch (error) {
+      console.error("Update tenant error:", error);
+      res.status(500).json({ message: "Failed to update tenant" });
+    }
+  });
+
+  app.get("/api/tenant/settings", ...tenantProtectedMiddleware, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+
+      const settings = await tenantService.getTenantSettings(tenantId);
+      res.json(settings || {});
+    } catch (error) {
+      console.error("Get tenant settings error:", error);
+      res.status(500).json({ message: "Failed to get tenant settings" });
+    }
+  });
+
+  app.patch("/api/tenant/settings", ...tenantProtectedMiddleware, requireMinimumRole("admin"), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+
+      const settings = await tenantService.updateTenantSettings(tenantId, req.body);
+
+      auditService.logAsync({
+        tenantId,
+        userId: getUserId(req),
+        action: "update",
+        resource: "tenant_settings",
+        resourceId: tenantId,
+        newValue: req.body,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(settings);
+    } catch (error) {
+      console.error("Update tenant settings error:", error);
+      res.status(500).json({ message: "Failed to update tenant settings" });
     }
   });
 
