@@ -14,7 +14,7 @@ import { users } from "./models/auth";
 export const userRoleEnum = pgEnum("user_role", ["super_admin", "admin", "manager", "staff", "customer"]);
 export const bookingStatusEnum = pgEnum("booking_status", ["pending", "confirmed", "completed", "cancelled"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "refunded"]);
-export const businessTypeEnum = pgEnum("business_type", ["pg", "salon", "gym", "coaching", "clinic", "diagnostic", "service", "other"]);
+export const businessTypeEnum = pgEnum("business_type", ["clinic", "salon", "pg", "coworking", "service"]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp", "push"]);
 export const notificationStatusEnum = pgEnum("notification_status", ["pending", "sent", "delivered", "failed"]);
