@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 
 import Landing from "@/pages/landing";
+import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import CoworkingDashboard from "@/pages/coworking-dashboard";
 import Customers from "@/pages/customers";
@@ -31,7 +32,12 @@ function AppRouter() {
   }
 
   if (!user) {
-    return <Landing />;
+    return (
+      <Switch>
+        <Route path="/register" component={Register} />
+        <Route component={Landing} />
+      </Switch>
+    );
   }
 
   return (

@@ -9,8 +9,10 @@ import {
   insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
-  users,
+  tenants, userTenants, users,
 } from "@shared/schema";
+import bcrypt from "bcrypt";
+import { z } from "zod";
 import { 
   requirePermission, requireFeature, auditMiddleware, 
   tenantService, auditService, featureService, permissionService,
@@ -41,6 +43,109 @@ export async function registerRoutes(
   // ==================== AUTH ROUTES ====================
   
   const authRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
+
+  const registrationSchema = z.object({
+    firstName: z.string().min(1, "First name is required").max(100),
+    lastName: z.string().min(1, "Last name is required").max(100),
+    email: z.string().email("Invalid email format"),
+    password: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number"),
+    businessName: z.string().min(1, "Business name is required").max(200),
+    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service"]),
+  });
+
+  app.post("/api/auth/register", authRateLimit, async (req, res) => {
+    try {
+      const parsed = registrationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const { firstName, lastName, email, password, businessName, businessType } = parsed.data;
+
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+      if (existingUser) {
+        return res.status(409).json({ message: "Email already registered" });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+
+      const result = await db.transaction(async (tx) => {
+        const [newTenant] = await tx.insert(tenants).values({
+          name: businessName,
+          businessType: businessType,
+          email: email,
+          currency: "INR",
+          timezone: "Asia/Kolkata",
+        }).returning();
+
+        const [newUser] = await tx.insert(users).values({
+          email,
+          firstName,
+          lastName,
+          passwordHash,
+        }).returning();
+
+        await tx.insert(userTenants).values({
+          userId: newUser.id,
+          tenantId: newTenant.id,
+          role: "admin",
+          isOwner: true,
+          isDefault: true,
+        });
+
+        return { newTenant, newUser };
+      });
+
+      const { newTenant, newUser } = result;
+
+      const tokens = await jwtAuthService.generateTokenPair(
+        { id: newUser.id, email: newUser.email, firstName: newUser.firstName, lastName: newUser.lastName },
+        newTenant.id,
+        {
+          userAgent: req.headers["user-agent"],
+          ipAddress: req.ip || undefined,
+        }
+      );
+
+      auditService.logAsync({
+        tenantId: newTenant.id,
+        userId: newUser.id,
+        action: "create",
+        resource: "user",
+        metadata: { method: "registration", businessType },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.status(201).json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+        },
+        tenant: {
+          id: newTenant.id,
+          name: newTenant.name,
+          businessType: newTenant.businessType,
+        },
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
 
   app.post("/api/auth/session/exchange", isAuthenticated, authRateLimit, async (req, res) => {
     try {

@@ -91,13 +91,15 @@ export default function Landing() {
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Button size="lg" asChild data-testid="button-get-started">
-              <a href="/api/login">
+              <a href="/register">
                 Get Started Free
                 <ArrowRight className="ml-2 h-4 w-4" />
               </a>
             </Button>
-            <Button size="lg" variant="outline" data-testid="button-learn-more">
-              Learn More
+            <Button size="lg" variant="outline" asChild data-testid="button-learn-more">
+              <a href="/api/login">
+                Sign In
+              </a>
             </Button>
           </div>
         </div>
