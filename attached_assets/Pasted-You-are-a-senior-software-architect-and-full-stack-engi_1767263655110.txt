@@ -1,0 +1,151 @@
+You are a senior software architect and full-stack engineer.
+
+Build a scalable, production-ready, multi-tenant SaaS platform that supports multiple business types including:
+
+• PG / Hostels
+• Salons & Beauty Parlours
+• Gyms & Fitness Centers
+• Clinics & Hospitals
+• Diagnostic Centers
+• Service-based small businesses
+
+The system must be enterprise-ready, modular, secure, and future-proof.
+
+===================================
+CORE ARCHITECTURE REQUIREMENTS
+===================================
+
+- Use Node.js with Express (upgrade-friendly to NestJS)
+- PostgreSQL database
+- ORM: Drizzle or Prisma
+- REST-based API architecture
+- JWT-based authentication
+- Role-based access control
+- Multi-tenant isolation
+- Docker-ready architecture
+- Cloud-ready (AWS compatible)
+
+===================================
+MULTI-TENANT DESIGN
+===================================
+
+Each tenant must have:
+- Unique tenant_id
+- Configurable enabled modules
+- Custom branding (logo, theme, domain)
+- Isolated data access
+- Feature flags
+
+All tables must include:
+- tenant_id
+- created_at
+- updated_at
+- soft_delete support
+
+Tenant context must be enforced via middleware.
+
+===================================
+CORE MODULES (COMMON FOR ALL)
+===================================
+
+1. Authentication & Authorization  
+   - JWT-based auth
+   - Role & permission matrix
+   - Secure session handling
+
+2. User & Staff Management  
+   - Role assignment
+   - Activity logging
+   - Access restrictions
+
+3. Notification Engine  
+   - WhatsApp (template based)
+   - SMS
+   - Email
+   - Event-triggered notifications
+
+4. Billing & Payments  
+   - Invoice generation
+   - UPI / Card support
+   - Payment status tracking
+   - Refund handling
+
+5. Audit Logs & Compliance  
+   - User actions tracking
+   - Secure logging
+   - Tamper-proof records
+
+===================================
+HEALTHCARE MODULE (OPTIONAL / ENABLED PER TENANT)
+===================================
+
+1. Patient Management
+   - Patient profiles
+   - Medical history
+   - Document storage
+   - Visit history
+
+2. Appointment & Scheduling
+   - Doctor schedules
+   - Token system
+   - Walk-in and online booking
+   - Appointment reminders (WhatsApp)
+
+3. EMR (Lightweight)
+   - Diagnosis
+   - Prescriptions
+   - Lab reports
+   - Visit notes
+
+4. Payments & Billing
+   - Consultation fees
+   - Lab test billing
+   - Invoices & receipts
+
+5. Compliance
+   - Role-based access to medical data
+   - Encrypted sensitive fields
+   - Audit trail for record access
+
+===================================
+NON-HEALTHCARE MODULES
+===================================
+
+- Service bookings
+- Inventory management
+- Memberships & subscriptions
+- Customer management
+- Sales reporting
+
+===================================
+TECHNICAL REQUIREMENTS
+===================================
+
+- Centralized validation layer
+- Feature-flag driven modules
+- Schema versioning & migrations
+- Structured error handling
+- API documentation (OpenAPI)
+
+===================================
+DELIVERABLES
+===================================
+
+1. Clean folder structure
+2. Database schema & migrations
+3. Modular services & APIs
+4. Seed data for demo tenants
+5. Environment configuration
+6. Docker support
+7. Production-ready codebase
+
+===================================
+GOAL
+===================================
+
+Create a scalable, secure, and configurable SaaS platform capable of serving multiple industries — including healthcare — while remaining easy to extend, maintain, and deploy.
+
+Start by generating:
+1. Project folder structure
+2. Core database schema
+3. Tenant & authentication modules

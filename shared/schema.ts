@@ -14,8 +14,15 @@ import { users } from "./models/auth";
 export const userRoleEnum = pgEnum("user_role", ["super_admin", "admin", "manager", "staff", "customer"]);
 export const bookingStatusEnum = pgEnum("booking_status", ["pending", "confirmed", "completed", "cancelled"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "refunded"]);
-export const businessTypeEnum = pgEnum("business_type", ["pg", "salon", "gym", "coaching", "service", "other"]);
+export const businessTypeEnum = pgEnum("business_type", ["pg", "salon", "gym", "coaching", "clinic", "diagnostic", "service", "other"]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
+export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp", "push"]);
+export const notificationStatusEnum = pgEnum("notification_status", ["pending", "sent", "delivered", "failed"]);
+export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "pending", "paid", "partial", "overdue", "cancelled", "refunded"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["cash", "card", "upi", "netbanking", "wallet", "other"]);
+export const membershipStatusEnum = pgEnum("membership_status", ["active", "expired", "suspended", "cancelled"]);
+export const appointmentTypeEnum = pgEnum("appointment_type", ["walk_in", "online", "phone"]);
+export const patientGenderEnum = pgEnum("patient_gender", ["male", "female", "other"]);
 
 // ============================================
 // CORE: TENANTS & MULTI-TENANCY
@@ -309,6 +316,306 @@ export const bookings = pgTable("bookings", {
 ]);
 
 // ============================================
+// NOTIFICATIONS ENGINE
+// ============================================
+
+export const notificationTemplates = pgTable("notification_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  code: varchar("code", { length: 100 }).notNull(),
+  name: text("name").notNull(),
+  channel: notificationChannelEnum("channel").notNull(),
+  subject: text("subject"),
+  body: text("body").notNull(),
+  variables: jsonb("variables").default([]),
+  isActive: boolean("is_active").default(true),
+  isSystem: boolean("is_system").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_notification_templates_unique").on(table.tenantId, table.code, table.channel),
+]);
+
+export const notificationLogs = pgTable("notification_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  templateId: varchar("template_id").references(() => notificationTemplates.id),
+  channel: notificationChannelEnum("channel").notNull(),
+  recipient: text("recipient").notNull(),
+  subject: text("subject"),
+  body: text("body").notNull(),
+  status: notificationStatusEnum("status").default("pending"),
+  sentAt: timestamp("sent_at"),
+  deliveredAt: timestamp("delivered_at"),
+  failedAt: timestamp("failed_at"),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_notification_logs_tenant").on(table.tenantId),
+  index("idx_notification_logs_status").on(table.status),
+  index("idx_notification_logs_created").on(table.createdAt),
+]);
+
+// ============================================
+// BILLING & PAYMENTS
+// ============================================
+
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  status: invoiceStatusEnum("status").default("draft"),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
+  dueDate: date("due_date"),
+  paidAt: timestamp("paid_at"),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_invoices_tenant").on(table.tenantId),
+  index("idx_invoices_customer").on(table.customerId),
+  index("idx_invoices_status").on(table.tenantId, table.status),
+  uniqueIndex("idx_invoices_number").on(table.tenantId, table.invoiceNumber),
+]);
+
+export const invoiceItems = pgTable("invoice_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  serviceId: varchar("service_id").references(() => services.id),
+  description: text("description").notNull(),
+  quantity: integer("quantity").default(1),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_invoice_items_invoice").on(table.invoiceId),
+]);
+
+export const payments = pgTable("payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  invoiceId: varchar("invoice_id").references(() => invoices.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  method: paymentMethodEnum("method").notNull(),
+  status: paymentStatusEnum("status").default("pending"),
+  transactionId: varchar("transaction_id", { length: 255 }),
+  gatewayResponse: jsonb("gateway_response").default({}),
+  notes: text("notes"),
+  paidAt: timestamp("paid_at"),
+  refundedAt: timestamp("refunded_at"),
+  refundAmount: decimal("refund_amount", { precision: 12, scale: 2 }),
+  refundReason: text("refund_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_payments_tenant").on(table.tenantId),
+  index("idx_payments_invoice").on(table.invoiceId),
+  index("idx_payments_customer").on(table.customerId),
+  index("idx_payments_status").on(table.status),
+]);
+
+// ============================================
+// INVENTORY MANAGEMENT
+// ============================================
+
+export const inventoryCategories = pgTable("inventory_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  parentId: varchar("parent_id"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_inventory_categories_tenant").on(table.tenantId),
+]);
+
+export const inventoryItems = pgTable("inventory_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  categoryId: varchar("category_id").references(() => inventoryCategories.id),
+  sku: varchar("sku", { length: 100 }),
+  name: text("name").notNull(),
+  description: text("description"),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+  costPrice: decimal("cost_price", { precision: 10, scale: 2 }),
+  currentStock: integer("current_stock").default(0),
+  minStock: integer("min_stock").default(0),
+  maxStock: integer("max_stock"),
+  unit: varchar("unit", { length: 50 }).default("pcs"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_inventory_items_tenant").on(table.tenantId),
+  index("idx_inventory_items_category").on(table.categoryId),
+  uniqueIndex("idx_inventory_items_sku").on(table.tenantId, table.sku),
+]);
+
+export const inventoryTransactions = pgTable("inventory_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  itemId: varchar("item_id").notNull().references(() => inventoryItems.id),
+  type: varchar("type", { length: 50 }).notNull(),
+  quantity: integer("quantity").notNull(),
+  previousStock: integer("previous_stock").notNull(),
+  newStock: integer("new_stock").notNull(),
+  referenceType: varchar("reference_type", { length: 50 }),
+  referenceId: varchar("reference_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_inventory_transactions_item").on(table.itemId),
+  index("idx_inventory_transactions_created").on(table.createdAt),
+]);
+
+// ============================================
+// MEMBERSHIPS & SUBSCRIPTIONS
+// ============================================
+
+export const membershipPlans = pgTable("membership_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  durationDays: integer("duration_days").notNull(),
+  features: jsonb("features").default([]),
+  maxBookings: integer("max_bookings"),
+  discountPercent: decimal("discount_percent", { precision: 5, scale: 2 }).default("0"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_membership_plans_tenant").on(table.tenantId),
+]);
+
+export const customerMemberships = pgTable("customer_memberships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  planId: varchar("plan_id").notNull().references(() => membershipPlans.id),
+  status: membershipStatusEnum("status").default("active"),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  bookingsUsed: integer("bookings_used").default(0),
+  autoRenew: boolean("auto_renew").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_customer_memberships_tenant").on(table.tenantId),
+  index("idx_customer_memberships_customer").on(table.customerId),
+  index("idx_customer_memberships_status").on(table.status),
+]);
+
+// ============================================
+// HEALTHCARE MODULE (OPTIONAL)
+// ============================================
+
+export const patients = pgTable("patients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => customers.id),
+  patientId: varchar("patient_id", { length: 50 }),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name"),
+  dateOfBirth: date("date_of_birth"),
+  gender: patientGenderEnum("gender"),
+  bloodGroup: varchar("blood_group", { length: 10 }),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  emergencyContact: jsonb("emergency_contact").default({}),
+  allergies: jsonb("allergies").default([]),
+  chronicConditions: jsonb("chronic_conditions").default([]),
+  insuranceInfo: jsonb("insurance_info").default({}),
+  notes: text("notes"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_patients_tenant").on(table.tenantId),
+  uniqueIndex("idx_patients_patient_id").on(table.tenantId, table.patientId),
+]);
+
+export const doctors = pgTable("doctors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  staffId: varchar("staff_id").references(() => staff.id),
+  registrationNumber: varchar("registration_number", { length: 100 }),
+  specialization: text("specialization"),
+  qualifications: jsonb("qualifications").default([]),
+  consultationFee: decimal("consultation_fee", { precision: 10, scale: 2 }),
+  followUpFee: decimal("follow_up_fee", { precision: 10, scale: 2 }),
+  availability: jsonb("availability").default({}),
+  isAcceptingNew: boolean("is_accepting_new").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_doctors_tenant").on(table.tenantId),
+]);
+
+export const appointments = pgTable("appointments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  patientId: varchar("patient_id").notNull().references(() => patients.id),
+  doctorId: varchar("doctor_id").notNull().references(() => doctors.id),
+  appointmentDate: date("appointment_date").notNull(),
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time"),
+  tokenNumber: integer("token_number"),
+  type: appointmentTypeEnum("type").default("online"),
+  status: bookingStatusEnum("status").default("pending"),
+  reason: text("reason"),
+  notes: text("notes"),
+  reminderSent: boolean("reminder_sent").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_appointments_tenant").on(table.tenantId),
+  index("idx_appointments_patient").on(table.patientId),
+  index("idx_appointments_doctor").on(table.doctorId),
+  index("idx_appointments_date").on(table.tenantId, table.appointmentDate),
+]);
+
+export const medicalRecords = pgTable("medical_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  patientId: varchar("patient_id").notNull().references(() => patients.id),
+  appointmentId: varchar("appointment_id").references(() => appointments.id),
+  doctorId: varchar("doctor_id").references(() => doctors.id),
+  visitDate: date("visit_date").notNull(),
+  chiefComplaint: text("chief_complaint"),
+  diagnosis: jsonb("diagnosis").default([]),
+  prescriptions: jsonb("prescriptions").default([]),
+  labTests: jsonb("lab_tests").default([]),
+  vitalSigns: jsonb("vital_signs").default({}),
+  notes: text("notes"),
+  followUpDate: date("follow_up_date"),
+  attachments: jsonb("attachments").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_medical_records_tenant").on(table.tenantId),
+  index("idx_medical_records_patient").on(table.patientId),
+  index("idx_medical_records_visit").on(table.visitDate),
+]);
+
+// ============================================
 // RELATIONS
 // ============================================
 
@@ -429,6 +736,21 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({ id: tru
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true, createdAt: true, updatedAt: true });
 
+export const insertNotificationTemplateSchema = createInsertSchema(notificationTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertNotificationLogSchema = createInsertSchema(notificationLogs).omit({ id: true, createdAt: true });
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertInvoiceItemSchema = createInsertSchema(invoiceItems).omit({ id: true, createdAt: true });
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });
+export const insertInventoryCategorySchema = createInsertSchema(inventoryCategories).omit({ id: true, createdAt: true });
+export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertInventoryTransactionSchema = createInsertSchema(inventoryTransactions).omit({ id: true, createdAt: true });
+export const insertMembershipPlanSchema = createInsertSchema(membershipPlans).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCustomerMembershipSchema = createInsertSchema(customerMemberships).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPatientSchema = createInsertSchema(patients).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDoctorSchema = createInsertSchema(doctors).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAppointmentSchema = createInsertSchema(appointments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMedicalRecordSchema = createInsertSchema(medicalRecords).omit({ id: true, createdAt: true, updatedAt: true });
+
 // ============================================
 // TYPES
 // ============================================
@@ -480,6 +802,48 @@ export type InsertService = z.infer<typeof insertServiceSchema>;
 
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
+
+export type NotificationTemplate = typeof notificationTemplates.$inferSelect;
+export type InsertNotificationTemplate = z.infer<typeof insertNotificationTemplateSchema>;
+
+export type NotificationLog = typeof notificationLogs.$inferSelect;
+export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
+
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+
+export type InvoiceItem = typeof invoiceItems.$inferSelect;
+export type InsertInvoiceItem = z.infer<typeof insertInvoiceItemSchema>;
+
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+
+export type InventoryCategory = typeof inventoryCategories.$inferSelect;
+export type InsertInventoryCategory = z.infer<typeof insertInventoryCategorySchema>;
+
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
+
+export type InventoryTransaction = typeof inventoryTransactions.$inferSelect;
+export type InsertInventoryTransaction = z.infer<typeof insertInventoryTransactionSchema>;
+
+export type MembershipPlan = typeof membershipPlans.$inferSelect;
+export type InsertMembershipPlan = z.infer<typeof insertMembershipPlanSchema>;
+
+export type CustomerMembership = typeof customerMemberships.$inferSelect;
+export type InsertCustomerMembership = z.infer<typeof insertCustomerMembershipSchema>;
+
+export type Patient = typeof patients.$inferSelect;
+export type InsertPatient = z.infer<typeof insertPatientSchema>;
+
+export type Doctor = typeof doctors.$inferSelect;
+export type InsertDoctor = z.infer<typeof insertDoctorSchema>;
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+
+export type MedicalRecord = typeof medicalRecords.$inferSelect;
+export type InsertMedicalRecord = z.infer<typeof insertMedicalRecordSchema>;
 
 // Extended types for joins
 export type BookingWithDetails = Booking & {
