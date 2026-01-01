@@ -218,7 +218,21 @@ export class TenantService {
 
     const tenant = await this.getOrCreateDefaultTenant();
     
-    const [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
+    let [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
+    
+    if (!adminRole) {
+      [adminRole] = await db.insert(roles).values({
+        id: "role_admin",
+        name: "Admin",
+        description: "Full administrative access",
+        isSystem: true,
+      }).onConflictDoNothing().returning();
+      
+      if (!adminRole) {
+        [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
+      }
+    }
+    
     const roleId = adminRole?.id || "role_admin";
 
     await this.addUserToTenant(userId, tenant.id, roleId);
