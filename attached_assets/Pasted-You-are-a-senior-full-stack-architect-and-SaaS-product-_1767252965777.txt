@@ -1,0 +1,152 @@
+You are a senior full-stack architect and SaaS product engineer.
+
+Build a production-ready, enterprise-grade, multi-tenant SaaS platform designed for small and medium businesses such as:
+- PG / Hostels / Co-living
+- Salons & Beauty Parlours
+- Gyms & Fitness Centers
+- Coaching / Training Institutes
+- Service-based local businesses
+
+The system must be scalable, modular, secure, and future-ready.
+
+====================================
+ARCHITECTURE & TECH STACK
+====================================
+
+• Backend: Node.js (NestJS preferred)
+• Frontend: React (Admin & Staff Dashboard)
+• Mobile: React Native (shared API)
+• Database: PostgreSQL
+• ORM: Prisma
+• Auth: JWT + Refresh Tokens
+• Cache: Redis
+• Infrastructure: Docker-ready
+• Cloud-ready for AWS (EC2, RDS, S3)
+• API-first architecture
+
+====================================
+CORE DESIGN PRINCIPLES
+====================================
+
+1. Multi-tenant architecture with strict tenant isolation
+2. Single codebase, multi-business support
+3. Feature-based module enable/disable per tenant
+4. Highly configurable (no hard-coded logic)
+5. Minimal future refactoring
+6. Enterprise-level validation & auditability
+
+====================================
+MANDATORY MODULES
+====================================
+
+1. Tenant Management
+   - Tenant creation
+   - Domain mapping (custom domain support)
+   - Branding (logo, colors)
+   - Feature toggles
+
+2. Authentication & Authorization
+   - Role-based access (Admin, Staff, Customer)
+   - Permission matrix
+   - Secure JWT handling
+   - Session tracking
+
+3. User & Staff Management
+   - Roles & permissions
+   - Activity logs
+   - Staff skill mapping
+
+4. Service & Booking Engine
+   - Service catalog
+   - Time-slot based booking
+   - Resource allocation
+   - Conflict detection
+
+5. Billing & Payments
+   - Invoices
+   - Subscriptions
+   - Payment status tracking
+   - Razorpay-ready integration
+
+6. Inventory (Optional per tenant)
+   - Product catalog
+   - Stock management
+   - Alerts
+
+7. Notifications
+   - Email / SMS / WhatsApp
+   - Template-based
+   - Event-triggered
+
+8. Reporting & Analytics
+   - Revenue reports
+   - Usage metrics
+   - Exportable data
+
+====================================
+DATA & VALIDATION RULES
+====================================
+
+• All tables must include:
+  - tenant_id
+  - created_at
+  - updated_at
+• Soft deletes required
+• Input validation using schema validators
+• Centralized error handling
+• Audit logs for critical actions
+
+====================================
+MULTI-TENANT ENFORCEMENT
+====================================
+
+- Every request must resolve tenant context
+- Tenant data isolation enforced at DB & service level
+- Middleware-based tenant validation
+- Feature flags per tenant
+
+====================================
+DATABASE REQUIREMENTS
+====================================
+
+- Versioned migrations
+- Seed data for demo tenants
+- Strong relational integrity
+- Optimized indexing
+
+====================================
+DEPLOYMENT & DEVOPS
+====================================
+
+- Dockerized services
+- Environment-based configuration
+- CI/CD friendly structure
+- Auto-migration on deploy
+- AWS-ready (EC2, RDS, S3, CloudWatch)
+
+====================================
+DELIVERABLES
+====================================
+
+1. Clean project structure
+2. Well-documented APIs
+3. Environment configuration samples
+4. Database schema & migrations
+5. Sample seed data
+6. Scalable architecture
+
+====================================
+GOAL
+====================================
+
+Build a future-proof SaaS platform that:
+- Supports multiple industries
+- Scales horizontally
+- Minimizes future rewrites
+- Is enterprise ready
+- Can evolve into a full SaaS ecosystem
+
+Start by generating:
+1. Folder structure
+2. Database schema
+3. Core authentication & tenant modules
