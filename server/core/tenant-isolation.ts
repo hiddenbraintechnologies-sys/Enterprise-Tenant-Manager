@@ -70,13 +70,25 @@ export class TenantResolver {
   }
 
   private async resolveBySubdomain(req: Request): Promise<Tenant | null> {
-    const host = req.hostname || req.get("host") || "";
+    const host = req.hostname || req.get("host")?.split(":")[0] || "";
     
-    if (!this.config.subdomainBase || !host.endsWith(this.config.subdomainBase.slice(1))) {
+    if (!this.config.subdomainBase) {
       return null;
     }
 
-    const subdomain = host.replace(this.config.subdomainBase.slice(1), "").replace(/\.$/, "");
+    const baseDomain = this.config.subdomainBase.startsWith(".")
+      ? this.config.subdomainBase.slice(1)
+      : this.config.subdomainBase;
+
+    if (!host.endsWith(baseDomain)) {
+      const tenant = await this.getTenantByDomain(host);
+      if (tenant) {
+        return tenant;
+      }
+      return null;
+    }
+
+    const subdomain = host.slice(0, -(baseDomain.length + 1));
     if (!subdomain || subdomain === "www" || subdomain === "app") {
       return null;
     }
@@ -387,7 +399,8 @@ export function assertSameTenant(
 }
 
 export function tenantResolutionMiddleware(config?: Partial<TenantResolutionConfig>) {
-  const resolver = new TenantResolver(config);
+  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+  const resolver = new TenantResolver(mergedConfig);
   
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -404,6 +417,13 @@ export function tenantResolutionMiddleware(config?: Partial<TenantResolutionConf
         if (tenant && !req.context.tenant) {
           req.context.tenant = tenant;
         }
+      }
+      
+      if (!tenant && !req.context?.tenant && !mergedConfig.allowCrossTenantAccess) {
+        return res.status(403).json({
+          message: "Tenant context required",
+          code: "TENANT_REQUIRED",
+        });
       }
       
       next();
