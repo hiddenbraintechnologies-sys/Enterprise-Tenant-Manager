@@ -41,25 +41,25 @@ export interface IStorage {
 
   // Customers
   getCustomers(tenantId: string): Promise<Customer[]>;
-  getCustomer(id: string): Promise<Customer | undefined>;
+  getCustomer(id: string, tenantId: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
-  updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
-  deleteCustomer(id: string): Promise<void>;
+  updateCustomer(id: string, tenantId: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
+  deleteCustomer(id: string, tenantId: string): Promise<void>;
 
   // Services
   getServices(tenantId: string): Promise<Service[]>;
-  getService(id: string): Promise<Service | undefined>;
+  getService(id: string, tenantId: string): Promise<Service | undefined>;
   createService(service: InsertService): Promise<Service>;
-  updateService(id: string, service: Partial<InsertService>): Promise<Service | undefined>;
-  deleteService(id: string): Promise<void>;
+  updateService(id: string, tenantId: string, service: Partial<InsertService>): Promise<Service | undefined>;
+  deleteService(id: string, tenantId: string): Promise<void>;
 
   // Bookings
   getBookings(tenantId: string): Promise<BookingWithDetails[]>;
   getUpcomingBookings(tenantId: string, limit?: number): Promise<BookingWithDetails[]>;
-  getBooking(id: string): Promise<Booking | undefined>;
+  getBooking(id: string, tenantId: string): Promise<Booking | undefined>;
   createBooking(booking: InsertBooking): Promise<Booking>;
-  updateBooking(id: string, booking: Partial<InsertBooking>): Promise<Booking | undefined>;
-  deleteBooking(id: string): Promise<void>;
+  updateBooking(id: string, tenantId: string, booking: Partial<InsertBooking>): Promise<Booking | undefined>;
+  deleteBooking(id: string, tenantId: string): Promise<void>;
 
   // Dashboard stats
   getDashboardStats(tenantId: string): Promise<{
@@ -87,22 +87,22 @@ export interface IStorage {
 
   // Notification Templates
   getNotificationTemplates(tenantId: string): Promise<NotificationTemplate[]>;
-  getNotificationTemplate(id: string): Promise<NotificationTemplate | undefined>;
+  getNotificationTemplate(id: string, tenantId: string): Promise<NotificationTemplate | undefined>;
   createNotificationTemplate(template: InsertNotificationTemplate): Promise<NotificationTemplate>;
-  updateNotificationTemplate(id: string, template: Partial<InsertNotificationTemplate>): Promise<NotificationTemplate | undefined>;
-  deleteNotificationTemplate(id: string): Promise<void>;
+  updateNotificationTemplate(id: string, tenantId: string, template: Partial<InsertNotificationTemplate>): Promise<NotificationTemplate | undefined>;
+  deleteNotificationTemplate(id: string, tenantId: string): Promise<void>;
 
   // Notification Logs
   getNotificationLogs(tenantId: string, limit?: number): Promise<NotificationLog[]>;
   createNotificationLog(log: InsertNotificationLog): Promise<NotificationLog>;
-  updateNotificationLog(id: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined>;
+  updateNotificationLog(id: string, tenantId: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined>;
 
   // Invoices
   getInvoices(tenantId: string): Promise<Invoice[]>;
-  getInvoice(id: string): Promise<Invoice | undefined>;
+  getInvoice(id: string, tenantId: string): Promise<Invoice | undefined>;
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
-  updateInvoice(id: string, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined>;
-  deleteInvoice(id: string): Promise<void>;
+  updateInvoice(id: string, tenantId: string, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined>;
+  deleteInvoice(id: string, tenantId: string): Promise<void>;
 
   // Invoice Items
   getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]>;
@@ -111,22 +111,22 @@ export interface IStorage {
 
   // Payments
   getPayments(tenantId: string): Promise<Payment[]>;
-  getPayment(id: string): Promise<Payment | undefined>;
+  getPayment(id: string, tenantId: string): Promise<Payment | undefined>;
   createPayment(payment: InsertPayment): Promise<Payment>;
-  updatePayment(id: string, payment: Partial<InsertPayment>): Promise<Payment | undefined>;
+  updatePayment(id: string, tenantId: string, payment: Partial<InsertPayment>): Promise<Payment | undefined>;
 
   // Inventory Categories
   getInventoryCategories(tenantId: string): Promise<InventoryCategory[]>;
   createInventoryCategory(category: InsertInventoryCategory): Promise<InventoryCategory>;
-  updateInventoryCategory(id: string, category: Partial<InsertInventoryCategory>): Promise<InventoryCategory | undefined>;
-  deleteInventoryCategory(id: string): Promise<void>;
+  updateInventoryCategory(id: string, tenantId: string, category: Partial<InsertInventoryCategory>): Promise<InventoryCategory | undefined>;
+  deleteInventoryCategory(id: string, tenantId: string): Promise<void>;
 
   // Inventory Items
   getInventoryItems(tenantId: string): Promise<InventoryItem[]>;
-  getInventoryItem(id: string): Promise<InventoryItem | undefined>;
+  getInventoryItem(id: string, tenantId: string): Promise<InventoryItem | undefined>;
   createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
-  updateInventoryItem(id: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined>;
-  deleteInventoryItem(id: string): Promise<void>;
+  updateInventoryItem(id: string, tenantId: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined>;
+  deleteInventoryItem(id: string, tenantId: string): Promise<void>;
 
   // Inventory Transactions
   getInventoryTransactions(itemId: string): Promise<InventoryTransaction[]>;
@@ -134,16 +134,16 @@ export interface IStorage {
 
   // Membership Plans
   getMembershipPlans(tenantId: string): Promise<MembershipPlan[]>;
-  getMembershipPlan(id: string): Promise<MembershipPlan | undefined>;
+  getMembershipPlan(id: string, tenantId: string): Promise<MembershipPlan | undefined>;
   createMembershipPlan(plan: InsertMembershipPlan): Promise<MembershipPlan>;
-  updateMembershipPlan(id: string, plan: Partial<InsertMembershipPlan>): Promise<MembershipPlan | undefined>;
-  deleteMembershipPlan(id: string): Promise<void>;
+  updateMembershipPlan(id: string, tenantId: string, plan: Partial<InsertMembershipPlan>): Promise<MembershipPlan | undefined>;
+  deleteMembershipPlan(id: string, tenantId: string): Promise<void>;
 
   // Customer Memberships
   getCustomerMemberships(tenantId: string): Promise<CustomerMembership[]>;
-  getCustomerMembership(id: string): Promise<CustomerMembership | undefined>;
+  getCustomerMembership(id: string, tenantId: string): Promise<CustomerMembership | undefined>;
   createCustomerMembership(membership: InsertCustomerMembership): Promise<CustomerMembership>;
-  updateCustomerMembership(id: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined>;
+  updateCustomerMembership(id: string, tenantId: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined>;
 
   // Coworking - Spaces
   createSpace(space: InsertSpace): Promise<Space>;
@@ -158,29 +158,29 @@ export interface IStorage {
 
   // Patients (Healthcare)
   getPatients(tenantId: string): Promise<Patient[]>;
-  getPatient(id: string): Promise<Patient | undefined>;
+  getPatient(id: string, tenantId: string): Promise<Patient | undefined>;
   createPatient(patient: InsertPatient): Promise<Patient>;
-  updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient | undefined>;
-  deletePatient(id: string): Promise<void>;
+  updatePatient(id: string, tenantId: string, patient: Partial<InsertPatient>): Promise<Patient | undefined>;
+  deletePatient(id: string, tenantId: string): Promise<void>;
 
   // Doctors (Healthcare)
   getDoctors(tenantId: string): Promise<Doctor[]>;
-  getDoctor(id: string): Promise<Doctor | undefined>;
+  getDoctor(id: string, tenantId: string): Promise<Doctor | undefined>;
   createDoctor(doctor: InsertDoctor): Promise<Doctor>;
-  updateDoctor(id: string, doctor: Partial<InsertDoctor>): Promise<Doctor | undefined>;
+  updateDoctor(id: string, tenantId: string, doctor: Partial<InsertDoctor>): Promise<Doctor | undefined>;
 
   // Appointments (Healthcare)
   getAppointments(tenantId: string): Promise<Appointment[]>;
-  getAppointment(id: string): Promise<Appointment | undefined>;
+  getAppointment(id: string, tenantId: string): Promise<Appointment | undefined>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
-  updateAppointment(id: string, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined>;
-  deleteAppointment(id: string): Promise<void>;
+  updateAppointment(id: string, tenantId: string, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined>;
+  deleteAppointment(id: string, tenantId: string): Promise<void>;
 
   // Medical Records (Healthcare)
-  getMedicalRecords(patientId: string): Promise<MedicalRecord[]>;
-  getMedicalRecord(id: string): Promise<MedicalRecord | undefined>;
+  getMedicalRecords(patientId: string, tenantId: string): Promise<MedicalRecord[]>;
+  getMedicalRecord(id: string, tenantId: string): Promise<MedicalRecord | undefined>;
   createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord>;
-  updateMedicalRecord(id: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined>;
+  updateMedicalRecord(id: string, tenantId: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -222,8 +222,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(customers).where(eq(customers.tenantId, tenantId)).orderBy(desc(customers.createdAt));
   }
 
-  async getCustomer(id: string): Promise<Customer | undefined> {
-    const [customer] = await db.select().from(customers).where(eq(customers.id, id));
+  async getCustomer(id: string, tenantId: string): Promise<Customer | undefined> {
+    const [customer] = await db.select().from(customers).where(and(eq(customers.id, id), eq(customers.tenantId, tenantId)));
     return customer;
   }
 
@@ -232,13 +232,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined> {
-    const [updated] = await db.update(customers).set(customer).where(eq(customers.id, id)).returning();
+  async updateCustomer(id: string, tenantId: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined> {
+    const [updated] = await db.update(customers).set(customer).where(and(eq(customers.id, id), eq(customers.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteCustomer(id: string): Promise<void> {
-    await db.delete(customers).where(eq(customers.id, id));
+  async deleteCustomer(id: string, tenantId: string): Promise<void> {
+    await db.delete(customers).where(and(eq(customers.id, id), eq(customers.tenantId, tenantId)));
   }
 
   // Services
@@ -246,8 +246,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(services).where(eq(services.tenantId, tenantId)).orderBy(desc(services.createdAt));
   }
 
-  async getService(id: string): Promise<Service | undefined> {
-    const [service] = await db.select().from(services).where(eq(services.id, id));
+  async getService(id: string, tenantId: string): Promise<Service | undefined> {
+    const [service] = await db.select().from(services).where(and(eq(services.id, id), eq(services.tenantId, tenantId)));
     return service;
   }
 
@@ -256,13 +256,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateService(id: string, service: Partial<InsertService>): Promise<Service | undefined> {
-    const [updated] = await db.update(services).set(service).where(eq(services.id, id)).returning();
+  async updateService(id: string, tenantId: string, service: Partial<InsertService>): Promise<Service | undefined> {
+    const [updated] = await db.update(services).set(service).where(and(eq(services.id, id), eq(services.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteService(id: string): Promise<void> {
-    await db.delete(services).where(eq(services.id, id));
+  async deleteService(id: string, tenantId: string): Promise<void> {
+    await db.delete(services).where(and(eq(services.id, id), eq(services.tenantId, tenantId)));
   }
 
   // Bookings
@@ -318,8 +318,8 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getBooking(id: string): Promise<Booking | undefined> {
-    const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
+  async getBooking(id: string, tenantId: string): Promise<Booking | undefined> {
+    const [booking] = await db.select().from(bookings).where(and(eq(bookings.id, id), eq(bookings.tenantId, tenantId)));
     return booking;
   }
 
@@ -328,13 +328,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateBooking(id: string, booking: Partial<InsertBooking>): Promise<Booking | undefined> {
-    const [updated] = await db.update(bookings).set(booking).where(eq(bookings.id, id)).returning();
+  async updateBooking(id: string, tenantId: string, booking: Partial<InsertBooking>): Promise<Booking | undefined> {
+    const [updated] = await db.update(bookings).set(booking).where(and(eq(bookings.id, id), eq(bookings.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteBooking(id: string): Promise<void> {
-    await db.delete(bookings).where(eq(bookings.id, id));
+  async deleteBooking(id: string, tenantId: string): Promise<void> {
+    await db.delete(bookings).where(and(eq(bookings.id, id), eq(bookings.tenantId, tenantId)));
   }
 
   // Dashboard stats
@@ -507,8 +507,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(notificationTemplates).where(eq(notificationTemplates.tenantId, tenantId)).orderBy(desc(notificationTemplates.createdAt));
   }
 
-  async getNotificationTemplate(id: string): Promise<NotificationTemplate | undefined> {
-    const [template] = await db.select().from(notificationTemplates).where(eq(notificationTemplates.id, id));
+  async getNotificationTemplate(id: string, tenantId: string): Promise<NotificationTemplate | undefined> {
+    const [template] = await db.select().from(notificationTemplates).where(and(eq(notificationTemplates.id, id), eq(notificationTemplates.tenantId, tenantId)));
     return template;
   }
 
@@ -517,13 +517,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateNotificationTemplate(id: string, template: Partial<InsertNotificationTemplate>): Promise<NotificationTemplate | undefined> {
-    const [updated] = await db.update(notificationTemplates).set({ ...template, updatedAt: new Date() }).where(eq(notificationTemplates.id, id)).returning();
+  async updateNotificationTemplate(id: string, tenantId: string, template: Partial<InsertNotificationTemplate>): Promise<NotificationTemplate | undefined> {
+    const [updated] = await db.update(notificationTemplates).set({ ...template, updatedAt: new Date() }).where(and(eq(notificationTemplates.id, id), eq(notificationTemplates.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteNotificationTemplate(id: string): Promise<void> {
-    await db.delete(notificationTemplates).where(eq(notificationTemplates.id, id));
+  async deleteNotificationTemplate(id: string, tenantId: string): Promise<void> {
+    await db.delete(notificationTemplates).where(and(eq(notificationTemplates.id, id), eq(notificationTemplates.tenantId, tenantId)));
   }
 
   // Notification Logs
@@ -536,8 +536,8 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateNotificationLog(id: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined> {
-    const [updated] = await db.update(notificationLogs).set(log).where(eq(notificationLogs.id, id)).returning();
+  async updateNotificationLog(id: string, tenantId: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined> {
+    const [updated] = await db.update(notificationLogs).set(log).where(and(eq(notificationLogs.id, id), eq(notificationLogs.tenantId, tenantId))).returning();
     return updated;
   }
 
@@ -546,8 +546,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(invoices).where(eq(invoices.tenantId, tenantId)).orderBy(desc(invoices.createdAt));
   }
 
-  async getInvoice(id: string): Promise<Invoice | undefined> {
-    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+  async getInvoice(id: string, tenantId: string): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
     return invoice;
   }
 
@@ -556,14 +556,14 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateInvoice(id: string, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined> {
-    const [updated] = await db.update(invoices).set({ ...invoice, updatedAt: new Date() }).where(eq(invoices.id, id)).returning();
+  async updateInvoice(id: string, tenantId: string, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined> {
+    const [updated] = await db.update(invoices).set({ ...invoice, updatedAt: new Date() }).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteInvoice(id: string): Promise<void> {
+  async deleteInvoice(id: string, tenantId: string): Promise<void> {
     await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
-    await db.delete(invoices).where(eq(invoices.id, id));
+    await db.delete(invoices).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
   }
 
   // Invoice Items
@@ -585,8 +585,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(payments).where(eq(payments.tenantId, tenantId)).orderBy(desc(payments.createdAt));
   }
 
-  async getPayment(id: string): Promise<Payment | undefined> {
-    const [payment] = await db.select().from(payments).where(eq(payments.id, id));
+  async getPayment(id: string, tenantId: string): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(and(eq(payments.id, id), eq(payments.tenantId, tenantId)));
     return payment;
   }
 
@@ -595,8 +595,8 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updatePayment(id: string, payment: Partial<InsertPayment>): Promise<Payment | undefined> {
-    const [updated] = await db.update(payments).set(payment).where(eq(payments.id, id)).returning();
+  async updatePayment(id: string, tenantId: string, payment: Partial<InsertPayment>): Promise<Payment | undefined> {
+    const [updated] = await db.update(payments).set(payment).where(and(eq(payments.id, id), eq(payments.tenantId, tenantId))).returning();
     return updated;
   }
 
@@ -610,13 +610,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateInventoryCategory(id: string, category: Partial<InsertInventoryCategory>): Promise<InventoryCategory | undefined> {
-    const [updated] = await db.update(inventoryCategories).set(category).where(eq(inventoryCategories.id, id)).returning();
+  async updateInventoryCategory(id: string, tenantId: string, category: Partial<InsertInventoryCategory>): Promise<InventoryCategory | undefined> {
+    const [updated] = await db.update(inventoryCategories).set(category).where(and(eq(inventoryCategories.id, id), eq(inventoryCategories.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteInventoryCategory(id: string): Promise<void> {
-    await db.delete(inventoryCategories).where(eq(inventoryCategories.id, id));
+  async deleteInventoryCategory(id: string, tenantId: string): Promise<void> {
+    await db.delete(inventoryCategories).where(and(eq(inventoryCategories.id, id), eq(inventoryCategories.tenantId, tenantId)));
   }
 
   // Inventory Items
@@ -624,8 +624,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(inventoryItems).where(eq(inventoryItems.tenantId, tenantId)).orderBy(inventoryItems.name);
   }
 
-  async getInventoryItem(id: string): Promise<InventoryItem | undefined> {
-    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id));
+  async getInventoryItem(id: string, tenantId: string): Promise<InventoryItem | undefined> {
+    const [item] = await db.select().from(inventoryItems).where(and(eq(inventoryItems.id, id), eq(inventoryItems.tenantId, tenantId)));
     return item;
   }
 
@@ -634,13 +634,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateInventoryItem(id: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined> {
-    const [updated] = await db.update(inventoryItems).set({ ...item, updatedAt: new Date() }).where(eq(inventoryItems.id, id)).returning();
+  async updateInventoryItem(id: string, tenantId: string, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined> {
+    const [updated] = await db.update(inventoryItems).set({ ...item, updatedAt: new Date() }).where(and(eq(inventoryItems.id, id), eq(inventoryItems.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteInventoryItem(id: string): Promise<void> {
-    await db.delete(inventoryItems).where(eq(inventoryItems.id, id));
+  async deleteInventoryItem(id: string, tenantId: string): Promise<void> {
+    await db.delete(inventoryItems).where(and(eq(inventoryItems.id, id), eq(inventoryItems.tenantId, tenantId)));
   }
 
   // Inventory Transactions
@@ -658,8 +658,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(membershipPlans).where(eq(membershipPlans.tenantId, tenantId)).orderBy(membershipPlans.sortOrder);
   }
 
-  async getMembershipPlan(id: string): Promise<MembershipPlan | undefined> {
-    const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, id));
+  async getMembershipPlan(id: string, tenantId: string): Promise<MembershipPlan | undefined> {
+    const [plan] = await db.select().from(membershipPlans).where(and(eq(membershipPlans.id, id), eq(membershipPlans.tenantId, tenantId)));
     return plan;
   }
 
@@ -668,13 +668,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateMembershipPlan(id: string, plan: Partial<InsertMembershipPlan>): Promise<MembershipPlan | undefined> {
-    const [updated] = await db.update(membershipPlans).set({ ...plan, updatedAt: new Date() }).where(eq(membershipPlans.id, id)).returning();
+  async updateMembershipPlan(id: string, tenantId: string, plan: Partial<InsertMembershipPlan>): Promise<MembershipPlan | undefined> {
+    const [updated] = await db.update(membershipPlans).set({ ...plan, updatedAt: new Date() }).where(and(eq(membershipPlans.id, id), eq(membershipPlans.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteMembershipPlan(id: string): Promise<void> {
-    await db.delete(membershipPlans).where(eq(membershipPlans.id, id));
+  async deleteMembershipPlan(id: string, tenantId: string): Promise<void> {
+    await db.delete(membershipPlans).where(and(eq(membershipPlans.id, id), eq(membershipPlans.tenantId, tenantId)));
   }
 
   // Customer Memberships
@@ -682,8 +682,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(customerMemberships).where(eq(customerMemberships.tenantId, tenantId)).orderBy(desc(customerMemberships.createdAt));
   }
 
-  async getCustomerMembership(id: string): Promise<CustomerMembership | undefined> {
-    const [membership] = await db.select().from(customerMemberships).where(eq(customerMemberships.id, id));
+  async getCustomerMembership(id: string, tenantId: string): Promise<CustomerMembership | undefined> {
+    const [membership] = await db.select().from(customerMemberships).where(and(eq(customerMemberships.id, id), eq(customerMemberships.tenantId, tenantId)));
     return membership;
   }
 
@@ -692,8 +692,8 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateCustomerMembership(id: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined> {
-    const [updated] = await db.update(customerMemberships).set({ ...membership, updatedAt: new Date() }).where(eq(customerMemberships.id, id)).returning();
+  async updateCustomerMembership(id: string, tenantId: string, membership: Partial<InsertCustomerMembership>): Promise<CustomerMembership | undefined> {
+    const [updated] = await db.update(customerMemberships).set({ ...membership, updatedAt: new Date() }).where(and(eq(customerMemberships.id, id), eq(customerMemberships.tenantId, tenantId))).returning();
     return updated;
   }
 
@@ -733,8 +733,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(patients).where(eq(patients.tenantId, tenantId)).orderBy(patients.firstName);
   }
 
-  async getPatient(id: string): Promise<Patient | undefined> {
-    const [patient] = await db.select().from(patients).where(eq(patients.id, id));
+  async getPatient(id: string, tenantId: string): Promise<Patient | undefined> {
+    const [patient] = await db.select().from(patients).where(and(eq(patients.id, id), eq(patients.tenantId, tenantId)));
     return patient;
   }
 
@@ -743,13 +743,13 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient | undefined> {
-    const [updated] = await db.update(patients).set({ ...patient, updatedAt: new Date() }).where(eq(patients.id, id)).returning();
+  async updatePatient(id: string, tenantId: string, patient: Partial<InsertPatient>): Promise<Patient | undefined> {
+    const [updated] = await db.update(patients).set({ ...patient, updatedAt: new Date() }).where(and(eq(patients.id, id), eq(patients.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deletePatient(id: string): Promise<void> {
-    await db.delete(patients).where(eq(patients.id, id));
+  async deletePatient(id: string, tenantId: string): Promise<void> {
+    await db.delete(patients).where(and(eq(patients.id, id), eq(patients.tenantId, tenantId)));
   }
 
   // Doctors (Healthcare)
@@ -757,8 +757,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(doctors).where(eq(doctors.tenantId, tenantId));
   }
 
-  async getDoctor(id: string): Promise<Doctor | undefined> {
-    const [doctor] = await db.select().from(doctors).where(eq(doctors.id, id));
+  async getDoctor(id: string, tenantId: string): Promise<Doctor | undefined> {
+    const [doctor] = await db.select().from(doctors).where(and(eq(doctors.id, id), eq(doctors.tenantId, tenantId)));
     return doctor;
   }
 
@@ -767,8 +767,8 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateDoctor(id: string, doctor: Partial<InsertDoctor>): Promise<Doctor | undefined> {
-    const [updated] = await db.update(doctors).set({ ...doctor, updatedAt: new Date() }).where(eq(doctors.id, id)).returning();
+  async updateDoctor(id: string, tenantId: string, doctor: Partial<InsertDoctor>): Promise<Doctor | undefined> {
+    const [updated] = await db.update(doctors).set({ ...doctor, updatedAt: new Date() }).where(and(eq(doctors.id, id), eq(doctors.tenantId, tenantId))).returning();
     return updated;
   }
 
@@ -777,8 +777,8 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(appointments).where(eq(appointments.tenantId, tenantId)).orderBy(desc(appointments.appointmentDate));
   }
 
-  async getAppointment(id: string): Promise<Appointment | undefined> {
-    const [appointment] = await db.select().from(appointments).where(eq(appointments.id, id));
+  async getAppointment(id: string, tenantId: string): Promise<Appointment | undefined> {
+    const [appointment] = await db.select().from(appointments).where(and(eq(appointments.id, id), eq(appointments.tenantId, tenantId)));
     return appointment;
   }
 
@@ -787,22 +787,22 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateAppointment(id: string, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined> {
-    const [updated] = await db.update(appointments).set({ ...appointment, updatedAt: new Date() }).where(eq(appointments.id, id)).returning();
+  async updateAppointment(id: string, tenantId: string, appointment: Partial<InsertAppointment>): Promise<Appointment | undefined> {
+    const [updated] = await db.update(appointments).set({ ...appointment, updatedAt: new Date() }).where(and(eq(appointments.id, id), eq(appointments.tenantId, tenantId))).returning();
     return updated;
   }
 
-  async deleteAppointment(id: string): Promise<void> {
-    await db.delete(appointments).where(eq(appointments.id, id));
+  async deleteAppointment(id: string, tenantId: string): Promise<void> {
+    await db.delete(appointments).where(and(eq(appointments.id, id), eq(appointments.tenantId, tenantId)));
   }
 
   // Medical Records (Healthcare)
-  async getMedicalRecords(patientId: string): Promise<MedicalRecord[]> {
-    return db.select().from(medicalRecords).where(eq(medicalRecords.patientId, patientId)).orderBy(desc(medicalRecords.visitDate));
+  async getMedicalRecords(patientId: string, tenantId: string): Promise<MedicalRecord[]> {
+    return db.select().from(medicalRecords).where(and(eq(medicalRecords.patientId, patientId), eq(medicalRecords.tenantId, tenantId))).orderBy(desc(medicalRecords.visitDate));
   }
 
-  async getMedicalRecord(id: string): Promise<MedicalRecord | undefined> {
-    const [record] = await db.select().from(medicalRecords).where(eq(medicalRecords.id, id));
+  async getMedicalRecord(id: string, tenantId: string): Promise<MedicalRecord | undefined> {
+    const [record] = await db.select().from(medicalRecords).where(and(eq(medicalRecords.id, id), eq(medicalRecords.tenantId, tenantId)));
     return record;
   }
 
@@ -811,8 +811,8 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateMedicalRecord(id: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined> {
-    const [updated] = await db.update(medicalRecords).set({ ...record, updatedAt: new Date() }).where(eq(medicalRecords.id, id)).returning();
+  async updateMedicalRecord(id: string, tenantId: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined> {
+    const [updated] = await db.update(medicalRecords).set({ ...record, updatedAt: new Date() }).where(and(eq(medicalRecords.id, id), eq(medicalRecords.tenantId, tenantId))).returning();
     return updated;
   }
 }

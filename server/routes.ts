@@ -584,7 +584,11 @@ export async function registerRoutes(
 
   app.get("/api/customers/:id", isAuthenticated, async (req, res) => {
     try {
-      const customer = await storage.getCustomer(req.params.id);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const customer = await storage.getCustomer(req.params.id, tenantId);
       if (!customer) {
         return res.status(404).json({ message: "Customer not found" });
       }
@@ -627,8 +631,12 @@ export async function registerRoutes(
 
   app.patch("/api/customers/:id", isAuthenticated, async (req, res) => {
     try {
-      const oldCustomer = await storage.getCustomer(req.params.id);
-      const customer = await storage.updateCustomer(req.params.id, req.body);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const oldCustomer = await storage.getCustomer(req.params.id, tenantId);
+      const customer = await storage.updateCustomer(req.params.id, tenantId, req.body);
       if (!customer) {
         return res.status(404).json({ message: "Customer not found" });
       }
@@ -654,8 +662,12 @@ export async function registerRoutes(
 
   app.delete("/api/customers/:id", isAuthenticated, async (req, res) => {
     try {
-      const oldCustomer = await storage.getCustomer(req.params.id);
-      await storage.deleteCustomer(req.params.id);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const oldCustomer = await storage.getCustomer(req.params.id, tenantId);
+      await storage.deleteCustomer(req.params.id, tenantId);
       
       auditService.logAsync({
         tenantId: getTenantId(req),
@@ -691,7 +703,11 @@ export async function registerRoutes(
 
   app.get("/api/services/:id", isAuthenticated, async (req, res) => {
     try {
-      const service = await storage.getService(req.params.id);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const service = await storage.getService(req.params.id, tenantId);
       if (!service) {
         return res.status(404).json({ message: "Service not found" });
       }
@@ -734,8 +750,12 @@ export async function registerRoutes(
 
   app.patch("/api/services/:id", isAuthenticated, async (req, res) => {
     try {
-      const oldService = await storage.getService(req.params.id);
-      const service = await storage.updateService(req.params.id, req.body);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const oldService = await storage.getService(req.params.id, tenantId);
+      const service = await storage.updateService(req.params.id, tenantId, req.body);
       if (!service) {
         return res.status(404).json({ message: "Service not found" });
       }
@@ -761,8 +781,12 @@ export async function registerRoutes(
 
   app.delete("/api/services/:id", isAuthenticated, async (req, res) => {
     try {
-      const oldService = await storage.getService(req.params.id);
-      await storage.deleteService(req.params.id);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const oldService = await storage.getService(req.params.id, tenantId);
+      await storage.deleteService(req.params.id, tenantId);
       
       auditService.logAsync({
         tenantId: getTenantId(req),
@@ -813,7 +837,11 @@ export async function registerRoutes(
 
   app.get("/api/bookings/:id", isAuthenticated, async (req, res) => {
     try {
-      const booking = await storage.getBooking(req.params.id);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const booking = await storage.getBooking(req.params.id, tenantId);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -856,8 +884,12 @@ export async function registerRoutes(
 
   app.patch("/api/bookings/:id", isAuthenticated, async (req, res) => {
     try {
-      const oldBooking = await storage.getBooking(req.params.id);
-      const booking = await storage.updateBooking(req.params.id, req.body);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const oldBooking = await storage.getBooking(req.params.id, tenantId);
+      const booking = await storage.updateBooking(req.params.id, tenantId, req.body);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -883,8 +915,12 @@ export async function registerRoutes(
 
   app.delete("/api/bookings/:id", isAuthenticated, async (req, res) => {
     try {
-      const oldBooking = await storage.getBooking(req.params.id);
-      await storage.deleteBooking(req.params.id);
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const oldBooking = await storage.getBooking(req.params.id, tenantId);
+      await storage.deleteBooking(req.params.id, tenantId);
       
       auditService.logAsync({
         tenantId: getTenantId(req),
@@ -994,11 +1030,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getNotificationTemplate(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getNotificationTemplate(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Template not found" });
       }
-      const template = await storage.updateNotificationTemplate(req.params.id, req.body);
+      const template = await storage.updateNotificationTemplate(req.params.id, tenantId, req.body);
       res.json(template);
     } catch (error) {
       console.error("Error updating notification template:", error);
@@ -1010,11 +1046,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getNotificationTemplate(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getNotificationTemplate(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Template not found" });
       }
-      await storage.deleteNotificationTemplate(req.params.id);
+      await storage.deleteNotificationTemplate(req.params.id, tenantId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting notification template:", error);
@@ -1053,8 +1089,8 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice || invoice.tenantId !== tenantId) {
+      const invoice = await storage.getInvoice(req.params.id, tenantId);
+      if (!invoice) {
         return res.status(404).json({ message: "Invoice not found" });
       }
       const items = await storage.getInvoiceItems(req.params.id);
@@ -1089,11 +1125,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getInvoice(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getInvoice(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Invoice not found" });
       }
-      const invoice = await storage.updateInvoice(req.params.id, req.body);
+      const invoice = await storage.updateInvoice(req.params.id, tenantId, req.body);
       res.json(invoice);
     } catch (error) {
       console.error("Error updating invoice:", error);
@@ -1105,11 +1141,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getInvoice(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getInvoice(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Invoice not found" });
       }
-      await storage.deleteInvoice(req.params.id);
+      await storage.deleteInvoice(req.params.id, tenantId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting invoice:", error);
@@ -1138,13 +1174,13 @@ export async function registerRoutes(
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
       const payment = await storage.createPayment(parsed.data);
       if (payment.invoiceId) {
-        const invoice = await storage.getInvoice(payment.invoiceId);
-        if (invoice && invoice.tenantId === tenantId) {
+        const invoice = await storage.getInvoice(payment.invoiceId, tenantId);
+        if (invoice) {
           const currentPaid = parseFloat(invoice.paidAmount || "0") || 0;
           const paymentAmount = parseFloat(payment.amount) || 0;
           const totalAmount = parseFloat(invoice.totalAmount) || 0;
           const newPaidAmount = Math.max(0, currentPaid + paymentAmount);
-          await storage.updateInvoice(payment.invoiceId, { 
+          await storage.updateInvoice(payment.invoiceId, tenantId, { 
             paidAmount: newPaidAmount.toFixed(2),
             status: newPaidAmount >= totalAmount ? "paid" : "partial"
           });
@@ -1215,11 +1251,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getInventoryItem(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getInventoryItem(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Item not found" });
       }
-      const item = await storage.updateInventoryItem(req.params.id, req.body);
+      const item = await storage.updateInventoryItem(req.params.id, tenantId, req.body);
       res.json(item);
     } catch (error) {
       console.error("Error updating inventory item:", error);
@@ -1231,8 +1267,8 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const item = await storage.getInventoryItem(req.params.id);
-      if (!item || item.tenantId !== tenantId) {
+      const item = await storage.getInventoryItem(req.params.id, tenantId);
+      if (!item) {
         return res.status(404).json({ message: "Item not found" });
       }
       const { quantity, type, notes } = req.body;
@@ -1240,7 +1276,7 @@ export async function registerRoutes(
       if (qty <= 0) return res.status(400).json({ message: "Quantity must be positive" });
       const previousStock = item.currentStock || 0;
       const newStock = type === "add" ? previousStock + qty : Math.max(0, previousStock - qty);
-      await storage.updateInventoryItem(req.params.id, { currentStock: newStock });
+      await storage.updateInventoryItem(req.params.id, tenantId, { currentStock: newStock });
       const transaction = await storage.createInventoryTransaction({
         tenantId, itemId: req.params.id, type, quantity: qty, previousStock, newStock,
         notes, createdBy: getUserId(req),
@@ -1283,11 +1319,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getMembershipPlan(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getMembershipPlan(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Plan not found" });
       }
-      const plan = await storage.updateMembershipPlan(req.params.id, req.body);
+      const plan = await storage.updateMembershipPlan(req.params.id, tenantId, req.body);
       res.json(plan);
     } catch (error) {
       console.error("Error updating membership plan:", error);
@@ -1326,11 +1362,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getCustomerMembership(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getCustomerMembership(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Membership not found" });
       }
-      const membership = await storage.updateCustomerMembership(req.params.id, req.body);
+      const membership = await storage.updateCustomerMembership(req.params.id, tenantId, req.body);
       res.json(membership);
     } catch (error) {
       console.error("Error updating customer membership:", error);
@@ -1430,8 +1466,8 @@ export async function registerRoutes(
       try {
         const tenantId = getTenantId(req);
         if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-        const patient = await storage.getPatient(req.params.id);
-        if (!patient || patient.tenantId !== tenantId) {
+        const patient = await storage.getPatient(req.params.id, tenantId);
+        if (!patient) {
           return res.status(404).json({ message: "Patient not found" });
         }
         res.json(patient);
@@ -1487,11 +1523,11 @@ export async function registerRoutes(
       try {
         const tenantId = getTenantId(req);
         if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-        const existing = await storage.getPatient(req.params.id);
-        if (!existing || existing.tenantId !== tenantId) {
+        const existing = await storage.getPatient(req.params.id, tenantId);
+        if (!existing) {
           return res.status(404).json({ message: "Patient not found" });
         }
-        const patient = await storage.updatePatient(req.params.id, req.body);
+        const patient = await storage.updatePatient(req.params.id, tenantId, req.body);
         res.json(patient);
       } catch (error) {
         console.error("Error updating patient:", error);
@@ -1531,11 +1567,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getDoctor(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getDoctor(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Doctor not found" });
       }
-      const doctor = await storage.updateDoctor(req.params.id, req.body);
+      const doctor = await storage.updateDoctor(req.params.id, tenantId, req.body);
       res.json(doctor);
     } catch (error) {
       console.error("Error updating doctor:", error);
@@ -1574,11 +1610,11 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getAppointment(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
+      const existing = await storage.getAppointment(req.params.id, tenantId);
+      if (!existing) {
         return res.status(404).json({ message: "Appointment not found" });
       }
-      const appointment = await storage.updateAppointment(req.params.id, req.body);
+      const appointment = await storage.updateAppointment(req.params.id, tenantId, req.body);
       res.json(appointment);
     } catch (error) {
       console.error("Error updating appointment:", error);
@@ -1595,11 +1631,11 @@ export async function registerRoutes(
       try {
         const tenantId = getTenantId(req);
         if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-        const patient = await storage.getPatient(req.params.patientId);
-        if (!patient || patient.tenantId !== tenantId) {
+        const patient = await storage.getPatient(req.params.patientId, tenantId);
+        if (!patient) {
           return res.status(404).json({ message: "Patient not found" });
         }
-        const records = await storage.getMedicalRecords(req.params.patientId);
+        const records = await storage.getMedicalRecords(req.params.patientId, tenantId);
         res.json(records);
       } catch (error) {
         console.error("Error fetching medical records:", error);
@@ -1634,11 +1670,11 @@ export async function registerRoutes(
       try {
         const tenantId = getTenantId(req);
         if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-        const existing = await storage.getMedicalRecord(req.params.id);
-        if (!existing || existing.tenantId !== tenantId) {
+        const existing = await storage.getMedicalRecord(req.params.id, tenantId);
+        if (!existing) {
           return res.status(404).json({ message: "Record not found" });
         }
-        const record = await storage.updateMedicalRecord(req.params.id, req.body);
+        const record = await storage.updateMedicalRecord(req.params.id, tenantId, req.body);
         res.json(record);
       } catch (error) {
         console.error("Error updating medical record:", error);
