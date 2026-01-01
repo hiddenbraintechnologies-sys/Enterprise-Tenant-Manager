@@ -1,0 +1,178 @@
+Build a production-ready, enterprise-grade, multi-tenant SaaS platform designed for small and medium businesses including:
+- PGs / Hostels / Co-living
+- Salons & Beauty Parlours
+- Gyms & Fitness Centers
+- Coaching / Training Institutes
+- Service-based businesses
+
+The system must be modular, scalable, secure, and cloud-ready.
+
+============================
+ARCHITECTURE REQUIREMENTS
+============================
+
+1. Architecture Style:
+- Modular Monolith (clean separation of modules)
+- Easy future migration to microservices
+- Single codebase, multi-tenant architecture
+- API-first design
+
+2. Tech Stack:
+- Backend: Node.js (NestJS preferred)
+- Database: PostgreSQL
+- ORM: Prisma or TypeORM
+- Frontend: React + Tailwind CSS
+- Mobile: React Native (shared logic)
+- Auth: JWT + Refresh Tokens
+- Caching: Redis
+- Messaging: Async queue-ready (for future scale)
+- Containerization: Docker
+- Environment-based configuration
+
+============================
+MULTI-TENANCY DESIGN
+============================
+
+- Each tenant has:
+  - Unique tenant_id
+  - Custom domain support (tenant.domain.com)
+  - Configurable modules & features
+  - Branding (logo, colors)
+  - Currency, timezone, language
+- Enforce tenant isolation at database and API level
+- All tables must include tenant_id
+- Middleware must validate tenant context
+
+============================
+CORE MODULES (MANDATORY)
+============================
+
+1. Authentication & Authorization
+   - Role-based access (Super Admin, Admin, Staff, Customer)
+   - JWT authentication
+   - Permission matrix
+   - Secure password hashing
+
+2. Tenant & Subscription Management
+   - Create/update tenant
+   - Subscription plans
+   - Feature flags per tenant
+   - Usage limits
+
+3. User & Staff Management
+   - Role assignment
+   - Activity tracking
+   - Audit logs
+
+4. Customer Management
+   - Customer profiles
+   - History & notes
+   - Document uploads
+
+5. Booking & Scheduling Engine
+   - Time-slot based booking
+   - Resource assignment (room/staff)
+   - Conflict detection
+   - Recurring bookings
+
+6. Services & Packages
+   - Service definitions
+   - Pricing models
+   - Bundles & packages
+
+7. Billing & Payments
+   - Invoices
+   - Partial / full payments
+   - Wallets
+   - Razorpay integration
+   - Payment status tracking
+
+8. Inventory & Retail (Optional Module)
+   - Product catalog
+   - Stock tracking
+   - Low-stock alerts
+
+9. Notifications System
+   - Email, SMS, WhatsApp, Push
+   - Template-based
+   - Event-driven triggers
+
+10. Reporting & Analytics
+   - Revenue, usage, bookings
+   - Exportable reports
+   - Admin dashboards
+
+============================
+DATA & MIGRATIONS
+============================
+
+- Use database migrations (versioned)
+- Seed data for:
+  - Tenants
+  - Users
+  - Services
+  - Sample bookings
+- Enforce referential integrity
+- Soft delete strategy
+
+============================
+VALIDATION & QUALITY
+============================
+
+- Input validation at API level
+- Schema validation (Zod / Joi)
+- Centralized error handling
+- Structured logging
+- Audit trail for key actions
+
+============================
+DEPLOYMENT & INFRASTRUCTURE
+============================
+
+- Dockerized services
+- Environment-based configs (dev/staging/prod)
+- Ready for AWS (EC2 / ECS / RDS / S3)
+- CI/CD friendly structure
+- Auto-migrations on deploy
+- SSL-ready with domain mapping
+
+============================
+FRONTEND REQUIREMENTS
+============================
+
+- Role-based dashboards
+- Dynamic feature toggles
+- Responsive UI
+- Theme customization per tenant
+- Reusable components
+- Optimized API consumption
+
+============================
+MOBILE APP SUPPORT
+============================
+
+- React Native app using same APIs
+- Offline support for basic operations
+- Push notifications
+- Dynamic feature toggles
+
+============================
+OUTPUT EXPECTATIONS
+============================
+
+- Clean folder structure
+- Production-grade code
+- Clear documentation
+- Sample environment variables
+- Sample database seed
+- Ready for cloud deployment
+- Easy future migration to microservices
+
+============================
+GOAL
+============================
+
+Deliver a scalable, maintainable, enterprise-ready SaaS platform
+that supports multiple business types, scales horizontally, and
+can evolve into a full SaaS ecosystem.
+
