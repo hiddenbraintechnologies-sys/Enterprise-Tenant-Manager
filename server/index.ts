@@ -3,6 +3,11 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { tenantService } from "./core";
+import { db } from "./db";
+import { roles, userTenants, rolePermissions, permissions, tenantFeatures, featureFlags, users, tenants } from "@shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
+import type { RequestContext } from "@shared/schema";
 
 const app = express();
 const httpServer = createServer(app);
@@ -64,6 +69,100 @@ app.use((req, res, next) => {
   // Setup authentication (must be before routes)
   await setupAuth(app);
   registerAuthRoutes(app);
+  
+  // Unified tenant context middleware (after auth, before routes)
+  app.use(async (req, res, next) => {
+    // Initialize empty context synchronously
+    const context: RequestContext = {
+      user: null,
+      tenant: null,
+      role: null,
+      permissions: [],
+      features: [],
+    };
+    req.context = context;
+    
+    // Skip async work for unauthenticated requests
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return next();
+    }
+    
+    try {
+      const userId = user.claims.sub;
+      
+      // Get user from DB
+      const [dbUser] = await db.select().from(users).where(eq(users.id, userId));
+      if (!dbUser) {
+        return next();
+      }
+      
+      context.user = {
+        id: dbUser.id,
+        email: dbUser.email,
+        firstName: dbUser.firstName,
+        lastName: dbUser.lastName,
+      };
+      
+      // Get user's tenant
+      let [userTenant] = await db.select({
+        userTenant: userTenants,
+        tenant: tenants,
+        role: roles,
+      })
+      .from(userTenants)
+      .leftJoin(tenants, eq(userTenants.tenantId, tenants.id))
+      .leftJoin(roles, eq(userTenants.roleId, roles.id))
+      .where(and(
+        eq(userTenants.userId, userId),
+        eq(userTenants.isActive, true)
+      ))
+      .limit(1);
+      
+      // Auto-assign to default tenant if no tenant association
+      if (!userTenant?.tenant) {
+        const { tenant, roleId } = await tenantService.ensureUserHasTenant(userId);
+        const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
+        context.tenant = tenant;
+        context.role = role || null;
+      } else {
+        context.tenant = userTenant.tenant;
+        context.role = userTenant.role;
+      }
+      
+      // Get permissions for role
+      if (context.role) {
+        const perms = await db.select({ code: permissions.code })
+          .from(rolePermissions)
+          .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+          .where(eq(rolePermissions.roleId, context.role.id));
+        context.permissions = perms.map(p => p.code).filter(Boolean) as string[];
+      }
+      
+      // Get enabled features for tenant
+      if (context.tenant) {
+        const [activeFeatures, defaultFeatures] = await Promise.all([
+          db.select({ code: tenantFeatures.featureCode })
+            .from(tenantFeatures)
+            .where(and(
+              eq(tenantFeatures.tenantId, context.tenant.id),
+              eq(tenantFeatures.isEnabled, true)
+            )),
+          db.select({ code: featureFlags.code })
+            .from(featureFlags)
+            .where(eq(featureFlags.defaultEnabled, true)),
+        ]);
+        const featureSet = new Set<string>();
+        defaultFeatures.forEach(f => featureSet.add(f.code));
+        activeFeatures.forEach(f => featureSet.add(f.code));
+        context.features = Array.from(featureSet);
+      }
+    } catch (error) {
+      console.error("Error in tenant context middleware:", error);
+    }
+    
+    next();
+  });
   
   await registerRoutes(httpServer, app);
 

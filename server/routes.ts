@@ -1,20 +1,35 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { insertCustomerSchema, insertServiceSchema, insertBookingSchema } from "@shared/schema";
+import { 
+  requirePermission, requireFeature, auditMiddleware, 
+  tenantService, auditService, featureService, permissionService,
+  FEATURES, PERMISSIONS
+} from "./core";
+
+function getTenantId(req: Request): string {
+  return req.context?.tenant?.id || "";
+}
+
+function getUserId(req: Request): string | undefined {
+  return req.context?.user?.id;
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Initialize default tenant
-  const defaultTenant = await storage.getOrCreateDefaultTenant();
-  const tenantId = defaultTenant.id;
+  
+  await tenantService.getOrCreateDefaultTenant();
 
-  // Dashboard stats
   app.get("/api/dashboard/stats", isAuthenticated, async (req, res) => {
     try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
       const stats = await storage.getDashboardStats(tenantId);
       res.json(stats);
     } catch (error) {
@@ -23,9 +38,12 @@ export async function registerRoutes(
     }
   });
 
-  // Analytics
   app.get("/api/analytics", isAuthenticated, async (req, res) => {
     try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
       const analytics = await storage.getAnalytics(tenantId);
       res.json(analytics);
     } catch (error) {
@@ -34,9 +52,12 @@ export async function registerRoutes(
     }
   });
 
-  // Customers
   app.get("/api/customers", isAuthenticated, async (req, res) => {
     try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
       const customers = await storage.getCustomers(tenantId);
       res.json(customers);
     } catch (error) {
@@ -60,11 +81,27 @@ export async function registerRoutes(
 
   app.post("/api/customers", isAuthenticated, async (req, res) => {
     try {
-      const parsed = insertCustomerSchema.safeParse({ ...req.body, tenantId });
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const parsed = insertCustomerSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.message });
       }
       const customer = await storage.createCustomer(parsed.data);
+      
+      auditService.logAsync({
+        tenantId,
+        userId: getUserId(req),
+        action: "create",
+        resource: "customers",
+        resourceId: customer.id,
+        newValue: customer as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.status(201).json(customer);
     } catch (error) {
       console.error("Error creating customer:", error);
@@ -74,10 +111,24 @@ export async function registerRoutes(
 
   app.patch("/api/customers/:id", isAuthenticated, async (req, res) => {
     try {
+      const oldCustomer = await storage.getCustomer(req.params.id);
       const customer = await storage.updateCustomer(req.params.id, req.body);
       if (!customer) {
         return res.status(404).json({ message: "Customer not found" });
       }
+      
+      auditService.logAsync({
+        tenantId: getTenantId(req),
+        userId: getUserId(req),
+        action: "update",
+        resource: "customers",
+        resourceId: customer.id,
+        oldValue: oldCustomer as any,
+        newValue: customer as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.json(customer);
     } catch (error) {
       console.error("Error updating customer:", error);
@@ -87,7 +138,20 @@ export async function registerRoutes(
 
   app.delete("/api/customers/:id", isAuthenticated, async (req, res) => {
     try {
+      const oldCustomer = await storage.getCustomer(req.params.id);
       await storage.deleteCustomer(req.params.id);
+      
+      auditService.logAsync({
+        tenantId: getTenantId(req),
+        userId: getUserId(req),
+        action: "delete",
+        resource: "customers",
+        resourceId: req.params.id,
+        oldValue: oldCustomer as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting customer:", error);
@@ -95,9 +159,12 @@ export async function registerRoutes(
     }
   });
 
-  // Services
   app.get("/api/services", isAuthenticated, async (req, res) => {
     try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
       const services = await storage.getServices(tenantId);
       res.json(services);
     } catch (error) {
@@ -121,11 +188,27 @@ export async function registerRoutes(
 
   app.post("/api/services", isAuthenticated, async (req, res) => {
     try {
-      const parsed = insertServiceSchema.safeParse({ ...req.body, tenantId });
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const parsed = insertServiceSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.message });
       }
       const service = await storage.createService(parsed.data);
+      
+      auditService.logAsync({
+        tenantId,
+        userId: getUserId(req),
+        action: "create",
+        resource: "services",
+        resourceId: service.id,
+        newValue: service as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.status(201).json(service);
     } catch (error) {
       console.error("Error creating service:", error);
@@ -135,10 +218,24 @@ export async function registerRoutes(
 
   app.patch("/api/services/:id", isAuthenticated, async (req, res) => {
     try {
+      const oldService = await storage.getService(req.params.id);
       const service = await storage.updateService(req.params.id, req.body);
       if (!service) {
         return res.status(404).json({ message: "Service not found" });
       }
+      
+      auditService.logAsync({
+        tenantId: getTenantId(req),
+        userId: getUserId(req),
+        action: "update",
+        resource: "services",
+        resourceId: service.id,
+        oldValue: oldService as any,
+        newValue: service as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.json(service);
     } catch (error) {
       console.error("Error updating service:", error);
@@ -148,7 +245,20 @@ export async function registerRoutes(
 
   app.delete("/api/services/:id", isAuthenticated, async (req, res) => {
     try {
+      const oldService = await storage.getService(req.params.id);
       await storage.deleteService(req.params.id);
+      
+      auditService.logAsync({
+        tenantId: getTenantId(req),
+        userId: getUserId(req),
+        action: "delete",
+        resource: "services",
+        resourceId: req.params.id,
+        oldValue: oldService as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting service:", error);
@@ -156,9 +266,12 @@ export async function registerRoutes(
     }
   });
 
-  // Bookings
   app.get("/api/bookings", isAuthenticated, async (req, res) => {
     try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
       const bookings = await storage.getBookings(tenantId);
       res.json(bookings);
     } catch (error) {
@@ -169,6 +282,10 @@ export async function registerRoutes(
 
   app.get("/api/bookings/upcoming", isAuthenticated, async (req, res) => {
     try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
       const limit = parseInt(req.query.limit as string) || 10;
       const bookings = await storage.getUpcomingBookings(tenantId, limit);
       res.json(bookings);
@@ -193,11 +310,27 @@ export async function registerRoutes(
 
   app.post("/api/bookings", isAuthenticated, async (req, res) => {
     try {
-      const parsed = insertBookingSchema.safeParse({ ...req.body, tenantId });
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const parsed = insertBookingSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.message });
       }
       const booking = await storage.createBooking(parsed.data);
+      
+      auditService.logAsync({
+        tenantId,
+        userId: getUserId(req),
+        action: "create",
+        resource: "bookings",
+        resourceId: booking.id,
+        newValue: booking as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.status(201).json(booking);
     } catch (error) {
       console.error("Error creating booking:", error);
@@ -207,10 +340,24 @@ export async function registerRoutes(
 
   app.patch("/api/bookings/:id", isAuthenticated, async (req, res) => {
     try {
+      const oldBooking = await storage.getBooking(req.params.id);
       const booking = await storage.updateBooking(req.params.id, req.body);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
+      
+      auditService.logAsync({
+        tenantId: getTenantId(req),
+        userId: getUserId(req),
+        action: "update",
+        resource: "bookings",
+        resourceId: booking.id,
+        oldValue: oldBooking as any,
+        newValue: booking as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.json(booking);
     } catch (error) {
       console.error("Error updating booking:", error);
@@ -220,11 +367,83 @@ export async function registerRoutes(
 
   app.delete("/api/bookings/:id", isAuthenticated, async (req, res) => {
     try {
+      const oldBooking = await storage.getBooking(req.params.id);
       await storage.deleteBooking(req.params.id);
+      
+      auditService.logAsync({
+        tenantId: getTenantId(req),
+        userId: getUserId(req),
+        action: "delete",
+        resource: "bookings",
+        resourceId: req.params.id,
+        oldValue: oldBooking as any,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting booking:", error);
       res.status(500).json({ message: "Failed to delete booking" });
+    }
+  });
+
+  app.get("/api/context", isAuthenticated, async (req, res) => {
+    try {
+      const context = req.context;
+      res.json({
+        user: context.user,
+        tenant: context.tenant ? {
+          id: context.tenant.id,
+          name: context.tenant.name,
+          businessType: context.tenant.businessType,
+          logoUrl: context.tenant.logoUrl,
+          primaryColor: context.tenant.primaryColor,
+        } : null,
+        role: context.role ? {
+          id: context.role.id,
+          name: context.role.name,
+        } : null,
+        permissions: context.permissions,
+        features: context.features,
+      });
+    } catch (error) {
+      console.error("Error fetching context:", error);
+      res.status(500).json({ message: "Failed to fetch context" });
+    }
+  });
+
+  app.get("/api/features", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const features = await featureService.getTenantFeatures(tenantId);
+      const allFeatures = await featureService.getAllFeatures();
+      res.json({
+        enabled: features,
+        available: allFeatures,
+      });
+    } catch (error) {
+      console.error("Error fetching features:", error);
+      res.status(500).json({ message: "Failed to fetch features" });
+    }
+  });
+
+  app.get("/api/audit-logs", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const result = await auditService.getAuditLogsWithUsers({ tenantId, limit, offset });
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ message: "Failed to fetch audit logs" });
     }
   });
 
