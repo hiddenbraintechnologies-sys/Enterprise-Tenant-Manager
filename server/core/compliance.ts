@@ -65,7 +65,7 @@ const ROLE_MASKING_CONFIGS: Record<string, DataMaskingConfig> = {
     ssn: "full",
     address: "city_only",
     dob: "none",
-    financialAccount: "last4",
+    financialAccount: "full",
   },
   doctor: {
     email: "none",
@@ -87,7 +87,7 @@ const ROLE_MASKING_CONFIGS: Record<string, DataMaskingConfig> = {
     email: "partial",
     phone: "partial",
     ssn: "full",
-    address: "city_only",
+    address: "full",
     dob: "year_only",
     financialAccount: "full",
   },
@@ -95,7 +95,7 @@ const ROLE_MASKING_CONFIGS: Record<string, DataMaskingConfig> = {
     email: "partial",
     phone: "partial",
     ssn: "full",
-    address: "city_only",
+    address: "full",
     dob: "year_only",
     financialAccount: "full",
   },
@@ -107,6 +107,15 @@ const ROLE_MASKING_CONFIGS: Record<string, DataMaskingConfig> = {
     dob: "full",
     financialAccount: "full",
   },
+};
+
+const DEFAULT_MASKING_CONFIG: DataMaskingConfig = {
+  email: "partial",
+  phone: "partial",
+  ssn: "full",
+  address: "full",
+  dob: "full",
+  financialAccount: "full",
 };
 
 export class ComplianceService {
@@ -205,7 +214,7 @@ export class ComplianceService {
   }
 
   getMaskingConfig(roleName: string): DataMaskingConfig {
-    return ROLE_MASKING_CONFIGS[roleName] || ROLE_MASKING_CONFIGS.customer;
+    return ROLE_MASKING_CONFIGS[roleName] || DEFAULT_MASKING_CONFIG;
   }
 }
 

@@ -16,6 +16,8 @@ import {
   FEATURES, PERMISSIONS,
   jwtAuthService, authenticateJWT, rateLimit, requireRole, requireMinimumRole,
   resolveTenantFromUser,
+  phiAccessMiddleware, requireAccessReason, dataMaskingMiddleware,
+  complianceService, createDataMasker,
 } from "./core";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -1091,62 +1093,108 @@ export async function registerRoutes(
   });
 
   // ==================== PATIENTS (Healthcare) ====================
-  app.get("/api/patients", isAuthenticated, async (req, res) => {
-    try {
-      const tenantId = getTenantId(req);
-      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const patients = await storage.getPatients(tenantId);
-      res.json(patients);
-    } catch (error) {
-      console.error("Error fetching patients:", error);
-      res.status(500).json({ message: "Failed to fetch patients" });
-    }
+  const patientDataMasking = dataMaskingMiddleware({
+    email: "email",
+    phone: "phone",
+    dob: "dateOfBirth",
   });
 
-  app.get("/api/patients/:id", isAuthenticated, async (req, res) => {
-    try {
-      const tenantId = getTenantId(req);
-      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const patient = await storage.getPatient(req.params.id);
-      if (!patient || patient.tenantId !== tenantId) {
-        return res.status(404).json({ message: "Patient not found" });
+  app.get("/api/patients", 
+    isAuthenticated, 
+    requireAccessReason(),
+    phiAccessMiddleware("patient"),
+    patientDataMasking,
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const patients = await storage.getPatients(tenantId);
+        res.json(patients);
+      } catch (error) {
+        console.error("Error fetching patients:", error);
+        res.status(500).json({ message: "Failed to fetch patients" });
       }
-      res.json(patient);
-    } catch (error) {
-      console.error("Error fetching patient:", error);
-      res.status(500).json({ message: "Failed to fetch patient" });
     }
-  });
+  );
 
-  app.post("/api/patients", isAuthenticated, async (req, res) => {
-    try {
-      const tenantId = getTenantId(req);
-      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const parsed = insertPatientSchema.safeParse({ ...req.body, tenantId });
-      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
-      const patient = await storage.createPatient(parsed.data);
-      res.status(201).json(patient);
-    } catch (error) {
-      console.error("Error creating patient:", error);
-      res.status(500).json({ message: "Failed to create patient" });
-    }
-  });
-
-  app.patch("/api/patients/:id", isAuthenticated, async (req, res) => {
-    try {
-      const tenantId = getTenantId(req);
-      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getPatient(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
-        return res.status(404).json({ message: "Patient not found" });
+  app.get("/api/patients/:id", 
+    isAuthenticated, 
+    requireAccessReason(),
+    phiAccessMiddleware("patient"),
+    patientDataMasking,
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const patient = await storage.getPatient(req.params.id);
+        if (!patient || patient.tenantId !== tenantId) {
+          return res.status(404).json({ message: "Patient not found" });
+        }
+        res.json(patient);
+      } catch (error) {
+        console.error("Error fetching patient:", error);
+        res.status(500).json({ message: "Failed to fetch patient" });
       }
-      const patient = await storage.updatePatient(req.params.id, req.body);
-      res.json(patient);
-    } catch (error) {
-      console.error("Error updating patient:", error);
-      res.status(500).json({ message: "Failed to update patient" });
     }
-  });
+  );
+
+  app.get("/api/patients/:patientId/access-history", 
+    isAuthenticated,
+    requireAccessReason(),
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const history = await complianceService.getPatientAccessHistory(
+          tenantId, 
+          req.params.patientId
+        );
+        res.json(history);
+      } catch (error) {
+        console.error("Error fetching access history:", error);
+        res.status(500).json({ message: "Failed to fetch access history" });
+      }
+    }
+  );
+
+  app.post("/api/patients", 
+    isAuthenticated, 
+    phiAccessMiddleware("patient"),
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const parsed = insertPatientSchema.safeParse({ ...req.body, tenantId });
+        if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+        const patient = await storage.createPatient(parsed.data);
+        res.status(201).json(patient);
+      } catch (error) {
+        console.error("Error creating patient:", error);
+        res.status(500).json({ message: "Failed to create patient" });
+      }
+    }
+  );
+
+  app.patch("/api/patients/:id", 
+    isAuthenticated, 
+    requireAccessReason(),
+    phiAccessMiddleware("patient"),
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const existing = await storage.getPatient(req.params.id);
+        if (!existing || existing.tenantId !== tenantId) {
+          return res.status(404).json({ message: "Patient not found" });
+        }
+        const patient = await storage.updatePatient(req.params.id, req.body);
+        res.json(patient);
+      } catch (error) {
+        console.error("Error updating patient:", error);
+        res.status(500).json({ message: "Failed to update patient" });
+      }
+    }
+  );
 
   // ==================== DOCTORS (Healthcare) ====================
   app.get("/api/doctors", isAuthenticated, async (req, res) => {
@@ -1235,51 +1283,86 @@ export async function registerRoutes(
   });
 
   // ==================== MEDICAL RECORDS (Healthcare) ====================
-  app.get("/api/patients/:patientId/medical-records", isAuthenticated, async (req, res) => {
-    try {
-      const tenantId = getTenantId(req);
-      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const patient = await storage.getPatient(req.params.patientId);
-      if (!patient || patient.tenantId !== tenantId) {
-        return res.status(404).json({ message: "Patient not found" });
+  app.get("/api/patients/:patientId/medical-records", 
+    isAuthenticated, 
+    requireAccessReason(),
+    phiAccessMiddleware("medical_record"),
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const patient = await storage.getPatient(req.params.patientId);
+        if (!patient || patient.tenantId !== tenantId) {
+          return res.status(404).json({ message: "Patient not found" });
+        }
+        const records = await storage.getMedicalRecords(req.params.patientId);
+        res.json(records);
+      } catch (error) {
+        console.error("Error fetching medical records:", error);
+        res.status(500).json({ message: "Failed to fetch records" });
       }
-      const records = await storage.getMedicalRecords(req.params.patientId);
-      res.json(records);
-    } catch (error) {
-      console.error("Error fetching medical records:", error);
-      res.status(500).json({ message: "Failed to fetch records" });
     }
-  });
+  );
 
-  app.post("/api/medical-records", isAuthenticated, async (req, res) => {
-    try {
-      const tenantId = getTenantId(req);
-      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const parsed = insertMedicalRecordSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
-      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
-      const record = await storage.createMedicalRecord(parsed.data);
-      res.status(201).json(record);
-    } catch (error) {
-      console.error("Error creating medical record:", error);
-      res.status(500).json({ message: "Failed to create record" });
-    }
-  });
-
-  app.patch("/api/medical-records/:id", isAuthenticated, async (req, res) => {
-    try {
-      const tenantId = getTenantId(req);
-      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const existing = await storage.getMedicalRecord(req.params.id);
-      if (!existing || existing.tenantId !== tenantId) {
-        return res.status(404).json({ message: "Record not found" });
+  app.post("/api/medical-records", 
+    isAuthenticated, 
+    phiAccessMiddleware("medical_record"),
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const parsed = insertMedicalRecordSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
+        if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+        const record = await storage.createMedicalRecord(parsed.data);
+        res.status(201).json(record);
+      } catch (error) {
+        console.error("Error creating medical record:", error);
+        res.status(500).json({ message: "Failed to create record" });
       }
-      const record = await storage.updateMedicalRecord(req.params.id, req.body);
-      res.json(record);
-    } catch (error) {
-      console.error("Error updating medical record:", error);
-      res.status(500).json({ message: "Failed to update record" });
     }
-  });
+  );
+
+  app.patch("/api/medical-records/:id", 
+    isAuthenticated, 
+    requireAccessReason(),
+    phiAccessMiddleware("medical_record"),
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const existing = await storage.getMedicalRecord(req.params.id);
+        if (!existing || existing.tenantId !== tenantId) {
+          return res.status(404).json({ message: "Record not found" });
+        }
+        const record = await storage.updateMedicalRecord(req.params.id, req.body);
+        res.json(record);
+      } catch (error) {
+        console.error("Error updating medical record:", error);
+        res.status(500).json({ message: "Failed to update record" });
+      }
+    }
+  );
+
+  // ==================== COMPLIANCE REPORTS ====================
+  app.get("/api/compliance/unusual-access", 
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const tenantId = getTenantId(req);
+        if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+        const windowHours = parseInt(req.query.windowHours as string) || 24;
+        const threshold = parseInt(req.query.threshold as string) || 50;
+        const patterns = await complianceService.getUnusualAccessPatterns(tenantId, {
+          windowHours,
+          threshold,
+        });
+        res.json(patterns);
+      } catch (error) {
+        console.error("Error fetching unusual access patterns:", error);
+        res.status(500).json({ message: "Failed to fetch patterns" });
+      }
+    }
+  );
 
   return httpServer;
 }
