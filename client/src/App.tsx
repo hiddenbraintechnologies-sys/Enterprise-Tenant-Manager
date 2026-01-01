@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
+import { TenantProvider, DashboardGuard, ModuleGuard, useTenant } from "@/contexts/tenant-context";
 
 import Landing from "@/pages/landing";
 import Register from "@/pages/register";
@@ -20,16 +21,117 @@ import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
-const DASHBOARD_ROUTES = {
-  clinic: "/dashboard/clinic",
-  salon: "/dashboard/salon",
-  pg: "/dashboard/pg",
-  coworking: "/dashboard/coworking",
-  service: "/dashboard/service",
-} as const;
+function AuthenticatedRoutes() {
+  const { dashboardRoute, businessType } = useTenant();
+
+  return (
+    <Switch>
+      <Route path="/">
+        <Redirect to={dashboardRoute} />
+      </Route>
+      <Route path="/dashboard">
+        <Redirect to={dashboardRoute} />
+      </Route>
+      
+      <Route path="/dashboard/clinic">
+        <DashboardGuard allowedBusinessType="clinic">
+          <ClinicDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/salon">
+        <DashboardGuard allowedBusinessType="salon">
+          <SalonDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/pg">
+        <DashboardGuard allowedBusinessType="pg">
+          <PGDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/coworking">
+        <DashboardGuard allowedBusinessType="coworking">
+          <CoworkingDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/service">
+        <DashboardGuard allowedBusinessType="service">
+          <ServiceDashboard />
+        </DashboardGuard>
+      </Route>
+      
+      <Route path="/coworking">
+        <DashboardGuard allowedBusinessType="coworking">
+          <CoworkingDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/coworking/desks">
+        <DashboardGuard allowedBusinessType="coworking">
+          <ModuleGuard moduleId="desks">
+            <CoworkingDashboard />
+          </ModuleGuard>
+        </DashboardGuard>
+      </Route>
+      <Route path="/coworking/bookings">
+        <DashboardGuard allowedBusinessType="coworking">
+          <ModuleGuard moduleId="bookings">
+            <CoworkingDashboard />
+          </ModuleGuard>
+        </DashboardGuard>
+      </Route>
+      <Route path="/coworking/spaces">
+        <DashboardGuard allowedBusinessType="coworking">
+          <ModuleGuard moduleId="spaces">
+            <CoworkingDashboard />
+          </ModuleGuard>
+        </DashboardGuard>
+      </Route>
+      <Route path="/coworking/book">
+        <DashboardGuard allowedBusinessType="coworking">
+          <ModuleGuard moduleId="bookings">
+            <CoworkingDashboard />
+          </ModuleGuard>
+        </DashboardGuard>
+      </Route>
+      
+      <Route path="/customers">
+        <ModuleGuard moduleId="customers">
+          <Customers />
+        </ModuleGuard>
+      </Route>
+      <Route path="/customers/new">
+        <ModuleGuard moduleId="customers">
+          <Customers />
+        </ModuleGuard>
+      </Route>
+      <Route path="/services">
+        <ModuleGuard moduleId="services">
+          <Services />
+        </ModuleGuard>
+      </Route>
+      <Route path="/services/new">
+        <ModuleGuard moduleId="services">
+          <Services />
+        </ModuleGuard>
+      </Route>
+      <Route path="/bookings">
+        <ModuleGuard moduleId="bookings">
+          <Bookings />
+        </ModuleGuard>
+      </Route>
+      <Route path="/bookings/new">
+        <ModuleGuard moduleId="bookings">
+          <Bookings />
+        </ModuleGuard>
+      </Route>
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/settings" component={Settings} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
 
 function AppRouter() {
-  const { user, businessType, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -51,39 +153,10 @@ function AppRouter() {
     );
   }
 
-  const defaultDashboard = DASHBOARD_ROUTES[businessType] || DASHBOARD_ROUTES.service;
-
   return (
-    <Switch>
-      <Route path="/">
-        <Redirect to={defaultDashboard} />
-      </Route>
-      <Route path="/dashboard">
-        <Redirect to={defaultDashboard} />
-      </Route>
-      
-      <Route path="/dashboard/clinic" component={ClinicDashboard} />
-      <Route path="/dashboard/salon" component={SalonDashboard} />
-      <Route path="/dashboard/pg" component={PGDashboard} />
-      <Route path="/dashboard/coworking" component={CoworkingDashboard} />
-      <Route path="/dashboard/service" component={ServiceDashboard} />
-      
-      <Route path="/coworking" component={CoworkingDashboard} />
-      <Route path="/coworking/desks" component={CoworkingDashboard} />
-      <Route path="/coworking/bookings" component={CoworkingDashboard} />
-      <Route path="/coworking/spaces" component={CoworkingDashboard} />
-      <Route path="/coworking/book" component={CoworkingDashboard} />
-      
-      <Route path="/customers" component={Customers} />
-      <Route path="/customers/new" component={Customers} />
-      <Route path="/services" component={Services} />
-      <Route path="/services/new" component={Services} />
-      <Route path="/bookings" component={Bookings} />
-      <Route path="/bookings/new" component={Bookings} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/settings" component={Settings} />
-      <Route component={NotFound} />
-    </Switch>
+    <TenantProvider>
+      <AuthenticatedRoutes />
+    </TenantProvider>
   );
 }
 

@@ -9,6 +9,10 @@ import {
   Building2,
   Monitor,
   MapPin,
+  Stethoscope,
+  Scissors,
+  BedDouble,
+  Home,
 } from "lucide-react";
 import {
   Sidebar,
@@ -26,95 +30,69 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import type { BusinessType } from "@/contexts/tenant-context";
 
-const defaultNavItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Customers",
-    url: "/customers",
-    icon: Users,
-  },
-  {
-    title: "Services",
-    url: "/services",
-    icon: Package,
-  },
-  {
-    title: "Bookings",
-    url: "/bookings",
-    icon: Calendar,
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-];
-
-const coworkingNavItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard/coworking",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Spaces",
-    url: "/coworking/spaces",
-    icon: MapPin,
-  },
-  {
-    title: "Desks",
-    url: "/coworking/desks",
-    icon: Monitor,
-  },
-  {
-    title: "Bookings",
-    url: "/coworking/bookings",
-    icon: Calendar,
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-];
-
-function getNavItemsForBusinessType(businessType?: string) {
-  switch (businessType) {
-    case "coworking":
-      return coworkingNavItems;
-    default:
-      return defaultNavItems;
-  }
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ElementType;
 }
 
-function getDashboardRoute(businessType?: string) {
-  switch (businessType) {
-    case "coworking":
-      return "/dashboard/coworking";
-    default:
-      return "/dashboard";
-  }
-}
+const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
+  clinic: [
+    { title: "Dashboard", url: "/dashboard/clinic", icon: LayoutDashboard },
+    { title: "Customers", url: "/customers", icon: Users },
+    { title: "Bookings", url: "/bookings", icon: Calendar },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  salon: [
+    { title: "Dashboard", url: "/dashboard/salon", icon: LayoutDashboard },
+    { title: "Clients", url: "/customers", icon: Users },
+    { title: "Services", url: "/services", icon: Scissors },
+    { title: "Appointments", url: "/bookings", icon: Calendar },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  pg: [
+    { title: "Dashboard", url: "/dashboard/pg", icon: LayoutDashboard },
+    { title: "Customers", url: "/customers", icon: Users },
+    { title: "Bookings", url: "/bookings", icon: Calendar },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  coworking: [
+    { title: "Dashboard", url: "/dashboard/coworking", icon: LayoutDashboard },
+    { title: "Spaces", url: "/coworking/spaces", icon: MapPin },
+    { title: "Desks", url: "/coworking/desks", icon: Monitor },
+    { title: "Bookings", url: "/coworking/bookings", icon: Calendar },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  service: [
+    { title: "Dashboard", url: "/dashboard/service", icon: LayoutDashboard },
+    { title: "Customers", url: "/customers", icon: Users },
+    { title: "Services", url: "/services", icon: Package },
+    { title: "Bookings", url: "/bookings", icon: Calendar },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+};
 
-const settingsItems = [
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
+const DASHBOARD_ROUTES: Record<BusinessType, string> = {
+  clinic: "/dashboard/clinic",
+  salon: "/dashboard/salon",
+  pg: "/dashboard/pg",
+  coworking: "/dashboard/coworking",
+  service: "/dashboard/service",
+};
+
+const settingsItems: NavItem[] = [
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
-  const { user, logout, isLoggingOut } = useAuth();
+  const { user, logout, isLoggingOut, businessType: authBusinessType } = useAuth();
 
-  const mainNavItems = getNavItemsForBusinessType(businessType);
-  const dashboardRoute = getDashboardRoute(businessType);
+  const effectiveBusinessType = (businessType || authBusinessType || "service") as BusinessType;
+  const mainNavItems = NAV_ITEMS_BY_BUSINESS_TYPE[effectiveBusinessType] || NAV_ITEMS_BY_BUSINESS_TYPE.service;
+  const dashboardRoute = DASHBOARD_ROUTES[effectiveBusinessType] || DASHBOARD_ROUTES.service;
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -149,7 +127,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                     asChild
                     isActive={location === item.url || location.startsWith(item.url + "/")}
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase()}`}>
+                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>

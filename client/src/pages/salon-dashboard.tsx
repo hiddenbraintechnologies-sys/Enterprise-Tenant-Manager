@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { WelcomeMessage } from "@/components/welcome-message";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ export default function SalonDashboard() {
 
   return (
     <DashboardLayout title="Salon Dashboard" breadcrumbs={[{ label: "Dashboard" }]}>
+      <WelcomeMessage businessType="salon" />
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Clients"
