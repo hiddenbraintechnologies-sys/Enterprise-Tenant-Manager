@@ -48,6 +48,7 @@ export const tenants = pgTable("tenants", {
   maxCustomers: integer("max_customers").default(100),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const tenantDomains = pgTable("tenant_domains", {
@@ -228,6 +229,7 @@ export const staff = pgTable("staff", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
   createdBy: varchar("created_by").references(() => users.id),
 }, (table) => [
   index("idx_staff_tenant").on(table.tenantId),
@@ -252,6 +254,7 @@ export const customers = pgTable("customers", {
   lastVisitAt: timestamp("last_visit_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
   createdBy: varchar("created_by").references(() => users.id),
 }, (table) => [
   index("idx_customers_tenant").on(table.tenantId),
@@ -277,6 +280,7 @@ export const services = pgTable("services", {
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
   createdBy: varchar("created_by").references(() => users.id),
 }, (table) => [
   index("idx_services_tenant").on(table.tenantId),
@@ -304,6 +308,7 @@ export const bookings = pgTable("bookings", {
   reminderSent: boolean("reminder_sent").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
   createdBy: varchar("created_by").references(() => users.id),
   cancelledAt: timestamp("cancelled_at"),
   cancelledBy: varchar("cancelled_by").references(() => users.id),
@@ -378,6 +383,7 @@ export const invoices = pgTable("invoices", {
   metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
   createdBy: varchar("created_by").references(() => users.id),
 }, (table) => [
   index("idx_invoices_tenant").on(table.tenantId),
@@ -456,6 +462,7 @@ export const inventoryItems = pgTable("inventory_items", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_inventory_items_tenant").on(table.tenantId),
   index("idx_inventory_items_category").on(table.categoryId),
@@ -546,6 +553,7 @@ export const patients = pgTable("patients", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_patients_tenant").on(table.tenantId),
   uniqueIndex("idx_patients_patient_id").on(table.tenantId, table.patientId),
@@ -564,6 +572,7 @@ export const doctors = pgTable("doctors", {
   isAcceptingNew: boolean("is_accepting_new").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_doctors_tenant").on(table.tenantId),
 ]);
@@ -584,6 +593,7 @@ export const appointments = pgTable("appointments", {
   reminderSent: boolean("reminder_sent").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_appointments_tenant").on(table.tenantId),
   index("idx_appointments_patient").on(table.patientId),
