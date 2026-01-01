@@ -8,12 +8,17 @@ import {
   insertPaymentSchema, insertInventoryCategorySchema, insertInventoryItemSchema,
   insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
+  users,
 } from "@shared/schema";
 import { 
   requirePermission, requireFeature, auditMiddleware, 
   tenantService, auditService, featureService, permissionService,
-  FEATURES, PERMISSIONS
+  FEATURES, PERMISSIONS,
+  jwtAuthService, authenticateJWT, rateLimit, requireRole, requireMinimumRole,
+  resolveTenantFromUser,
 } from "./core";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -29,6 +34,260 @@ export async function registerRoutes(
 ): Promise<Server> {
   
   await tenantService.getOrCreateDefaultTenant();
+
+  // ==================== AUTH ROUTES ====================
+  
+  const authRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
+
+  app.post("/api/auth/session/exchange", isAuthenticated, authRateLimit, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.claims?.sub) {
+        return res.status(401).json({ message: "No session found" });
+      }
+
+      const [dbUser] = await db.select().from(users).where(eq(users.id, user.claims.sub));
+      if (!dbUser) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const tokens = await jwtAuthService.exchangeSessionForTokens(dbUser, {
+        userAgent: req.headers["user-agent"],
+        ipAddress: req.ip || undefined,
+      });
+
+      auditService.logAsync({
+        tenantId: req.context?.tenant?.id,
+        userId: dbUser.id,
+        action: "login",
+        resource: "auth",
+        metadata: { method: "session_exchange" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        user: {
+          id: dbUser.id,
+          email: dbUser.email,
+          firstName: dbUser.firstName,
+          lastName: dbUser.lastName,
+        },
+        tenant: req.context?.tenant || null,
+        role: req.context?.role?.name || null,
+        permissions: req.context?.permissions || [],
+        features: req.context?.features || [],
+      });
+    } catch (error) {
+      console.error("Token exchange error:", error);
+      res.status(500).json({ message: "Failed to exchange session for tokens" });
+    }
+  });
+
+  app.post("/api/auth/token/refresh", authRateLimit, async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) {
+        return res.status(400).json({ message: "Refresh token required" });
+      }
+
+      const tokens = await jwtAuthService.rotateRefreshToken(refreshToken, {
+        userAgent: req.headers["user-agent"],
+        ipAddress: req.ip || undefined,
+      });
+
+      if (!tokens) {
+        return res.status(401).json({ 
+          message: "Invalid or expired refresh token",
+          code: "REFRESH_TOKEN_INVALID"
+        });
+      }
+
+      res.json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+      });
+    } catch (error) {
+      console.error("Token refresh error:", error);
+      res.status(500).json({ message: "Failed to refresh token" });
+    }
+  });
+
+  app.post("/api/auth/logout", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.context?.user?.id;
+      const tenantId = req.context?.tenant?.id;
+
+      if (userId) {
+        await jwtAuthService.revokeAllUserTokens(userId, tenantId || undefined);
+
+        auditService.logAsync({
+          tenantId,
+          userId,
+          action: "logout",
+          resource: "auth",
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+      }
+
+      res.json({ message: "Logged out successfully" });
+    } catch (error) {
+      console.error("Logout error:", error);
+      res.status(500).json({ message: "Failed to logout" });
+    }
+  });
+
+  app.patch("/api/auth/tenants/switch", isAuthenticated, async (req, res) => {
+    try {
+      const { tenantId } = req.body;
+      const userId = req.context?.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant ID required" });
+      }
+
+      const tenantInfo = await resolveTenantFromUser(userId);
+      if (!tenantInfo.tenant) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+
+      const tokens = await jwtAuthService.generateTokenPair(
+        userId,
+        tenantId,
+        tenantInfo.role?.id || null,
+        tenantInfo.permissions,
+        {
+          userAgent: req.headers["user-agent"],
+          ipAddress: req.ip || undefined,
+        }
+      );
+
+      res.json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        tenant: tenantInfo.tenant,
+      });
+    } catch (error) {
+      console.error("Tenant switch error:", error);
+      res.status(500).json({ message: "Failed to switch tenant" });
+    }
+  });
+
+  app.get("/api/auth/me", authenticateJWT(), async (req, res) => {
+    try {
+      res.json({
+        user: req.context?.user || null,
+        tenant: req.context?.tenant || null,
+        role: req.context?.role?.name || null,
+        permissions: req.context?.permissions || [],
+        features: req.context?.features || [],
+      });
+    } catch (error) {
+      console.error("Get me error:", error);
+      res.status(500).json({ message: "Failed to get user info" });
+    }
+  });
+
+  app.get("/api/auth/roles", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = req.context?.tenant?.id;
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      const roles = await permissionService.getTenantRoles(tenantId);
+      res.json(roles);
+    } catch (error) {
+      console.error("Get roles error:", error);
+      res.status(500).json({ message: "Failed to get roles" });
+    }
+  });
+
+  app.get("/api/auth/permissions", isAuthenticated, async (req, res) => {
+    try {
+      const allPermissions = await permissionService.getAllPermissions();
+      res.json({
+        permissions: allPermissions,
+        matrix: PERMISSIONS,
+      });
+    } catch (error) {
+      console.error("Get permissions error:", error);
+      res.status(500).json({ message: "Failed to get permissions" });
+    }
+  });
+
+  app.post("/api/auth/api-tokens", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.context?.user?.id;
+      const tenantId = req.context?.tenant?.id;
+
+      if (!userId || !tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+
+      const { name, scopes, expiresInDays } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "Token name required" });
+      }
+
+      const { token, tokenId } = await jwtAuthService.generateApiToken(
+        userId,
+        tenantId,
+        name,
+        scopes || [],
+        expiresInDays
+      );
+
+      res.status(201).json({
+        token,
+        tokenId,
+        message: "Store this token securely. It will not be shown again.",
+      });
+    } catch (error) {
+      console.error("Create API token error:", error);
+      res.status(500).json({ message: "Failed to create API token" });
+    }
+  });
+
+  app.post("/api/auth/token/revoke", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.context?.user?.id;
+      const { tokenId, revokeAll } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      if (revokeAll) {
+        await jwtAuthService.revokeAllUserTokens(userId);
+        return res.json({ message: "All tokens revoked" });
+      }
+
+      if (tokenId) {
+        await jwtAuthService.revokeRefreshToken(tokenId);
+        return res.json({ message: "Token revoked" });
+      }
+
+      res.status(400).json({ message: "Token ID or revokeAll flag required" });
+    } catch (error) {
+      console.error("Revoke token error:", error);
+      res.status(500).json({ message: "Failed to revoke token" });
+    }
+  });
+
+  // ==================== BUSINESS ROUTES ====================
 
   app.get("/api/dashboard/stats", isAuthenticated, async (req, res) => {
     try {
