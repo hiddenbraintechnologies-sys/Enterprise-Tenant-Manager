@@ -529,6 +529,66 @@ export const customerMemberships = pgTable("customer_memberships", {
 ]);
 
 // ============================================
+// COWORKING MODULE
+// ============================================
+
+export const deskTypeEnum = pgEnum("desk_type", ["hot", "dedicated"]);
+export const deskStatusEnum = pgEnum("desk_status", ["available", "occupied", "reserved", "maintenance"]);
+
+export const spaces = pgTable("spaces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  location: text("location"),
+  description: text("description"),
+  capacity: integer("capacity"),
+  amenities: jsonb("amenities").default([]),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_spaces_tenant").on(table.tenantId),
+]);
+
+export const desks = pgTable("desks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  spaceId: varchar("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }),
+  type: deskTypeEnum("type").notNull(),
+  status: deskStatusEnum("status").default("available"),
+  pricePerHour: decimal("price_per_hour", { precision: 10, scale: 2 }),
+  pricePerDay: decimal("price_per_day", { precision: 10, scale: 2 }),
+  pricePerMonth: decimal("price_per_month", { precision: 10, scale: 2 }),
+  assignedTo: varchar("assigned_to").references(() => customers.id),
+  features: jsonb("features").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_desks_tenant").on(table.tenantId),
+  index("idx_desks_space").on(table.spaceId),
+  index("idx_desks_status").on(table.status),
+]);
+
+export const deskBookings = pgTable("desk_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  deskId: varchar("desk_id").notNull().references(() => desks.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  status: bookingStatusEnum("status").default("pending"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_desk_bookings_tenant").on(table.tenantId),
+  index("idx_desk_bookings_desk").on(table.deskId),
+  index("idx_desk_bookings_customer").on(table.customerId),
+  index("idx_desk_bookings_time").on(table.startTime, table.endTime),
+]);
+
+// ============================================
 // HEALTHCARE MODULE (OPTIONAL)
 // ============================================
 
@@ -756,6 +816,9 @@ export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit
 export const insertInventoryTransactionSchema = createInsertSchema(inventoryTransactions).omit({ id: true, createdAt: true });
 export const insertMembershipPlanSchema = createInsertSchema(membershipPlans).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerMembershipSchema = createInsertSchema(customerMemberships).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSpaceSchema = createInsertSchema(spaces).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDeskSchema = createInsertSchema(desks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDeskBookingSchema = createInsertSchema(deskBookings).omit({ id: true, createdAt: true });
 export const insertPatientSchema = createInsertSchema(patients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDoctorSchema = createInsertSchema(doctors).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({ id: true, createdAt: true, updatedAt: true });
@@ -842,6 +905,13 @@ export type InsertMembershipPlan = z.infer<typeof insertMembershipPlanSchema>;
 
 export type CustomerMembership = typeof customerMemberships.$inferSelect;
 export type InsertCustomerMembership = z.infer<typeof insertCustomerMembershipSchema>;
+
+export type Space = typeof spaces.$inferSelect;
+export type InsertSpace = z.infer<typeof insertSpaceSchema>;
+export type Desk = typeof desks.$inferSelect;
+export type InsertDesk = z.infer<typeof insertDeskSchema>;
+export type DeskBooking = typeof deskBookings.$inferSelect;
+export type InsertDeskBooking = z.infer<typeof insertDeskBookingSchema>;
 
 export type Patient = typeof patients.$inferSelect;
 export type InsertPatient = z.infer<typeof insertPatientSchema>;
