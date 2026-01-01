@@ -157,9 +157,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Tenant ID required" });
       }
 
-      const tenantInfo = await resolveTenantFromUser(userId);
-      if (!tenantInfo.tenant) {
-        return res.status(403).json({ message: "No tenant access" });
+      const tenantInfo = await resolveTenantFromUser(userId, tenantId);
+      if (!tenantInfo.tenant || tenantInfo.tenant.id !== tenantId) {
+        return res.status(403).json({ message: "You do not have access to this tenant" });
       }
 
       const tokens = await jwtAuthService.generateTokenPair(
@@ -264,7 +264,7 @@ export async function registerRoutes(
   app.post("/api/auth/token/revoke", isAuthenticated, async (req, res) => {
     try {
       const userId = req.context?.user?.id;
-      const { tokenId, revokeAll } = req.body;
+      const { refreshToken, revokeAll } = req.body;
 
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
@@ -275,12 +275,15 @@ export async function registerRoutes(
         return res.json({ message: "All tokens revoked" });
       }
 
-      if (tokenId) {
-        await jwtAuthService.revokeRefreshToken(tokenId);
+      if (refreshToken) {
+        const revoked = await jwtAuthService.revokeRefreshTokenByValue(refreshToken);
+        if (!revoked) {
+          return res.status(404).json({ message: "Token not found or already revoked" });
+        }
         return res.json({ message: "Token revoked" });
       }
 
-      res.status(400).json({ message: "Token ID or revokeAll flag required" });
+      res.status(400).json({ message: "refreshToken or revokeAll flag required" });
     } catch (error) {
       console.error("Revoke token error:", error);
       res.status(500).json({ message: "Failed to revoke token" });

@@ -15,11 +15,34 @@ declare global {
   }
 }
 
-export async function resolveTenantFromUser(userId: string): Promise<{
+export async function resolveTenantFromUser(userId: string, specificTenantId?: string): Promise<{
   tenant: Tenant | null;
   role: Role | null;
   permissions: string[];
 }> {
+  if (specificTenantId) {
+    const [userTenant] = await db.select({
+      tenant: tenants,
+      role: roles,
+    })
+    .from(userTenants)
+    .leftJoin(tenants, eq(userTenants.tenantId, tenants.id))
+    .leftJoin(roles, eq(userTenants.roleId, roles.id))
+    .where(and(
+      eq(userTenants.userId, userId),
+      eq(userTenants.tenantId, specificTenantId),
+      eq(userTenants.isActive, true)
+    ))
+    .limit(1);
+
+    if (!userTenant?.tenant) {
+      return { tenant: null, role: null, permissions: [] };
+    }
+
+    const perms = await getRolePermissions(userTenant.role?.id);
+    return { tenant: userTenant.tenant, role: userTenant.role, permissions: perms };
+  }
+
   const [userTenant] = await db.select({
     tenant: tenants,
     role: roles,

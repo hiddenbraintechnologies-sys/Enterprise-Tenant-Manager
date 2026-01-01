@@ -7,7 +7,7 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
 - **Frontend**: React 18 + TypeScript + Tailwind CSS + shadcn/ui
 - **Backend**: Express.js + TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
-- **Authentication**: Replit Auth (OIDC) + Session-based
+- **Authentication**: Replit Auth (OIDC) + JWT (Access + Refresh tokens)
 - **State Management**: TanStack Query v5
 - **Routing**: Wouter
 
@@ -40,6 +40,8 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
 │   │   ├── permissions.ts # RBAC service
 │   │   ├── tenants.ts     # Tenant management
 │   │   ├── audit.ts       # Audit logging
+│   │   ├── jwt.ts         # JWT token service
+│   │   ├── auth-middleware.ts # Auth middleware stack
 │   │   └── index.ts       # Core exports
 │   ├── replit_integrations/auth/  # Replit Auth
 │   ├── db.ts              # Database connection
@@ -93,7 +95,44 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
 - **Captured Data**: Actor, tenant, resource, old/new values, IP, user agent
 - **Query Endpoints**: `/api/audit-logs` for viewing history
 
+### JWT Authentication System
+- **Token Types**: Access tokens (15m TTL), Refresh tokens (7d TTL with rotation)
+- **Flow**: Replit Auth session → exchange for JWT pair → API calls use Bearer token → refresh when expired
+- **Security**: HMAC-SHA256 signing, refresh tokens stored hashed with bcrypt
+- **Device Tracking**: User agent and IP captured for token audit trail
+- **Token Revocation**: Individual token or all user tokens can be revoked
+
+### Permission Matrix (RBAC)
+Resources and actions available for role-based access:
+| Resource | read | create | update | delete | manage |
+|----------|------|--------|--------|--------|--------|
+| customers | Staff+ | Staff+ | Staff+ | Manager+ | Admin+ |
+| services | Staff+ | Manager+ | Manager+ | Admin+ | Admin+ |
+| bookings | Staff+ | Staff+ | Staff+ | Manager+ | Admin+ |
+| invoices | Staff+ | Staff+ | Staff+ | Manager+ | Admin+ |
+| payments | Staff+ | Staff+ | Staff+ | Admin+ | Admin+ |
+| inventory | Staff+ | Manager+ | Manager+ | Admin+ | Admin+ |
+| staff | Manager+ | Admin+ | Admin+ | Admin+ | Admin+ |
+| analytics | Manager+ | - | - | - | Admin+ |
+| settings | Admin+ | Admin+ | Admin+ | Admin+ | Admin+ |
+| audit_logs | Admin+ | - | - | - | SuperAdmin |
+| tenants | Admin+ | SuperAdmin | SuperAdmin | SuperAdmin | SuperAdmin |
+| users | Admin+ | Admin+ | Admin+ | SuperAdmin | SuperAdmin |
+
+Role Hierarchy: super_admin(5) > admin(4) > manager(3) > staff(2) > customer(1)
+
 ## API Endpoints
+
+### Authentication
+- `POST /api/auth/session/exchange` - Exchange Replit session for JWT pair
+- `POST /api/auth/token/refresh` - Refresh access token with rotation
+- `POST /api/auth/logout` - Revoke all user tokens
+- `PATCH /api/auth/tenants/switch` - Switch tenant and get new tokens
+- `GET /api/auth/me` - Get current user context (JWT protected)
+- `GET /api/auth/roles` - List tenant roles
+- `GET /api/auth/permissions` - Get permission matrix
+- `POST /api/auth/api-tokens` - Create long-lived API token
+- `POST /api/auth/token/revoke` - Revoke specific or all tokens
 
 ### Core
 - `GET /api/context` - Current user, tenant, role, permissions, features

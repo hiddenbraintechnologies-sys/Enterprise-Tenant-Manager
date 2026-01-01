@@ -5,7 +5,15 @@ import { refreshTokens, apiTokens, users, type User } from "@shared/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { resolveTenantFromUser } from "./context";
 
-const JWT_SECRET = process.env.SESSION_SECRET || "bizflow-jwt-secret-change-in-production";
+function getJwtSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    throw new Error("SESSION_SECRET environment variable is required for JWT signing");
+  }
+  return secret;
+}
+
+const JWT_SECRET = getJwtSecret();
 const ACCESS_TOKEN_EXPIRY = "15m";
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 const REFRESH_TOKEN_MAX_DAYS = 30;
@@ -198,6 +206,34 @@ export class JWTAuthService {
     await db.update(refreshTokens)
       .set({ isRevoked: true })
       .where(eq(refreshTokens.id, tokenId));
+  }
+
+  async revokeRefreshTokenByValue(refreshToken: string): Promise<boolean> {
+    try {
+      const decoded = jwt.verify(refreshToken, JWT_SECRET) as TokenPayload | null;
+      if (!decoded?.jti) {
+        return false;
+      }
+
+      const tokenHash = hashToken(decoded.jti);
+      
+      const [existingToken] = await db.select({ id: refreshTokens.id, isRevoked: refreshTokens.isRevoked })
+        .from(refreshTokens)
+        .where(eq(refreshTokens.tokenHash, tokenHash))
+        .limit(1);
+
+      if (!existingToken || existingToken.isRevoked) {
+        return false;
+      }
+
+      await db.update(refreshTokens)
+        .set({ isRevoked: true })
+        .where(eq(refreshTokens.tokenHash, tokenHash));
+
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async revokeAllUserTokens(userId: string, tenantId?: string): Promise<void> {
