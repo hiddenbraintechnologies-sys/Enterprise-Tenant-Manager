@@ -5,3 +5,5 @@ export * from "./tenants";
 export * from "./audit";
 export * from "./jwt";
 export * from "./auth-middleware";
+export * from "./tenant-isolation";
+export * from "./scoped-repository";
