@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
+import CoworkingDashboard from "@/pages/coworking-dashboard";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
@@ -37,6 +38,12 @@ function AppRouter() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/dashboard/coworking" component={CoworkingDashboard} />
+      <Route path="/coworking" component={CoworkingDashboard} />
+      <Route path="/coworking/desks" component={CoworkingDashboard} />
+      <Route path="/coworking/bookings" component={CoworkingDashboard} />
+      <Route path="/coworking/spaces" component={CoworkingDashboard} />
+      <Route path="/coworking/book" component={CoworkingDashboard} />
       <Route path="/customers" component={Customers} />
       <Route path="/customers/new" component={Customers} />
       <Route path="/services" component={Services} />

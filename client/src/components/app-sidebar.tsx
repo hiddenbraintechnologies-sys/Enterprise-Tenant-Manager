@@ -7,6 +7,8 @@ import {
   BarChart3,
   Settings,
   Building2,
+  Monitor,
+  MapPin,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,7 +27,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
-const mainNavItems = [
+const defaultNavItems = [
   {
     title: "Dashboard",
     url: "/dashboard",
@@ -53,6 +55,52 @@ const mainNavItems = [
   },
 ];
 
+const coworkingNavItems = [
+  {
+    title: "Dashboard",
+    url: "/dashboard/coworking",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Spaces",
+    url: "/coworking/spaces",
+    icon: MapPin,
+  },
+  {
+    title: "Desks",
+    url: "/coworking/desks",
+    icon: Monitor,
+  },
+  {
+    title: "Bookings",
+    url: "/coworking/bookings",
+    icon: Calendar,
+  },
+  {
+    title: "Analytics",
+    url: "/analytics",
+    icon: BarChart3,
+  },
+];
+
+function getNavItemsForBusinessType(businessType?: string) {
+  switch (businessType) {
+    case "coworking":
+      return coworkingNavItems;
+    default:
+      return defaultNavItems;
+  }
+}
+
+function getDashboardRoute(businessType?: string) {
+  switch (businessType) {
+    case "coworking":
+      return "/dashboard/coworking";
+    default:
+      return "/dashboard";
+  }
+}
+
 const settingsItems = [
   {
     title: "Settings",
@@ -61,9 +109,12 @@ const settingsItems = [
   },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
   const { user, logout, isLoggingOut } = useAuth();
+
+  const mainNavItems = getNavItemsForBusinessType(businessType);
+  const dashboardRoute = getDashboardRoute(businessType);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -74,7 +125,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
-        <Link href="/dashboard" className="flex items-center gap-3">
+        <Link href={dashboardRoute} className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Building2 className="h-5 w-5" />
           </div>
