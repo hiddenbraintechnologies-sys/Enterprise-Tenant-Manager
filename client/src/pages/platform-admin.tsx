@@ -18,9 +18,10 @@ import { queryClient } from "@/lib/queryClient";
 import { 
   Building2, Users, TrendingUp, Shield, Search, 
   Ban, CheckCircle2, Activity, Clock,
-  AlertTriangle, Loader2, LogOut
+  AlertTriangle, Loader2, LogOut, Plus, Pencil, Trash2, ShieldCheck, UserCog
 } from "lucide-react";
 import { format } from "date-fns";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Tenant {
   id: string;
@@ -74,6 +75,21 @@ interface PlatformAdmin {
   role: string;
   isSuperAdmin: boolean;
   mustChangePassword: boolean;
+}
+
+interface PlatformUser {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  isPlatformAdmin: boolean;
+  platformAdmin: {
+    id: string;
+    role: string;
+    status: string;
+  } | null;
 }
 
 interface LoginResponse {
@@ -229,6 +245,29 @@ export default function PlatformAdminDashboard() {
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [suspensionReason, setSuspensionReason] = useState("");
+  
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
+  const [deleteUserDialogOpen, setDeleteUserDialogOpen] = useState(false);
+  const [promoteAdminDialogOpen, setPromoteAdminDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<PlatformUser | null>(null);
+  const [newUserData, setNewUserData] = useState({
+    email: "",
+    firstName: "",
+    lastName: "",
+    password: "",
+    makePlatformAdmin: false,
+    platformRole: "platform_admin" as "super_admin" | "platform_admin",
+  });
+  const [editUserData, setEditUserData] = useState({
+    firstName: "",
+    lastName: "",
+    password: "",
+  });
+  const [promoteAdminData, setPromoteAdminData] = useState({
+    role: "platform_admin" as "super_admin" | "platform_admin",
+  });
 
   const { data: adminProfile, isLoading: loadingProfile, error: profileError } = useQuery<PlatformAdmin>({
     queryKey: ["/api/platform/me"],
@@ -277,6 +316,19 @@ export default function PlatformAdminDashboard() {
     enabled: isAuthenticated && !!adminProfile,
   });
 
+  const { data: usersData, isLoading: loadingUsers } = useQuery<{
+    users: PlatformUser[];
+    pagination: { page: number; limit: number; total: number };
+  }>({
+    queryKey: ["/api/platform/users"],
+    queryFn: async () => {
+      const response = await platformFetch("/api/platform/users");
+      if (!response.ok) throw new Error("Failed to fetch users");
+      return response.json();
+    },
+    enabled: isAuthenticated && !!adminProfile && adminProfile.isSuperAdmin,
+  });
+
   const suspendMutation = useMutation({
     mutationFn: async ({ tenantId, reason }: { tenantId: string; reason: string }) => {
       const response = await platformFetch(`/api/platform/tenants/${tenantId}/suspend`, {
@@ -317,6 +369,110 @@ export default function PlatformAdminDashboard() {
     },
   });
 
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof newUserData) => {
+      const response = await platformFetch("/api/platform/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to create user");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User created", description: "The user has been created successfully." });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/analytics"] });
+      setCreateUserDialogOpen(false);
+      setNewUserData({ email: "", firstName: "", lastName: "", password: "", makePlatformAdmin: false, platformRole: "platform_admin" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: string; data: typeof editUserData }) => {
+      const response = await platformFetch(`/api/platform/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to update user");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User updated", description: "The user has been updated successfully." });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/users"] });
+      setEditUserDialogOpen(false);
+      setSelectedUser(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update user", variant: "destructive" });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await platformFetch(`/api/platform/users/${userId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete user");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User deleted", description: "The user has been deleted successfully." });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/analytics"] });
+      setDeleteUserDialogOpen(false);
+      setSelectedUser(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete user", variant: "destructive" });
+    },
+  });
+
+  const promoteToAdminMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+      const response = await platformFetch("/api/platform/admins", {
+        method: "POST",
+        body: JSON.stringify({ userId, role }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to promote user");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User promoted", description: "The user is now a platform admin." });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/users"] });
+      setPromoteAdminDialogOpen(false);
+      setSelectedUser(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeAdminMutation = useMutation({
+    mutationFn: async (adminId: string) => {
+      const response = await platformFetch(`/api/platform/admins/${adminId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to remove admin");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Admin removed", description: "The user is no longer a platform admin." });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/users"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to remove admin", variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     if (profileError) {
       clearStoredToken();
@@ -334,6 +490,12 @@ export default function PlatformAdminDashboard() {
   const filteredTenants = (tenantsData?.tenants || []).filter(tenant =>
     tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     tenant.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredUsers = (usersData?.users || []).filter(user =>
+    user.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    user.firstName?.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    user.lastName?.toLowerCase().includes(userSearchQuery.toLowerCase())
   );
 
   if (!isAuthenticated) {
@@ -456,6 +618,12 @@ export default function PlatformAdminDashboard() {
               <Building2 className="h-4 w-4 mr-2" />
               Tenants
             </TabsTrigger>
+            {adminProfile?.isSuperAdmin && (
+              <TabsTrigger value="users" data-testid="tab-users">
+                <Users className="h-4 w-4 mr-2" />
+                Users
+              </TabsTrigger>
+            )}
             <TabsTrigger value="audit" data-testid="tab-audit">
               <Activity className="h-4 w-4 mr-2" />
               Audit Logs
@@ -561,6 +729,128 @@ export default function PlatformAdminDashboard() {
             </Card>
           </TabsContent>
 
+          {adminProfile?.isSuperAdmin && (
+            <TabsContent value="users" className="space-y-4">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    className="pl-9"
+                    data-testid="input-search-users"
+                  />
+                </div>
+                <Button onClick={() => setCreateUserDialogOpen(true)} data-testid="button-create-user">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create User
+                </Button>
+              </div>
+
+              <Card>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[500px]">
+                    {loadingUsers ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : filteredUsers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                        <Users className="h-12 w-12 mb-2" />
+                        <p>No users found</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {filteredUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="flex items-center justify-between gap-4 p-4 hover-elevate"
+                            data-testid={`user-row-${user.id}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-medium truncate">
+                                  {user.firstName} {user.lastName}
+                                </h3>
+                                {user.isPlatformAdmin && (
+                                  <Badge variant={user.platformAdmin?.role === "super_admin" ? "default" : "secondary"}>
+                                    <ShieldCheck className="h-3 w-3 mr-1" />
+                                    {user.platformAdmin?.role === "super_admin" ? "Super Admin" : "Platform Admin"}
+                                  </Badge>
+                                )}
+                                {user.platformAdmin?.status === "suspended" && (
+                                  <Badge variant="destructive">Suspended</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Created {format(new Date(user.createdAt), "MMM d, yyyy")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setEditUserData({
+                                    firstName: user.firstName || "",
+                                    lastName: user.lastName || "",
+                                    password: "",
+                                  });
+                                  setEditUserDialogOpen(true);
+                                }}
+                                data-testid={`button-edit-user-${user.id}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              {!user.isPlatformAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setPromoteAdminDialogOpen(true);
+                                  }}
+                                  data-testid={`button-promote-user-${user.id}`}
+                                >
+                                  <UserCog className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {user.isPlatformAdmin && user.platformAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeAdminMutation.mutate(user.platformAdmin!.id)}
+                                  disabled={removeAdminMutation.isPending}
+                                  data-testid={`button-demote-user-${user.id}`}
+                                >
+                                  <Shield className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setDeleteUserDialogOpen(true);
+                                }}
+                                data-testid={`button-delete-user-${user.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           <TabsContent value="audit" className="space-y-4">
             <Card>
               <CardHeader>
@@ -658,6 +948,272 @@ export default function PlatformAdminDashboard() {
                 </>
               ) : (
                 "Suspend Tenant"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Create New User
+            </DialogTitle>
+            <DialogDescription>
+              Add a new user to the platform. You can optionally make them a platform admin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  value={newUserData.firstName}
+                  onChange={(e) => setNewUserData({ ...newUserData, firstName: e.target.value })}
+                  data-testid="input-new-user-firstname"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  value={newUserData.lastName}
+                  onChange={(e) => setNewUserData({ ...newUserData, lastName: e.target.value })}
+                  data-testid="input-new-user-lastname"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newUserData.email}
+                onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
+                data-testid="input-new-user-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={newUserData.password}
+                onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+                data-testid="input-new-user-password"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="makePlatformAdmin"
+                checked={newUserData.makePlatformAdmin}
+                onCheckedChange={(checked) => setNewUserData({ ...newUserData, makePlatformAdmin: checked as boolean })}
+                data-testid="checkbox-make-admin"
+              />
+              <Label htmlFor="makePlatformAdmin">Make Platform Admin</Label>
+            </div>
+            {newUserData.makePlatformAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="platformRole">Admin Role</Label>
+                <Select
+                  value={newUserData.platformRole}
+                  onValueChange={(value: "super_admin" | "platform_admin") => setNewUserData({ ...newUserData, platformRole: value })}
+                >
+                  <SelectTrigger data-testid="select-new-user-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="platform_admin">Platform Admin</SelectItem>
+                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateUserDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createUserMutation.mutate(newUserData)}
+              disabled={createUserMutation.isPending || !newUserData.email || !newUserData.password || !newUserData.firstName || !newUserData.lastName}
+              data-testid="button-confirm-create-user"
+            >
+              {createUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create User"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit User
+            </DialogTitle>
+            <DialogDescription>
+              Update user details for {selectedUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editFirstName">First Name</Label>
+                <Input
+                  id="editFirstName"
+                  value={editUserData.firstName}
+                  onChange={(e) => setEditUserData({ ...editUserData, firstName: e.target.value })}
+                  data-testid="input-edit-user-firstname"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editLastName">Last Name</Label>
+                <Input
+                  id="editLastName"
+                  value={editUserData.lastName}
+                  onChange={(e) => setEditUserData({ ...editUserData, lastName: e.target.value })}
+                  data-testid="input-edit-user-lastname"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editPassword">New Password (leave empty to keep current)</Label>
+              <Input
+                id="editPassword"
+                type="password"
+                value={editUserData.password}
+                onChange={(e) => setEditUserData({ ...editUserData, password: e.target.value })}
+                data-testid="input-edit-user-password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditUserDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedUser) {
+                  const data: Record<string, string> = {};
+                  if (editUserData.firstName) data.firstName = editUserData.firstName;
+                  if (editUserData.lastName) data.lastName = editUserData.lastName;
+                  if (editUserData.password) data.password = editUserData.password;
+                  updateUserMutation.mutate({ userId: selectedUser.id, data: data as typeof editUserData });
+                }
+              }}
+              disabled={updateUserMutation.isPending}
+              data-testid="button-confirm-edit-user"
+            >
+              {updateUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteUserDialogOpen} onOpenChange={setDeleteUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Delete User
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedUser?.email}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteUserDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (selectedUser) {
+                  deleteUserMutation.mutate(selectedUser.id);
+                }
+              }}
+              disabled={deleteUserMutation.isPending}
+              data-testid="button-confirm-delete-user"
+            >
+              {deleteUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete User"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={promoteAdminDialogOpen} onOpenChange={setPromoteAdminDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Promote to Platform Admin
+            </DialogTitle>
+            <DialogDescription>
+              Make {selectedUser?.email} a platform administrator.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="adminRole">Admin Role</Label>
+              <Select
+                value={promoteAdminData.role}
+                onValueChange={(value: "super_admin" | "platform_admin") => setPromoteAdminData({ role: value })}
+              >
+                <SelectTrigger data-testid="select-promote-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="platform_admin">Platform Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPromoteAdminDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedUser) {
+                  promoteToAdminMutation.mutate({ userId: selectedUser.id, role: promoteAdminData.role });
+                }
+              }}
+              disabled={promoteToAdminMutation.isPending}
+              data-testid="button-confirm-promote"
+            >
+              {promoteToAdminMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Promoting...
+                </>
+              ) : (
+                "Promote to Admin"
               )}
             </Button>
           </DialogFooter>
