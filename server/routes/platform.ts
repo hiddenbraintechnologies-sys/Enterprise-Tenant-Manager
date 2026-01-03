@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../db";
 import { 
   tenants, users, platformAdmins, platformAuditLogs, platformSettings,
-  userTenants, customers, bookings, invoices
+  userTenants, customers, bookings, invoices, roles
 } from "@shared/schema";
 import { eq, desc, count, sql, and, gte, lte } from "drizzle-orm";
 import { 
@@ -377,6 +377,14 @@ router.post("/tenants/:id/users",
         return res.status(404).json({ message: "Tenant not found" });
       }
 
+      if (roleId) {
+        const [role] = await db.select().from(roles)
+          .where(and(eq(roles.id, roleId), eq(roles.tenantId, tenantId)));
+        if (!role) {
+          return res.status(400).json({ message: "Invalid role for this tenant" });
+        }
+      }
+
       let [user] = await db.select().from(users).where(eq(users.email, email));
 
       if (!user) {
@@ -444,6 +452,14 @@ router.patch("/tenants/:id/users/:userId",
 
       if (!membership) {
         return res.status(404).json({ message: "User is not a member of this tenant" });
+      }
+
+      if (roleId) {
+        const [role] = await db.select().from(roles)
+          .where(and(eq(roles.id, roleId), eq(roles.tenantId, tenantId)));
+        if (!role) {
+          return res.status(400).json({ message: "Invalid role for this tenant" });
+        }
       }
 
       const updates: Record<string, unknown> = {};

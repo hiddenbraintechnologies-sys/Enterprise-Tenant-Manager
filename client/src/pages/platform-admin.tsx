@@ -92,6 +92,26 @@ interface PlatformUser {
   } | null;
 }
 
+interface TenantUser {
+  id: string;
+  userId: string;
+  roleId: string | null;
+  isDefault: boolean;
+  joinedAt: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  roleName: string | null;
+  roleDisplayName: string | null;
+}
+
+interface TenantRole {
+  id: string;
+  name: string;
+  displayName: string;
+  permissions: string[];
+}
+
 interface LoginResponse {
   accessToken: string;
   refreshToken: string;
@@ -269,6 +289,30 @@ export default function PlatformAdminDashboard() {
     role: "platform_admin" as "super_admin" | "platform_admin",
   });
 
+  const [tenantDetailsDialogOpen, setTenantDetailsDialogOpen] = useState(false);
+  const [tenantEditData, setTenantEditData] = useState({
+    name: "",
+    businessType: "" as "clinic" | "salon" | "pg" | "coworking" | "service",
+    email: "",
+    phone: "",
+    address: "",
+    isActive: true,
+  });
+  const [addTenantUserDialogOpen, setAddTenantUserDialogOpen] = useState(false);
+  const [newTenantUserData, setNewTenantUserData] = useState({
+    email: "",
+    firstName: "",
+    lastName: "",
+    password: "",
+    roleId: "",
+  });
+  const [editTenantUserDialogOpen, setEditTenantUserDialogOpen] = useState(false);
+  const [selectedTenantUser, setSelectedTenantUser] = useState<TenantUser | null>(null);
+  const [editTenantUserData, setEditTenantUserData] = useState({
+    roleId: "",
+  });
+  const [deleteTenantUserDialogOpen, setDeleteTenantUserDialogOpen] = useState(false);
+
   const { data: adminProfile, isLoading: loadingProfile, error: profileError } = useQuery<PlatformAdmin>({
     queryKey: ["/api/platform/me"],
     queryFn: async () => {
@@ -327,6 +371,28 @@ export default function PlatformAdminDashboard() {
       return response.json();
     },
     enabled: isAuthenticated && !!adminProfile && adminProfile.isSuperAdmin,
+  });
+
+  const { data: tenantUsers, isLoading: loadingTenantUsers, refetch: refetchTenantUsers } = useQuery<TenantUser[]>({
+    queryKey: ["/api/platform/tenants", selectedTenant?.id, "users"],
+    queryFn: async () => {
+      if (!selectedTenant) return [];
+      const response = await platformFetch(`/api/platform/tenants/${selectedTenant.id}/users`);
+      if (!response.ok) throw new Error("Failed to fetch tenant users");
+      return response.json();
+    },
+    enabled: isAuthenticated && !!adminProfile && adminProfile.isSuperAdmin && !!selectedTenant && tenantDetailsDialogOpen,
+  });
+
+  const { data: tenantRoles } = useQuery<TenantRole[]>({
+    queryKey: ["/api/platform/tenants", selectedTenant?.id, "roles"],
+    queryFn: async () => {
+      if (!selectedTenant) return [];
+      const response = await platformFetch(`/api/platform/tenants/${selectedTenant.id}/roles`);
+      if (!response.ok) throw new Error("Failed to fetch tenant roles");
+      return response.json();
+    },
+    enabled: isAuthenticated && !!adminProfile && adminProfile.isSuperAdmin && !!selectedTenant && tenantDetailsDialogOpen,
   });
 
   const suspendMutation = useMutation({
@@ -470,6 +536,89 @@ export default function PlatformAdminDashboard() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to remove admin", variant: "destructive" });
+    },
+  });
+
+  const updateTenantMutation = useMutation({
+    mutationFn: async ({ tenantId, data }: { tenantId: string; data: typeof tenantEditData }) => {
+      const response = await platformFetch(`/api/platform/tenants/${tenantId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update tenant");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Tenant updated", description: "The tenant has been updated successfully." });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/tenants"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const addTenantUserMutation = useMutation({
+    mutationFn: async ({ tenantId, data }: { tenantId: string; data: typeof newTenantUserData }) => {
+      const response = await platformFetch(`/api/platform/tenants/${tenantId}/users`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to add user");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User added", description: "The user has been added to this tenant." });
+      refetchTenantUsers();
+      setAddTenantUserDialogOpen(false);
+      setNewTenantUserData({ email: "", firstName: "", lastName: "", password: "", roleId: "" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateTenantUserMutation = useMutation({
+    mutationFn: async ({ tenantId, userId, data }: { tenantId: string; userId: string; data: { roleId: string | null } }) => {
+      const response = await platformFetch(`/api/platform/tenants/${tenantId}/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to update user");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User updated", description: "The user's role has been updated." });
+      refetchTenantUsers();
+      setEditTenantUserDialogOpen(false);
+      setSelectedTenantUser(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update user", variant: "destructive" });
+    },
+  });
+
+  const removeTenantUserMutation = useMutation({
+    mutationFn: async ({ tenantId, userId }: { tenantId: string; userId: string }) => {
+      const response = await platformFetch(`/api/platform/tenants/${tenantId}/users/${userId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to remove user");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "User removed", description: "The user has been removed from this tenant." });
+      refetchTenantUsers();
+      setDeleteTenantUserDialogOpen(false);
+      setSelectedTenantUser(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to remove user", variant: "destructive" });
     },
   });
 
@@ -694,6 +843,28 @@ export default function PlatformAdminDashboard() {
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
+                            {adminProfile?.isSuperAdmin && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedTenant(tenant);
+                                  setTenantEditData({
+                                    name: tenant.name,
+                                    businessType: tenant.businessType as "clinic" | "salon" | "pg" | "coworking" | "service",
+                                    email: tenant.email || "",
+                                    phone: "",
+                                    address: "",
+                                    isActive: tenant.isActive,
+                                  });
+                                  setTenantDetailsDialogOpen(true);
+                                }}
+                                data-testid={`button-manage-${tenant.id}`}
+                              >
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Manage
+                              </Button>
+                            )}
                             {tenant.isSuspended ? (
                               <Button
                                 variant="outline"
@@ -1214,6 +1385,411 @@ export default function PlatformAdminDashboard() {
                 </>
               ) : (
                 "Promote to Admin"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={tenantDetailsDialogOpen} onOpenChange={setTenantDetailsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Manage Tenant: {selectedTenant?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Edit tenant details and manage business users.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Tabs defaultValue="details" className="mt-4">
+            <TabsList>
+              <TabsTrigger value="details">Tenant Details</TabsTrigger>
+              <TabsTrigger value="users">Business Users</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="details" className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tenantName">Business Name</Label>
+                  <Input
+                    id="tenantName"
+                    value={tenantEditData.name}
+                    onChange={(e) => setTenantEditData({ ...tenantEditData, name: e.target.value })}
+                    data-testid="input-tenant-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="businessType">Business Type</Label>
+                  <Select
+                    value={tenantEditData.businessType}
+                    onValueChange={(value: "clinic" | "salon" | "pg" | "coworking" | "service") => 
+                      setTenantEditData({ ...tenantEditData, businessType: value })
+                    }
+                  >
+                    <SelectTrigger data-testid="select-business-type">
+                      <SelectValue placeholder="Select business type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="clinic">Clinic</SelectItem>
+                      <SelectItem value="salon">Salon</SelectItem>
+                      <SelectItem value="pg">PG/Hostel</SelectItem>
+                      <SelectItem value="coworking">Coworking</SelectItem>
+                      <SelectItem value="service">Service</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tenantEmail">Email</Label>
+                  <Input
+                    id="tenantEmail"
+                    type="email"
+                    value={tenantEditData.email}
+                    onChange={(e) => setTenantEditData({ ...tenantEditData, email: e.target.value })}
+                    data-testid="input-tenant-email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tenantPhone">Phone</Label>
+                  <Input
+                    id="tenantPhone"
+                    value={tenantEditData.phone}
+                    onChange={(e) => setTenantEditData({ ...tenantEditData, phone: e.target.value })}
+                    data-testid="input-tenant-phone"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tenantAddress">Address</Label>
+                <Textarea
+                  id="tenantAddress"
+                  value={tenantEditData.address}
+                  onChange={(e) => setTenantEditData({ ...tenantEditData, address: e.target.value })}
+                  data-testid="input-tenant-address"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="tenantActive"
+                  checked={tenantEditData.isActive}
+                  onCheckedChange={(checked) => setTenantEditData({ ...tenantEditData, isActive: !!checked })}
+                  data-testid="checkbox-tenant-active"
+                />
+                <Label htmlFor="tenantActive">Tenant is active</Label>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    if (selectedTenant) {
+                      updateTenantMutation.mutate({
+                        tenantId: selectedTenant.id,
+                        data: tenantEditData,
+                      });
+                    }
+                  }}
+                  disabled={updateTenantMutation.isPending}
+                  data-testid="button-save-tenant"
+                >
+                  {updateTenantMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="users" className="space-y-4 mt-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-medium">Business Users</h3>
+                <Button
+                  size="sm"
+                  onClick={() => setAddTenantUserDialogOpen(true)}
+                  data-testid="button-add-tenant-user"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add User
+                </Button>
+              </div>
+              
+              <Card>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[300px]">
+                    {loadingTenantUsers ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : !tenantUsers || tenantUsers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                        <Users className="h-12 w-12 mb-2" />
+                        <p>No users in this tenant</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {tenantUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="flex items-center justify-between gap-4 p-4 hover-elevate"
+                            data-testid={`tenant-user-row-${user.userId}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="font-medium truncate">
+                                  {user.firstName} {user.lastName}
+                                </h4>
+                                {user.roleDisplayName && (
+                                  <Badge variant="secondary">{user.roleDisplayName}</Badge>
+                                )}
+                                {user.isDefault && (
+                                  <Badge variant="outline">Default</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Joined {format(new Date(user.joinedAt), "MMM d, yyyy")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedTenantUser(user);
+                                  setEditTenantUserData({ roleId: user.roleId || "" });
+                                  setEditTenantUserDialogOpen(true);
+                                }}
+                                data-testid={`button-edit-tenant-user-${user.userId}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedTenantUser(user);
+                                  setDeleteTenantUserDialogOpen(true);
+                                }}
+                                data-testid={`button-remove-tenant-user-${user.userId}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addTenantUserDialogOpen} onOpenChange={setAddTenantUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add User to Tenant
+            </DialogTitle>
+            <DialogDescription>
+              Create a new user and add them to {selectedTenant?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newTenantUserEmail">Email</Label>
+              <Input
+                id="newTenantUserEmail"
+                type="email"
+                value={newTenantUserData.email}
+                onChange={(e) => setNewTenantUserData({ ...newTenantUserData, email: e.target.value })}
+                data-testid="input-new-tenant-user-email"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="newTenantUserFirstName">First Name</Label>
+                <Input
+                  id="newTenantUserFirstName"
+                  value={newTenantUserData.firstName}
+                  onChange={(e) => setNewTenantUserData({ ...newTenantUserData, firstName: e.target.value })}
+                  data-testid="input-new-tenant-user-firstname"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newTenantUserLastName">Last Name</Label>
+                <Input
+                  id="newTenantUserLastName"
+                  value={newTenantUserData.lastName}
+                  onChange={(e) => setNewTenantUserData({ ...newTenantUserData, lastName: e.target.value })}
+                  data-testid="input-new-tenant-user-lastname"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newTenantUserPassword">Password</Label>
+              <Input
+                id="newTenantUserPassword"
+                type="password"
+                value={newTenantUserData.password}
+                onChange={(e) => setNewTenantUserData({ ...newTenantUserData, password: e.target.value })}
+                data-testid="input-new-tenant-user-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newTenantUserRole">Role</Label>
+              <Select
+                value={newTenantUserData.roleId}
+                onValueChange={(value) => setNewTenantUserData({ ...newTenantUserData, roleId: value })}
+              >
+                <SelectTrigger data-testid="select-new-tenant-user-role">
+                  <SelectValue placeholder="Select role (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No role</SelectItem>
+                  {tenantRoles?.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddTenantUserDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedTenant) {
+                  addTenantUserMutation.mutate({
+                    tenantId: selectedTenant.id,
+                    data: newTenantUserData,
+                  });
+                }
+              }}
+              disabled={addTenantUserMutation.isPending}
+              data-testid="button-confirm-add-tenant-user"
+            >
+              {addTenantUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                "Add User"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editTenantUserDialogOpen} onOpenChange={setEditTenantUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit User Role
+            </DialogTitle>
+            <DialogDescription>
+              Change role for {selectedTenantUser?.email}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editTenantUserRole">Role</Label>
+              <Select
+                value={editTenantUserData.roleId}
+                onValueChange={(value) => setEditTenantUserData({ roleId: value })}
+              >
+                <SelectTrigger data-testid="select-edit-tenant-user-role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No role</SelectItem>
+                  {tenantRoles?.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTenantUserDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedTenant && selectedTenantUser) {
+                  updateTenantUserMutation.mutate({
+                    tenantId: selectedTenant.id,
+                    userId: selectedTenantUser.userId,
+                    data: { roleId: editTenantUserData.roleId || null },
+                  });
+                }
+              }}
+              disabled={updateTenantUserMutation.isPending}
+              data-testid="button-confirm-edit-tenant-user"
+            >
+              {updateTenantUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteTenantUserDialogOpen} onOpenChange={setDeleteTenantUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Remove User from Tenant
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {selectedTenantUser?.email} from {selectedTenant?.name}?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTenantUserDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (selectedTenant && selectedTenantUser) {
+                  removeTenantUserMutation.mutate({
+                    tenantId: selectedTenant.id,
+                    userId: selectedTenantUser.userId,
+                  });
+                }
+              }}
+              disabled={removeTenantUserMutation.isPending}
+              data-testid="button-confirm-remove-tenant-user"
+            >
+              {removeTenantUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                "Remove User"
               )}
             </Button>
           </DialogFooter>
