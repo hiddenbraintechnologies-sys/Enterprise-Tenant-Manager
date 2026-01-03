@@ -1877,6 +1877,238 @@ export type InsertDataBreachRecord = z.infer<typeof insertDataBreachRecordSchema
 export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;
 export type InsertDataRetentionPolicy = z.infer<typeof insertDataRetentionPolicySchema>;
 
+// ============================================
+// REAL ESTATE MODULE
+// ============================================
+
+// Enums for Real Estate
+export const propertyTypeEnum = pgEnum("property_type", [
+  "apartment", "house", "villa", "plot", "commercial", "office", "warehouse", "shop", "other"
+]);
+
+export const propertyStatusEnum = pgEnum("property_status", [
+  "available", "under_offer", "sold", "rented", "off_market", "pending"
+]);
+
+export const listingTypeEnum = pgEnum("listing_type", ["sale", "rent", "lease"]);
+
+export const listingStatusEnum = pgEnum("listing_status", [
+  "draft", "active", "paused", "expired", "sold", "rented", "withdrawn"
+]);
+
+export const leadStatusEnum = pgEnum("lead_status", [
+  "new", "contacted", "qualified", "negotiating", "won", "lost", "dormant"
+]);
+
+export const leadSourceEnum = pgEnum("lead_source", [
+  "website", "referral", "walk_in", "phone", "social_media", "portal", "advertisement", "other"
+]);
+
+export const siteVisitStatusEnum = pgEnum("site_visit_status", [
+  "scheduled", "confirmed", "completed", "cancelled", "no_show", "rescheduled"
+]);
+
+export const agentStatusEnum = pgEnum("agent_status", ["active", "inactive", "suspended"]);
+
+// Properties Table
+export const properties = pgTable("properties", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  propertyType: propertyTypeEnum("property_type").notNull(),
+  status: propertyStatusEnum("status").default("available"),
+  address: text("address").notNull(),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 100 }),
+  country: varchar("country", { length: 100 }).default("India"),
+  postalCode: varchar("postal_code", { length: 20 }),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
+  area: decimal("area", { precision: 12, scale: 2 }),
+  areaUnit: varchar("area_unit", { length: 20 }).default("sqft"),
+  bedrooms: integer("bedrooms"),
+  bathrooms: integer("bathrooms"),
+  parkingSpaces: integer("parking_spaces"),
+  yearBuilt: integer("year_built"),
+  description: text("description"),
+  features: jsonb("features").default([]),
+  images: jsonb("images").default([]),
+  documents: jsonb("documents").default([]),
+  ownerId: varchar("owner_id"),
+  ownerName: text("owner_name"),
+  ownerPhone: varchar("owner_phone", { length: 20 }),
+  ownerEmail: text("owner_email"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_properties_tenant").on(table.tenantId),
+  index("idx_properties_status").on(table.status),
+  index("idx_properties_type").on(table.propertyType),
+  index("idx_properties_city").on(table.city),
+]);
+
+// Listings Table
+export const listings = pgTable("listings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  propertyId: varchar("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  listingType: listingTypeEnum("listing_type").notNull(),
+  status: listingStatusEnum("status").default("draft"),
+  title: text("title").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 15, scale: 2 }).notNull(),
+  priceUnit: varchar("price_unit", { length: 20 }).default("total"),
+  negotiable: boolean("negotiable").default(true),
+  deposit: decimal("deposit", { precision: 15, scale: 2 }),
+  maintenanceCharges: decimal("maintenance_charges", { precision: 10, scale: 2 }),
+  availableFrom: date("available_from"),
+  expiresAt: timestamp("expires_at"),
+  isFeatured: boolean("is_featured").default(false),
+  viewCount: integer("view_count").default(0),
+  inquiryCount: integer("inquiry_count").default(0),
+  assignedAgentId: varchar("assigned_agent_id"),
+  portalListings: jsonb("portal_listings").default([]),
+  metadata: jsonb("metadata").default({}),
+  publishedAt: timestamp("published_at"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_listings_tenant").on(table.tenantId),
+  index("idx_listings_property").on(table.propertyId),
+  index("idx_listings_status").on(table.status),
+  index("idx_listings_type").on(table.listingType),
+  index("idx_listings_agent").on(table.assignedAgentId),
+]);
+
+// Leads Table
+export const realEstateLeads = pgTable("real_estate_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: varchar("phone", { length: 20 }),
+  status: leadStatusEnum("status").default("new"),
+  source: leadSourceEnum("source").default("website"),
+  interestedIn: listingTypeEnum("interested_in"),
+  budgetMin: decimal("budget_min", { precision: 15, scale: 2 }),
+  budgetMax: decimal("budget_max", { precision: 15, scale: 2 }),
+  preferredLocations: jsonb("preferred_locations").default([]),
+  propertyTypes: jsonb("property_types").default([]),
+  requirements: text("requirements"),
+  assignedAgentId: varchar("assigned_agent_id"),
+  listingId: varchar("listing_id").references(() => listings.id, { onDelete: "set null" }),
+  propertyId: varchar("property_id").references(() => properties.id, { onDelete: "set null" }),
+  lastContactedAt: timestamp("last_contacted_at"),
+  nextFollowUpAt: timestamp("next_follow_up_at"),
+  notes: text("notes"),
+  tags: jsonb("tags").default([]),
+  score: integer("score").default(0),
+  metadata: jsonb("metadata").default({}),
+  convertedAt: timestamp("converted_at"),
+  lostReason: text("lost_reason"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_re_leads_tenant").on(table.tenantId),
+  index("idx_re_leads_status").on(table.status),
+  index("idx_re_leads_source").on(table.source),
+  index("idx_re_leads_agent").on(table.assignedAgentId),
+  index("idx_re_leads_followup").on(table.nextFollowUpAt),
+]);
+
+// Site Visits Table
+export const siteVisits = pgTable("site_visits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").notNull().references(() => realEstateLeads.id, { onDelete: "cascade" }),
+  propertyId: varchar("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  agentId: varchar("agent_id"),
+  status: siteVisitStatusEnum("status").default("scheduled"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  completedAt: timestamp("completed_at"),
+  duration: integer("duration"),
+  visitorCount: integer("visitor_count").default(1),
+  feedback: text("feedback"),
+  interestLevel: integer("interest_level"),
+  followUpRequired: boolean("follow_up_required").default(false),
+  followUpNotes: text("follow_up_notes"),
+  rescheduleReason: text("reschedule_reason"),
+  cancellationReason: text("cancellation_reason"),
+  transportProvided: boolean("transport_provided").default(false),
+  pickupLocation: text("pickup_location"),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_site_visits_tenant").on(table.tenantId),
+  index("idx_site_visits_lead").on(table.leadId),
+  index("idx_site_visits_property").on(table.propertyId),
+  index("idx_site_visits_agent").on(table.agentId),
+  index("idx_site_visits_status").on(table.status),
+  index("idx_site_visits_scheduled").on(table.scheduledAt),
+]);
+
+// Agents Table
+export const agents = pgTable("agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: varchar("phone", { length: 20 }),
+  status: agentStatusEnum("status").default("active"),
+  licenseNumber: varchar("license_number", { length: 100 }),
+  licenseExpiry: date("license_expiry"),
+  specializations: jsonb("specializations").default([]),
+  serviceAreas: jsonb("service_areas").default([]),
+  bio: text("bio"),
+  photo: text("photo"),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }),
+  totalDeals: integer("total_deals").default(0),
+  totalSalesValue: decimal("total_sales_value", { precision: 18, scale: 2 }).default("0"),
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  reviewCount: integer("review_count").default(0),
+  hireDate: date("hire_date"),
+  terminationDate: date("termination_date"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_agents_tenant").on(table.tenantId),
+  index("idx_agents_user").on(table.userId),
+  index("idx_agents_status").on(table.status),
+]);
+
+// Insert schemas for Real Estate
+export const insertPropertySchema = createInsertSchema(properties).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertListingSchema = createInsertSchema(listings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRealEstateLeadSchema = createInsertSchema(realEstateLeads).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSiteVisitSchema = createInsertSchema(siteVisits).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Real Estate types
+export type Property = typeof properties.$inferSelect;
+export type InsertProperty = z.infer<typeof insertPropertySchema>;
+
+export type Listing = typeof listings.$inferSelect;
+export type InsertListing = z.infer<typeof insertListingSchema>;
+
+export type RealEstateLead = typeof realEstateLeads.$inferSelect;
+export type InsertRealEstateLead = z.infer<typeof insertRealEstateLeadSchema>;
+
+export type SiteVisit = typeof siteVisits.$inferSelect;
+export type InsertSiteVisit = z.infer<typeof insertSiteVisitSchema>;
+
+export type Agent = typeof agents.$inferSelect;
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+
 // Extended types for joins
 export type BookingWithDetails = Booking & {
   customer: Customer;
