@@ -1707,8 +1707,7 @@ export async function registerRoutes(
       const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
       await storage.updateUser(userId, { 
-        password: hashedPassword,
-        passwordResetRequired: true,
+        passwordHash: hashedPassword,
       });
 
       auditService.logAsync({
@@ -1731,9 +1730,8 @@ export async function registerRoutes(
 
       res.json({
         success: true,
-        message: "Password has been reset",
+        message: "Password has been reset. User will need to change password on next login.",
         temporaryPassword,
-        passwordResetRequired: true,
         _supportAction: true,
       });
     } catch (error) {
