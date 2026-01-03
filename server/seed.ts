@@ -3,11 +3,13 @@ import {
   platformAdmins,
   platformAdminPermissions,
   adminSecurityConfig,
+  tenants,
   PLATFORM_ADMIN_PERMISSIONS,
   DEFAULT_ADMIN_SECURITY_CONFIG,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import { runAllMigrations } from "./migrations";
 
 const SALT_ROUNDS = 12;
 
@@ -265,6 +267,107 @@ export async function seedSecurityConfig(): Promise<number> {
   return seededCount;
 }
 
+interface SampleTenantDefinition {
+  name: string;
+  slug: string;
+  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
+  country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
+  region: "asia_pacific" | "middle_east" | "europe";
+  subscriptionTier: string;
+  email: string;
+}
+
+const SAMPLE_TENANTS: SampleTenantDefinition[] = [
+  {
+    name: "Urban Realty",
+    slug: "urban-realty",
+    businessType: "real_estate",
+    country: "india",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "contact@urbanrealty.example.com",
+  },
+  {
+    name: "Skyline Properties UAE",
+    slug: "skyline-properties-uae",
+    businessType: "real_estate",
+    country: "uae",
+    region: "middle_east",
+    subscriptionTier: "enterprise",
+    email: "info@skylineproperties.example.com",
+  },
+  {
+    name: "Wanderlust Tours",
+    slug: "wanderlust-tours",
+    businessType: "tourism",
+    country: "india",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "bookings@wanderlusttours.example.com",
+  },
+  {
+    name: "Singapore Explorer",
+    slug: "singapore-explorer",
+    businessType: "tourism",
+    country: "singapore",
+    region: "asia_pacific",
+    subscriptionTier: "starter",
+    email: "tours@sgexplorer.example.com",
+  },
+  {
+    name: "London Estate Agents",
+    slug: "london-estate-agents",
+    businessType: "real_estate",
+    country: "uk",
+    region: "europe",
+    subscriptionTier: "enterprise",
+    email: "sales@londonestateagents.example.com",
+  },
+  {
+    name: "Malaysia Heritage Tours",
+    slug: "malaysia-heritage-tours",
+    businessType: "tourism",
+    country: "malaysia",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "heritage@mytours.example.com",
+  },
+];
+
+export async function seedSampleTenants(): Promise<number> {
+  let seededCount = 0;
+
+  for (const tenant of SAMPLE_TENANTS) {
+    const [existing] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.slug, tenant.slug));
+
+    if (!existing) {
+      await db.insert(tenants).values({
+        name: tenant.name,
+        slug: tenant.slug,
+        businessType: tenant.businessType,
+        country: tenant.country,
+        region: tenant.region,
+        subscriptionTier: tenant.subscriptionTier,
+        email: tenant.email,
+        isActive: true,
+        status: "active",
+        maxUsers: tenant.subscriptionTier === "enterprise" ? 50 : tenant.subscriptionTier === "pro" ? 20 : 5,
+        maxCustomers: tenant.subscriptionTier === "enterprise" ? 10000 : tenant.subscriptionTier === "pro" ? 1000 : 100,
+      });
+      seededCount++;
+      console.log(`  Created tenant: ${tenant.name} (${tenant.businessType})`);
+    } else {
+      console.log(`  Tenant exists: ${tenant.name}`);
+    }
+  }
+
+  console.log(`Seeded ${seededCount} new sample tenants (${SAMPLE_TENANTS.length} total defined)`);
+  return seededCount;
+}
+
 function generateSecurePassword(): string {
   const uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const lowercase = "abcdefghjkmnpqrstuvwxyz";
@@ -289,9 +392,22 @@ function generateSecurePassword(): string {
     .join("");
 }
 
-export async function runAllSeeds(): Promise<void> {
+export async function runAllSeeds(options?: { skipMigrations?: boolean; skipSampleData?: boolean }): Promise<void> {
   console.log("Starting database seed...");
   console.log("=".repeat(50));
+
+  if (!options?.skipMigrations) {
+    console.log("\n0. Running Database Migrations...");
+    try {
+      const migrationResults = await runAllMigrations();
+      const failedMigrations = migrationResults.filter(r => !r.success);
+      if (failedMigrations.length > 0) {
+        console.warn(`Warning: ${failedMigrations.length} migration(s) had issues, but continuing with seeds...`);
+      }
+    } catch (error) {
+      console.error("Migration error (continuing with seeds):", error);
+    }
+  }
 
   console.log("\n1. Seeding Platform Permissions...");
   await seedPlatformPermissions();
@@ -301,6 +417,11 @@ export async function runAllSeeds(): Promise<void> {
 
   console.log("\n3. Seeding Super Admin...");
   const adminResult = await seedSuperAdmin();
+
+  if (!options?.skipSampleData) {
+    console.log("\n4. Seeding Sample Tenants (Real Estate & Tourism)...");
+    await seedSampleTenants();
+  }
 
   console.log("\n" + "=".repeat(50));
   console.log("Seed completed successfully!");

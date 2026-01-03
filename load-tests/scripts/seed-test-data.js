@@ -37,6 +37,7 @@ export default function () {
       id: tenant.id,
       name: tenant.name,
       tier: tenant.tier,
+      businessType: tenant.businessType || 'service',
       settings: {
         locale: 'en-US',
         timezone: 'Asia/Kolkata',

@@ -6,12 +6,17 @@ export const config = {
   baseUrl: __ENV.K6_BASE_URL || 'http://localhost:5000',
   
   // Test tenants for multi-tenant simulation
+  // Covers all business types: clinic, salon, pg, coworking, service, real_estate, tourism
   tenants: [
-    { id: 'tenant-001', name: 'Acme Corp', tier: 'enterprise' },
-    { id: 'tenant-002', name: 'Beta Inc', tier: 'pro' },
-    { id: 'tenant-003', name: 'Gamma LLC', tier: 'starter' },
-    { id: 'tenant-004', name: 'Delta Co', tier: 'pro' },
-    { id: 'tenant-005', name: 'Echo Ltd', tier: 'enterprise' },
+    { id: 'tenant-001', name: 'Acme Corp', tier: 'enterprise', businessType: 'service' },
+    { id: 'tenant-002', name: 'Beta Inc', tier: 'pro', businessType: 'clinic' },
+    { id: 'tenant-003', name: 'Gamma LLC', tier: 'starter', businessType: 'salon' },
+    { id: 'tenant-004', name: 'Delta Co', tier: 'pro', businessType: 'pg' },
+    { id: 'tenant-005', name: 'Echo Ltd', tier: 'enterprise', businessType: 'coworking' },
+    { id: 'tenant-006', name: 'Urban Realty', tier: 'pro', businessType: 'real_estate' },
+    { id: 'tenant-007', name: 'Skyline Properties', tier: 'enterprise', businessType: 'real_estate' },
+    { id: 'tenant-008', name: 'Wanderlust Tours', tier: 'pro', businessType: 'tourism' },
+    { id: 'tenant-009', name: 'Explorer Adventures', tier: 'starter', businessType: 'tourism' },
   ],
   
   // Test users per tenant
