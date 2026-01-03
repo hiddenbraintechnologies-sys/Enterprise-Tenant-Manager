@@ -64,7 +64,7 @@ interface Tenant {
   id: string;
   name: string;
   slug: string | null;
-  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
+  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
   country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
   region: "asia_pacific" | "middle_east" | "europe";
   status: "active" | "suspended" | "cancelled";
@@ -105,6 +105,9 @@ const BUSINESS_TYPES = [
   { value: "service", label: "Service", icon: "briefcase" },
   { value: "real_estate", label: "Real Estate", icon: "building2" },
   { value: "tourism", label: "Tourism", icon: "plane" },
+  { value: "education", label: "Education", icon: "graduation" },
+  { value: "logistics", label: "Logistics", icon: "truck" },
+  { value: "legal", label: "Legal", icon: "scale" },
 ];
 
 const STATUSES = [

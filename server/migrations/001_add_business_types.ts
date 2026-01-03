@@ -17,7 +17,7 @@ import { sql } from "drizzle-orm";
 
 const MIGRATION_NAME = "001_add_business_types";
 
-const NEW_BUSINESS_TYPES = ["real_estate", "tourism"] as const;
+const NEW_BUSINESS_TYPES = ["real_estate", "tourism", "education", "logistics", "legal"] as const;
 
 async function checkEnumValueExists(enumTypeName: string, value: string): Promise<boolean> {
   const result = await db.execute(sql`

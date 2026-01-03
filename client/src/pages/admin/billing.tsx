@@ -63,6 +63,9 @@ const BUSINESS_TYPES = [
   { value: "service", label: "Service" },
   { value: "real_estate", label: "Real Estate" },
   { value: "tourism", label: "Tourism" },
+  { value: "education", label: "Education" },
+  { value: "logistics", label: "Logistics" },
+  { value: "legal", label: "Legal" },
 ];
 
 const getBusinessTypeLabel = (type: string) => {

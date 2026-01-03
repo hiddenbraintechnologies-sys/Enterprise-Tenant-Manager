@@ -270,7 +270,7 @@ export async function seedSecurityConfig(): Promise<number> {
 interface SampleTenantDefinition {
   name: string;
   slug: string;
-  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
+  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
   country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
   region: "asia_pacific" | "middle_east" | "europe";
   subscriptionTier: string;
@@ -331,6 +331,60 @@ const SAMPLE_TENANTS: SampleTenantDefinition[] = [
     region: "asia_pacific",
     subscriptionTier: "pro",
     email: "heritage@mytours.example.com",
+  },
+  {
+    name: "EduTech Academy",
+    slug: "edutech-academy",
+    businessType: "education",
+    country: "india",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "admin@edutechacademy.example.com",
+  },
+  {
+    name: "Oxford Learning Center",
+    slug: "oxford-learning-center",
+    businessType: "education",
+    country: "uk",
+    region: "europe",
+    subscriptionTier: "enterprise",
+    email: "info@oxfordlearning.example.com",
+  },
+  {
+    name: "Swift Logistics",
+    slug: "swift-logistics",
+    businessType: "logistics",
+    country: "uae",
+    region: "middle_east",
+    subscriptionTier: "enterprise",
+    email: "ops@swiftlogistics.example.com",
+  },
+  {
+    name: "Asia Freight Solutions",
+    slug: "asia-freight-solutions",
+    businessType: "logistics",
+    country: "singapore",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "cargo@asiafreight.example.com",
+  },
+  {
+    name: "Justice Partners LLP",
+    slug: "justice-partners-llp",
+    businessType: "legal",
+    country: "uk",
+    region: "europe",
+    subscriptionTier: "enterprise",
+    email: "legal@justicepartners.example.com",
+  },
+  {
+    name: "Mumbai Legal Associates",
+    slug: "mumbai-legal-associates",
+    businessType: "legal",
+    country: "india",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "contact@mumbailegal.example.com",
   },
 ];
 

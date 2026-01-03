@@ -6,7 +6,7 @@ export const config = {
   baseUrl: __ENV.K6_BASE_URL || 'http://localhost:5000',
   
   // Test tenants for multi-tenant simulation
-  // Covers all business types: clinic, salon, pg, coworking, service, real_estate, tourism
+  // Covers all business types: clinic, salon, pg, coworking, service, real_estate, tourism, education, logistics, legal
   tenants: [
     { id: 'tenant-001', name: 'Acme Corp', tier: 'enterprise', businessType: 'service' },
     { id: 'tenant-002', name: 'Beta Inc', tier: 'pro', businessType: 'clinic' },
@@ -17,6 +17,9 @@ export const config = {
     { id: 'tenant-007', name: 'Skyline Properties', tier: 'enterprise', businessType: 'real_estate' },
     { id: 'tenant-008', name: 'Wanderlust Tours', tier: 'pro', businessType: 'tourism' },
     { id: 'tenant-009', name: 'Explorer Adventures', tier: 'starter', businessType: 'tourism' },
+    { id: 'tenant-010', name: 'EduTech Academy', tier: 'pro', businessType: 'education' },
+    { id: 'tenant-011', name: 'Swift Logistics', tier: 'enterprise', businessType: 'logistics' },
+    { id: 'tenant-012', name: 'Justice Partners LLP', tier: 'pro', businessType: 'legal' },
   ],
   
   // Test users per tenant

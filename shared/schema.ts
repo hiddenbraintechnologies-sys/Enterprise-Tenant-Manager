@@ -24,7 +24,10 @@ export const businessTypeEnum = pgEnum("business_type", [
   "coworking", 
   "service",
   "real_estate",
-  "tourism"
+  "tourism",
+  "education",
+  "logistics",
+  "legal"
 ]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore", "other"]);
