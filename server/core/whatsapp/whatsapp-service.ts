@@ -18,7 +18,7 @@ import type {
   TemplateSubmitResult,
   WhatsappProviderType,
   TenantCountry,
-  EffectiveCountry,
+  SupportedCountry,
   UsageStats,
   ProviderHealthStatus,
   GlobalWhatsappStats,
@@ -26,17 +26,21 @@ import type {
 } from "./types";
 
 class WhatsappService {
-  private normalizeCountry(rawCountry: string | null | undefined): TenantCountry | undefined {
-    if (!rawCountry) return undefined;
+  private normalizeCountry(rawCountry: string | null | undefined): SupportedCountry | "other" {
+    if (!rawCountry) return "other";
     const normalized = rawCountry.toLowerCase().trim();
-    const countryMap: Record<string, TenantCountry> = {
+    const countryMap: Record<string, SupportedCountry> = {
       "india": "india", "in": "india", "ind": "india",
       "uae": "uae", "ae": "uae", "united arab emirates": "uae",
       "uk": "uk", "gb": "uk", "united kingdom": "uk", "great britain": "uk", "england": "uk",
       "malaysia": "malaysia", "my": "malaysia",
       "singapore": "singapore", "sg": "singapore",
     };
-    return countryMap[normalized];
+    return countryMap[normalized] || "other";
+  }
+
+  private isSupportedCountry(country: TenantCountry): country is SupportedCountry {
+    return country !== "other";
   }
 
   private async checkQuota(tenantId: string): Promise<{ withinQuota: boolean; used: number; limit: number }> {
@@ -66,7 +70,6 @@ class WhatsappService {
     }
 
     const country = this.normalizeCountry(tenant[0].country);
-    const effectiveCountry = country || "other";
     
     const quotaCheck = await this.checkQuota(params.tenantId);
     if (!quotaCheck.withinQuota) {
@@ -140,12 +143,12 @@ class WhatsappService {
       errorMessage: result.errorMessage,
       cost: result.cost?.toString(),
       currency: result.currency,
-      country: effectiveCountry,
+      country,
       metadata: params.metadata || {},
     }).returning();
 
     if (result.success) {
-      await this.updateUsage(params.tenantId, effectiveCountry, provider.name, params.messageType === "template");
+      await this.updateUsage(params.tenantId, country, provider.name, params.messageType === "template");
       await this.updateOptInMessageCount(params.tenantId, params.toPhoneNumber);
     }
 
@@ -352,7 +355,7 @@ class WhatsappService {
       .where(eq(whatsappTemplates.id, templateId));
   }
 
-  private async updateUsage(tenantId: string, country: EffectiveCountry, provider: WhatsappProviderType, isTemplate: boolean): Promise<void> {
+  private async updateUsage(tenantId: string, country: TenantCountry, provider: WhatsappProviderType, isTemplate: boolean): Promise<void> {
     const yearMonth = new Date().toISOString().slice(0, 7);
 
     try {
@@ -377,7 +380,7 @@ class WhatsappService {
           })
           .where(eq(whatsappUsage.id, existing[0].id));
       } else {
-        const countryConfig = country !== "other" ? whatsappProviderSelector.getCountryConfig(country) : undefined;
+        const countryConfig = this.isSupportedCountry(country) ? whatsappProviderSelector.getCountryConfig(country) : undefined;
         await db.insert(whatsappUsage).values({
           tenantId,
           country,

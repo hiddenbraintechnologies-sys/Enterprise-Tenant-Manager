@@ -1,8 +1,9 @@
 import type { WhatsappTemplate, WhatsappMessage, WhatsappProviderConfig } from "@shared/schema";
 
 export type WhatsappProviderType = "gupshup" | "meta" | "twilio";
-export type TenantCountry = "india" | "uae" | "uk" | "malaysia" | "singapore";
-export type EffectiveCountry = TenantCountry | "other";
+export type SupportedCountry = "india" | "uae" | "uk" | "malaysia" | "singapore";
+export type TenantCountry = SupportedCountry | "other";
+export type EffectiveCountry = TenantCountry;
 
 export interface SendMessageParams {
   tenantId: string;
@@ -134,7 +135,7 @@ export interface WhatsappProvider {
 }
 
 export interface CountryProviderMapping {
-  country: TenantCountry;
+  country: SupportedCountry;
   primaryProvider: WhatsappProviderType;
   fallbackProvider?: WhatsappProviderType;
   businessPhoneNumber?: string;

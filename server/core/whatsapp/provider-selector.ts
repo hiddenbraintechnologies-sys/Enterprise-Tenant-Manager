@@ -1,12 +1,12 @@
 import { db } from "../../db";
 import { whatsappProviderConfigs } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import type { WhatsappProvider, WhatsappProviderType, TenantCountry, CountryProviderMapping, ProviderConfig } from "./types";
+import type { WhatsappProvider, WhatsappProviderType, TenantCountry, SupportedCountry, CountryProviderMapping, ProviderConfig } from "./types";
 import { GupshupAdapter, MetaWhatsappAdapter, TwilioWhatsappAdapter } from "./adapters";
 
 class WhatsappProviderSelector {
   private providers: Map<WhatsappProviderType, WhatsappProvider> = new Map();
-  private countryMappings: Map<TenantCountry, CountryProviderMapping> = new Map();
+  private countryMappings: Map<SupportedCountry, CountryProviderMapping> = new Map();
   private initialized = false;
 
   async initialize(): Promise<void> {
@@ -54,15 +54,18 @@ class WhatsappProviderSelector {
   private async loadCountryMappings(): Promise<void> {
     try {
       const configs = await db.select().from(whatsappProviderConfigs);
+      const supportedCountries: SupportedCountry[] = ["india", "uae", "uk", "malaysia", "singapore"];
       
       for (const config of configs) {
-        this.countryMappings.set(config.country as TenantCountry, {
-          country: config.country as TenantCountry,
-          primaryProvider: config.primaryProvider as WhatsappProviderType,
-          fallbackProvider: config.fallbackProvider as WhatsappProviderType | undefined,
-          businessPhoneNumber: config.businessPhoneNumber || undefined,
-          monthlyQuota: config.monthlyQuota || 10000,
-        });
+        if (supportedCountries.includes(config.country as SupportedCountry)) {
+          this.countryMappings.set(config.country as SupportedCountry, {
+            country: config.country as SupportedCountry,
+            primaryProvider: config.primaryProvider as WhatsappProviderType,
+            fallbackProvider: config.fallbackProvider as WhatsappProviderType | undefined,
+            businessPhoneNumber: config.businessPhoneNumber || undefined,
+            monthlyQuota: config.monthlyQuota || 10000,
+          });
+        }
       }
     } catch (error) {
       console.error("Failed to load WhatsApp country mappings from database, using defaults:", error);
@@ -88,9 +91,19 @@ class WhatsappProviderSelector {
     return this.providers.get(type);
   }
 
+  private isSupportedCountry(country: string): country is SupportedCountry {
+    const supported: SupportedCountry[] = ["india", "uae", "uk", "malaysia", "singapore"];
+    return supported.includes(country as SupportedCountry);
+  }
+
   getProviderForCountry(country: TenantCountry | undefined): WhatsappProvider | undefined {
-    if (!country) {
-      console.warn("No country specified, using Twilio as fallback provider");
+    if (!country || country === "other") {
+      console.warn("No supported country specified, using Twilio as fallback provider");
+      return this.providers.get("twilio");
+    }
+    
+    if (!this.isSupportedCountry(country)) {
+      console.warn(`Unsupported country: ${country}, using Twilio as fallback`);
       return this.providers.get("twilio");
     }
     
@@ -123,7 +136,7 @@ class WhatsappProviderSelector {
     return undefined;
   }
 
-  getCountryConfig(country: TenantCountry): CountryProviderMapping | undefined {
+  getCountryConfig(country: SupportedCountry): CountryProviderMapping | undefined {
     return this.countryMappings.get(country);
   }
 
