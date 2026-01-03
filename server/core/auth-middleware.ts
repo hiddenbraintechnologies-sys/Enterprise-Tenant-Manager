@@ -1,28 +1,15 @@
 import type { Request, Response, NextFunction } from "express";
 import { jwtAuthService, DecodedToken } from "./jwt";
 import { db } from "../db";
-import { users, tenants, roles, userTenants, platformAdmins, PlatformAdmin } from "@shared/schema";
+import { users, tenants, roles, userTenants } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { getTenantFeatures } from "./context";
 import type { RequestContext } from "@shared/schema";
-
-export interface PlatformContext {
-  platformAdmin: PlatformAdmin;
-  user: {
-    id: string;
-    email: string | null;
-    firstName: string | null;
-    lastName: string | null;
-  };
-  isSuperAdmin: boolean;
-  impersonatedTenantId?: string;
-}
 
 declare global {
   namespace Express {
     interface Request {
       tokenPayload?: DecodedToken;
-      platformContext?: PlatformContext;
     }
   }
 }
@@ -258,123 +245,6 @@ export function requireMinimumRole(minimumRole: keyof typeof ROLE_HIERARCHY) {
         message: "Insufficient role level",
         required: minimumRole,
         current: req.context.role.name,
-      });
-    }
-
-    next();
-  };
-}
-
-export function authenticatePlatformAdmin() {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ 
-        message: "Missing authorization header",
-        code: "MISSING_TOKEN"
-      });
-    }
-
-    const token = authHeader.slice(7);
-    const decoded = await jwtAuthService.verifyAccessToken(token);
-
-    if (!decoded || !decoded.userId) {
-      return res.status(401).json({ 
-        message: "Invalid or expired token",
-        code: "INVALID_TOKEN"
-      });
-    }
-
-    const [dbUser] = await db.select().from(users).where(eq(users.id, decoded.userId));
-    
-    if (!dbUser) {
-      return res.status(401).json({ 
-        message: "User not found",
-        code: "USER_NOT_FOUND"
-      });
-    }
-
-    const [platformAdmin] = await db.select()
-      .from(platformAdmins)
-      .where(eq(platformAdmins.userId, decoded.userId));
-
-    if (!platformAdmin) {
-      return res.status(403).json({ 
-        message: "Not a platform administrator",
-        code: "NOT_PLATFORM_ADMIN"
-      });
-    }
-
-    if (platformAdmin.status !== "active") {
-      return res.status(403).json({ 
-        message: "Platform admin account is not active",
-        code: "ADMIN_INACTIVE"
-      });
-    }
-
-    req.platformContext = {
-      platformAdmin,
-      user: {
-        id: dbUser.id,
-        email: dbUser.email,
-        firstName: dbUser.firstName,
-        lastName: dbUser.lastName,
-      },
-      isSuperAdmin: platformAdmin.role === "super_admin",
-      impersonatedTenantId: decoded.tenantId || undefined,
-    };
-
-    next();
-  };
-}
-
-export function requirePlatformRole(...allowedRoles: ("super_admin" | "platform_admin")[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.platformContext) {
-      return res.status(401).json({ message: "Platform authentication required" });
-    }
-
-    const { platformAdmin } = req.platformContext;
-    
-    if (!allowedRoles.includes(platformAdmin.role as "super_admin" | "platform_admin")) {
-      return res.status(403).json({ 
-        message: "Insufficient platform privileges",
-        required: allowedRoles,
-        current: platformAdmin.role,
-      });
-    }
-
-    next();
-  };
-}
-
-export function requirePlatformPermission(...requiredPermissions: string[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.platformContext) {
-      return res.status(401).json({ message: "Platform authentication required" });
-    }
-
-    const { platformAdmin, isSuperAdmin } = req.platformContext;
-    
-    if (isSuperAdmin) {
-      return next();
-    }
-
-    const adminPermissions = (platformAdmin.permissions as string[]) || [];
-    
-    if (adminPermissions.includes("*")) {
-      return next();
-    }
-
-    const hasAllPermissions = requiredPermissions.every(perm => 
-      adminPermissions.includes(perm)
-    );
-
-    if (!hasAllPermissions) {
-      return res.status(403).json({ 
-        message: "Insufficient platform permissions",
-        required: requiredPermissions,
       });
     }
 

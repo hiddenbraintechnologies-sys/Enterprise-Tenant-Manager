@@ -26,7 +26,6 @@ import {
 } from "./core";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
-import platformRoutes from "./routes/platform";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -43,9 +42,6 @@ export async function registerRoutes(
   
   await featureService.seedFeatureFlags();
   await tenantService.getOrCreateDefaultTenant();
-
-  // ==================== PLATFORM ADMIN ROUTES ====================
-  app.use("/api/platform", platformRoutes);
 
   // ==================== AUTH ROUTES ====================
   
@@ -134,10 +130,8 @@ export async function registerRoutes(
       }
 
       const tokens = await jwtAuthService.generateTokenPair(
-        newUser.id,
+        { id: newUser.id, email: newUser.email, firstName: newUser.firstName, lastName: newUser.lastName },
         newTenant.id,
-        adminRole.id,
-        [],
         {
           userAgent: req.headers["user-agent"],
           ipAddress: req.ip || undefined,
@@ -456,7 +450,7 @@ export async function registerRoutes(
       res.json({
         tenant,
         settings,
-        features,
+        features: features.map(f => f.featureCode),
       });
     } catch (error) {
       console.error("Get tenant error:", error);
