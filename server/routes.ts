@@ -23,6 +23,7 @@ import {
   complianceService, createDataMasker,
   tenantIsolationMiddleware, blockBusinessTypeModification, logUnauthorizedAccess,
   tenantResolutionMiddleware, enforceTenantBoundary,
+  requirePlatformPermission,
 } from "./core";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -1070,6 +1071,372 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Bulk assign permissions error:", error);
       res.status(500).json({ message: "Failed to assign permissions" });
+    }
+  });
+
+  // ==================== PLATFORM DASHBOARD ROUTES ====================
+
+  // Dashboard Overview - All Tenants (requires read_tenants)
+  app.get("/api/platform-admin/dashboard/tenants", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+    try {
+      const allTenants = await storage.getAllTenants();
+      const stats = await storage.getTenantStats();
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "platform_dashboard",
+        metadata: { section: "tenants" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ tenants: allTenants, stats });
+    } catch (error) {
+      console.error("Get dashboard tenants error:", error);
+      res.status(500).json({ message: "Failed to get tenant data" });
+    }
+  });
+
+  // Dashboard - User Statistics (requires read_users)
+  app.get("/api/platform-admin/dashboard/users", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_users"), async (req, res) => {
+    try {
+      const stats = await storage.getUserStats();
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "platform_dashboard",
+        metadata: { section: "users" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Get dashboard users error:", error);
+      res.status(500).json({ message: "Failed to get user statistics" });
+    }
+  });
+
+  // Dashboard - Error Logs (requires view_logs)
+  app.get("/api/platform-admin/dashboard/errors", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const { tenantId, severity, limit, offset } = req.query;
+      const errors = await storage.getErrorLogs({
+        tenantId: tenantId as string,
+        severity: severity as string,
+        limit: limit ? parseInt(limit as string) : 100,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+      const stats = await storage.getErrorLogStats();
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "platform_dashboard",
+        metadata: { section: "errors", filters: { tenantId, severity } },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ errors, stats });
+    } catch (error) {
+      console.error("Get dashboard errors error:", error);
+      res.status(500).json({ message: "Failed to get error logs" });
+    }
+  });
+
+  // Dashboard - Resolve Error (requires manage_logs)
+  app.patch("/api/platform-admin/dashboard/errors/:id/resolve", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_logs"), async (req, res) => {
+    try {
+      const resolvedBy = req.platformAdminContext?.platformAdmin.id || "unknown";
+      const error = await storage.resolveErrorLog(req.params.id, resolvedBy);
+      
+      if (!error) {
+        return res.status(404).json({ message: "Error log not found" });
+      }
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "error_log",
+        resourceId: req.params.id,
+        metadata: { resolved: true },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(error);
+    } catch (error) {
+      console.error("Resolve error log error:", error);
+      res.status(500).json({ message: "Failed to resolve error log" });
+    }
+  });
+
+  // Dashboard - Support Tickets (requires view_logs - using general logs permission for tickets)
+  app.get("/api/platform-admin/dashboard/tickets", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const { tenantId, status, limit, offset } = req.query;
+      const tickets = await storage.getSupportTickets({
+        tenantId: tenantId as string,
+        status: status as string,
+        limit: limit ? parseInt(limit as string) : 100,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+      const stats = await storage.getSupportTicketStats();
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "platform_dashboard",
+        metadata: { section: "tickets", filters: { tenantId, status } },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ tickets, stats });
+    } catch (error) {
+      console.error("Get dashboard tickets error:", error);
+      res.status(500).json({ message: "Failed to get support tickets" });
+    }
+  });
+
+  // Dashboard - Get Single Ticket (requires view_logs)
+  app.get("/api/platform-admin/dashboard/tickets/:id", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const ticket = await storage.getSupportTicket(req.params.id);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket not found" });
+      }
+      const messages = await storage.getSupportTicketMessages(req.params.id);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "support_ticket",
+        resourceId: req.params.id,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ ticket, messages });
+    } catch (error) {
+      console.error("Get ticket error:", error);
+      res.status(500).json({ message: "Failed to get ticket" });
+    }
+  });
+
+  // Dashboard - Update Ticket (requires manage_logs)
+  const updateTicketSchema = z.object({
+    status: z.enum(["open", "in_progress", "waiting", "resolved", "closed"]).optional(),
+    priority: z.enum(["low", "medium", "high", "critical"]).optional(),
+    assignedTo: z.string().optional(),
+  });
+
+  app.patch("/api/platform-admin/dashboard/tickets/:id", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_logs"), async (req, res) => {
+    try {
+      const parsed = updateTicketSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const ticket = await storage.getSupportTicket(req.params.id);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket not found" });
+      }
+
+      const updateData: any = { ...parsed.data };
+      if (parsed.data.status === "resolved") {
+        updateData.resolvedAt = new Date();
+      } else if (parsed.data.status === "closed") {
+        updateData.closedAt = new Date();
+      }
+
+      const updated = await storage.updateSupportTicket(req.params.id, updateData);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "support_ticket",
+        resourceId: req.params.id,
+        oldValue: { status: ticket.status, priority: ticket.priority, assignedTo: ticket.assignedTo },
+        newValue: parsed.data,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Update ticket error:", error);
+      res.status(500).json({ message: "Failed to update ticket" });
+    }
+  });
+
+  // Dashboard - Add Ticket Message (requires manage_logs)
+  const ticketMessageSchema = z.object({
+    message: z.string().min(1, "Message is required"),
+  });
+
+  app.post("/api/platform-admin/dashboard/tickets/:id/messages", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_logs"), async (req, res) => {
+    try {
+      const parsed = ticketMessageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const ticket = await storage.getSupportTicket(req.params.id);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket not found" });
+      }
+
+      const created = await storage.createSupportTicketMessage({
+        ticketId: req.params.id,
+        senderId: req.platformAdminContext?.platformAdmin.id,
+        senderType: "platform_admin",
+        message: parsed.data.message,
+      });
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "ticket_message",
+        resourceId: created.id,
+        metadata: { ticketId: req.params.id },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.status(201).json(created);
+    } catch (error) {
+      console.error("Create ticket message error:", error);
+      res.status(500).json({ message: "Failed to create message" });
+    }
+  });
+
+  // Dashboard - Usage Metrics (requires view_analytics)
+  app.get("/api/platform-admin/dashboard/usage", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_analytics"), async (req, res) => {
+    try {
+      const aggregated = await storage.getAggregatedUsageMetrics();
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "platform_dashboard",
+        metadata: { section: "usage" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(aggregated);
+    } catch (error) {
+      console.error("Get usage metrics error:", error);
+      res.status(500).json({ message: "Failed to get usage metrics" });
+    }
+  });
+
+  // Dashboard - Tenant-specific Usage (requires view_analytics)
+  app.get("/api/platform-admin/dashboard/usage/:tenantId", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_analytics"), async (req, res) => {
+    try {
+      const { metricType, startDate, endDate } = req.query;
+      const metrics = await storage.getUsageMetrics(
+        req.params.tenantId,
+        metricType as string,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+
+      auditService.logAsync({
+        tenantId: req.params.tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "usage_metrics",
+        metadata: { metricType, startDate, endDate },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(metrics);
+    } catch (error) {
+      console.error("Get tenant usage error:", error);
+      res.status(500).json({ message: "Failed to get tenant usage metrics" });
+    }
+  });
+
+  // Dashboard - Audit Logs (requires view_logs)
+  app.get("/api/platform-admin/dashboard/audit-logs", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const { tenantId, userId, action, limit, offset } = req.query;
+      const logs = await storage.getAuditLogs({
+        tenantId: tenantId as string,
+        userId: userId as string,
+        action: action as string,
+        limit: limit ? parseInt(limit as string) : 100,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "platform_dashboard",
+        metadata: { section: "audit_logs", filters: { tenantId, userId, action } },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ logs });
+    } catch (error) {
+      console.error("Get audit logs error:", error);
+      res.status(500).json({ message: "Failed to get audit logs" });
+    }
+  });
+
+  // Dashboard - Combined Overview (requires multiple permissions)
+  app.get("/api/platform-admin/dashboard/overview", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const permissions = req.platformAdminContext?.permissions || [];
+      const isSuperAdmin = req.platformAdminContext?.platformAdmin.role === "SUPER_ADMIN";
+      
+      const overview: any = {};
+      
+      if (isSuperAdmin || permissions.includes("read_tenants")) {
+        overview.tenantStats = await storage.getTenantStats();
+      }
+      if (isSuperAdmin || permissions.includes("read_users")) {
+        overview.userStats = await storage.getUserStats();
+      }
+      if (isSuperAdmin || permissions.includes("view_logs")) {
+        overview.errorStats = await storage.getErrorLogStats();
+        overview.ticketStats = await storage.getSupportTicketStats();
+      }
+      if (isSuperAdmin || permissions.includes("view_analytics")) {
+        overview.usageStats = await storage.getAggregatedUsageMetrics();
+      }
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "platform_dashboard",
+        metadata: { section: "overview" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(overview);
+    } catch (error) {
+      console.error("Get dashboard overview error:", error);
+      res.status(500).json({ message: "Failed to get dashboard overview" });
     }
   });
 
