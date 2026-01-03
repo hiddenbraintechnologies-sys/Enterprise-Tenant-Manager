@@ -8,6 +8,9 @@ import { db } from "./db";
 import { roles, userTenants, rolePermissions, permissions, tenantFeatures, featureFlags, users, tenants } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import type { RequestContext } from "@shared/schema";
+import { responseTimeMiddleware } from "./middleware/response-time";
+import { metricsMiddleware, metricsHandler, metricsJsonHandler } from "./middleware/performance/metrics";
+import { queryTrackerMiddleware } from "./middleware/performance/query-tracker";
 
 const app = express();
 const httpServer = createServer(app);
@@ -27,6 +30,15 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Performance middleware (early in the chain)
+app.use(responseTimeMiddleware({ threshold: 1000 }));
+app.use(metricsMiddleware);
+app.use(queryTrackerMiddleware);
+
+// Metrics endpoints
+app.get('/metrics', metricsHandler);
+app.get('/metrics/json', metricsJsonHandler);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
