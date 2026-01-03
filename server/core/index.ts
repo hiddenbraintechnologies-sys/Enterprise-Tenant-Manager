@@ -8,6 +8,7 @@ export * from "./auth-middleware";
 export * from "./tenant-isolation";
 export * from "./scoped-repository";
 export * from "./compliance";
+export * from "./data-masking";
 export { 
   BUSINESS_MODULES, 
   getModulesForBusiness, 

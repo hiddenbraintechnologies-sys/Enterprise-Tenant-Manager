@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { 
@@ -24,6 +25,7 @@ import {
   tenantIsolationMiddleware, blockBusinessTypeModification, logUnauthorizedAccess,
   tenantResolutionMiddleware, enforceTenantBoundary,
   requirePlatformPermission,
+  DataMasking,
 } from "./core";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -1437,6 +1439,369 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get dashboard overview error:", error);
       res.status(500).json({ message: "Failed to get dashboard overview" });
+    }
+  });
+
+  // ==================== SUPPORT ACCESS ROUTES ====================
+  // Read-only access for platform admins to view tenant data with masked sensitive fields
+
+  // View tenant details (read-only, masked)
+  app.get("/api/platform-admin/support/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const tenant = await storage.getTenant(tenantId);
+      
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const maskedTenant = DataMasking.maskTenantForSupport(tenant as Record<string, unknown>);
+      const settings = await tenantService.getTenantSettings(tenantId);
+      const features = await featureService.getTenantFeatures(tenantId);
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "support_tenant_view",
+        resourceId: tenantId,
+        metadata: { 
+          accessType: "support_read_only",
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        tenant: maskedTenant,
+        settings,
+        features: features.map(f => f.featureCode),
+        _supportAccess: true,
+        _readOnly: true,
+      });
+    } catch (error) {
+      console.error("Support tenant view error:", error);
+      res.status(500).json({ message: "Failed to get tenant data" });
+    }
+  });
+
+  // View tenant users (read-only, masked passwords)
+  app.get("/api/platform-admin/support/tenants/:tenantId/users", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_users"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const { limit, offset } = req.query;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const users = await storage.getUsersByTenant(
+        tenantId,
+        limit ? parseInt(limit as string) : 100,
+        offset ? parseInt(offset as string) : 0
+      );
+
+      const maskedUsers = users.map(user => DataMasking.maskUserForSupport(user));
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "support_users_view",
+        resourceId: tenantId,
+        metadata: { 
+          accessType: "support_read_only",
+          userCount: users.length,
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        users: maskedUsers,
+        _supportAccess: true,
+        _readOnly: true,
+      });
+    } catch (error) {
+      console.error("Support users view error:", error);
+      res.status(500).json({ message: "Failed to get user data" });
+    }
+  });
+
+  // View specific user (read-only, masked)
+  app.get("/api/platform-admin/support/tenants/:tenantId/users/:userId", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_users"), async (req, res) => {
+    try {
+      const { tenantId, userId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (user.tenantId !== tenantId) {
+        return res.status(403).json({ message: "User does not belong to this tenant" });
+      }
+
+      const maskedUser = DataMasking.maskUserForSupport(user);
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "support_user_detail",
+        resourceId: userId,
+        metadata: { 
+          accessType: "support_read_only",
+          targetUserId: userId,
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        user: maskedUser,
+        _supportAccess: true,
+        _readOnly: true,
+      });
+    } catch (error) {
+      console.error("Support user detail error:", error);
+      res.status(500).json({ message: "Failed to get user data" });
+    }
+  });
+
+  // View tenant audit logs (read-only)
+  app.get("/api/platform-admin/support/tenants/:tenantId/audit-logs", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const { userId, action, limit, offset } = req.query;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const logs = await storage.getAuditLogs({
+        tenantId,
+        userId: userId as string,
+        action: action as string,
+        limit: limit ? parseInt(limit as string) : 100,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+
+      const maskedLogs = logs.map(log => 
+        DataMasking.maskSensitiveData(log as unknown as Record<string, unknown>, {
+          maskPasswords: true,
+          maskPayments: true,
+          maskContacts: false,
+        })
+      );
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "support_audit_logs",
+        resourceId: tenantId,
+        metadata: { 
+          accessType: "support_read_only",
+          logCount: logs.length,
+          filters: { userId, action },
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        logs: maskedLogs,
+        _supportAccess: true,
+        _readOnly: true,
+      });
+    } catch (error) {
+      console.error("Support audit logs error:", error);
+      res.status(500).json({ message: "Failed to get audit logs" });
+    }
+  });
+
+  // View tenant billing/subscription (read-only, masked payment details)
+  app.get("/api/platform-admin/support/tenants/:tenantId/billing", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_billing"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const subscription = await storage.getTenantSubscription(tenantId);
+
+      const maskedTenant = DataMasking.maskPaymentDataForSupport(tenant as Record<string, unknown>);
+      const maskedSubscription = subscription 
+        ? DataMasking.maskPaymentDataForSupport(subscription as Record<string, unknown>)
+        : null;
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "support_billing_view",
+        resourceId: tenantId,
+        metadata: { 
+          accessType: "support_read_only",
+          hasBillingData: !!subscription,
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        billing: {
+          tenant: maskedTenant,
+          subscription: maskedSubscription,
+        },
+        _supportAccess: true,
+        _readOnly: true,
+        _paymentsMasked: true,
+      });
+    } catch (error) {
+      console.error("Support billing view error:", error);
+      res.status(500).json({ message: "Failed to get billing data" });
+    }
+  });
+
+  // Support action: Reset user password (requires manage_users permission)
+  app.post("/api/platform-admin/support/tenants/:tenantId/users/:userId/reset-password", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("reset_passwords"), async (req, res) => {
+    try {
+      const { tenantId, userId } = req.params;
+      const { reason } = req.body;
+
+      if (!reason || reason.trim().length < 10) {
+        return res.status(400).json({ message: "A detailed reason (at least 10 characters) is required for password reset" });
+      }
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (user.tenantId !== tenantId) {
+        return res.status(403).json({ message: "User does not belong to this tenant" });
+      }
+
+      const temporaryPassword = crypto.randomBytes(12).toString("base64url");
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+      await storage.updateUser(userId, { 
+        password: hashedPassword,
+        passwordResetRequired: true,
+      });
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "support_password_reset",
+        resourceId: userId,
+        metadata: { 
+          accessType: "support_write",
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          reason: reason,
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        success: true,
+        message: "Password has been reset",
+        temporaryPassword,
+        passwordResetRequired: true,
+        _supportAction: true,
+      });
+    } catch (error) {
+      console.error("Support password reset error:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // Support action: Toggle user active status (requires manage_users permission)
+  app.patch("/api/platform-admin/support/tenants/:tenantId/users/:userId/status", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_users"), async (req, res) => {
+    try {
+      const { tenantId, userId } = req.params;
+      const { isActive, reason } = req.body;
+
+      if (typeof isActive !== "boolean") {
+        return res.status(400).json({ message: "isActive must be a boolean" });
+      }
+
+      if (!reason || reason.trim().length < 10) {
+        return res.status(400).json({ message: "A detailed reason (at least 10 characters) is required for status change" });
+      }
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (user.tenantId !== tenantId) {
+        return res.status(403).json({ message: "User does not belong to this tenant" });
+      }
+
+      await storage.updateUser(userId, { isActive });
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "support_user_status",
+        resourceId: userId,
+        oldValue: { isActive: user.isActive },
+        newValue: { isActive },
+        metadata: { 
+          accessType: "support_write",
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          reason: reason,
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        success: true,
+        message: `User ${isActive ? "activated" : "deactivated"} successfully`,
+        userId,
+        isActive,
+        _supportAction: true,
+      });
+    } catch (error) {
+      console.error("Support user status update error:", error);
+      res.status(500).json({ message: "Failed to update user status" });
     }
   });
 
