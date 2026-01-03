@@ -1,0 +1,63 @@
+# Git
+.git
+.gitignore
+
+# Dependencies (will be installed in container)
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build artifacts (generated in container)
+dist
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Environment files (secrets - use Docker secrets instead)
+.env.local
+.env.development
+.env.staging
+.env.production
+.env*.local
+
+# Test files
+coverage
+.nyc_output
+
+# Documentation (not needed in runtime)
+docs/*.md
+!docs/
+
+# Backup files
+backups
+*.dump
+*.sql.gz
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Development-only files
+.replit
+replit.nix
+
+# Attached assets (handled via CDN/storage)
+attached_assets
+
+# Docker files (avoid recursion)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# GitHub
+.github

@@ -1,0 +1,24 @@
+# BizFlow Development Dockerfile
+# Hot-reload enabled for development
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install development tools
+RUN apk add --no-cache git
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies
+RUN npm install
+
+# Copy source code (will be overwritten by volume mount)
+COPY . .
+
+# Expose development port
+EXPOSE 5000
+
+# Start development server with hot reload
+CMD ["npm", "run", "dev"]

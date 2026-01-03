@@ -1,0 +1,96 @@
+version: '3.8'
+
+# Production environment overrides
+
+services:
+  api:
+    container_name: bizflow-api-prod
+    environment:
+      - NODE_ENV=production
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bizflow.rule=Host(`api.bizflow.app`)"
+      - "traefik.http.routers.bizflow.tls=true"
+      - "traefik.http.routers.bizflow.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bizflow.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.bizflow.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.bizflow.loadbalancer.sticky.cookie=true"
+      - "traefik.http.services.bizflow.loadbalancer.sticky.cookie.name=bizflow_sticky"
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  redis:
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy volatile-lru --requirepass ${REDIS_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Traefik reverse proxy for production
+  traefik:
+    image: traefik:v2.10
+    container_name: bizflow-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - "--api.dashboard=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/letsencrypt
+    networks:
+      - bizflow-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  traefik_certs:
+    driver: local
