@@ -72,6 +72,51 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
     { title: "Bookings", url: "/bookings", icon: Calendar },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
+  real_estate: [
+    { title: "Dashboard", url: "/dashboard/real-estate", icon: LayoutDashboard },
+    { title: "Properties", url: "/properties", icon: Building2 },
+    { title: "Listings", url: "/listings", icon: Home },
+    { title: "Leads", url: "/leads", icon: Users },
+    { title: "Site Visits", url: "/site-visits", icon: MapPin },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  tourism: [
+    { title: "Dashboard", url: "/dashboard/tourism", icon: LayoutDashboard },
+    { title: "Packages", url: "/packages", icon: Package },
+    { title: "Bookings", url: "/bookings", icon: Calendar },
+    { title: "Customers", url: "/customers", icon: Users },
+    { title: "Itineraries", url: "/itineraries", icon: MapPin },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  education: [
+    { title: "Dashboard", url: "/dashboard/education", icon: LayoutDashboard },
+    { title: "Students", url: "/students", icon: Users },
+    { title: "Courses", url: "/courses", icon: Package },
+    { title: "Batches", url: "/batches", icon: Calendar },
+    { title: "Attendance", url: "/attendance", icon: Calendar },
+    { title: "Exams", url: "/exams", icon: Package },
+    { title: "Fees", url: "/fees", icon: Package },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  logistics: [
+    { title: "Dashboard", url: "/dashboard/logistics", icon: LayoutDashboard },
+    { title: "Vehicles", url: "/vehicles", icon: Package },
+    { title: "Drivers", url: "/drivers", icon: Users },
+    { title: "Trips", url: "/trips", icon: MapPin },
+    { title: "Shipments", url: "/shipments", icon: Package },
+    { title: "Tracking", url: "/tracking", icon: MapPin },
+    { title: "Maintenance", url: "/maintenance", icon: Settings },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  legal: [
+    { title: "Dashboard", url: "/dashboard/legal", icon: LayoutDashboard },
+    { title: "Clients", url: "/clients", icon: Users },
+    { title: "Cases", url: "/cases", icon: Package },
+    { title: "Appointments", url: "/appointments", icon: Calendar },
+    { title: "Documents", url: "/documents", icon: Package },
+    { title: "Billing", url: "/billing", icon: Package },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
@@ -80,6 +125,11 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   pg: "/dashboard/pg",
   coworking: "/dashboard/coworking",
   service: "/dashboard/service",
+  real_estate: "/dashboard/real-estate",
+  tourism: "/dashboard/tourism",
+  education: "/dashboard/education",
+  logistics: "/dashboard/logistics",
+  legal: "/dashboard/legal",
 };
 
 const settingsItems: NavItem[] = [

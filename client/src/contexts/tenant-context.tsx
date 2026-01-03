@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
 
 export interface ModuleConfig {
   id: string;
@@ -63,6 +63,35 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
+  education: [
+    { id: "students", name: "Students", enabled: true, routes: ["/students", "/students/new", "/students/:id"] },
+    { id: "courses", name: "Courses", enabled: true, routes: ["/courses", "/courses/new", "/courses/:id"] },
+    { id: "batches", name: "Batches", enabled: true, routes: ["/batches", "/batches/new", "/batches/:id"] },
+    { id: "attendance", name: "Attendance", enabled: true, routes: ["/attendance", "/attendance/:batchId"] },
+    { id: "exams", name: "Exams", enabled: true, routes: ["/exams", "/exams/new", "/exams/:id", "/exams/:id/results"] },
+    { id: "fees", name: "Fees", enabled: true, routes: ["/fees", "/fees/new", "/fees/:id", "/fees/collections"] },
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  logistics: [
+    { id: "vehicles", name: "Vehicles", enabled: true, routes: ["/vehicles", "/vehicles/new", "/vehicles/:id"] },
+    { id: "drivers", name: "Drivers", enabled: true, routes: ["/drivers", "/drivers/new", "/drivers/:id"] },
+    { id: "trips", name: "Trips", enabled: true, routes: ["/trips", "/trips/new", "/trips/:id"] },
+    { id: "shipments", name: "Shipments", enabled: true, routes: ["/shipments", "/shipments/new", "/shipments/:id"] },
+    { id: "tracking", name: "Tracking", enabled: true, routes: ["/tracking", "/tracking/:shipmentId"] },
+    { id: "maintenance", name: "Maintenance", enabled: true, routes: ["/maintenance", "/maintenance/new", "/maintenance/:id"] },
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  legal: [
+    { id: "clients", name: "Clients", enabled: true, routes: ["/clients", "/clients/new", "/clients/:id"] },
+    { id: "cases", name: "Cases", enabled: true, routes: ["/cases", "/cases/new", "/cases/:id"] },
+    { id: "appointments", name: "Appointments", enabled: true, routes: ["/appointments", "/appointments/new", "/appointments/:id"] },
+    { id: "documents", name: "Documents", enabled: true, routes: ["/documents", "/documents/new", "/documents/:id"] },
+    { id: "billing", name: "Billing", enabled: true, routes: ["/billing", "/billing/new", "/billing/:id", "/billing/invoices"] },
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
@@ -73,6 +102,9 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   service: "/dashboard/service",
   real_estate: "/dashboard/real-estate",
   tourism: "/dashboard/tourism",
+  education: "/dashboard/education",
+  logistics: "/dashboard/logistics",
+  legal: "/dashboard/legal",
 };
 
 

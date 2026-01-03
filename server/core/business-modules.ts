@@ -6,6 +6,9 @@ export const BUSINESS_MODULES = {
   service: ['customers', 'jobs'],
   real_estate: ['properties', 'listings', 'leads', 'site_visits', 'agents'],
   tourism: ['packages', 'bookings', 'customers', 'itineraries', 'vendors'],
+  education: ['students', 'courses', 'batches', 'attendance', 'exams', 'fees'],
+  logistics: ['vehicles', 'drivers', 'trips', 'shipments', 'tracking', 'maintenance'],
+  legal: ['clients', 'cases', 'appointments', 'documents', 'billing'],
 } as const;
 
 export type BusinessType = keyof typeof BUSINESS_MODULES;
@@ -56,6 +59,21 @@ export const ALL_MODULES = [
   'packages',
   'itineraries',
   'vendors',
+  'students',
+  'courses',
+  'batches',
+  'attendance',
+  'exams',
+  'fees',
+  'vehicles',
+  'drivers',
+  'trips',
+  'shipments',
+  'tracking',
+  'maintenance',
+  'clients',
+  'cases',
+  'documents',
 ] as const;
 
 export const MODULE_DESCRIPTIONS: Record<string, string> = {
@@ -79,4 +97,19 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   packages: 'Travel packages and pricing',
   itineraries: 'Trip itinerary planning',
   vendors: 'Vendor and supplier management',
+  students: 'Student enrollment and records',
+  courses: 'Course catalog and curriculum',
+  batches: 'Batch/class management and scheduling',
+  attendance: 'Student attendance tracking',
+  exams: 'Exam scheduling and result management',
+  fees: 'Fee collection and payment tracking',
+  vehicles: 'Vehicle fleet management',
+  drivers: 'Driver profiles and assignments',
+  trips: 'Trip planning and scheduling',
+  shipments: 'Shipment tracking and management',
+  tracking: 'Real-time shipment and vehicle tracking',
+  maintenance: 'Vehicle maintenance scheduling',
+  clients: 'Client management for legal practice',
+  cases: 'Case management and tracking',
+  documents: 'Legal document management',
 };
