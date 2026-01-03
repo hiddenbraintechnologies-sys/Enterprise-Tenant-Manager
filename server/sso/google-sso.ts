@@ -509,7 +509,6 @@ export class GoogleSsoService {
         tenantId,
         name: 'Staff',
         description: 'Default role for SSO users',
-        isDefault: true,
       }).returning();
     }
 

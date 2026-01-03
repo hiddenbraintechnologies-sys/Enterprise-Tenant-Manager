@@ -7,6 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { ssoService } from './sso-service';
 import { googleSsoService } from './google-sso';
+import { microsoftSsoService } from './microsoft-sso';
 import { z } from 'zod';
 
 const router = Router();
@@ -499,6 +500,191 @@ router.post('/google/revoke', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error revoking Google access:', error);
     res.status(500).json({ error: 'Failed to revoke Google access' });
+  }
+});
+
+// ==================== MICROSOFT AZURE AD SSO ROUTES ====================
+
+const setupMicrosoftSchema = z.object({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+  azureTenantId: z.string().optional(),
+  allowedDomains: z.array(z.string()).optional(),
+  autoCreateUsers: z.boolean().optional(),
+  requireEnterpriseAccounts: z.boolean().optional(),
+  roleMapping: z.object({
+    roleMap: z.record(z.string()).optional(),
+    groupMap: z.record(z.string()).optional(),
+    defaultRole: z.string().optional(),
+  }).optional(),
+});
+
+/**
+ * Setup/update Microsoft SSO for a tenant
+ */
+router.post('/microsoft/setup', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Tenant context required' });
+    }
+
+    const hasPermission = req.context?.permissions?.includes('tenant:manage') ||
+                          req.context?.role?.name === 'Admin';
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const parsed = setupMicrosoftSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    }
+
+    const provider = await microsoftSsoService.setupMicrosoftProvider(tenantId, parsed.data);
+
+    res.json({
+      success: true,
+      providerId: provider.id,
+      status: provider.status,
+    });
+  } catch (error: any) {
+    console.error('Error setting up Microsoft SSO:', error);
+    res.status(500).json({ error: 'Failed to setup Microsoft SSO' });
+  }
+});
+
+/**
+ * Check if Microsoft SSO is available for a tenant
+ */
+router.get('/microsoft/status', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id || req.query.tenantId as string;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const provider = await microsoftSsoService.getMicrosoftProvider(tenantId);
+
+    res.json({
+      enabled: !!provider,
+      providerId: provider?.id,
+      allowedDomains: provider?.allowedDomains || [],
+    });
+  } catch (error: any) {
+    console.error('Error checking Microsoft SSO status:', error);
+    res.status(500).json({ error: 'Failed to check Microsoft SSO status' });
+  }
+});
+
+/**
+ * Initiate Microsoft login
+ */
+router.get('/microsoft/login', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string || req.context?.tenant?.id;
+    const returnUrl = req.query.returnUrl as string;
+    const loginHint = req.query.loginHint as string;
+    const domainHint = req.query.domainHint as string;
+    const prompt = req.query.prompt as 'login' | 'consent' | 'select_account' | 'none';
+
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const provider = await microsoftSsoService.getMicrosoftProvider(tenantId);
+    if (!provider) {
+      return res.status(404).json({ error: 'Microsoft SSO not configured for this tenant' });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/sso/microsoft/callback`;
+
+    const authUrl = await microsoftSsoService.getAuthorizationUrl({
+      tenantId,
+      providerId: provider.id,
+      redirectUri,
+      returnUrl,
+      loginHint,
+      domainHint,
+      prompt,
+    });
+
+    res.redirect(authUrl);
+  } catch (error: any) {
+    console.error('Error initiating Microsoft login:', error);
+    res.redirect(`/auth/error?error=microsoft_init_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+/**
+ * Microsoft OAuth callback
+ */
+router.get('/microsoft/callback', async (req: Request, res: Response) => {
+  try {
+    const { code, state, error, error_description } = req.query;
+
+    if (error) {
+      console.error('Microsoft OAuth error:', error, error_description);
+      return res.redirect(`/auth/error?error=${error}&description=${error_description}`);
+    }
+
+    if (!code || !state) {
+      return res.redirect('/auth/error?error=missing_params');
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/sso/microsoft/callback`;
+
+    const result = await microsoftSsoService.handleCallback({
+      code: code as string,
+      state: state as string,
+      redirectUri,
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    });
+
+    // Set session with user info
+    if (req.session) {
+      (req.session as any).userId = result.user.id;
+      (req.session as any).tenantId = result.tenant.id;
+      (req.session as any).ssoProvider = 'microsoft';
+      (req.session as any).azureClaims = result.claims;
+    }
+
+    // Redirect to dashboard or return URL
+    const returnUrl = req.query.returnUrl as string || '/dashboard';
+    res.redirect(`${returnUrl}?sso=microsoft&new_user=${result.user.isNewUser}`);
+  } catch (error: any) {
+    console.error('Microsoft OAuth callback error:', error);
+    res.redirect(`/auth/error?error=microsoft_callback_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+/**
+ * Revoke Microsoft access for current user
+ */
+router.post('/microsoft/revoke', async (req: Request, res: Response) => {
+  try {
+    const userId = req.context?.user?.id;
+    const tenantId = req.context?.tenant?.id;
+    
+    if (!userId || !tenantId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const provider = await microsoftSsoService.getMicrosoftProvider(tenantId);
+    if (!provider) {
+      return res.status(404).json({ error: 'Microsoft SSO not configured' });
+    }
+
+    await microsoftSsoService.revokeAccess(userId, provider.id);
+
+    res.json({ success: true, message: 'Microsoft access revoked' });
+  } catch (error: any) {
+    console.error('Error revoking Microsoft access:', error);
+    res.status(500).json({ error: 'Failed to revoke Microsoft access' });
   }
 });
 
