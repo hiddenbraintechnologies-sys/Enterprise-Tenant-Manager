@@ -1471,6 +1471,366 @@ export type InsertWhatsappProviderHealth = z.infer<typeof insertWhatsappProvider
 export type WhatsappWebhookEvent = typeof whatsappWebhookEvents.$inferSelect;
 export type InsertWhatsappWebhookEvent = z.infer<typeof insertWhatsappWebhookEventSchema>;
 
+// ============================================
+// COMPLIANCE & DATA GOVERNANCE
+// ============================================
+
+export const dataProtectionRegulationEnum = pgEnum("data_protection_regulation", [
+  "gdpr",           // UK/EU - General Data Protection Regulation
+  "pdpa_sg",        // Singapore - Personal Data Protection Act
+  "pdpa_my",        // Malaysia - Personal Data Protection Act
+  "dpdp",           // India - Digital Personal Data Protection Act
+  "uae_dpl",        // UAE - Data Protection Law
+]);
+
+export const consentTypeEnum = pgEnum("consent_type", [
+  "marketing",              // Marketing communications
+  "data_processing",        // General data processing
+  "data_sharing",           // Third-party data sharing
+  "profiling",              // Automated profiling/decisions
+  "cross_border_transfer",  // Cross-border data transfer
+  "health_data",            // Health/medical data processing
+  "biometric",              // Biometric data processing
+  "location_tracking",      // Location data collection
+]);
+
+export const consentStatusEnum = pgEnum("consent_status", [
+  "granted",
+  "denied",
+  "withdrawn",
+  "expired",
+]);
+
+export const dsarTypeEnum = pgEnum("dsar_type", [
+  "access",         // Right to access personal data
+  "rectification",  // Right to correct inaccurate data
+  "erasure",        // Right to be forgotten
+  "portability",    // Right to data portability
+  "restriction",    // Right to restrict processing
+  "objection",      // Right to object to processing
+]);
+
+export const dsarStatusEnum = pgEnum("dsar_status", [
+  "submitted",
+  "acknowledged",
+  "in_progress",
+  "pending_verification",
+  "completed",
+  "rejected",
+  "expired",
+]);
+
+export const sensitiveDataCategoryEnum = pgEnum("sensitive_data_category", [
+  "pii",            // Personally Identifiable Information
+  "phi",            // Protected Health Information
+  "financial",      // Financial/payment data
+  "biometric",      // Biometric data
+  "location",       // Location data
+  "authentication", // Passwords, tokens, etc.
+]);
+
+export const accessReasonEnum = pgEnum("access_reason", [
+  "customer_request",
+  "support_ticket",
+  "compliance_audit",
+  "legal_requirement",
+  "system_maintenance",
+  "debugging",
+  "authorized_investigation",
+]);
+
+// Regional compliance configurations
+export const complianceConfigs = pgTable("compliance_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  regulation: dataProtectionRegulationEnum("regulation").notNull().unique(),
+  displayName: varchar("display_name", { length: 100 }).notNull(),
+  description: text("description"),
+  applicableCountries: jsonb("applicable_countries").default([]), // ["uk", "india", etc.]
+  dataRetentionDays: integer("data_retention_days").default(365),
+  breachNotificationHours: integer("breach_notification_hours").default(72),
+  consentExpiryDays: integer("consent_expiry_days"),
+  requireExplicitConsent: boolean("require_explicit_consent").default(true),
+  allowImpliedConsent: boolean("allow_implied_consent").default(false),
+  minorAgeThreshold: integer("minor_age_threshold").default(18),
+  requireParentalConsent: boolean("require_parental_consent").default(true),
+  crossBorderRules: jsonb("cross_border_rules").default({}),
+  requiredConsentTypes: jsonb("required_consent_types").default([]),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Tenant-level compliance settings
+export const tenantComplianceSettings = pgTable("tenant_compliance_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  primaryRegulation: dataProtectionRegulationEnum("primary_regulation").notNull(),
+  additionalRegulations: jsonb("additional_regulations").default([]),
+  dataRetentionDays: integer("data_retention_days").default(365),
+  autoDeleteExpiredData: boolean("auto_delete_expired_data").default(false),
+  requireConsentForMarketing: boolean("require_consent_for_marketing").default(true),
+  enableDataMasking: boolean("enable_data_masking").default(true),
+  enableAuditLogging: boolean("enable_audit_logging").default(true),
+  dpoEmail: varchar("dpo_email", { length: 255 }),
+  dpoName: varchar("dpo_name", { length: 255 }),
+  privacyPolicyUrl: text("privacy_policy_url"),
+  termsUrl: text("terms_url"),
+  cookiePolicyUrl: text("cookie_policy_url"),
+  customSettings: jsonb("custom_settings").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Consent records for data subjects
+export const consentRecords = pgTable("consent_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  subjectType: varchar("subject_type", { length: 50 }).notNull(), // customer, patient, user
+  subjectId: varchar("subject_id", { length: 100 }).notNull(),
+  subjectEmail: varchar("subject_email", { length: 255 }),
+  consentType: consentTypeEnum("consent_type").notNull(),
+  status: consentStatusEnum("status").notNull().default("granted"),
+  regulation: dataProtectionRegulationEnum("regulation"),
+  purpose: text("purpose").notNull(),
+  legalBasis: varchar("legal_basis", { length: 100 }), // consent, contract, legal_obligation, vital_interests, public_task, legitimate_interests
+  consentText: text("consent_text"),
+  version: varchar("version", { length: 20 }),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  withdrawnAt: timestamp("withdrawn_at"),
+  withdrawalReason: text("withdrawal_reason"),
+  collectionMethod: varchar("collection_method", { length: 50 }), // web_form, paper, verbal, checkbox, double_opt_in
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  proofDocumentUrl: text("proof_document_url"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_consent_tenant_subject").on(table.tenantId, table.subjectType, table.subjectId),
+  index("idx_consent_type").on(table.consentType),
+  index("idx_consent_status").on(table.status),
+  index("idx_consent_expires").on(table.expiresAt),
+]);
+
+// Data Subject Access Requests (DSAR)
+export const dsarRequests = pgTable("dsar_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  requestType: dsarTypeEnum("request_type").notNull(),
+  status: dsarStatusEnum("status").notNull().default("submitted"),
+  regulation: dataProtectionRegulationEnum("regulation"),
+  subjectEmail: varchar("subject_email", { length: 255 }).notNull(),
+  subjectName: varchar("subject_name", { length: 255 }),
+  subjectPhone: varchar("subject_phone", { length: 20 }),
+  subjectIdType: varchar("subject_id_type", { length: 50 }), // passport, national_id, driver_license
+  subjectIdNumber: varchar("subject_id_number", { length: 100 }),
+  verificationStatus: varchar("verification_status", { length: 50 }).default("pending"), // pending, verified, failed
+  verificationMethod: varchar("verification_method", { length: 50 }), // email, phone, document
+  verifiedAt: timestamp("verified_at"),
+  requestDetails: text("request_details"),
+  dataCategories: jsonb("data_categories").default([]), // which data categories are requested
+  responseDeadline: timestamp("response_deadline"),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  completedAt: timestamp("completed_at"),
+  responseNotes: text("response_notes"),
+  rejectionReason: text("rejection_reason"),
+  dataExportUrl: text("data_export_url"),
+  dataExportExpiresAt: timestamp("data_export_expires_at"),
+  assignedTo: varchar("assigned_to").references(() => users.id, { onDelete: "set null" }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_dsar_tenant").on(table.tenantId),
+  index("idx_dsar_status").on(table.status),
+  index("idx_dsar_subject_email").on(table.subjectEmail),
+  index("idx_dsar_deadline").on(table.responseDeadline),
+  index("idx_dsar_created").on(table.createdAt),
+]);
+
+// DSAR activity log for tracking request progress
+export const dsarActivityLog = pgTable("dsar_activity_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dsarId: varchar("dsar_id").notNull().references(() => dsarRequests.id, { onDelete: "cascade" }),
+  action: varchar("action", { length: 100 }).notNull(),
+  previousStatus: dsarStatusEnum("previous_status"),
+  newStatus: dsarStatusEnum("new_status"),
+  performedBy: varchar("performed_by").references(() => users.id, { onDelete: "set null" }),
+  performedByEmail: varchar("performed_by_email", { length: 255 }),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_dsar_activity_dsar").on(table.dsarId),
+  index("idx_dsar_activity_created").on(table.createdAt),
+]);
+
+// Sensitive data access logs for compliance auditing
+export const sensitiveDataAccessLogs = pgTable("sensitive_data_access_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+  accessorType: varchar("accessor_type", { length: 50 }).notNull(), // user, admin, platform_admin, system
+  accessorId: varchar("accessor_id", { length: 100 }).notNull(),
+  accessorEmail: varchar("accessor_email", { length: 255 }),
+  accessorRole: varchar("accessor_role", { length: 100 }),
+  dataCategory: sensitiveDataCategoryEnum("data_category").notNull(),
+  resourceType: varchar("resource_type", { length: 100 }).notNull(), // customer, patient, payment, etc.
+  resourceId: varchar("resource_id", { length: 100 }).notNull(),
+  fieldsAccessed: jsonb("fields_accessed").default([]), // which specific fields were accessed
+  accessType: varchar("access_type", { length: 50 }).notNull(), // view, export, modify, delete
+  accessReason: accessReasonEnum("access_reason").notNull(),
+  reasonDetails: text("reason_details"),
+  ticketId: varchar("ticket_id", { length: 100 }), // support ticket reference if applicable
+  wasDataMasked: boolean("was_data_masked").default(false),
+  dataMaskingApplied: jsonb("data_masking_applied").default({}),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  geoLocation: jsonb("geo_location").default({}),
+  sessionId: varchar("session_id", { length: 100 }),
+  riskLevel: varchar("risk_level", { length: 20 }).default("low"), // low, medium, high, critical
+  flagged: boolean("flagged").default(false),
+  flagReason: text("flag_reason"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_sensitive_access_tenant").on(table.tenantId),
+  index("idx_sensitive_access_accessor").on(table.accessorType, table.accessorId),
+  index("idx_sensitive_access_resource").on(table.resourceType, table.resourceId),
+  index("idx_sensitive_access_category").on(table.dataCategory),
+  index("idx_sensitive_access_risk").on(table.riskLevel),
+  index("idx_sensitive_access_flagged").on(table.flagged),
+  index("idx_sensitive_access_created").on(table.createdAt),
+]);
+
+// Data masking rules per role and data category
+export const dataMaskingRules = pgTable("data_masking_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  roleId: varchar("role_id").references(() => roles.id, { onDelete: "cascade" }),
+  roleName: varchar("role_name", { length: 100 }), // for platform-level rules without role FK
+  dataCategory: sensitiveDataCategoryEnum("data_category").notNull(),
+  resourceType: varchar("resource_type", { length: 100 }).notNull(),
+  fieldName: varchar("field_name", { length: 100 }).notNull(),
+  maskingType: varchar("masking_type", { length: 50 }).notNull(), // full, partial, hash, redact, tokenize
+  maskingPattern: varchar("masking_pattern", { length: 100 }), // e.g., "****1234" for partial
+  preserveLength: boolean("preserve_length").default(true),
+  preserveFormat: boolean("preserve_format").default(false),
+  isEnabled: boolean("is_enabled").default(true),
+  priority: integer("priority").default(0), // higher priority rules take precedence
+  conditions: jsonb("conditions").default({}), // additional conditions for applying the rule
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_masking_tenant").on(table.tenantId),
+  index("idx_masking_role").on(table.roleId),
+  index("idx_masking_category").on(table.dataCategory),
+  index("idx_masking_resource").on(table.resourceType, table.fieldName),
+]);
+
+// Data breach records for compliance reporting
+export const dataBreachRecords = pgTable("data_breach_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+  breachType: varchar("breach_type", { length: 100 }).notNull(), // unauthorized_access, data_leak, system_compromise, human_error
+  severity: varchar("severity", { length: 20 }).notNull(), // low, medium, high, critical
+  regulation: dataProtectionRegulationEnum("regulation"),
+  discoveredAt: timestamp("discovered_at").notNull(),
+  occurredAt: timestamp("occurred_at"),
+  reportedToAuthorityAt: timestamp("reported_to_authority_at"),
+  reportDeadline: timestamp("report_deadline"),
+  affectedDataCategories: jsonb("affected_data_categories").default([]),
+  affectedSubjectsCount: integer("affected_subjects_count"),
+  affectedSubjectsNotified: boolean("affected_subjects_notified").default(false),
+  notifiedAt: timestamp("notified_at"),
+  description: text("description"),
+  impactAssessment: text("impact_assessment"),
+  containmentActions: text("containment_actions"),
+  remediationActions: text("remediation_actions"),
+  preventionMeasures: text("prevention_measures"),
+  authorityReference: varchar("authority_reference", { length: 100 }),
+  status: varchar("status", { length: 50 }).default("investigating"), // investigating, contained, reported, resolved, closed
+  assignedTo: varchar("assigned_to").references(() => users.id, { onDelete: "set null" }),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id, { onDelete: "set null" }),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_breach_tenant").on(table.tenantId),
+  index("idx_breach_severity").on(table.severity),
+  index("idx_breach_status").on(table.status),
+  index("idx_breach_discovered").on(table.discoveredAt),
+]);
+
+// Data retention policies
+export const dataRetentionPolicies = pgTable("data_retention_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  regulation: dataProtectionRegulationEnum("regulation"),
+  resourceType: varchar("resource_type", { length: 100 }).notNull(),
+  dataCategory: sensitiveDataCategoryEnum("data_category"),
+  retentionDays: integer("retention_days").notNull(),
+  archiveBeforeDelete: boolean("archive_before_delete").default(true),
+  archiveLocation: varchar("archive_location", { length: 255 }),
+  autoDelete: boolean("auto_delete").default(false),
+  deleteAction: varchar("delete_action", { length: 50 }).default("soft_delete"), // soft_delete, hard_delete, anonymize
+  legalHold: boolean("legal_hold").default(false),
+  legalHoldReason: text("legal_hold_reason"),
+  lastExecutedAt: timestamp("last_executed_at"),
+  nextScheduledAt: timestamp("next_scheduled_at"),
+  isEnabled: boolean("is_enabled").default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_retention_tenant").on(table.tenantId),
+  index("idx_retention_resource").on(table.resourceType),
+  index("idx_retention_enabled").on(table.isEnabled),
+]);
+
+// Insert schemas for compliance tables
+export const insertComplianceConfigSchema = createInsertSchema(complianceConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantComplianceSettingsSchema = createInsertSchema(tenantComplianceSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertConsentRecordSchema = createInsertSchema(consentRecords).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDsarRequestSchema = createInsertSchema(dsarRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDsarActivityLogSchema = createInsertSchema(dsarActivityLog).omit({ id: true, createdAt: true });
+export const insertSensitiveDataAccessLogSchema = createInsertSchema(sensitiveDataAccessLogs).omit({ id: true, createdAt: true });
+export const insertDataMaskingRuleSchema = createInsertSchema(dataMaskingRules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDataBreachRecordSchema = createInsertSchema(dataBreachRecords).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDataRetentionPolicySchema = createInsertSchema(dataRetentionPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Compliance types
+export type ComplianceConfig = typeof complianceConfigs.$inferSelect;
+export type InsertComplianceConfig = z.infer<typeof insertComplianceConfigSchema>;
+
+export type TenantComplianceSettings = typeof tenantComplianceSettings.$inferSelect;
+export type InsertTenantComplianceSettings = z.infer<typeof insertTenantComplianceSettingsSchema>;
+
+export type ConsentRecord = typeof consentRecords.$inferSelect;
+export type InsertConsentRecord = z.infer<typeof insertConsentRecordSchema>;
+
+export type DsarRequest = typeof dsarRequests.$inferSelect;
+export type InsertDsarRequest = z.infer<typeof insertDsarRequestSchema>;
+
+export type DsarActivityLog = typeof dsarActivityLog.$inferSelect;
+export type InsertDsarActivityLog = z.infer<typeof insertDsarActivityLogSchema>;
+
+export type SensitiveDataAccessLog = typeof sensitiveDataAccessLogs.$inferSelect;
+export type InsertSensitiveDataAccessLog = z.infer<typeof insertSensitiveDataAccessLogSchema>;
+
+export type DataMaskingRule = typeof dataMaskingRules.$inferSelect;
+export type InsertDataMaskingRule = z.infer<typeof insertDataMaskingRuleSchema>;
+
+export type DataBreachRecord = typeof dataBreachRecords.$inferSelect;
+export type InsertDataBreachRecord = z.infer<typeof insertDataBreachRecordSchema>;
+
+export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;
+export type InsertDataRetentionPolicy = z.infer<typeof insertDataRetentionPolicySchema>;
+
 // Extended types for joins
 export type BookingWithDetails = Booking & {
   customer: Customer;

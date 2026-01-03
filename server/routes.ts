@@ -13,6 +13,7 @@ import {
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs,
+  dsarRequests,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -23,14 +24,16 @@ import {
   jwtAuthService, authenticateJWT, rateLimit, requireRole, requireMinimumRole,
   resolveTenantFromUser,
   phiAccessMiddleware, requireAccessReason, dataMaskingMiddleware,
-  complianceService, createDataMasker,
+  complianceService as phiComplianceService, createDataMasker,
   tenantIsolationMiddleware, blockBusinessTypeModification, logUnauthorizedAccess,
   tenantResolutionMiddleware, enforceTenantBoundary,
   requirePlatformPermission,
+  requirePlatformAdmin,
   DataMasking,
   whatsappService,
   initializeWhatsappProviders,
 } from "./core";
+import { complianceService } from "./core/compliance/compliance-service";
 import {
   adminIpRestriction,
   adminRateLimit,
@@ -41,7 +44,7 @@ import {
   getClientIp,
 } from "./core/admin-security";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -3875,6 +3878,396 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error sending message:", error);
       res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // ==================== COMPLIANCE & DATA GOVERNANCE API ====================
+
+  // Platform Admin: Get all compliance configurations
+  app.get("/api/platform-admin/compliance/configs", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const configs = await complianceService.getAllComplianceConfigs();
+      res.json({ configs });
+    } catch (error) {
+      console.error("Error fetching compliance configs:", error);
+      res.status(500).json({ message: "Failed to fetch compliance configs" });
+    }
+  });
+
+  // Platform Admin: Get compliance config for specific regulation
+  app.get("/api/platform-admin/compliance/configs/:regulation", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const { regulation } = req.params;
+      const config = await complianceService.getComplianceConfig(regulation as any);
+      if (!config) {
+        return res.status(404).json({ message: "Compliance config not found" });
+      }
+      res.json(config);
+    } catch (error) {
+      console.error("Error fetching compliance config:", error);
+      res.status(500).json({ message: "Failed to fetch compliance config" });
+    }
+  });
+
+  // Platform Admin: Get sensitive data access logs
+  app.get("/api/platform-admin/compliance/access-logs", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const { tenantId, accessorId, dataCategory, riskLevel, flagged, startDate, endDate, limit, offset } = req.query;
+      
+      const result = await complianceService.getAccessLogs({
+        tenantId: tenantId as string,
+        accessorId: accessorId as string,
+        dataCategory: dataCategory as any,
+        riskLevel: riskLevel as string,
+        flagged: flagged === "true" ? true : flagged === "false" ? false : undefined,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching access logs:", error);
+      res.status(500).json({ message: "Failed to fetch access logs" });
+    }
+  });
+
+  // Platform Admin: Flag suspicious access
+  app.post("/api/platform-admin/compliance/access-logs/:logId/flag", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_logs"), async (req, res) => {
+    try {
+      const { logId } = req.params;
+      const { reason } = req.body;
+      
+      if (!reason) {
+        return res.status(400).json({ message: "Flag reason is required" });
+      }
+      
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      const success = await complianceService.flagAccessLog(logId, reason, adminId || "unknown");
+      
+      if (success) {
+        res.json({ success: true, message: "Access log flagged successfully" });
+      } else {
+        res.status(400).json({ message: "Failed to flag access log" });
+      }
+    } catch (error) {
+      console.error("Error flagging access log:", error);
+      res.status(500).json({ message: "Failed to flag access log" });
+    }
+  });
+
+  // Platform Admin: Get all DSARs across tenants
+  app.get("/api/platform-admin/compliance/dsar", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const { tenantId, status, startDate, endDate, limit, offset } = req.query;
+      
+      const result = await complianceService.getDSARs({
+        tenantId: tenantId as string,
+        status: status as string,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching DSARs:", error);
+      res.status(500).json({ message: "Failed to fetch DSARs" });
+    }
+  });
+
+  // Platform Admin: Get DSAR details with activity log
+  app.get("/api/platform-admin/compliance/dsar/:dsarId", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_logs"), async (req, res) => {
+    try {
+      const { dsarId } = req.params;
+      const [dsar] = await db.select().from(dsarRequests).where(eq(dsarRequests.id, dsarId)).limit(1);
+      
+      if (!dsar) {
+        return res.status(404).json({ message: "DSAR not found" });
+      }
+      
+      const activityLog = await complianceService.getDSARActivityLog(dsarId);
+      res.json({ dsar, activityLog });
+    } catch (error) {
+      console.error("Error fetching DSAR:", error);
+      res.status(500).json({ message: "Failed to fetch DSAR" });
+    }
+  });
+
+  // Platform Admin: Update DSAR status
+  app.patch("/api/platform-admin/compliance/dsar/:dsarId/status", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_logs"), async (req, res) => {
+    try {
+      const { dsarId } = req.params;
+      const { status, notes } = req.body;
+      
+      const admin = req.platformAdminContext?.platformAdmin;
+      const success = await complianceService.updateDSARStatus(
+        dsarId,
+        status,
+        admin?.id || "unknown",
+        admin?.email || "unknown",
+        notes
+      );
+      
+      if (success) {
+        res.json({ success: true, message: "DSAR status updated" });
+      } else {
+        res.status(400).json({ message: "Failed to update DSAR status" });
+      }
+    } catch (error) {
+      console.error("Error updating DSAR:", error);
+      res.status(500).json({ message: "Failed to update DSAR" });
+    }
+  });
+
+  // Platform Admin: Report data breach
+  app.post("/api/platform-admin/compliance/breaches", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId, breachType, severity, regulation, discoveredAt, occurredAt, affectedDataCategories, affectedSubjectsCount, description, impactAssessment, containmentActions } = req.body;
+      
+      const breachId = await complianceService.reportDataBreach({
+        tenantId,
+        breachType,
+        severity,
+        regulation,
+        discoveredAt: new Date(discoveredAt),
+        occurredAt: occurredAt ? new Date(occurredAt) : undefined,
+        affectedDataCategories,
+        affectedSubjectsCount,
+        description,
+        impactAssessment,
+        containmentActions,
+      });
+      
+      if (breachId) {
+        res.status(201).json({ id: breachId, message: "Data breach reported" });
+      } else {
+        res.status(400).json({ message: "Failed to report data breach" });
+      }
+    } catch (error) {
+      console.error("Error reporting breach:", error);
+      res.status(500).json({ message: "Failed to report data breach" });
+    }
+  });
+
+  // Tenant: Get compliance settings
+  app.get("/api/compliance/settings", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const settings = await complianceService.getTenantComplianceSettings(tenantId);
+      res.json(settings || { message: "No compliance settings configured" });
+    } catch (error) {
+      console.error("Error fetching compliance settings:", error);
+      res.status(500).json({ message: "Failed to fetch compliance settings" });
+    }
+  });
+
+  // Tenant: Update compliance settings
+  app.patch("/api/compliance/settings", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const settings = req.body;
+      
+      const success = await complianceService.updateTenantComplianceSettings(tenantId, settings);
+      
+      if (success) {
+        res.json({ success: true, message: "Compliance settings updated" });
+      } else {
+        res.status(400).json({ message: "Failed to update compliance settings" });
+      }
+    } catch (error) {
+      console.error("Error updating compliance settings:", error);
+      res.status(500).json({ message: "Failed to update compliance settings" });
+    }
+  });
+
+  // Tenant: Record consent
+  app.post("/api/compliance/consents", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { subjectType, subjectId, subjectEmail, consentType, purpose, legalBasis, consentText, version, expiresAt, collectionMethod } = req.body;
+      
+      const record = await complianceService.recordConsent({
+        tenantId,
+        subjectType,
+        subjectId,
+        subjectEmail,
+        consentType,
+        purpose,
+        legalBasis,
+        consentText,
+        version,
+        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+        collectionMethod,
+        ipAddress: req.ip || req.socket.remoteAddress,
+        userAgent: req.headers["user-agent"],
+      });
+      
+      if (record) {
+        res.status(201).json(record);
+      } else {
+        res.status(400).json({ message: "Failed to record consent" });
+      }
+    } catch (error) {
+      console.error("Error recording consent:", error);
+      res.status(500).json({ message: "Failed to record consent" });
+    }
+  });
+
+  // Tenant: Check consent status
+  app.get("/api/compliance/consents/check", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { subjectType, subjectId, consentType } = req.query;
+      
+      if (!subjectType || !subjectId || !consentType) {
+        return res.status(400).json({ message: "subjectType, subjectId, and consentType are required" });
+      }
+      
+      const result = await complianceService.checkConsent(
+        tenantId,
+        subjectType as string,
+        subjectId as string,
+        consentType as string
+      );
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error checking consent:", error);
+      res.status(500).json({ message: "Failed to check consent" });
+    }
+  });
+
+  // Tenant: Withdraw consent
+  app.post("/api/compliance/consents/withdraw", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { subjectType, subjectId, consentType, reason } = req.body;
+      
+      const success = await complianceService.withdrawConsent(
+        tenantId,
+        subjectType,
+        subjectId,
+        consentType,
+        reason
+      );
+      
+      if (success) {
+        res.json({ success: true, message: "Consent withdrawn successfully" });
+      } else {
+        res.status(400).json({ message: "Failed to withdraw consent" });
+      }
+    } catch (error) {
+      console.error("Error withdrawing consent:", error);
+      res.status(500).json({ message: "Failed to withdraw consent" });
+    }
+  });
+
+  // Tenant: Get subject consents
+  app.get("/api/compliance/consents/:subjectType/:subjectId", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { subjectType, subjectId } = req.params;
+      
+      const consents = await complianceService.getSubjectConsents(tenantId, subjectType, subjectId);
+      res.json({ consents });
+    } catch (error) {
+      console.error("Error fetching consents:", error);
+      res.status(500).json({ message: "Failed to fetch consents" });
+    }
+  });
+
+  // Public: Submit DSAR (for data subjects)
+  app.post("/api/compliance/dsar", async (req, res) => {
+    try {
+      const { tenantId, requestType, subjectEmail, subjectName, subjectPhone, subjectIdType, subjectIdNumber, requestDetails, dataCategories, regulation } = req.body;
+      
+      if (!tenantId || !requestType || !subjectEmail) {
+        return res.status(400).json({ message: "tenantId, requestType, and subjectEmail are required" });
+      }
+      
+      const request = await complianceService.createDSAR({
+        tenantId,
+        requestType,
+        subjectEmail,
+        subjectName,
+        subjectPhone,
+        subjectIdType,
+        subjectIdNumber,
+        requestDetails,
+        dataCategories,
+        ipAddress: req.ip || req.socket.remoteAddress,
+        regulation,
+      });
+      
+      if (request) {
+        res.status(201).json({ 
+          id: request.id, 
+          message: "Your request has been submitted. You will receive an acknowledgement within 72 hours.",
+          responseDeadline: request.responseDeadline,
+        });
+      } else {
+        res.status(400).json({ message: "Failed to submit request" });
+      }
+    } catch (error) {
+      console.error("Error submitting DSAR:", error);
+      res.status(500).json({ message: "Failed to submit request" });
+    }
+  });
+
+  // Tenant: Get tenant's DSARs
+  app.get("/api/compliance/dsar", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { status, limit, offset } = req.query;
+      
+      const result = await complianceService.getDSARs({
+        tenantId,
+        status: status as string,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching DSARs:", error);
+      res.status(500).json({ message: "Failed to fetch DSARs" });
+    }
+  });
+
+  // Tenant: Update DSAR status
+  app.patch("/api/compliance/dsar/:dsarId/status", authenticateJWT(), tenantResolutionMiddleware(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { dsarId } = req.params;
+      const { status, notes } = req.body;
+      
+      // Verify DSAR belongs to tenant
+      const [dsar] = await db.select().from(dsarRequests).where(and(eq(dsarRequests.id, dsarId), eq(dsarRequests.tenantId, tenantId))).limit(1);
+      
+      if (!dsar) {
+        return res.status(404).json({ message: "DSAR not found" });
+      }
+      
+      const user = req.user;
+      const success = await complianceService.updateDSARStatus(
+        dsarId,
+        status,
+        user?.id || "unknown",
+        user?.email || "unknown",
+        notes
+      );
+      
+      if (success) {
+        res.json({ success: true, message: "DSAR status updated" });
+      } else {
+        res.status(400).json({ message: "Failed to update DSAR status" });
+      }
+    } catch (error) {
+      console.error("Error updating DSAR:", error);
+      res.status(500).json({ message: "Failed to update DSAR" });
     }
   });
 

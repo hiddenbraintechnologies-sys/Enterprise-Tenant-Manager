@@ -61,6 +61,30 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui for a mo
 2. Weekly: `admin_sessions`, `admin_login_attempts`
 3. Archive: `admin_audit_logs` (365 day retention)
 
+## AWS Global Deployment Architecture
+
+The platform is designed for multi-region AWS deployment with the following architecture:
+
+### Target Regions
+- **ap-south-1 (India)**: Primary hub for DPDP compliance
+- **ap-southeast-1 (Singapore)**: PDPA Singapore/Malaysia compliance
+- **me-south-1 (UAE)**: UAE Data Protection Law compliance
+- **eu-west-2 (UK)**: GDPR compliance
+
+### Key Components
+- **EKS**: Kubernetes-based container orchestration with managed node groups and Fargate profiles
+- **Route53**: Geo-routing and latency-based DNS for regional traffic distribution
+- **RDS PostgreSQL**: Multi-AZ primary with cross-region read replicas
+- **ElastiCache Redis**: Session management and caching with Global Datastore
+- **S3**: Regional buckets with cross-region replication for DR
+- **CloudFront + WAF**: Edge protection with Shield Advanced
+- **Secrets Manager**: Credential management with automatic rotation
+
+### Disaster Recovery
+- **RPO**: 15 minutes (async PostgreSQL replication)
+- **RTO**: 1 hour (automated failover procedures)
+- **Documentation**: See `docs/AWS_DEPLOYMENT_ARCHITECTURE.md` for complete details
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: Used for initial user authentication.
 - **PostgreSQL**: The primary database for all application data.
