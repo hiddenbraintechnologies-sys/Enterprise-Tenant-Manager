@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAdmin, AdminGuard, PermissionGuard } from "@/contexts/admin-context";
 import { useLocation } from "wouter";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   Building2,
   Search,
@@ -17,11 +19,19 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Filter,
+  Globe,
+  MapPin,
+  Briefcase,
+  PauseCircle,
+  PlayCircle,
+  Ban,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -32,43 +42,175 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface Tenant {
   id: string;
   name: string;
-  businessType: string;
-  status: "active" | "suspended" | "pending";
-  plan: string;
-  userCount: number;
+  slug: string | null;
+  businessType: "clinic" | "salon" | "pg" | "coworking" | "service";
+  country: "india" | "uae" | "uk" | "malaysia" | "singapore";
+  region: "asia_pacific" | "middle_east" | "europe";
+  status: "active" | "suspended" | "cancelled";
+  email: string | null;
+  phone: string | null;
+  subscriptionTier: string;
+  maxUsers: number;
+  isActive: boolean;
   createdAt: string;
+  userCount?: number;
 }
+
+interface TenantsResponse {
+  tenants: Tenant[];
+  total: number;
+  filters: Record<string, string | undefined>;
+}
+
+const COUNTRIES = [
+  { value: "india", label: "India", flag: "IN" },
+  { value: "uae", label: "UAE", flag: "AE" },
+  { value: "uk", label: "UK", flag: "GB" },
+  { value: "malaysia", label: "Malaysia", flag: "MY" },
+  { value: "singapore", label: "Singapore", flag: "SG" },
+];
+
+const REGIONS = [
+  { value: "asia_pacific", label: "Asia Pacific" },
+  { value: "middle_east", label: "Middle East" },
+  { value: "europe", label: "Europe" },
+];
+
+const BUSINESS_TYPES = [
+  { value: "clinic", label: "Clinic" },
+  { value: "salon", label: "Salon" },
+  { value: "pg", label: "PG/Hostel" },
+  { value: "coworking", label: "Coworking" },
+  { value: "service", label: "Service" },
+];
+
+const STATUSES = [
+  { value: "active", label: "Active" },
+  { value: "suspended", label: "Suspended" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 function TenantsContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [countryFilter, setCountryFilter] = useState<string>("all");
+  const [regionFilter, setRegionFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [businessTypeFilter, setBusinessTypeFilter] = useState<string>("all");
+  const { toast } = useToast();
 
-  const { data, isLoading } = useQuery<{ tenants: Tenant[]; total: number }>({
-    queryKey: ["/api/platform-admin/tenants", { search: searchQuery }],
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [newStatus, setNewStatus] = useState<"active" | "suspended" | "cancelled">("active");
+  const [statusReason, setStatusReason] = useState("");
+
+  const buildQueryUrl = () => {
+    const params = new URLSearchParams();
+    if (countryFilter !== "all") params.set("country", countryFilter);
+    if (regionFilter !== "all") params.set("region", regionFilter);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (businessTypeFilter !== "all") params.set("businessType", businessTypeFilter);
+    if (searchQuery) params.set("search", searchQuery);
+    const queryString = params.toString();
+    return queryString ? `/api/platform-admin/tenants?${queryString}` : "/api/platform-admin/tenants";
+  };
+
+  const { data, isLoading } = useQuery<TenantsResponse>({
+    queryKey: [buildQueryUrl()],
     staleTime: 30 * 1000,
   });
 
-  const filteredTenants = data?.tenants?.filter(
-    (tenant) =>
-      tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tenant.businessType.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  const changeStatusMutation = useMutation({
+    mutationFn: async ({ tenantId, status, reason }: { tenantId: string; status: string; reason: string }) => {
+      const response = await apiRequest("POST", `/api/platform-admin/tenants/${tenantId}/status`, {
+        status,
+        reason,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.startsWith('/api/platform-admin/tenants');
+      }});
+      toast({
+        title: "Status Updated",
+        description: `Tenant status has been changed to ${newStatus}.`,
+      });
+      setStatusDialogOpen(false);
+      setSelectedTenant(null);
+      setStatusReason("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update tenant status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStatusChange = (tenant: Tenant, status: "active" | "suspended" | "cancelled") => {
+    setSelectedTenant(tenant);
+    setNewStatus(status);
+    setStatusDialogOpen(true);
+  };
+
+  const confirmStatusChange = () => {
+    if (!selectedTenant || !statusReason.trim()) return;
+    changeStatusMutation.mutate({
+      tenantId: selectedTenant.id,
+      status: newStatus,
+      reason: statusReason,
+    });
+  };
 
   const getStatusBadge = (status: Tenant["status"]) => {
     switch (status) {
       case "active":
         return <Badge variant="default" className="gap-1"><CheckCircle className="h-3 w-3" />Active</Badge>;
       case "suspended":
-        return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />Suspended</Badge>;
-      case "pending":
-        return <Badge variant="secondary" className="gap-1"><AlertCircle className="h-3 w-3" />Pending</Badge>;
+        return <Badge variant="secondary" className="gap-1"><PauseCircle className="h-3 w-3" />Suspended</Badge>;
+      case "cancelled":
+        return <Badge variant="destructive" className="gap-1"><Ban className="h-3 w-3" />Cancelled</Badge>;
     }
   };
+
+  const getCountryLabel = (country: string) => {
+    return COUNTRIES.find((c) => c.value === country)?.label || country;
+  };
+
+  const getRegionLabel = (region: string) => {
+    return REGIONS.find((r) => r.value === region)?.label || region;
+  };
+
+  const getBusinessTypeLabel = (type: string) => {
+    return BUSINESS_TYPES.find((t) => t.value === type)?.label || type;
+  };
+
+  const tenants = data?.tenants || [];
 
   if (isLoading) {
     return (
@@ -100,13 +242,13 @@ function TenantsContent() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground" data-testid="text-tenants-title">
-            Tenants
+            Global Tenant Registry
           </h1>
           <p className="text-muted-foreground">
-            Manage all registered businesses on the platform
+            Manage all businesses across regions and countries
           </p>
         </div>
-        {(isSuperAdmin || hasPermission("manage_tenants")) && (
+        {isSuperAdmin && (
           <Button data-testid="button-add-tenant">
             <Plus className="h-4 w-4 mr-2" />
             Add Tenant
@@ -116,7 +258,8 @@ function TenantsContent() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4 flex-wrap">
+          <CardTitle className="text-base font-medium">Filters</CardTitle>
+          <div className="flex items-center gap-3 flex-wrap pt-2">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -127,11 +270,84 @@ function TenantsContent() {
                 data-testid="input-search-tenants"
               />
             </div>
-            <Badge variant="outline">{data?.total || 0} total</Badge>
+            <Select value={countryFilter} onValueChange={setCountryFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-country-filter">
+                <Globe className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Country" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Countries</SelectItem>
+                {COUNTRIES.map((country) => (
+                  <SelectItem key={country.value} value={country.value}>
+                    {country.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={regionFilter} onValueChange={setRegionFilter}>
+              <SelectTrigger className="w-[150px]" data-testid="select-region-filter">
+                <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Region" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Regions</SelectItem>
+                {REGIONS.map((region) => (
+                  <SelectItem key={region.value} value={region.value}>
+                    {region.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
+                <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {STATUSES.map((status) => (
+                  <SelectItem key={status.value} value={status.value}>
+                    {status.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={businessTypeFilter} onValueChange={setBusinessTypeFilter}>
+              <SelectTrigger className="w-[150px]" data-testid="select-business-type-filter">
+                <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Business Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {BUSINESS_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <Badge variant="outline">{data?.total || 0} tenants</Badge>
+            {(countryFilter !== "all" || regionFilter !== "all" || statusFilter !== "all" || businessTypeFilter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCountryFilter("all");
+                  setRegionFilter("all");
+                  setStatusFilter("all");
+                  setBusinessTypeFilter("all");
+                }}
+                data-testid="button-clear-filters"
+              >
+                Clear Filters
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          {filteredTenants.length === 0 ? (
+          {tenants.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No tenants found</p>
@@ -142,15 +358,15 @@ function TenantsContent() {
                 <TableRow>
                   <TableHead>Tenant</TableHead>
                   <TableHead>Business Type</TableHead>
+                  <TableHead>Country / Region</TableHead>
                   <TableHead>Plan</TableHead>
-                  <TableHead>Users</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTenants.map((tenant) => (
+                {tenants.map((tenant) => (
                   <TableRow key={tenant.id} data-testid={`row-tenant-${tenant.id}`}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -159,23 +375,25 @@ function TenantsContent() {
                         </div>
                         <div>
                           <p className="font-medium">{tenant.name}</p>
-                          <p className="text-xs text-muted-foreground">{tenant.id}</p>
+                          <p className="text-xs text-muted-foreground">{tenant.slug || tenant.id.slice(0, 8)}</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{tenant.businessType}</Badge>
+                      <Badge variant="outline">{getBusinessTypeLabel(tenant.businessType)}</Badge>
                     </TableCell>
-                    <TableCell>{tenant.plan}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3 w-3 text-muted-foreground" />
-                        {tenant.userCount}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm">{getCountryLabel(tenant.country)}</span>
+                        <span className="text-xs text-muted-foreground">{getRegionLabel(tenant.region)}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="capitalize">{tenant.subscriptionTier}</Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(tenant.status)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1 text-muted-foreground">
+                      <div className="flex items-center gap-1 text-muted-foreground text-sm">
                         <Calendar className="h-3 w-3" />
                         {new Date(tenant.createdAt).toLocaleDateString()}
                       </div>
@@ -191,12 +409,31 @@ function TenantsContent() {
                           <DropdownMenuItem onClick={() => setLocation(`/admin/tenants/${tenant.id}`)}>
                             View Details
                           </DropdownMenuItem>
-                          {(isSuperAdmin || hasPermission("manage_tenants")) && (
+                          {isSuperAdmin && (
                             <>
                               <DropdownMenuItem>Edit Tenant</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
-                                {tenant.status === "suspended" ? "Reactivate" : "Suspend"}
-                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {tenant.status !== "active" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(tenant, "active")}>
+                                  <PlayCircle className="h-4 w-4 mr-2 text-green-600" />
+                                  Activate
+                                </DropdownMenuItem>
+                              )}
+                              {tenant.status !== "suspended" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(tenant, "suspended")}>
+                                  <PauseCircle className="h-4 w-4 mr-2 text-yellow-600" />
+                                  Suspend
+                                </DropdownMenuItem>
+                              )}
+                              {tenant.status !== "cancelled" && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleStatusChange(tenant, "cancelled")}
+                                  className="text-destructive"
+                                >
+                                  <Ban className="h-4 w-4 mr-2" />
+                                  Cancel
+                                </DropdownMenuItem>
+                              )}
                             </>
                           )}
                         </DropdownMenuContent>
@@ -209,6 +446,59 @@ function TenantsContent() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {newStatus === "active" ? "Activate" : newStatus === "suspended" ? "Suspend" : "Cancel"} Tenant
+            </DialogTitle>
+            <DialogDescription>
+              {selectedTenant && (
+                <>
+                  You are about to change the status of <strong>{selectedTenant.name}</strong> from{" "}
+                  <Badge variant="outline" className="mx-1">{selectedTenant.status}</Badge> to{" "}
+                  <Badge variant={newStatus === "cancelled" ? "destructive" : "default"} className="mx-1">
+                    {newStatus}
+                  </Badge>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Reason for status change</Label>
+              <Textarea
+                id="reason"
+                placeholder="Enter the reason for this status change..."
+                value={statusReason}
+                onChange={(e) => setStatusReason(e.target.value)}
+                rows={3}
+                data-testid="textarea-status-reason"
+              />
+            </div>
+            {newStatus === "cancelled" && (
+              <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <AlertCircle className="h-4 w-4 inline mr-2" />
+                Cancelling a tenant will disable all access for their users. This action should be used carefully.
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={newStatus === "cancelled" ? "destructive" : "default"}
+              onClick={confirmStatusChange}
+              disabled={!statusReason.trim() || changeStatusMutation.isPending}
+              data-testid="button-confirm-status-change"
+            >
+              {changeStatusMutation.isPending ? "Updating..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
