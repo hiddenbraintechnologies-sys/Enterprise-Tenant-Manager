@@ -196,15 +196,6 @@ export class JWTAuthService {
       audience: "bizflow-api",
     } as SignOptions);
 
-    await db.insert(refreshTokens).values({
-      userId: adminId,
-      tenantId: null,
-      tokenHash: hashToken(refreshJti),
-      deviceInfo: { ...deviceInfo, isPlatformAdmin: true },
-      expiresAt: refreshExpiresAt,
-      isRevoked: false,
-    });
-
     return {
       accessToken,
       refreshToken,

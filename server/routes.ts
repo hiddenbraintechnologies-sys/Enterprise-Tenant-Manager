@@ -27,6 +27,15 @@ import {
   requirePlatformPermission,
   DataMasking,
 } from "./core";
+import {
+  adminIpRestriction,
+  adminRateLimit,
+  adminLoginLockout,
+  recordLoginAttempt,
+  createAdminSession,
+  logAdminAction,
+  getClientIp,
+} from "./core/admin-security";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -432,7 +441,12 @@ export async function registerRoutes(
     password: z.string().min(1, "Password is required"),
   });
 
-  app.post("/api/platform-admin/login", authRateLimit, async (req, res) => {
+  const adminLoginRateLimit = adminRateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
+
+  const handleAdminLogin = async (req: Request, res: Response) => {
+    const clientIp = getClientIp(req);
+    const userAgent = req.headers["user-agent"];
+
     try {
       const parsed = platformAdminLoginSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -446,21 +460,24 @@ export async function registerRoutes(
 
       const admin = await storage.getPlatformAdminByEmail(email);
       if (!admin) {
+        await recordLoginAttempt(email, clientIp, userAgent, false, "user_not_found");
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       if (!admin.isActive) {
+        await recordLoginAttempt(email, clientIp, userAgent, false, "account_disabled");
         return res.status(403).json({ message: "Account is disabled" });
       }
 
       const isValidPassword = await bcrypt.compare(password, admin.passwordHash);
       if (!isValidPassword) {
+        await recordLoginAttempt(email, clientIp, userAgent, false, "invalid_password");
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      await recordLoginAttempt(email, clientIp, userAgent, true);
       await storage.updatePlatformAdminLastLogin(admin.id);
 
-      // Load admin permissions from database for PLATFORM_ADMIN role
       const adminPermissions = admin.role === "PLATFORM_ADMIN" 
         ? await storage.getAdminPermissions(admin.id)
         : undefined;
@@ -469,20 +486,26 @@ export async function registerRoutes(
         admin.id,
         admin.role as "SUPER_ADMIN" | "PLATFORM_ADMIN",
         {
-          userAgent: req.headers["user-agent"],
-          ipAddress: req.ip || undefined,
+          userAgent,
+          ipAddress: clientIp,
         },
         adminPermissions
       );
 
-      auditService.logAsync({
-        tenantId: undefined,
-        userId: admin.id,
-        action: "login",
+      const tokenHash = crypto.createHash("sha256").update(tokens.accessToken).digest("hex");
+      await createAdminSession(admin.id, tokenHash, clientIp, userAgent);
+
+      await logAdminAction({
+        adminId: admin.id,
+        adminEmail: admin.email,
+        adminRole: admin.role,
+        action: "admin.login",
+        category: "auth",
         resource: "platform_admin",
-        metadata: { adminEmail: admin.email, role: admin.role },
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
+        resourceId: admin.id,
+        ipAddress: clientIp,
+        userAgent,
+        metadata: { loginMethod: "password" },
       });
 
       res.json({
@@ -502,7 +525,11 @@ export async function registerRoutes(
       console.error("Platform admin login error:", error);
       res.status(500).json({ message: "Login failed" });
     }
-  });
+  };
+
+  app.post("/api/platform-admin/login", adminLoginRateLimit, adminLoginLockout(), handleAdminLogin);
+  
+  app.post("/admin/login", adminIpRestriction(), adminLoginRateLimit, adminLoginLockout(), handleAdminLogin);
 
   // Password reset endpoint for platform admins (self-service)
   const platformAdminPasswordResetSchema = z.object({
