@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,6 +20,10 @@ import Bookings from "@/pages/bookings";
 import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+
+import { AdminLayout } from "@/components/admin-layout";
+import SuperAdminDashboard from "@/pages/super-admin-dashboard";
+import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -130,8 +134,29 @@ function AuthenticatedRoutes() {
   );
 }
 
+function AdminRoutes() {
+  return (
+    <AdminLayout>
+      <Switch>
+        <Route path="/super-admin" component={SuperAdminDashboard} />
+        <Route path="/super-admin/:rest*">
+          <SuperAdminDashboard />
+        </Route>
+        <Route path="/admin" component={PlatformAdminDashboard} />
+        <Route path="/admin/:rest*">
+          <PlatformAdminDashboard />
+        </Route>
+        <Route component={NotFound} />
+      </Switch>
+    </AdminLayout>
+  );
+}
+
 function AppRouter() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin");
 
   if (isLoading) {
     return (
@@ -142,6 +167,10 @@ function AppRouter() {
         </div>
       </div>
     );
+  }
+
+  if (isAdminPath) {
+    return <AdminRoutes />;
   }
 
   if (!user) {
