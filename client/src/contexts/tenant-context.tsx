@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
 
 export interface ModuleConfig {
   id: string;
@@ -45,6 +45,20 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
+  real_estate: [
+    { id: "properties", name: "Properties", enabled: true, routes: ["/properties", "/properties/new"] },
+    { id: "leads", name: "Leads", enabled: true, routes: ["/leads", "/leads/new"] },
+    { id: "customers", name: "Clients", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  tourism: [
+    { id: "tours", name: "Tours", enabled: true, routes: ["/tours", "/tours/new"] },
+    { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
@@ -53,6 +67,8 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   pg: "/dashboard/pg",
   coworking: "/dashboard/coworking",
   service: "/dashboard/service",
+  real_estate: "/dashboard/real-estate",
+  tourism: "/dashboard/tourism",
 };
 
 

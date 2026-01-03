@@ -35,7 +35,7 @@ export const FEATURES = {
   SERVICES: "services",
 } as const;
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
 
 export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
   clinic: [
@@ -83,6 +83,24 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
     FEATURES.STAFF_MANAGEMENT,
     FEATURES.BILLING_INVOICES,
     FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.ANALYTICS_BASIC,
+  ],
+  real_estate: [
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  tourism: [
+    FEATURES.BOOKING_SYSTEM,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.SERVICE_CATALOG,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
     FEATURES.ANALYTICS_BASIC,
   ],
 };

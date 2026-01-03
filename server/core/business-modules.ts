@@ -4,6 +4,8 @@ export const BUSINESS_MODULES = {
   pg: ['rooms', 'tenants', 'billing'],
   coworking: ['desks', 'bookings', 'memberships'],
   service: ['customers', 'jobs'],
+  real_estate: ['properties', 'listings', 'leads', 'transactions'],
+  tourism: ['tours', 'bookings', 'customers', 'packages'],
 } as const;
 
 export type BusinessType = keyof typeof BUSINESS_MODULES;
@@ -46,6 +48,12 @@ export const ALL_MODULES = [
   'memberships',
   'customers',
   'jobs',
+  'properties',
+  'listings',
+  'leads',
+  'transactions',
+  'tours',
+  'packages',
 ] as const;
 
 export const MODULE_DESCRIPTIONS: Record<string, string> = {
@@ -61,4 +69,10 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   memberships: 'Membership plans and subscriptions',
   customers: 'Customer relationship management',
   jobs: 'Job/task tracking and management',
+  properties: 'Property listings and management',
+  listings: 'Real estate listing management',
+  leads: 'Lead tracking and follow-up',
+  transactions: 'Real estate transaction management',
+  tours: 'Tour packages and itineraries',
+  packages: 'Travel package management',
 };

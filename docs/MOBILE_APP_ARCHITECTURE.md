@@ -403,7 +403,7 @@ export default function TenantSelectScreen() {
 ```typescript
 // src/constants/modules.ts
 
-export type BusinessType = 'clinic' | 'salon' | 'gym' | 'pg' | 'coworking' | 'service';
+export type BusinessType = 'clinic' | 'salon' | 'gym' | 'pg' | 'coworking' | 'service' | 'real_estate' | 'tourism';
 
 interface ModuleConfig {
   id: string;

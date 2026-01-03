@@ -28,6 +28,16 @@ const WELCOME_CONFIG: Record<BusinessType, { title: string; subtitle: string; gr
     subtitle: "Manage customers, services, and bookings all in one place",
     gradient: "from-violet-500/10 to-indigo-500/10 dark:from-violet-500/20 dark:to-indigo-500/20",
   },
+  real_estate: {
+    title: "Welcome to Your Real Estate Dashboard",
+    subtitle: "Manage properties, leads, and transactions efficiently",
+    gradient: "from-slate-500/10 to-zinc-500/10 dark:from-slate-500/20 dark:to-zinc-500/20",
+  },
+  tourism: {
+    title: "Welcome to Your Tourism Dashboard",
+    subtitle: "Manage tours, bookings, and travel packages with ease",
+    gradient: "from-teal-500/10 to-cyan-500/10 dark:from-teal-500/20 dark:to-cyan-500/20",
+  },
 };
 
 interface WelcomeMessageProps {

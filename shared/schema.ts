@@ -17,7 +17,15 @@ export * from "./models/sso";
 export const userRoleEnum = pgEnum("user_role", ["super_admin", "admin", "manager", "staff", "customer"]);
 export const bookingStatusEnum = pgEnum("booking_status", ["pending", "confirmed", "completed", "cancelled"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "refunded"]);
-export const businessTypeEnum = pgEnum("business_type", ["clinic", "salon", "pg", "coworking", "service"]);
+export const businessTypeEnum = pgEnum("business_type", [
+  "clinic", 
+  "salon", 
+  "pg", 
+  "coworking", 
+  "service",
+  "real_estate",
+  "tourism"
+]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore", "other"]);
 export const tenantStatusEnum = pgEnum("tenant_status", ["active", "suspended", "cancelled"]);

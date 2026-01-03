@@ -38,7 +38,7 @@ const registrationSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number"),
   confirmPassword: z.string(),
   businessName: z.string().min(1, "Business name is required").max(200),
-  businessType: z.enum(["clinic", "salon", "pg", "coworking", "service"]),
+  businessType: z.enum(["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism"]),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -52,6 +52,8 @@ const businessTypeOptions = [
   { value: "pg", label: "PG / Hostel / Co-living" },
   { value: "coworking", label: "Coworking Space" },
   { value: "service", label: "General Service Business" },
+  { value: "real_estate", label: "Real Estate / Property" },
+  { value: "tourism", label: "Tourism / Travel Agency" },
 ];
 
 export default function Register() {
