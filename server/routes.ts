@@ -32,6 +32,8 @@ import {
   DataMasking,
   whatsappService,
   initializeWhatsappProviders,
+  realEstateRouter,
+  tourismRouter,
 } from "./core";
 import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
@@ -70,6 +72,12 @@ export async function registerRoutes(
   
   // Register domain management routes
   app.use('/api/domains', domainRoutes);
+
+  // Register Real Estate module routes
+  app.use('/api/real-estate', realEstateRouter);
+
+  // Register Tourism module routes
+  app.use('/api/tourism', tourismRouter);
 
   // ==================== AUTH ROUTES ====================
   

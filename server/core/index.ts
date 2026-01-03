@@ -21,3 +21,5 @@ export {
 } from "./business-modules";
 export { whatsappService, whatsappProviderSelector, initializeWhatsappProviders } from "./whatsapp";
 export { domainService, resolveTenantByDomain, requireVerifiedDomain, attachDomainBranding } from "./domain";
+export { realEstateRouter } from "./real-estate";
+export { tourismRouter } from "./tourism";
