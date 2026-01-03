@@ -33,6 +33,16 @@ export const FEATURES = {
   ROOMS: "rooms",
   TENANTS_MANAGEMENT: "tenants_management",
   SERVICES: "services",
+  // Real Estate modules
+  PROPERTIES: "properties",
+  LISTINGS: "listings",
+  LEADS: "leads",
+  SITE_VISITS: "site_visits",
+  AGENTS: "agents",
+  // Tourism modules
+  PACKAGES: "packages",
+  ITINERARIES: "itineraries",
+  VENDORS: "vendors",
 } as const;
 
 export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
@@ -86,6 +96,11 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
     FEATURES.ANALYTICS_BASIC,
   ],
   real_estate: [
+    FEATURES.PROPERTIES,
+    FEATURES.LISTINGS,
+    FEATURES.LEADS,
+    FEATURES.SITE_VISITS,
+    FEATURES.AGENTS,
     FEATURES.CUSTOMER_MANAGEMENT,
     FEATURES.BILLING_INVOICES,
     FEATURES.STAFF_MANAGEMENT,
@@ -95,9 +110,11 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
     FEATURES.ANALYTICS_ADVANCED,
   ],
   tourism: [
+    FEATURES.PACKAGES,
     FEATURES.BOOKING_SYSTEM,
     FEATURES.CUSTOMER_MANAGEMENT,
-    FEATURES.SERVICE_CATALOG,
+    FEATURES.ITINERARIES,
+    FEATURES.VENDORS,
     FEATURES.BILLING_INVOICES,
     FEATURES.NOTIFICATIONS_EMAIL,
     FEATURES.NOTIFICATIONS_SMS,
