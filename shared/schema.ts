@@ -886,6 +886,193 @@ export const usageMetrics = pgTable("usage_metrics", {
 ]);
 
 // ============================================
+// GLOBAL BILLING & SUBSCRIPTION MANAGEMENT
+// ============================================
+
+export const paymentGatewayEnum = pgEnum("payment_gateway", ["stripe", "razorpay", "paytabs", "billplz"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "suspended", "cancelled", "trialing"]);
+export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "yearly"]);
+export const currencyEnum = pgEnum("currency_code", ["INR", "AED", "GBP", "MYR", "SGD", "USD"]);
+
+// Global pricing plans (platform-level)
+export const globalPricingPlans = pgTable("global_pricing_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  tier: varchar("tier", { length: 20 }).notNull(), // free, starter, pro, enterprise
+  billingCycle: billingCycleEnum("billing_cycle").default("monthly"),
+  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(), // in USD
+  maxUsers: integer("max_users").default(5),
+  maxCustomers: integer("max_customers").default(100),
+  features: jsonb("features").default([]),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_global_pricing_plans_tier").on(table.tier),
+  index("idx_global_pricing_plans_active").on(table.isActive),
+]);
+
+// Country-specific pricing and tax configuration
+export const countryPricingConfigs = pgTable("country_pricing_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  country: tenantCountryEnum("country").notNull(),
+  currency: currencyEnum("currency").notNull(),
+  taxName: varchar("tax_name", { length: 20 }).notNull(), // GST, VAT, SST
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).notNull(), // e.g., 18.00 for 18%
+  primaryGateway: paymentGatewayEnum("primary_gateway").notNull(),
+  fallbackGateway: paymentGatewayEnum("fallback_gateway"),
+  exchangeRate: decimal("exchange_rate", { precision: 10, scale: 4 }).default("1.0000"), // to USD
+  exchangeRateUpdatedAt: timestamp("exchange_rate_updated_at").defaultNow(),
+  gatewayConfig: jsonb("gateway_config").default({}), // gateway-specific settings
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_country_pricing_country").on(table.country),
+]);
+
+// Plan prices per country (local currency)
+export const planLocalPrices = pgTable("plan_local_prices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  planId: varchar("plan_id").notNull().references(() => globalPricingPlans.id, { onDelete: "cascade" }),
+  country: tenantCountryEnum("country").notNull(),
+  localPrice: decimal("local_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_plan_local_prices_unique").on(table.planId, table.country),
+]);
+
+// Tenant subscriptions
+export const tenantSubscriptions = pgTable("tenant_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  planId: varchar("plan_id").notNull().references(() => globalPricingPlans.id),
+  status: subscriptionStatusEnum("status").default("active"),
+  currentPeriodStart: timestamp("current_period_start").notNull(),
+  currentPeriodEnd: timestamp("current_period_end").notNull(),
+  cancelledAt: timestamp("cancelled_at"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  trialEndsAt: timestamp("trial_ends_at"),
+  gatewaySubscriptionId: varchar("gateway_subscription_id", { length: 255 }),
+  gateway: paymentGatewayEnum("gateway"),
+  paymentFailureCount: integer("payment_failure_count").default(0),
+  lastPaymentAt: timestamp("last_payment_at"),
+  nextPaymentAt: timestamp("next_payment_at"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_tenant_subscriptions_tenant").on(table.tenantId),
+  index("idx_tenant_subscriptions_status").on(table.status),
+  index("idx_tenant_subscriptions_plan").on(table.planId),
+]);
+
+// Subscription invoices (global billing invoices for tenants)
+export const subscriptionInvoices = pgTable("subscription_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  subscriptionId: varchar("subscription_id").references(() => tenantSubscriptions.id),
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  status: invoiceStatusEnum("status").default("pending"),
+  country: tenantCountryEnum("country").notNull(),
+  currency: currencyEnum("currency").notNull(),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  taxName: varchar("tax_name", { length: 20 }).notNull(),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  amountPaid: decimal("amount_paid", { precision: 12, scale: 2 }).default("0"),
+  amountDue: decimal("amount_due", { precision: 12, scale: 2 }).notNull(),
+  dueDate: timestamp("due_date").notNull(),
+  paidAt: timestamp("paid_at"),
+  periodStart: timestamp("period_start"),
+  periodEnd: timestamp("period_end"),
+  gatewayInvoiceId: varchar("gateway_invoice_id", { length: 255 }),
+  gateway: paymentGatewayEnum("gateway"),
+  lineItems: jsonb("line_items").default([]),
+  billingDetails: jsonb("billing_details").default({}),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_subscription_invoices_number").on(table.invoiceNumber),
+  index("idx_subscription_invoices_tenant").on(table.tenantId),
+  index("idx_subscription_invoices_status").on(table.status),
+  index("idx_subscription_invoices_country").on(table.country),
+]);
+
+// Transaction logs for all payment gateway transactions
+export const transactionLogs = pgTable("transaction_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+  subscriptionId: varchar("subscription_id").references(() => tenantSubscriptions.id),
+  invoiceId: varchar("invoice_id").references(() => subscriptionInvoices.id),
+  gateway: paymentGatewayEnum("gateway").notNull(),
+  gatewayTransactionId: varchar("gateway_transaction_id", { length: 255 }),
+  transactionType: varchar("transaction_type", { length: 50 }).notNull(), // payment, refund, chargeback
+  country: tenantCountryEnum("country").notNull(),
+  currency: currencyEnum("currency").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull(), // pending, success, failed, cancelled
+  errorCode: varchar("error_code", { length: 100 }),
+  errorMessage: text("error_message"),
+  gatewayResponse: jsonb("gateway_response").default({}),
+  metadata: jsonb("metadata").default({}),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_transaction_logs_tenant").on(table.tenantId),
+  index("idx_transaction_logs_gateway").on(table.gateway),
+  index("idx_transaction_logs_country").on(table.country),
+  index("idx_transaction_logs_status").on(table.status),
+  index("idx_transaction_logs_created").on(table.createdAt),
+]);
+
+// Webhook events for idempotency and auditing
+export const webhookEvents = pgTable("webhook_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  gateway: paymentGatewayEnum("gateway").notNull(),
+  eventId: varchar("event_id", { length: 255 }).notNull(), // gateway's event ID
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  payload: jsonb("payload").notNull(),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, processed, failed
+  processedAt: timestamp("processed_at"),
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_webhook_events_gateway_event").on(table.gateway, table.eventId),
+  index("idx_webhook_events_status").on(table.status),
+  index("idx_webhook_events_created").on(table.createdAt),
+]);
+
+// Payment attempts for retry tracking
+export const paymentAttempts = pgTable("payment_attempts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  invoiceId: varchar("invoice_id").references(() => subscriptionInvoices.id),
+  gateway: paymentGatewayEnum("gateway").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: currencyEnum("currency").notNull(),
+  status: varchar("status", { length: 50 }).notNull(), // pending, success, failed
+  gatewayPaymentId: varchar("gateway_payment_id", { length: 255 }),
+  errorCode: varchar("error_code", { length: 100 }),
+  errorMessage: text("error_message"),
+  attemptNumber: integer("attempt_number").default(1),
+  nextRetryAt: timestamp("next_retry_at"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_payment_attempts_tenant").on(table.tenantId),
+  index("idx_payment_attempts_invoice").on(table.invoiceId),
+  index("idx_payment_attempts_status").on(table.status),
+]);
+
+// ============================================
 // INSERT SCHEMAS
 // ============================================
 
@@ -928,6 +1115,16 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
 export const insertSupportTicketMessageSchema = createInsertSchema(supportTicketMessages).omit({ id: true, createdAt: true });
 export const insertErrorLogSchema = createInsertSchema(errorLogs).omit({ id: true, createdAt: true });
 export const insertUsageMetricSchema = createInsertSchema(usageMetrics).omit({ id: true, createdAt: true });
+
+// Global billing insert schemas
+export const insertGlobalPricingPlanSchema = createInsertSchema(globalPricingPlans).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCountryPricingConfigSchema = createInsertSchema(countryPricingConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPlanLocalPriceSchema = createInsertSchema(planLocalPrices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantSubscriptionSchema = createInsertSchema(tenantSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSubscriptionInvoiceSchema = createInsertSchema(subscriptionInvoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTransactionLogSchema = createInsertSchema(transactionLogs).omit({ id: true, createdAt: true });
+export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, createdAt: true });
+export const insertPaymentAttemptSchema = createInsertSchema(paymentAttempts).omit({ id: true, createdAt: true });
 
 // ============================================
 // TYPES
@@ -1041,6 +1238,31 @@ export type InsertErrorLog = z.infer<typeof insertErrorLogSchema>;
 
 export type UsageMetric = typeof usageMetrics.$inferSelect;
 export type InsertUsageMetric = z.infer<typeof insertUsageMetricSchema>;
+
+// Global billing types
+export type GlobalPricingPlan = typeof globalPricingPlans.$inferSelect;
+export type InsertGlobalPricingPlan = z.infer<typeof insertGlobalPricingPlanSchema>;
+
+export type CountryPricingConfig = typeof countryPricingConfigs.$inferSelect;
+export type InsertCountryPricingConfig = z.infer<typeof insertCountryPricingConfigSchema>;
+
+export type PlanLocalPrice = typeof planLocalPrices.$inferSelect;
+export type InsertPlanLocalPrice = z.infer<typeof insertPlanLocalPriceSchema>;
+
+export type TenantSubscription = typeof tenantSubscriptions.$inferSelect;
+export type InsertTenantSubscription = z.infer<typeof insertTenantSubscriptionSchema>;
+
+export type SubscriptionInvoice = typeof subscriptionInvoices.$inferSelect;
+export type InsertSubscriptionInvoice = z.infer<typeof insertSubscriptionInvoiceSchema>;
+
+export type TransactionLog = typeof transactionLogs.$inferSelect;
+export type InsertTransactionLog = z.infer<typeof insertTransactionLogSchema>;
+
+export type WebhookEvent = typeof webhookEvents.$inferSelect;
+export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
+
+export type PaymentAttempt = typeof paymentAttempts.$inferSelect;
+export type InsertPaymentAttempt = z.infer<typeof insertPaymentAttemptSchema>;
 
 // Extended types for joins
 export type BookingWithDetails = Booking & {

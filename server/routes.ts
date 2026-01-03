@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import { storage } from "./storage";
@@ -11,6 +12,7 @@ import {
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles,
+  tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -37,7 +39,7 @@ import {
   getClientIp,
 } from "./core/admin-security";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -3438,6 +3440,224 @@ export async function registerRoutes(
       }
     }
   );
+
+  // ==================== PAYMENT WEBHOOKS ====================
+  const { paymentService } = await import("./core/payments/payment-service");
+
+  app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+    try {
+      const signature = req.headers["stripe-signature"] as string;
+      const result = await paymentService.handleWebhookEvent(
+        "stripe",
+        req.body,
+        signature,
+        req.body
+      );
+      res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error("Stripe webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  app.post("/api/webhooks/razorpay", express.json(), async (req, res) => {
+    try {
+      const signature = req.headers["x-razorpay-signature"] as string;
+      const result = await paymentService.handleWebhookEvent(
+        "razorpay",
+        req.body,
+        signature,
+        JSON.stringify(req.body)
+      );
+      res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error("Razorpay webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  app.post("/api/webhooks/paytabs", express.json(), async (req, res) => {
+    try {
+      const signature = req.headers["signature"] as string;
+      const result = await paymentService.handleWebhookEvent(
+        "paytabs",
+        req.body,
+        signature,
+        JSON.stringify(req.body)
+      );
+      res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error("PayTabs webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  app.post("/api/webhooks/billplz", express.json(), async (req, res) => {
+    try {
+      const signature = req.headers["x-signature"] as string;
+      const result = await paymentService.handleWebhookEvent(
+        "billplz",
+        req.body,
+        signature,
+        JSON.stringify(req.body)
+      );
+      res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error("Billplz webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  // ==================== GLOBAL BILLING API (Platform Admin) ====================
+  app.get("/api/platform-admin/billing/revenue", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const stats = await paymentService.getRevenueStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching revenue stats:", error);
+      res.status(500).json({ message: "Failed to fetch revenue stats" });
+    }
+  });
+
+  app.get("/api/platform-admin/billing/pricing-plans", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const country = req.query.country as string | undefined;
+      const plans = await paymentService.getPricingPlans(country as any);
+      res.json(plans);
+    } catch (error) {
+      console.error("Error fetching pricing plans:", error);
+      res.status(500).json({ message: "Failed to fetch pricing plans" });
+    }
+  });
+
+  app.get("/api/platform-admin/billing/transactions", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { country, gateway, status, limit = "50" } = req.query;
+      
+      const transactions = await db.select().from(transactionLogs).orderBy(desc(transactionLogs.createdAt)).limit(parseInt(limit as string));
+      
+      let filtered = transactions;
+      if (country) filtered = filtered.filter(t => t.country === country);
+      if (gateway) filtered = filtered.filter(t => t.gateway === gateway);
+      if (status) filtered = filtered.filter(t => t.status === status);
+      
+      res.json({ transactions: filtered, total: filtered.length });
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  app.get("/api/platform-admin/billing/subscriptions", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const subscriptions = await db.select({
+        id: tenantSubscriptions.id,
+        tenantId: tenantSubscriptions.tenantId,
+        tenantName: tenants.name,
+        tenantCountry: tenants.country,
+        planId: tenantSubscriptions.planId,
+        status: tenantSubscriptions.status,
+        currentPeriodStart: tenantSubscriptions.currentPeriodStart,
+        currentPeriodEnd: tenantSubscriptions.currentPeriodEnd,
+        paymentFailureCount: tenantSubscriptions.paymentFailureCount,
+        gateway: tenantSubscriptions.gateway,
+        createdAt: tenantSubscriptions.createdAt,
+      })
+        .from(tenantSubscriptions)
+        .innerJoin(tenants, eq(tenants.id, tenantSubscriptions.tenantId))
+        .orderBy(desc(tenantSubscriptions.createdAt));
+      
+      res.json({ subscriptions, total: subscriptions.length });
+    } catch (error) {
+      console.error("Error fetching subscriptions:", error);
+      res.status(500).json({ message: "Failed to fetch subscriptions" });
+    }
+  });
+
+  app.get("/api/platform-admin/billing/invoices", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { status, country, limit = "50" } = req.query;
+      
+      let invoices = await db.select({
+        id: subscriptionInvoices.id,
+        tenantId: subscriptionInvoices.tenantId,
+        tenantName: tenants.name,
+        invoiceNumber: subscriptionInvoices.invoiceNumber,
+        status: subscriptionInvoices.status,
+        country: subscriptionInvoices.country,
+        currency: subscriptionInvoices.currency,
+        totalAmount: subscriptionInvoices.totalAmount,
+        amountPaid: subscriptionInvoices.amountPaid,
+        amountDue: subscriptionInvoices.amountDue,
+        dueDate: subscriptionInvoices.dueDate,
+        paidAt: subscriptionInvoices.paidAt,
+        gateway: subscriptionInvoices.gateway,
+        createdAt: subscriptionInvoices.createdAt,
+      })
+        .from(subscriptionInvoices)
+        .innerJoin(tenants, eq(tenants.id, subscriptionInvoices.tenantId))
+        .orderBy(desc(subscriptionInvoices.createdAt))
+        .limit(parseInt(limit as string));
+      
+      if (status) invoices = invoices.filter(i => i.status === status);
+      if (country) invoices = invoices.filter(i => i.country === country);
+      
+      res.json({ invoices, total: invoices.length });
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  app.get("/api/platform-admin/billing/country-configs", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const configs = await db.select().from(countryPricingConfigs).orderBy(countryPricingConfigs.country);
+      res.json(configs);
+    } catch (error) {
+      console.error("Error fetching country configs:", error);
+      res.status(500).json({ message: "Failed to fetch country configs" });
+    }
+  });
+
+  app.patch("/api/platform-admin/billing/country-configs/:country", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { country } = req.params;
+      const { taxRate, exchangeRate } = req.body;
+      
+      const [updated] = await db.update(countryPricingConfigs)
+        .set({
+          ...(taxRate !== undefined && { taxRate: taxRate.toString() }),
+          ...(exchangeRate !== undefined && { 
+            exchangeRate: exchangeRate.toString(),
+            exchangeRateUpdatedAt: new Date(),
+          }),
+          updatedAt: new Date(),
+        })
+        .where(eq(countryPricingConfigs.country, country as any))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Country config not found" });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating country config:", error);
+      res.status(500).json({ message: "Failed to update country config" });
+    }
+  });
+
+  // Public pricing endpoint
+  app.get("/api/pricing", async (req, res) => {
+    try {
+      const country = req.query.country as string | undefined;
+      const plans = await paymentService.getPricingPlans(country as any);
+      res.json(plans);
+    } catch (error) {
+      console.error("Error fetching pricing:", error);
+      res.status(500).json({ message: "Failed to fetch pricing" });
+    }
+  });
 
   return httpServer;
 }
