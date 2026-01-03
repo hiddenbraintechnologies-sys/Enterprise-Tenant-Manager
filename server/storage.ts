@@ -6,7 +6,7 @@ import {
   membershipPlans, customerMemberships,
   spaces, desks, deskBookings,
   patients, doctors, appointments, medicalRecords,
-  platformAdmins,
+  platformAdmins, platformAdminPermissions, platformAdminPermissionAssignments,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
@@ -31,6 +31,7 @@ import {
   type Appointment, type InsertAppointment,
   type MedicalRecord, type InsertMedicalRecord,
   type PlatformAdmin, type PlatformAdminRole,
+  type PlatformAdminPermission, type PlatformAdminPermissionAssignment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -867,6 +868,70 @@ export class DatabaseStorage implements IStorage {
 
   async updatePlatformAdminLastLogin(id: string): Promise<void> {
     await db.update(platformAdmins).set({ lastLoginAt: new Date() }).where(eq(platformAdmins.id, id));
+  }
+
+  // Platform Admin Permissions
+  async getAllPlatformAdminPermissions(): Promise<PlatformAdminPermission[]> {
+    return db.select().from(platformAdminPermissions).orderBy(platformAdminPermissions.category, platformAdminPermissions.code);
+  }
+
+  async getPlatformAdminPermission(code: string): Promise<PlatformAdminPermission | undefined> {
+    const [perm] = await db.select().from(platformAdminPermissions).where(eq(platformAdminPermissions.code, code));
+    return perm;
+  }
+
+  async createPlatformAdminPermission(perm: { code: string; name: string; description?: string; category?: string }): Promise<PlatformAdminPermission> {
+    const [created] = await db.insert(platformAdminPermissions).values(perm).returning();
+    return created;
+  }
+
+  async deletePlatformAdminPermission(code: string): Promise<void> {
+    await db.delete(platformAdminPermissions).where(eq(platformAdminPermissions.code, code));
+  }
+
+  // Platform Admin Permission Assignments
+  async getAdminPermissions(adminId: string): Promise<string[]> {
+    const assignments = await db.select()
+      .from(platformAdminPermissionAssignments)
+      .where(eq(platformAdminPermissionAssignments.adminId, adminId));
+    return assignments.map(a => a.permissionCode);
+  }
+
+  async assignPermissionToAdmin(adminId: string, permissionCode: string, grantedBy?: string): Promise<PlatformAdminPermissionAssignment> {
+    const [assignment] = await db.insert(platformAdminPermissionAssignments)
+      .values({ adminId, permissionCode, grantedBy })
+      .returning();
+    return assignment;
+  }
+
+  async revokePermissionFromAdmin(adminId: string, permissionCode: string): Promise<void> {
+    await db.delete(platformAdminPermissionAssignments)
+      .where(and(
+        eq(platformAdminPermissionAssignments.adminId, adminId),
+        eq(platformAdminPermissionAssignments.permissionCode, permissionCode)
+      ));
+  }
+
+  async revokeAllPermissionsFromAdmin(adminId: string): Promise<void> {
+    await db.delete(platformAdminPermissionAssignments)
+      .where(eq(platformAdminPermissionAssignments.adminId, adminId));
+  }
+
+  async getAdminsWithPermission(permissionCode: string): Promise<string[]> {
+    const assignments = await db.select()
+      .from(platformAdminPermissionAssignments)
+      .where(eq(platformAdminPermissionAssignments.permissionCode, permissionCode));
+    return assignments.map(a => a.adminId);
+  }
+
+  async hasAdminPermission(adminId: string, permissionCode: string): Promise<boolean> {
+    const [assignment] = await db.select()
+      .from(platformAdminPermissionAssignments)
+      .where(and(
+        eq(platformAdminPermissionAssignments.adminId, adminId),
+        eq(platformAdminPermissionAssignments.permissionCode, permissionCode)
+      ));
+    return !!assignment;
   }
 }
 
