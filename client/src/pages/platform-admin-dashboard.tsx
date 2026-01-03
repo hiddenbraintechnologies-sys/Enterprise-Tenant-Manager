@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAdmin, PermissionGuard } from "@/contexts/admin-context";
+import { useAdmin, PermissionGuard, AdminGuard } from "@/contexts/admin-context";
 import { Link } from "wouter";
 import {
   Building2,
@@ -129,7 +129,7 @@ function QuickActionButton({
   );
 }
 
-export default function PlatformAdminDashboard() {
+function DashboardContent() {
   const { admin, permissions, isSuperAdmin } = useAdmin();
 
   const { data: stats, isLoading } = useQuery<DashboardStats>({
@@ -350,5 +350,13 @@ export default function PlatformAdminDashboard() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function PlatformAdminDashboard() {
+  return (
+    <AdminGuard>
+      <DashboardContent />
+    </AdminGuard>
   );
 }
