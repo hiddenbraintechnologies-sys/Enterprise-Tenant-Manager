@@ -1119,6 +1119,80 @@ export const paymentAttempts = pgTable("payment_attempts", {
 ]);
 
 // ============================================
+// USAGE-BASED BILLING
+// ============================================
+
+export const usageTypeEnum = pgEnum("usage_type", [
+  "whatsapp_messages",
+  "bookings",
+  "leads",
+  "properties",
+  "listings",
+  "tour_packages",
+  "tour_bookings",
+  "travelers",
+  "site_visits",
+  "api_calls"
+]);
+
+export const planUsageLimits = pgTable("plan_usage_limits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  planId: varchar("plan_id").notNull().references(() => globalPricingPlans.id, { onDelete: "cascade" }),
+  businessType: businessTypeEnum("business_type").notNull(),
+  usageType: usageTypeEnum("usage_type").notNull(),
+  includedUnits: integer("included_units").default(0),
+  overageRate: decimal("overage_rate", { precision: 10, scale: 4 }),
+  hardLimit: integer("hard_limit"),
+  isEnabled: boolean("is_enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_plan_usage_limits_unique").on(table.planId, table.businessType, table.usageType),
+  index("idx_plan_usage_limits_plan").on(table.planId),
+  index("idx_plan_usage_limits_business_type").on(table.businessType),
+]);
+
+export const tenantUsageTracking = pgTable("tenant_usage_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  usageType: usageTypeEnum("usage_type").notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  usedUnits: integer("used_units").default(0),
+  includedUnits: integer("included_units").default(0),
+  overageUnits: integer("overage_units").default(0),
+  overageCost: decimal("overage_cost", { precision: 10, scale: 2 }).default("0"),
+  isBilled: boolean("is_billed").default(false),
+  billedAt: timestamp("billed_at"),
+  invoiceId: varchar("invoice_id"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_tenant_usage_period").on(table.tenantId, table.usageType, table.periodStart),
+  index("idx_tenant_usage_tenant").on(table.tenantId),
+  index("idx_tenant_usage_type").on(table.usageType),
+  index("idx_tenant_usage_billed").on(table.isBilled),
+]);
+
+export const usageEvents = pgTable("usage_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  usageType: usageTypeEnum("usage_type").notNull(),
+  quantity: integer("quantity").default(1),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 4 }),
+  resourceId: varchar("resource_id"),
+  resourceType: varchar("resource_type", { length: 50 }),
+  description: text("description"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_usage_events_tenant").on(table.tenantId),
+  index("idx_usage_events_type").on(table.usageType),
+  index("idx_usage_events_created").on(table.createdAt),
+]);
+
+// ============================================
 // GLOBAL WHATSAPP INTEGRATION
 // ============================================
 
@@ -1348,6 +1422,11 @@ export const insertTransactionLogSchema = createInsertSchema(transactionLogs).om
 export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, createdAt: true });
 export const insertPaymentAttemptSchema = createInsertSchema(paymentAttempts).omit({ id: true, createdAt: true });
 
+// Usage-based billing insert schemas
+export const insertPlanUsageLimitsSchema = createInsertSchema(planUsageLimits).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantUsageTrackingSchema = createInsertSchema(tenantUsageTracking).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUsageEventSchema = createInsertSchema(usageEvents).omit({ id: true, createdAt: true });
+
 // WhatsApp insert schemas
 export const insertWhatsappProviderConfigSchema = createInsertSchema(whatsappProviderConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhatsappTemplateSchema = createInsertSchema(whatsappTemplates).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1494,6 +1573,18 @@ export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
 
 export type PaymentAttempt = typeof paymentAttempts.$inferSelect;
 export type InsertPaymentAttempt = z.infer<typeof insertPaymentAttemptSchema>;
+
+// Usage-based billing types
+export type PlanUsageLimits = typeof planUsageLimits.$inferSelect;
+export type InsertPlanUsageLimits = z.infer<typeof insertPlanUsageLimitsSchema>;
+
+export type TenantUsageTracking = typeof tenantUsageTracking.$inferSelect;
+export type InsertTenantUsageTracking = z.infer<typeof insertTenantUsageTrackingSchema>;
+
+export type UsageEvent = typeof usageEvents.$inferSelect;
+export type InsertUsageEvent = z.infer<typeof insertUsageEventSchema>;
+
+export type UsageType = typeof usageTypeEnum.enumValues[number];
 
 // WhatsApp types
 export type WhatsappProviderConfig = typeof whatsappProviderConfigs.$inferSelect;
