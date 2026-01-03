@@ -10,8 +10,94 @@ import {
   requirePlatformRole,
   requirePlatformPermission 
 } from "../core/auth-middleware";
+import { JWTAuthService } from "../core/jwt";
+import bcrypt from "bcrypt";
+import { z } from "zod";
 
 const router = Router();
+const jwtAuthService = new JWTAuthService();
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+router.post("/login", async (req, res) => {
+  try {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid credentials format" });
+    }
+
+    const { email, password } = parsed.data;
+
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const [platformAdmin] = await db.select()
+      .from(platformAdmins)
+      .where(eq(platformAdmins.userId, user.id));
+
+    if (!platformAdmin) {
+      return res.status(403).json({ message: "Not a platform administrator" });
+    }
+
+    if (platformAdmin.status !== "active") {
+      return res.status(403).json({ message: "Admin account is not active" });
+    }
+
+    const permissions = platformAdmin.role === "super_admin" 
+      ? ["*"] 
+      : (platformAdmin.permissions as string[]) || [];
+
+    const tokens = await jwtAuthService.generateTokenPair(
+      user.id,
+      null,
+      null,
+      permissions,
+      { userAgent: req.headers["user-agent"], ipAddress: req.ip }
+    );
+
+    await db.update(platformAdmins).set({
+      lastLoginAt: new Date(),
+    }).where(eq(platformAdmins.id, platformAdmin.id));
+
+    await db.insert(platformAuditLogs).values({
+      adminId: platformAdmin.id,
+      action: "login",
+      resource: "platform",
+      metadata: {},
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      platformAdmin: {
+        id: platformAdmin.id,
+        role: platformAdmin.role,
+        mustChangePassword: platformAdmin.mustChangePassword,
+      },
+    });
+  } catch (error) {
+    console.error("Platform login error:", error);
+    res.status(500).json({ message: "Login failed" });
+  }
+});
 
 router.use(authenticatePlatformAdmin());
 

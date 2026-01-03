@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,17 +8,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Dialog, DialogContent, DialogDescription, DialogHeader, 
-  DialogTitle, DialogTrigger, DialogFooter 
+  DialogTitle, DialogFooter 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { 
   Building2, Users, TrendingUp, Shield, Search, 
-  Ban, CheckCircle2, Settings2, Activity, Clock,
-  ChevronRight, AlertTriangle, Loader2
+  Ban, CheckCircle2, Activity, Clock,
+  AlertTriangle, Loader2, LogOut
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -76,8 +76,154 @@ interface PlatformAdmin {
   mustChangePassword: boolean;
 }
 
+interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  tokenType: string;
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+  platformAdmin: {
+    id: string;
+    role: string;
+    mustChangePassword: boolean;
+  };
+}
+
+const TOKEN_KEY = "platform_admin_token";
+
+function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setStoredToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+function clearStoredToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+async function platformFetch(url: string, options: RequestInit = {}) {
+  const token = getStoredToken();
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+  
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  
+  const response = await fetch(url, { ...options, headers });
+  
+  if (response.status === 401) {
+    clearStoredToken();
+    throw new Error("Session expired");
+  }
+  
+  return response;
+}
+
+function LoginForm({ onSuccess }: { onSuccess: () => void }) {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  
+  const loginMutation = useMutation({
+    mutationFn: async (credentials: { email: string; password: string }) => {
+      const response = await fetch("/api/platform/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Login failed");
+      }
+      
+      return response.json() as Promise<LoginResponse>;
+    },
+    onSuccess: (data) => {
+      setStoredToken(data.accessToken);
+      toast({ title: "Welcome back!", description: `Logged in as ${data.user.firstName}` });
+      onSuccess();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+    },
+  });
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loginMutation.mutate({ email, password });
+  };
+  
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <Shield className="h-12 w-12 text-primary" />
+          </div>
+          <CardTitle className="text-2xl">Platform Admin</CardTitle>
+          <CardDescription>Sign in to access the admin dashboard</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="superadmin@bizflow.app"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                data-testid="input-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                data-testid="input-password"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={loginMutation.isPending}
+              data-testid="button-login"
+            >
+              {loginMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function PlatformAdminDashboard() {
   const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState(!!getStoredToken());
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
@@ -86,11 +232,23 @@ export default function PlatformAdminDashboard() {
 
   const { data: adminProfile, isLoading: loadingProfile, error: profileError } = useQuery<PlatformAdmin>({
     queryKey: ["/api/platform/me"],
+    queryFn: async () => {
+      const response = await platformFetch("/api/platform/me");
+      if (!response.ok) throw new Error("Failed to fetch profile");
+      return response.json();
+    },
+    enabled: isAuthenticated,
     retry: false,
   });
 
   const { data: analytics, isLoading: loadingAnalytics } = useQuery<PlatformAnalytics>({
     queryKey: ["/api/platform/analytics"],
+    queryFn: async () => {
+      const response = await platformFetch("/api/platform/analytics");
+      if (!response.ok) throw new Error("Failed to fetch analytics");
+      return response.json();
+    },
+    enabled: isAuthenticated && !!adminProfile,
   });
 
   const { data: tenantsData, isLoading: loadingTenants } = useQuery<{
@@ -98,16 +256,35 @@ export default function PlatformAdminDashboard() {
     pagination: { page: number; limit: number; total: number };
   }>({
     queryKey: ["/api/platform/tenants", statusFilter],
-    queryFn: () => fetch(`/api/platform/tenants?status=${statusFilter}`).then(r => r.json()),
+    queryFn: async () => {
+      const url = statusFilter === "all" 
+        ? "/api/platform/tenants" 
+        : `/api/platform/tenants?status=${statusFilter}`;
+      const response = await platformFetch(url);
+      if (!response.ok) throw new Error("Failed to fetch tenants");
+      return response.json();
+    },
+    enabled: isAuthenticated && !!adminProfile,
   });
 
   const { data: auditLogs, isLoading: loadingLogs } = useQuery<AuditLog[]>({
     queryKey: ["/api/platform/audit-logs"],
+    queryFn: async () => {
+      const response = await platformFetch("/api/platform/audit-logs");
+      if (!response.ok) throw new Error("Failed to fetch logs");
+      return response.json();
+    },
+    enabled: isAuthenticated && !!adminProfile,
   });
 
   const suspendMutation = useMutation({
     mutationFn: async ({ tenantId, reason }: { tenantId: string; reason: string }) => {
-      return apiRequest("POST", `/api/platform/tenants/${tenantId}/suspend`, { reason });
+      const response = await platformFetch(`/api/platform/tenants/${tenantId}/suspend`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      if (!response.ok) throw new Error("Failed to suspend tenant");
+      return response.json();
     },
     onSuccess: () => {
       toast({ title: "Tenant suspended", description: "The tenant has been suspended successfully." });
@@ -124,7 +301,11 @@ export default function PlatformAdminDashboard() {
 
   const unsuspendMutation = useMutation({
     mutationFn: async (tenantId: string) => {
-      return apiRequest("POST", `/api/platform/tenants/${tenantId}/unsuspend`);
+      const response = await platformFetch(`/api/platform/tenants/${tenantId}/unsuspend`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Failed to unsuspend tenant");
+      return response.json();
     },
     onSuccess: () => {
       toast({ title: "Tenant restored", description: "The tenant has been restored successfully." });
@@ -136,10 +317,28 @@ export default function PlatformAdminDashboard() {
     },
   });
 
+  useEffect(() => {
+    if (profileError) {
+      clearStoredToken();
+      setIsAuthenticated(false);
+    }
+  }, [profileError]);
+
+  const handleLogout = () => {
+    clearStoredToken();
+    setIsAuthenticated(false);
+    queryClient.clear();
+    toast({ title: "Logged out", description: "You have been logged out successfully." });
+  };
+
   const filteredTenants = (tenantsData?.tenants || []).filter(tenant =>
     tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     tenant.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (!isAuthenticated) {
+    return <LoginForm onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   if (loadingProfile) {
     return (
@@ -149,7 +348,7 @@ export default function PlatformAdminDashboard() {
     );
   }
 
-  if (profileError || !adminProfile) {
+  if (!adminProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Shield className="h-16 w-16 text-muted-foreground" />
@@ -157,8 +356,8 @@ export default function PlatformAdminDashboard() {
         <p className="text-muted-foreground text-center max-w-md">
           You must be logged in as a platform administrator to access this page.
         </p>
-        <Button variant="outline" onClick={() => window.location.href = "/"}>
-          Return to Home
+        <Button variant="outline" onClick={() => setIsAuthenticated(false)}>
+          Return to Login
         </Button>
       </div>
     );
@@ -182,6 +381,14 @@ export default function PlatformAdminDashboard() {
             {adminProfile?.mustChangePassword && (
               <Badge variant="destructive">Password Change Required</Badge>
             )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleLogout}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>
@@ -198,34 +405,37 @@ export default function PlatformAdminDashboard() {
                 {loadingAnalytics ? "..." : analytics?.overview.totalTenants || 0}
               </div>
               <p className="text-xs text-muted-foreground">
-                +{analytics?.overview.newTenantsLast30Days || 0} in last 30 days
+                {analytics?.overview.newTenantsLast30Days || 0} new in last 30 days
               </p>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Tenants</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-active-tenants">
                 {loadingAnalytics ? "..." : analytics?.overview.activeTenants || 0}
               </div>
-              <p className="text-xs text-muted-foreground">Currently operating</p>
+              <p className="text-xs text-muted-foreground">Currently operational</p>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Suspended</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <Ban className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-suspended-tenants">
                 {loadingAnalytics ? "..." : analytics?.overview.suspendedTenants || 0}
               </div>
-              <p className="text-xs text-muted-foreground">Requires attention</p>
+              <p className="text-xs text-muted-foreground">Require attention</p>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -248,81 +458,72 @@ export default function PlatformAdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="audit" data-testid="tab-audit">
               <Activity className="h-4 w-4 mr-2" />
-              Audit Log
-            </TabsTrigger>
-            <TabsTrigger value="analytics" data-testid="tab-analytics">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Analytics
+              Audit Logs
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="tenants" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tenant Management</CardTitle>
-                <CardDescription>View and manage all tenants on the platform</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search tenants..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                      data-testid="input-search-tenants"
-                    />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="suspended">Suspended</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search tenants..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-search-tenants"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tenants</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                <ScrollArea className="h-[400px]">
+            <Card>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[500px]">
                   {loadingTenants ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="h-6 w-6 animate-spin" />
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   ) : filteredTenants.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No tenants found
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                      <Building2 className="h-12 w-12 mb-2" />
+                      <p>No tenants found</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="divide-y">
                       {filteredTenants.map((tenant) => (
                         <div
                           key={tenant.id}
-                          className="flex items-center justify-between gap-4 p-4 rounded-md border hover-elevate"
-                          data-testid={`row-tenant-${tenant.id}`}
+                          className="flex items-center justify-between gap-4 p-4 hover-elevate"
+                          data-testid={`tenant-row-${tenant.id}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium truncate">{tenant.name}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-medium truncate">{tenant.name}</h3>
+                              <Badge variant="outline">{tenant.businessType}</Badge>
+                              <Badge variant={tenant.subscriptionTier === "enterprise" ? "default" : "secondary"}>
+                                {tenant.subscriptionTier}
+                              </Badge>
                               {tenant.isSuspended && (
                                 <Badge variant="destructive">Suspended</Badge>
                               )}
-                              {!tenant.isActive && !tenant.isSuspended && (
-                                <Badge variant="secondary">Inactive</Badge>
-                              )}
                             </div>
-                            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                              <span>{tenant.email || "No email"}</span>
-                              <span className="text-xs">|</span>
-                              <Badge variant="outline" className="text-xs">
-                                {tenant.businessType}
-                              </Badge>
-                              <span className="text-xs">|</span>
-                              <span className="text-xs">{tenant.subscriptionTier}</span>
-                            </div>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {tenant.email || "No email"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Created {format(new Date(tenant.createdAt), "MMM d, yyyy")}
+                            </p>
                           </div>
                           <div className="flex items-center gap-2">
                             {tenant.isSuspended ? (
@@ -333,11 +534,7 @@ export default function PlatformAdminDashboard() {
                                 disabled={unsuspendMutation.isPending}
                                 data-testid={`button-unsuspend-${tenant.id}`}
                               >
-                                {unsuspendMutation.isPending ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                                )}
+                                <CheckCircle2 className="h-4 w-4 mr-1" />
                                 Restore
                               </Button>
                             ) : (
@@ -354,9 +551,6 @@ export default function PlatformAdminDashboard() {
                                 Suspend
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" data-testid={`button-view-${tenant.id}`}>
-                              <ChevronRight className="h-4 w-4" />
-                            </Button>
                           </div>
                         </div>
                       ))}
@@ -370,44 +564,41 @@ export default function PlatformAdminDashboard() {
           <TabsContent value="audit" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Platform Audit Log</CardTitle>
-                <CardDescription>Track all administrative actions on the platform</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Recent Activity
+                </CardTitle>
+                <CardDescription>Platform administration audit trail</CardDescription>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[400px]">
+              <CardContent className="p-0">
+                <ScrollArea className="h-[500px]">
                   {loadingLogs ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="h-6 w-6 animate-spin" />
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   ) : !auditLogs || auditLogs.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No audit logs yet
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                      <Activity className="h-12 w-12 mb-2" />
+                      <p>No audit logs yet</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="divide-y">
                       {auditLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className="flex items-start gap-4 p-3 rounded-md border"
-                          data-testid={`row-audit-${log.id}`}
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">{log.action}</Badge>
-                              <span className="font-medium">{log.resource}</span>
-                              {log.resourceId && (
-                                <span className="text-muted-foreground text-sm">
-                                  #{log.resourceId.slice(0, 8)}
-                                </span>
-                              )}
+                        <div key={log.id} className="p-4" data-testid={`audit-log-${log.id}`}>
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant="outline">{log.action}</Badge>
+                                <span className="text-sm font-medium">{log.resource}</span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                by {log.adminFirstName} {log.adminLastName} ({log.adminEmail})
+                              </p>
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              By {log.adminFirstName} {log.adminLastName} ({log.adminEmail})
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            {format(new Date(log.createdAt), "MMM d, yyyy HH:mm")}
+                            <div className="flex items-center text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {format(new Date(log.createdAt), "MMM d, yyyy HH:mm")}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -417,59 +608,21 @@ export default function PlatformAdminDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Subscription Distribution</CardTitle>
-                <CardDescription>Breakdown of tenants by subscription tier</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingAnalytics ? (
-                  <div className="flex items-center justify-center h-32">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {analytics?.subscriptionBreakdown.map((item) => (
-                      <div key={item.tier} className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium capitalize">{item.tier || "Free"}</span>
-                            <span className="text-sm text-muted-foreground">{item.count}</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className="h-full bg-primary rounded-full"
-                              style={{
-                                width: `${((item.count / (analytics?.overview.totalTenants || 1)) * 100).toFixed(0)}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </main>
 
       <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Suspend Tenant</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Suspend Tenant
+            </DialogTitle>
             <DialogDescription>
-              This will prevent the tenant and all their users from accessing the platform.
+              This will immediately block all users of {selectedTenant?.name} from accessing the platform.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Tenant</Label>
-              <p className="text-sm font-medium">{selectedTenant?.name}</p>
-            </div>
             <div className="space-y-2">
               <Label htmlFor="reason">Suspension Reason</Label>
               <Textarea
@@ -482,15 +635,7 @@ export default function PlatformAdminDashboard() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSuspendDialogOpen(false);
-                setSuspensionReason("");
-                setSelectedTenant(null);
-              }}
-              data-testid="button-cancel-suspend"
-            >
+            <Button variant="outline" onClick={() => setSuspendDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -503,15 +648,17 @@ export default function PlatformAdminDashboard() {
                   });
                 }
               }}
-              disabled={suspendMutation.isPending}
+              disabled={suspendMutation.isPending || !suspensionReason.trim()}
               data-testid="button-confirm-suspend"
             >
               {suspendMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Suspending...
+                </>
               ) : (
-                <Ban className="h-4 w-4 mr-2" />
+                "Suspend Tenant"
               )}
-              Suspend Tenant
             </Button>
           </DialogFooter>
         </DialogContent>
