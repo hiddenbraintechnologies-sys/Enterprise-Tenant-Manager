@@ -64,3 +64,46 @@ export const insertPlatformAdminSchema = createInsertSchema(platformAdmins).omit
 export type InsertPlatformAdmin = z.infer<typeof insertPlatformAdminSchema>;
 export type PlatformAdmin = typeof platformAdmins.$inferSelect;
 export type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN";
+
+// Platform Admin Permissions - defines available permissions
+export const platformAdminPermissions = pgTable("platform_admin_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: varchar("description", { length: 500 }),
+  category: varchar("category", { length: 100 }).default("general"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Junction table: Platform Admin -> Permissions
+export const platformAdminPermissionAssignments = pgTable("platform_admin_permission_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").notNull().references(() => platformAdmins.id, { onDelete: "cascade" }),
+  permissionCode: varchar("permission_code", { length: 100 }).notNull().references(() => platformAdminPermissions.code, { onDelete: "cascade" }),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  grantedBy: varchar("granted_by"),
+}, (table) => [
+  index("idx_platform_admin_perm_admin").on(table.adminId),
+]);
+
+export type PlatformAdminPermission = typeof platformAdminPermissions.$inferSelect;
+export type PlatformAdminPermissionAssignment = typeof platformAdminPermissionAssignments.$inferSelect;
+
+// Default platform admin permissions
+export const PLATFORM_ADMIN_PERMISSIONS = {
+  READ_TENANTS: "read_tenants",
+  MANAGE_TENANTS: "manage_tenants",
+  READ_USERS: "read_users",
+  MANAGE_USERS: "manage_users",
+  RESET_PASSWORDS: "reset_passwords",
+  VIEW_LOGS: "view_logs",
+  MANAGE_LOGS: "manage_logs",
+  READ_ADMINS: "read_admins",
+  MANAGE_ADMINS: "manage_admins",
+  VIEW_ANALYTICS: "view_analytics",
+  MANAGE_FEATURES: "manage_features",
+  VIEW_BILLING: "view_billing",
+  MANAGE_BILLING: "manage_billing",
+} as const;
+
+export type PlatformAdminPermissionCode = typeof PLATFORM_ADMIN_PERMISSIONS[keyof typeof PLATFORM_ADMIN_PERMISSIONS];
