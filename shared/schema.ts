@@ -23,6 +23,8 @@ export const paymentMethodEnum = pgEnum("payment_method", ["cash", "card", "upi"
 export const membershipStatusEnum = pgEnum("membership_status", ["active", "expired", "suspended", "cancelled"]);
 export const appointmentTypeEnum = pgEnum("appointment_type", ["walk_in", "online", "phone"]);
 export const patientGenderEnum = pgEnum("patient_gender", ["male", "female", "other"]);
+export const platformRoleEnum = pgEnum("platform_role", ["super_admin", "platform_admin"]);
+export const platformAdminStatusEnum = pgEnum("platform_admin_status", ["active", "inactive", "suspended"]);
 
 // ============================================
 // CORE: TENANTS & MULTI-TENANCY
@@ -42,6 +44,10 @@ export const tenants = pgTable("tenants", {
   timezone: text("timezone").default("Asia/Kolkata"),
   currency: text("currency").default("INR"),
   isActive: boolean("is_active").default(true),
+  isSuspended: boolean("is_suspended").default(false),
+  suspensionReason: text("suspension_reason"),
+  suspendedAt: timestamp("suspended_at"),
+  suspendedBy: varchar("suspended_by"),
   subscriptionTier: varchar("subscription_tier", { length: 50 }).default("free"),
   subscriptionExpiresAt: timestamp("subscription_expires_at"),
   maxUsers: integer("max_users").default(5),
@@ -50,6 +56,66 @@ export const tenants = pgTable("tenants", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
 });
+
+// ============================================
+// PLATFORM ADMINISTRATION
+// ============================================
+
+export const platformAdmins = pgTable("platform_admins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  role: platformRoleEnum("role").notNull().default("platform_admin"),
+  status: platformAdminStatusEnum("status").notNull().default("active"),
+  permissions: jsonb("permissions").default([]),
+  lastLoginAt: timestamp("last_login_at"),
+  mustChangePassword: boolean("must_change_password").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by"),
+}, (table) => [
+  index("idx_platform_admins_user").on(table.userId),
+  index("idx_platform_admins_role").on(table.role),
+]);
+
+export const platformSettings = pgTable("platform_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: jsonb("value").default({}),
+  description: text("description"),
+  isSecret: boolean("is_secret").default(false),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by"),
+});
+
+export const platformAuditLogs = pgTable("platform_audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").notNull().references(() => platformAdmins.id),
+  action: varchar("action", { length: 100 }).notNull(),
+  resource: varchar("resource", { length: 100 }).notNull(),
+  resourceId: varchar("resource_id"),
+  targetTenantId: varchar("target_tenant_id").references(() => tenants.id),
+  metadata: jsonb("metadata").default({}),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_platform_audit_admin").on(table.adminId),
+  index("idx_platform_audit_action").on(table.action),
+  index("idx_platform_audit_tenant").on(table.targetTenantId),
+  index("idx_platform_audit_created").on(table.createdAt),
+]);
+
+export const insertPlatformAdminSchema = createInsertSchema(platformAdmins).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPlatformAdmin = z.infer<typeof insertPlatformAdminSchema>;
+export type PlatformAdmin = typeof platformAdmins.$inferSelect;
+
+export const insertPlatformSettingSchema = createInsertSchema(platformSettings).omit({ id: true, updatedAt: true });
+export type InsertPlatformSetting = z.infer<typeof insertPlatformSettingSchema>;
+export type PlatformSetting = typeof platformSettings.$inferSelect;
+
+export const insertPlatformAuditLogSchema = createInsertSchema(platformAuditLogs).omit({ id: true, createdAt: true });
+export type InsertPlatformAuditLog = z.infer<typeof insertPlatformAuditLogSchema>;
+export type PlatformAuditLog = typeof platformAuditLogs.$inferSelect;
 
 export const tenantDomains = pgTable("tenant_domains", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

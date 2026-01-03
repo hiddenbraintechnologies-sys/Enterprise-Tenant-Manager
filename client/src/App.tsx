@@ -19,6 +19,7 @@ import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
 import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
+import PlatformAdmin from "@/pages/platform-admin";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -148,6 +149,7 @@ function AppRouter() {
     return (
       <Switch>
         <Route path="/register" component={Register} />
+        <Route path="/platform-admin" component={PlatformAdmin} />
         <Route component={Landing} />
       </Switch>
     );
