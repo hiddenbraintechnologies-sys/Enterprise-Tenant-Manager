@@ -14,6 +14,8 @@ import SalonDashboard from "@/pages/salon-dashboard";
 import PGDashboard from "@/pages/pg-dashboard";
 import CoworkingDashboard from "@/pages/coworking-dashboard";
 import ServiceDashboard from "@/pages/service-dashboard";
+import RealEstateDashboard from "@/pages/real-estate-dashboard";
+import TourismDashboard from "@/pages/tourism-dashboard";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
@@ -67,6 +69,16 @@ function AuthenticatedRoutes() {
       <Route path="/dashboard/service">
         <DashboardGuard allowedBusinessType="service">
           <ServiceDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/real-estate">
+        <DashboardGuard allowedBusinessType="real_estate">
+          <RealEstateDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/tourism">
+        <DashboardGuard allowedBusinessType="tourism">
+          <TourismDashboard />
         </DashboardGuard>
       </Route>
       
