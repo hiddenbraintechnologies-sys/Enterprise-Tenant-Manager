@@ -85,6 +85,36 @@ The platform is designed for multi-region AWS deployment with the following arch
 - **RTO**: 1 hour (automated failover procedures)
 - **Documentation**: See `docs/AWS_DEPLOYMENT_ARCHITECTURE.md` for complete details
 
+## GCP Global Deployment Architecture (Alternative)
+
+The platform also supports Google Cloud Platform deployment with the following architecture:
+
+### Target Regions
+- **asia-south1 (Mumbai)**: Primary hub for DPDP compliance
+- **asia-southeast1 (Singapore)**: DR + PDPA compliance
+- **asia-southeast2 (Jakarta)**: Malaysia coverage / PDPA MY
+- **europe-west2 (London)**: GDPR compliance
+
+### Key Components
+- **Global HTTP(S) Load Balancer**: Single global resource with Cloud CDN and Cloud Armor (WAF)
+- **Cloud Run**: Serverless container orchestration with auto-scaling per region
+- **Cloud SQL PostgreSQL**: Regional HA primary with cross-region read replicas
+- **Memorystore Redis**: Session management and caching per region
+- **Cloud Storage**: Multi-region buckets with lifecycle policies
+- **Secret Manager**: Centralized credential management with IAM conditions
+- **Cloud Monitoring**: Dashboards, SLO-based alerting, and uptime checks
+
+### Cost Comparison
+| Platform | Estimated Monthly Cost |
+|----------|----------------------|
+| AWS (EKS-based) | ~$10,150 |
+| GCP (Cloud Run) | ~$5,400 |
+
+### Disaster Recovery
+- **RPO**: 15 minutes (async replication)
+- **RTO**: 45-60 minutes (automated failover)
+- **Documentation**: See `docs/GCP_DEPLOYMENT_ARCHITECTURE.md` for complete details
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: Used for initial user authentication.
 - **PostgreSQL**: The primary database for all application data.
