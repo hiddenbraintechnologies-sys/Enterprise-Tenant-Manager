@@ -8,4 +8,13 @@ export * from "./auth-middleware";
 export * from "./tenant-isolation";
 export * from "./scoped-repository";
 export * from "./compliance";
-export * from "./business-modules";
+export { 
+  BUSINESS_MODULES, 
+  getModulesForBusiness, 
+  hasModule, 
+  requireModule, 
+  ModuleNotAvailableError,
+  ALL_MODULES,
+  MODULE_DESCRIPTIONS,
+  type BusinessModule 
+} from "./business-modules";

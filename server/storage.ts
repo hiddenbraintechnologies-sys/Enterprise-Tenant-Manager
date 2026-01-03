@@ -6,6 +6,7 @@ import {
   membershipPlans, customerMemberships,
   spaces, desks, deskBookings,
   patients, doctors, appointments, medicalRecords,
+  platformAdmins,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
@@ -29,6 +30,7 @@ import {
   type Doctor, type InsertDoctor,
   type Appointment, type InsertAppointment,
   type MedicalRecord, type InsertMedicalRecord,
+  type PlatformAdmin, type PlatformAdminRole,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -181,6 +183,15 @@ export interface IStorage {
   getMedicalRecord(id: string, tenantId: string): Promise<MedicalRecord | undefined>;
   createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord>;
   updateMedicalRecord(id: string, tenantId: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined>;
+
+  // Platform Admins (NOT tied to tenant)
+  getPlatformAdmins(): Promise<PlatformAdmin[]>;
+  getPlatformAdmin(id: string): Promise<PlatformAdmin | undefined>;
+  getPlatformAdminByEmail(email: string): Promise<PlatformAdmin | undefined>;
+  createPlatformAdmin(admin: { name: string; email: string; passwordHash: string; role?: PlatformAdminRole }): Promise<PlatformAdmin>;
+  updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean }>): Promise<PlatformAdmin | undefined>;
+  deletePlatformAdmin(id: string): Promise<void>;
+  updatePlatformAdminLastLogin(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -814,6 +825,48 @@ export class DatabaseStorage implements IStorage {
   async updateMedicalRecord(id: string, tenantId: string, record: Partial<InsertMedicalRecord>): Promise<MedicalRecord | undefined> {
     const [updated] = await db.update(medicalRecords).set({ ...record, updatedAt: new Date() }).where(and(eq(medicalRecords.id, id), eq(medicalRecords.tenantId, tenantId))).returning();
     return updated;
+  }
+
+  // Platform Admins (NOT tied to tenant)
+  async getPlatformAdmins(): Promise<PlatformAdmin[]> {
+    return db.select().from(platformAdmins).orderBy(desc(platformAdmins.createdAt));
+  }
+
+  async getPlatformAdmin(id: string): Promise<PlatformAdmin | undefined> {
+    const [admin] = await db.select().from(platformAdmins).where(eq(platformAdmins.id, id));
+    return admin;
+  }
+
+  async getPlatformAdminByEmail(email: string): Promise<PlatformAdmin | undefined> {
+    const [admin] = await db.select().from(platformAdmins).where(eq(platformAdmins.email, email.toLowerCase()));
+    return admin;
+  }
+
+  async createPlatformAdmin(admin: { name: string; email: string; passwordHash: string; role?: PlatformAdminRole }): Promise<PlatformAdmin> {
+    const [created] = await db.insert(platformAdmins).values({
+      name: admin.name,
+      email: admin.email.toLowerCase(),
+      passwordHash: admin.passwordHash,
+      role: admin.role || "PLATFORM_ADMIN",
+    }).returning();
+    return created;
+  }
+
+  async updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean }>): Promise<PlatformAdmin | undefined> {
+    const updateData: any = { ...admin, updatedAt: new Date() };
+    if (admin.email) {
+      updateData.email = admin.email.toLowerCase();
+    }
+    const [updated] = await db.update(platformAdmins).set(updateData).where(eq(platformAdmins.id, id)).returning();
+    return updated;
+  }
+
+  async deletePlatformAdmin(id: string): Promise<void> {
+    await db.delete(platformAdmins).where(eq(platformAdmins.id, id));
+  }
+
+  async updatePlatformAdminLastLogin(id: string): Promise<void> {
+    await db.update(platformAdmins).set({ lastLoginAt: new Date() }).where(eq(platformAdmins.id, id));
   }
 }
 

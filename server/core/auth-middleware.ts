@@ -1,15 +1,26 @@
 import type { Request, Response, NextFunction } from "express";
 import { jwtAuthService, DecodedToken } from "./jwt";
 import { db } from "../db";
-import { users, tenants, roles, userTenants } from "@shared/schema";
+import { users, tenants, roles, userTenants, platformAdmins, type PlatformAdminRole } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { getTenantFeatures } from "./context";
 import type { RequestContext } from "@shared/schema";
+
+export interface PlatformAdminContext {
+  platformAdmin: {
+    id: string;
+    name: string;
+    email: string;
+    role: PlatformAdminRole;
+  };
+  permissions: string[];
+}
 
 declare global {
   namespace Express {
     interface Request {
       tokenPayload?: DecodedToken;
+      platformAdminContext?: PlatformAdminContext;
     }
   }
 }
@@ -42,6 +53,29 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
     }
 
     req.tokenPayload = decoded;
+
+    if (decoded.isPlatformAdmin) {
+      const [admin] = await db.select().from(platformAdmins).where(eq(platformAdmins.id, decoded.userId));
+      
+      if (!admin || !admin.isActive) {
+        return res.status(401).json({ 
+          message: "Platform admin not found or inactive",
+          code: "ADMIN_NOT_FOUND"
+        });
+      }
+
+      req.platformAdminContext = {
+        platformAdmin: {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role as PlatformAdminRole,
+        },
+        permissions: decoded.permissions,
+      };
+      
+      return next();
+    }
 
     if (decoded.userId) {
       const [dbUser] = await db.select().from(users).where(eq(users.id, decoded.userId));
@@ -78,6 +112,28 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
         permissions: decoded.permissions,
         features,
       };
+    }
+
+    next();
+  };
+}
+
+export function requirePlatformAdmin(requiredRole?: PlatformAdminRole) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.platformAdminContext) {
+      return res.status(403).json({ 
+        message: "Platform admin access required",
+        code: "NOT_PLATFORM_ADMIN"
+      });
+    }
+
+    if (requiredRole && requiredRole === "SUPER_ADMIN") {
+      if (req.platformAdminContext.platformAdmin.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ 
+          message: "Super admin access required",
+          code: "INSUFFICIENT_PLATFORM_ROLE"
+        });
+      }
     }
 
     next();

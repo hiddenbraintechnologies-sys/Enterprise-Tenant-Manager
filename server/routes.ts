@@ -422,6 +422,326 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== PLATFORM ADMIN ROUTES ====================
+  
+  const platformAdminLoginSchema = z.object({
+    email: z.string().email("Invalid email format"),
+    password: z.string().min(1, "Password is required"),
+  });
+
+  app.post("/api/platform-admin/login", authRateLimit, async (req, res) => {
+    try {
+      const parsed = platformAdminLoginSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const { email, password } = parsed.data;
+
+      const admin = await storage.getPlatformAdminByEmail(email);
+      if (!admin) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      if (!admin.isActive) {
+        return res.status(403).json({ message: "Account is disabled" });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, admin.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      await storage.updatePlatformAdminLastLogin(admin.id);
+
+      const tokens = await jwtAuthService.generatePlatformAdminTokenPair(
+        admin.id,
+        admin.role as "SUPER_ADMIN" | "PLATFORM_ADMIN",
+        {
+          userAgent: req.headers["user-agent"],
+          ipAddress: req.ip || undefined,
+        }
+      );
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: admin.id,
+        action: "login",
+        resource: "platform_admin",
+        metadata: { adminEmail: admin.email, role: admin.role },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        admin: {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role,
+        },
+      });
+    } catch (error) {
+      console.error("Platform admin login error:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  const requirePlatformAdmin = (requiredRole?: "SUPER_ADMIN" | "PLATFORM_ADMIN") => {
+    return (req: Request, res: Response, next: any) => {
+      if (!req.platformAdminContext) {
+        return res.status(403).json({ 
+          message: "Platform admin access required",
+          code: "NOT_PLATFORM_ADMIN"
+        });
+      }
+
+      if (requiredRole === "SUPER_ADMIN") {
+        if (req.platformAdminContext.platformAdmin.role !== "SUPER_ADMIN") {
+          return res.status(403).json({ 
+            message: "Super admin access required",
+            code: "INSUFFICIENT_PLATFORM_ROLE"
+          });
+        }
+      }
+
+      next();
+    };
+  };
+
+  app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      res.json({
+        admin: req.platformAdminContext?.platformAdmin,
+        permissions: req.platformAdminContext?.permissions,
+      });
+    } catch (error) {
+      console.error("Get platform admin me error:", error);
+      res.status(500).json({ message: "Failed to get admin info" });
+    }
+  });
+
+  const createPlatformAdminSchema = z.object({
+    name: z.string().min(1, "Name is required").max(200),
+    email: z.string().email("Invalid email format"),
+    password: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number"),
+    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN"]).optional(),
+  });
+
+  app.post("/api/platform-admin/admins", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = createPlatformAdminSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const { name, email, password, role } = parsed.data;
+
+      const existingAdmin = await storage.getPlatformAdminByEmail(email);
+      if (existingAdmin) {
+        return res.status(409).json({ message: "Email already registered" });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      const admin = await storage.createPlatformAdmin({
+        name,
+        email,
+        passwordHash,
+        role: role || "PLATFORM_ADMIN",
+      });
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "platform_admin",
+        resourceId: admin.id,
+        metadata: { adminEmail: admin.email, role: admin.role },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.status(201).json({
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        isActive: admin.isActive,
+        createdAt: admin.createdAt,
+      });
+    } catch (error) {
+      console.error("Create platform admin error:", error);
+      res.status(500).json({ message: "Failed to create admin" });
+    }
+  });
+
+  app.get("/api/platform-admin/admins", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const admins = await storage.getPlatformAdmins();
+      res.json(admins.map(admin => ({
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        isActive: admin.isActive,
+        lastLoginAt: admin.lastLoginAt,
+        createdAt: admin.createdAt,
+      })));
+    } catch (error) {
+      console.error("Get platform admins error:", error);
+      res.status(500).json({ message: "Failed to get admins" });
+    }
+  });
+
+  app.get("/api/platform-admin/admins/:id", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const admin = await storage.getPlatformAdmin(req.params.id);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      res.json({
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        isActive: admin.isActive,
+        lastLoginAt: admin.lastLoginAt,
+        createdAt: admin.createdAt,
+      });
+    } catch (error) {
+      console.error("Get platform admin error:", error);
+      res.status(500).json({ message: "Failed to get admin" });
+    }
+  });
+
+  const updatePlatformAdminSchema = z.object({
+    name: z.string().min(1).max(200).optional(),
+    email: z.string().email().optional(),
+    password: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .optional(),
+    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN"]).optional(),
+    isActive: z.boolean().optional(),
+  });
+
+  app.patch("/api/platform-admin/admins/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = updatePlatformAdminSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const existingAdmin = await storage.getPlatformAdmin(req.params.id);
+      if (!existingAdmin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      const { name, email, password, role, isActive } = parsed.data;
+
+      if (email && email !== existingAdmin.email) {
+        const existingWithEmail = await storage.getPlatformAdminByEmail(email);
+        if (existingWithEmail) {
+          return res.status(409).json({ message: "Email already in use" });
+        }
+      }
+
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (email) updateData.email = email;
+      if (password) updateData.passwordHash = await bcrypt.hash(password, 12);
+      if (role) updateData.role = role;
+      if (typeof isActive === "boolean") updateData.isActive = isActive;
+
+      const admin = await storage.updatePlatformAdmin(req.params.id, updateData);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "platform_admin",
+        resourceId: req.params.id,
+        metadata: { updatedFields: Object.keys(updateData) },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        id: admin?.id,
+        name: admin?.name,
+        email: admin?.email,
+        role: admin?.role,
+        isActive: admin?.isActive,
+      });
+    } catch (error) {
+      console.error("Update platform admin error:", error);
+      res.status(500).json({ message: "Failed to update admin" });
+    }
+  });
+
+  app.delete("/api/platform-admin/admins/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const currentAdminId = req.platformAdminContext?.platformAdmin.id;
+      
+      if (req.params.id === currentAdminId) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+
+      const existingAdmin = await storage.getPlatformAdmin(req.params.id);
+      if (!existingAdmin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      await storage.deletePlatformAdmin(req.params.id);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: currentAdminId,
+        action: "delete",
+        resource: "platform_admin",
+        resourceId: req.params.id,
+        metadata: { deletedAdminEmail: existingAdmin.email },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ message: "Admin deleted successfully" });
+    } catch (error) {
+      console.error("Delete platform admin error:", error);
+      res.status(500).json({ message: "Failed to delete admin" });
+    }
+  });
+
+  app.get("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const allTenants = await db.select().from(tenants);
+      res.json(allTenants);
+    } catch (error) {
+      console.error("Get all tenants error:", error);
+      res.status(500).json({ message: "Failed to get tenants" });
+    }
+  });
+
   // ==================== TENANT MANAGEMENT ROUTES ====================
   
   const tenantProtectedMiddleware = [
