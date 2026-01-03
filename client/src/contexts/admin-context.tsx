@@ -100,6 +100,19 @@ export function AdminGuard({
 }: AdminGuardProps) {
   const { admin, isLoading, isSuperAdmin, hasPermission, hasAnyPermission } = useAdmin();
   const [, setLocation] = useLocation();
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && !admin) {
+      setShouldRedirect(true);
+    }
+  }, [isLoading, admin]);
+
+  useEffect(() => {
+    if (shouldRedirect) {
+      setLocation("/");
+    }
+  }, [shouldRedirect, setLocation]);
 
   if (isLoading) {
     return (
@@ -112,8 +125,7 @@ export function AdminGuard({
     );
   }
 
-  if (!admin) {
-    setLocation("/");
+  if (!admin || shouldRedirect) {
     return null;
   }
 
