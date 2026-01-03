@@ -7,6 +7,8 @@ import {
   spaces, desks, deskBookings,
   patients, doctors, appointments, medicalRecords,
   platformAdmins, platformAdminPermissions, platformAdminPermissionAssignments,
+  supportTickets, supportTicketMessages, errorLogs, usageMetrics,
+  auditLogs, userTenants,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
@@ -32,6 +34,11 @@ import {
   type MedicalRecord, type InsertMedicalRecord,
   type PlatformAdmin, type PlatformAdminRole,
   type PlatformAdminPermission, type PlatformAdminPermissionAssignment,
+  type SupportTicket, type InsertSupportTicket,
+  type SupportTicketMessage, type InsertSupportTicketMessage,
+  type ErrorLog, type InsertErrorLog,
+  type UsageMetric, type InsertUsageMetric,
+  type AuditLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -193,6 +200,60 @@ export interface IStorage {
   updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean; forcePasswordReset: boolean }>): Promise<PlatformAdmin | undefined>;
   deletePlatformAdmin(id: string): Promise<void>;
   updatePlatformAdminLastLogin(id: string): Promise<void>;
+
+  // Platform Dashboard - Tenant Overview (read-only)
+  getAllTenants(): Promise<Tenant[]>;
+  getTenantStats(): Promise<{
+    totalTenants: number;
+    activeTenants: number;
+    tenantsByBusinessType: { type: string; count: number }[];
+    tenantsByTier: { tier: string; count: number }[];
+  }>;
+
+  // Platform Dashboard - User Statistics
+  getUserStats(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    usersByTenant: { tenantId: string; tenantName: string; count: number }[];
+  }>;
+
+  // Platform Dashboard - Error Logs
+  getErrorLogs(options?: { tenantId?: string; severity?: string; limit?: number; offset?: number }): Promise<ErrorLog[]>;
+  getErrorLogStats(): Promise<{
+    totalErrors: number;
+    unresolvedErrors: number;
+    errorsBySeverity: { severity: string; count: number }[];
+    errorsBySource: { source: string; count: number }[];
+  }>;
+  createErrorLog(log: InsertErrorLog): Promise<ErrorLog>;
+  resolveErrorLog(id: string, resolvedBy: string): Promise<ErrorLog | undefined>;
+
+  // Platform Dashboard - Support Tickets
+  getSupportTickets(options?: { tenantId?: string; status?: string; limit?: number; offset?: number }): Promise<SupportTicket[]>;
+  getSupportTicket(id: string): Promise<SupportTicket | undefined>;
+  getSupportTicketStats(): Promise<{
+    totalTickets: number;
+    openTickets: number;
+    ticketsByStatus: { status: string; count: number }[];
+    ticketsByPriority: { priority: string; count: number }[];
+  }>;
+  createSupportTicket(ticket: InsertSupportTicket): Promise<SupportTicket>;
+  updateSupportTicket(id: string, ticket: Partial<InsertSupportTicket>): Promise<SupportTicket | undefined>;
+  getSupportTicketMessages(ticketId: string): Promise<SupportTicketMessage[]>;
+  createSupportTicketMessage(message: InsertSupportTicketMessage): Promise<SupportTicketMessage>;
+
+  // Platform Dashboard - Usage Metrics
+  getUsageMetrics(tenantId: string, metricType?: string, startDate?: Date, endDate?: Date): Promise<UsageMetric[]>;
+  getAggregatedUsageMetrics(): Promise<{
+    totalApiCalls: number;
+    totalStorageUsed: number;
+    totalActiveUsers: number;
+    metricsByType: { type: string; total: number }[];
+  }>;
+  createUsageMetric(metric: InsertUsageMetric): Promise<UsageMetric>;
+
+  // Platform Dashboard - Audit Logs (read-only)
+  getAuditLogs(options?: { tenantId?: string; userId?: string; action?: string; limit?: number; offset?: number }): Promise<AuditLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -934,6 +995,330 @@ export class DatabaseStorage implements IStorage {
         eq(platformAdminPermissionAssignments.permissionCode, permissionCode)
       ));
     return !!assignment;
+  }
+
+  // Platform Dashboard - Tenant Overview
+  async getAllTenants(): Promise<Tenant[]> {
+    return db.select().from(tenants).orderBy(desc(tenants.createdAt));
+  }
+
+  async getTenantStats(): Promise<{
+    totalTenants: number;
+    activeTenants: number;
+    tenantsByBusinessType: { type: string; count: number }[];
+    tenantsByTier: { tier: string; count: number }[];
+  }> {
+    const allTenants = await db.select().from(tenants);
+    const totalTenants = allTenants.length;
+    const activeTenants = allTenants.filter(t => t.isActive).length;
+
+    const businessTypeMap = new Map<string, number>();
+    const tierMap = new Map<string, number>();
+
+    for (const tenant of allTenants) {
+      const type = tenant.businessType || "service";
+      businessTypeMap.set(type, (businessTypeMap.get(type) || 0) + 1);
+      
+      const tier = tenant.subscriptionTier || "free";
+      tierMap.set(tier, (tierMap.get(tier) || 0) + 1);
+    }
+
+    return {
+      totalTenants,
+      activeTenants,
+      tenantsByBusinessType: Array.from(businessTypeMap.entries()).map(([type, count]) => ({ type, count })),
+      tenantsByTier: Array.from(tierMap.entries()).map(([tier, count]) => ({ tier, count })),
+    };
+  }
+
+  // Platform Dashboard - User Statistics
+  async getUserStats(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    usersByTenant: { tenantId: string; tenantName: string; count: number }[];
+  }> {
+    const allUserTenants = await db.select({
+      tenantId: userTenants.tenantId,
+      tenantName: tenants.name,
+      isActive: userTenants.isActive,
+    })
+      .from(userTenants)
+      .leftJoin(tenants, eq(userTenants.tenantId, tenants.id));
+
+    const totalUsers = allUserTenants.length;
+    const activeUsers = allUserTenants.filter(ut => ut.isActive).length;
+
+    const tenantCountMap = new Map<string, { name: string; count: number }>();
+    for (const ut of allUserTenants) {
+      if (ut.tenantId) {
+        const existing = tenantCountMap.get(ut.tenantId);
+        if (existing) {
+          existing.count++;
+        } else {
+          tenantCountMap.set(ut.tenantId, { name: ut.tenantName || "Unknown", count: 1 });
+        }
+      }
+    }
+
+    return {
+      totalUsers,
+      activeUsers,
+      usersByTenant: Array.from(tenantCountMap.entries()).map(([tenantId, data]) => ({
+        tenantId,
+        tenantName: data.name,
+        count: data.count,
+      })),
+    };
+  }
+
+  // Platform Dashboard - Error Logs
+  async getErrorLogs(options?: { tenantId?: string; severity?: string; limit?: number; offset?: number }): Promise<ErrorLog[]> {
+    let query = db.select().from(errorLogs).$dynamic();
+    
+    const conditions: any[] = [];
+    if (options?.tenantId) {
+      conditions.push(eq(errorLogs.tenantId, options.tenantId));
+    }
+    if (options?.severity) {
+      conditions.push(eq(errorLogs.severity, options.severity as any));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(errorLogs.createdAt));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
+  }
+
+  async getErrorLogStats(): Promise<{
+    totalErrors: number;
+    unresolvedErrors: number;
+    errorsBySeverity: { severity: string; count: number }[];
+    errorsBySource: { source: string; count: number }[];
+  }> {
+    const allErrors = await db.select().from(errorLogs);
+    const totalErrors = allErrors.length;
+    const unresolvedErrors = allErrors.filter(e => !e.isResolved).length;
+
+    const severityMap = new Map<string, number>();
+    const sourceMap = new Map<string, number>();
+
+    for (const error of allErrors) {
+      const severity = error.severity || "error";
+      severityMap.set(severity, (severityMap.get(severity) || 0) + 1);
+      
+      const source = error.source;
+      sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
+    }
+
+    return {
+      totalErrors,
+      unresolvedErrors,
+      errorsBySeverity: Array.from(severityMap.entries()).map(([severity, count]) => ({ severity, count })),
+      errorsBySource: Array.from(sourceMap.entries()).map(([source, count]) => ({ source, count })),
+    };
+  }
+
+  async createErrorLog(log: InsertErrorLog): Promise<ErrorLog> {
+    const [created] = await db.insert(errorLogs).values(log).returning();
+    return created;
+  }
+
+  async resolveErrorLog(id: string, resolvedBy: string): Promise<ErrorLog | undefined> {
+    const [updated] = await db.update(errorLogs)
+      .set({ isResolved: true, resolvedAt: new Date(), resolvedBy })
+      .where(eq(errorLogs.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Platform Dashboard - Support Tickets
+  async getSupportTickets(options?: { tenantId?: string; status?: string; limit?: number; offset?: number }): Promise<SupportTicket[]> {
+    let query = db.select().from(supportTickets).$dynamic();
+    
+    const conditions: any[] = [];
+    if (options?.tenantId) {
+      conditions.push(eq(supportTickets.tenantId, options.tenantId));
+    }
+    if (options?.status) {
+      conditions.push(eq(supportTickets.status, options.status as any));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(supportTickets.createdAt));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
+  }
+
+  async getSupportTicket(id: string): Promise<SupportTicket | undefined> {
+    const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, id));
+    return ticket;
+  }
+
+  async getSupportTicketStats(): Promise<{
+    totalTickets: number;
+    openTickets: number;
+    ticketsByStatus: { status: string; count: number }[];
+    ticketsByPriority: { priority: string; count: number }[];
+  }> {
+    const allTickets = await db.select().from(supportTickets);
+    const totalTickets = allTickets.length;
+    const openTickets = allTickets.filter(t => t.status === "open" || t.status === "in_progress").length;
+
+    const statusMap = new Map<string, number>();
+    const priorityMap = new Map<string, number>();
+
+    for (const ticket of allTickets) {
+      const status = ticket.status || "open";
+      statusMap.set(status, (statusMap.get(status) || 0) + 1);
+      
+      const priority = ticket.priority || "medium";
+      priorityMap.set(priority, (priorityMap.get(priority) || 0) + 1);
+    }
+
+    return {
+      totalTickets,
+      openTickets,
+      ticketsByStatus: Array.from(statusMap.entries()).map(([status, count]) => ({ status, count })),
+      ticketsByPriority: Array.from(priorityMap.entries()).map(([priority, count]) => ({ priority, count })),
+    };
+  }
+
+  async createSupportTicket(ticket: InsertSupportTicket): Promise<SupportTicket> {
+    const [created] = await db.insert(supportTickets).values(ticket).returning();
+    return created;
+  }
+
+  async updateSupportTicket(id: string, ticket: Partial<InsertSupportTicket>): Promise<SupportTicket | undefined> {
+    const [updated] = await db.update(supportTickets)
+      .set({ ...ticket, updatedAt: new Date() })
+      .where(eq(supportTickets.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getSupportTicketMessages(ticketId: string): Promise<SupportTicketMessage[]> {
+    return db.select()
+      .from(supportTicketMessages)
+      .where(eq(supportTicketMessages.ticketId, ticketId))
+      .orderBy(supportTicketMessages.createdAt);
+  }
+
+  async createSupportTicketMessage(message: InsertSupportTicketMessage): Promise<SupportTicketMessage> {
+    const [created] = await db.insert(supportTicketMessages).values(message).returning();
+    return created;
+  }
+
+  // Platform Dashboard - Usage Metrics
+  async getUsageMetrics(tenantId: string, metricType?: string, startDate?: Date, endDate?: Date): Promise<UsageMetric[]> {
+    const conditions: any[] = [eq(usageMetrics.tenantId, tenantId)];
+    
+    if (metricType) {
+      conditions.push(eq(usageMetrics.metricType, metricType));
+    }
+    if (startDate) {
+      conditions.push(gte(usageMetrics.periodStart, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(usageMetrics.periodEnd, endDate));
+    }
+    
+    return db.select()
+      .from(usageMetrics)
+      .where(and(...conditions))
+      .orderBy(desc(usageMetrics.periodStart));
+  }
+
+  async getAggregatedUsageMetrics(): Promise<{
+    totalApiCalls: number;
+    totalStorageUsed: number;
+    totalActiveUsers: number;
+    metricsByType: { type: string; total: number }[];
+  }> {
+    const allMetrics = await db.select().from(usageMetrics);
+    
+    let totalApiCalls = 0;
+    let totalStorageUsed = 0;
+    let totalActiveUsers = 0;
+    const typeMap = new Map<string, number>();
+
+    for (const metric of allMetrics) {
+      const value = parseFloat(metric.metricValue);
+      
+      if (metric.metricType === "api_calls") {
+        totalApiCalls += value;
+      } else if (metric.metricType === "storage_mb") {
+        totalStorageUsed += value;
+      } else if (metric.metricType === "active_users") {
+        totalActiveUsers += value;
+      }
+      
+      typeMap.set(metric.metricType, (typeMap.get(metric.metricType) || 0) + value);
+    }
+
+    return {
+      totalApiCalls,
+      totalStorageUsed,
+      totalActiveUsers,
+      metricsByType: Array.from(typeMap.entries()).map(([type, total]) => ({ type, total })),
+    };
+  }
+
+  async createUsageMetric(metric: InsertUsageMetric): Promise<UsageMetric> {
+    const [created] = await db.insert(usageMetrics).values(metric).returning();
+    return created;
+  }
+
+  // Platform Dashboard - Audit Logs
+  async getAuditLogs(options?: { tenantId?: string; userId?: string; action?: string; limit?: number; offset?: number }): Promise<AuditLog[]> {
+    let query = db.select().from(auditLogs).$dynamic();
+    
+    const conditions: any[] = [];
+    if (options?.tenantId) {
+      conditions.push(eq(auditLogs.tenantId, options.tenantId));
+    }
+    if (options?.userId) {
+      conditions.push(eq(auditLogs.userId, options.userId));
+    }
+    if (options?.action) {
+      conditions.push(eq(auditLogs.action, options.action as any));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(auditLogs.createdAt));
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    } else {
+      query = query.limit(100); // Default limit
+    }
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+    
+    return query;
   }
 }
 
