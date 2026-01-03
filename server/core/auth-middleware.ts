@@ -140,6 +140,41 @@ export function requirePlatformAdmin(requiredRole?: PlatformAdminRole) {
   };
 }
 
+export function requirePlatformPermission(...requiredPermissions: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.platformAdminContext) {
+      return res.status(403).json({ 
+        message: "Platform admin access required",
+        code: "NOT_PLATFORM_ADMIN"
+      });
+    }
+
+    // SUPER_ADMIN bypasses all permission checks
+    if (req.platformAdminContext.platformAdmin.role === "SUPER_ADMIN") {
+      return next();
+    }
+
+    // Check if the admin has all required permissions
+    const adminPermissions = req.platformAdminContext.permissions || [];
+    const hasAllPermissions = requiredPermissions.every(perm => 
+      adminPermissions.includes(perm) || 
+      adminPermissions.includes("*") ||
+      adminPermissions.includes(`${perm.split(":")[0]}:*`)
+    );
+
+    if (!hasAllPermissions) {
+      return res.status(403).json({ 
+        message: "Insufficient permissions",
+        code: "MISSING_PERMISSION",
+        required: requiredPermissions,
+        current: adminPermissions,
+      });
+    }
+
+    next();
+  };
+}
+
 export function requireRole(...allowedRoles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.context?.user) {
