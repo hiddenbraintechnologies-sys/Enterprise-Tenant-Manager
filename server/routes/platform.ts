@@ -485,4 +485,353 @@ router.get("/me", async (req, res) => {
   }
 });
 
+const createUserSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  password: z.string().min(8),
+  makePlatformAdmin: z.boolean().optional(),
+  platformRole: z.enum(["super_admin", "platform_admin"]).optional(),
+  platformPermissions: z.array(z.string()).optional(),
+});
+
+const updateUserSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  password: z.string().min(8).optional(),
+});
+
+router.get("/users",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const { page = "1", limit = "50", search } = req.query;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      let query = db.select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      }).from(users);
+
+      const allUsers = await query
+        .orderBy(desc(users.createdAt))
+        .limit(parseInt(limit as string))
+        .offset(offset);
+
+      const [totalCount] = await db.select({ count: count() }).from(users);
+
+      const usersWithAdminStatus = await Promise.all(
+        allUsers.map(async (user) => {
+          const [admin] = await db.select({
+            id: platformAdmins.id,
+            role: platformAdmins.role,
+            status: platformAdmins.status,
+          }).from(platformAdmins).where(eq(platformAdmins.userId, user.id));
+          
+          return {
+            ...user,
+            isPlatformAdmin: !!admin,
+            platformAdmin: admin || null,
+          };
+        })
+      );
+
+      res.json({
+        users: usersWithAdminStatus,
+        pagination: {
+          page: parseInt(page as string),
+          limit: parseInt(limit as string),
+          total: totalCount?.count || 0,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  }
+);
+
+router.post("/users",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const parsed = createUserSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const { email, firstName, lastName, password, makePlatformAdmin, platformRole, platformPermissions } = parsed.data;
+
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+      if (existingUser) {
+        return res.status(409).json({ message: "Email already exists" });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+
+      const [newUser] = await db.insert(users).values({
+        email,
+        firstName,
+        lastName,
+        passwordHash,
+      }).returning();
+
+      if (makePlatformAdmin && platformRole) {
+        await db.insert(platformAdmins).values({
+          userId: newUser.id,
+          role: platformRole,
+          status: "active",
+          permissions: platformPermissions || [],
+          mustChangePassword: true,
+          createdBy: req.platformContext!.user.id,
+        });
+      }
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "create_user",
+        "user",
+        newUser.id,
+        undefined,
+        { email, makePlatformAdmin, platformRole },
+        req
+      );
+
+      res.status(201).json({
+        id: newUser.id,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+      });
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  }
+);
+
+router.patch("/users/:id",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const parsed = updateUserSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const userId = req.params.id;
+      const { firstName, lastName, password } = parsed.data;
+
+      const [existingUser] = await db.select().from(users).where(eq(users.id, userId));
+      if (!existingUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      if (firstName) updates.firstName = firstName;
+      if (lastName) updates.lastName = lastName;
+      if (password) updates.passwordHash = await bcrypt.hash(password, 12);
+
+      await db.update(users).set(updates).where(eq(users.id, userId));
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "update_user",
+        "user",
+        userId,
+        undefined,
+        { updatedFields: Object.keys(updates).filter(k => k !== "updatedAt") },
+        req
+      );
+
+      res.json({ message: "User updated successfully" });
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  }
+);
+
+router.delete("/users/:id",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const userId = req.params.id;
+
+      if (userId === req.platformContext!.user.id) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+
+      const [existingUser] = await db.select().from(users).where(eq(users.id, userId));
+      if (!existingUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      await db.delete(platformAdmins).where(eq(platformAdmins.userId, userId));
+      await db.delete(userTenants).where(eq(userTenants.userId, userId));
+      await db.delete(users).where(eq(users.id, userId));
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "delete_user",
+        "user",
+        userId,
+        undefined,
+        { email: existingUser.email },
+        req
+      );
+
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  }
+);
+
+const createAdminSchema = z.object({
+  userId: z.string(),
+  role: z.enum(["super_admin", "platform_admin"]),
+  permissions: z.array(z.string()).optional(),
+});
+
+const updateAdminSchema = z.object({
+  role: z.enum(["super_admin", "platform_admin"]).optional(),
+  status: z.enum(["active", "inactive", "suspended"]).optional(),
+  permissions: z.array(z.string()).optional(),
+});
+
+router.post("/admins",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const parsed = createAdminSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const { userId, role, permissions } = parsed.data;
+
+      const [existingUser] = await db.select().from(users).where(eq(users.id, userId));
+      if (!existingUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const [existingAdmin] = await db.select().from(platformAdmins).where(eq(platformAdmins.userId, userId));
+      if (existingAdmin) {
+        return res.status(409).json({ message: "User is already a platform admin" });
+      }
+
+      const [newAdmin] = await db.insert(platformAdmins).values({
+        userId,
+        role,
+        status: "active",
+        permissions: permissions || [],
+        mustChangePassword: false,
+        createdBy: req.platformContext!.user.id,
+      }).returning();
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "create_admin",
+        "platform_admin",
+        newAdmin.id,
+        undefined,
+        { userId, role },
+        req
+      );
+
+      res.status(201).json(newAdmin);
+    } catch (error) {
+      console.error("Error creating admin:", error);
+      res.status(500).json({ message: "Failed to create admin" });
+    }
+  }
+);
+
+router.patch("/admins/:id",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const parsed = updateAdminSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const adminId = req.params.id;
+      const { role, status, permissions } = parsed.data;
+
+      const [existingAdmin] = await db.select().from(platformAdmins).where(eq(platformAdmins.id, adminId));
+      if (!existingAdmin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      if (existingAdmin.id === req.platformContext!.platformAdmin.id) {
+        return res.status(400).json({ message: "Cannot modify your own admin account" });
+      }
+
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      if (role) updates.role = role;
+      if (status) updates.status = status;
+      if (permissions) updates.permissions = permissions;
+
+      await db.update(platformAdmins).set(updates).where(eq(platformAdmins.id, adminId));
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "update_admin",
+        "platform_admin",
+        adminId,
+        undefined,
+        { updatedFields: Object.keys(updates).filter(k => k !== "updatedAt") },
+        req
+      );
+
+      res.json({ message: "Admin updated successfully" });
+    } catch (error) {
+      console.error("Error updating admin:", error);
+      res.status(500).json({ message: "Failed to update admin" });
+    }
+  }
+);
+
+router.delete("/admins/:id",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const adminId = req.params.id;
+
+      const [existingAdmin] = await db.select().from(platformAdmins).where(eq(platformAdmins.id, adminId));
+      if (!existingAdmin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      if (existingAdmin.id === req.platformContext!.platformAdmin.id) {
+        return res.status(400).json({ message: "Cannot remove your own admin status" });
+      }
+
+      await db.delete(platformAdmins).where(eq(platformAdmins.id, adminId));
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "delete_admin",
+        "platform_admin",
+        adminId,
+        undefined,
+        { userId: existingAdmin.userId },
+        req
+      );
+
+      res.json({ message: "Admin removed successfully" });
+    } catch (error) {
+      console.error("Error removing admin:", error);
+      res.status(500).json({ message: "Failed to remove admin" });
+    }
+  }
+);
+
 export default router;
