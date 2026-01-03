@@ -592,6 +592,17 @@ export async function registerRoutes(
   app.get("/api/platform-admin/admins", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
       const admins = await storage.getPlatformAdmins();
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "read",
+        resource: "platform_admin",
+        metadata: { action: "list_all" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
       res.json(admins.map(admin => ({
         id: admin.id,
         name: admin.name,
@@ -735,6 +746,17 @@ export async function registerRoutes(
   app.get("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
       const allTenants = await db.select().from(tenants);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "read",
+        resource: "tenants",
+        metadata: { action: "list_all_tenants", count: allTenants.length },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
       res.json(allTenants);
     } catch (error) {
       console.error("Get all tenants error:", error);
