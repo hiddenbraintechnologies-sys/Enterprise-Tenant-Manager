@@ -888,24 +888,351 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+  // ==================== GLOBAL TENANT REGISTRY ====================
+
+  // List all tenants with filtering
+  app.get("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
     try {
-      const allTenants = await db.select().from(tenants);
+      const { country, region, status, businessType, search } = req.query;
+      
+      let query = db.select().from(tenants);
+      
+      const allTenants = await query;
+      
+      // Filter in memory for flexibility (can be optimized with drizzle where clauses)
+      let filtered = allTenants;
+      
+      if (country && typeof country === 'string') {
+        filtered = filtered.filter(t => t.country === country);
+      }
+      if (region && typeof region === 'string') {
+        filtered = filtered.filter(t => t.region === region);
+      }
+      if (status && typeof status === 'string') {
+        filtered = filtered.filter(t => t.status === status);
+      }
+      if (businessType && typeof businessType === 'string') {
+        filtered = filtered.filter(t => t.businessType === businessType);
+      }
+      if (search && typeof search === 'string') {
+        const searchLower = search.toLowerCase();
+        filtered = filtered.filter(t => 
+          t.name.toLowerCase().includes(searchLower) ||
+          t.email?.toLowerCase().includes(searchLower) ||
+          t.slug?.toLowerCase().includes(searchLower)
+        );
+      }
 
       auditService.logAsync({
         tenantId: undefined,
         userId: req.platformAdminContext?.platformAdmin.id,
-        action: "read",
-        resource: "tenants",
-        metadata: { action: "list_all_tenants", count: allTenants.length },
+        action: "access",
+        resource: "tenant_registry",
+        metadata: { action: "list_tenants", filters: { country, region, status, businessType }, count: filtered.length },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       });
 
-      res.json(allTenants);
+      res.json({
+        tenants: filtered,
+        total: filtered.length,
+        filters: { country, region, status, businessType }
+      });
     } catch (error) {
       console.error("Get all tenants error:", error);
       res.status(500).json({ message: "Failed to get tenants" });
+    }
+  });
+
+  // Get single tenant details
+  app.get("/api/platform-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+    try {
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, req.params.tenantId));
+      
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      // Get user count for this tenant
+      const userCount = await db.select().from(userTenants).where(eq(userTenants.tenantId, tenant.id));
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "tenant_registry",
+        resourceId: tenant.id,
+        metadata: { action: "view_tenant", tenantName: tenant.name },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        ...tenant,
+        userCount: userCount.length
+      });
+    } catch (error) {
+      console.error("Get tenant error:", error);
+      res.status(500).json({ message: "Failed to get tenant" });
+    }
+  });
+
+  // Create new tenant (Super Admin only)
+  const createTenantSchema = z.object({
+    name: z.string().min(1, "Name is required").max(200),
+    slug: z.string().min(1).max(100).optional(),
+    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service"]),
+    country: z.enum(["india", "uae", "uk", "malaysia", "singapore"]).default("india"),
+    region: z.enum(["asia_pacific", "middle_east", "europe"]).default("asia_pacific"),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    timezone: z.string().default("Asia/Kolkata"),
+    currency: z.string().default("INR"),
+    subscriptionTier: z.enum(["free", "pro", "enterprise"]).default("free"),
+    maxUsers: z.number().int().positive().default(5),
+    maxCustomers: z.number().int().positive().default(100),
+  });
+
+  app.post("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = createTenantSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const { name, slug, businessType, country, region, email, phone, address, timezone, currency, subscriptionTier, maxUsers, maxCustomers } = parsed.data;
+
+      // Generate slug if not provided
+      const tenantSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+      // Check if slug already exists
+      const [existingSlug] = await db.select().from(tenants).where(eq(tenants.slug, tenantSlug));
+      if (existingSlug) {
+        return res.status(409).json({ message: "Tenant slug already exists" });
+      }
+
+      const [newTenant] = await db.insert(tenants).values({
+        name,
+        slug: tenantSlug,
+        businessType,
+        country,
+        region,
+        status: "active",
+        email,
+        phone,
+        address,
+        timezone,
+        currency,
+        subscriptionTier,
+        maxUsers,
+        maxCustomers,
+      }).returning();
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "tenant_registry",
+        resourceId: newTenant.id,
+        newValue: { name, businessType, country, region },
+        metadata: { action: "create_tenant" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.status(201).json(newTenant);
+    } catch (error) {
+      console.error("Create tenant error:", error);
+      res.status(500).json({ message: "Failed to create tenant" });
+    }
+  });
+
+  // Update tenant (Super Admin only) - businessType is immutable
+  const updateTenantSchema = z.object({
+    name: z.string().min(1).max(200).optional(),
+    slug: z.string().min(1).max(100).optional(),
+    country: z.enum(["india", "uae", "uk", "malaysia", "singapore"]).optional(),
+    region: z.enum(["asia_pacific", "middle_east", "europe"]).optional(),
+    email: z.string().email().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    timezone: z.string().optional(),
+    currency: z.string().optional(),
+    subscriptionTier: z.enum(["free", "pro", "enterprise"]).optional(),
+    maxUsers: z.number().int().positive().optional(),
+    maxCustomers: z.number().int().positive().optional(),
+    logoUrl: z.string().optional().nullable(),
+    primaryColor: z.string().optional(),
+    secondaryColor: z.string().optional(),
+  });
+
+  app.patch("/api/platform-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = updateTenantSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const [existingTenant] = await db.select().from(tenants).where(eq(tenants.id, req.params.tenantId));
+      if (!existingTenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      // Explicitly prevent businessType modification
+      if ('businessType' in req.body) {
+        return res.status(400).json({ message: "Business type cannot be modified after creation" });
+      }
+
+      // Check slug uniqueness if being updated
+      if (parsed.data.slug && parsed.data.slug !== existingTenant.slug) {
+        const [slugConflict] = await db.select().from(tenants).where(eq(tenants.slug, parsed.data.slug));
+        if (slugConflict) {
+          return res.status(409).json({ message: "Tenant slug already exists" });
+        }
+      }
+
+      const [updatedTenant] = await db.update(tenants)
+        .set({
+          ...parsed.data,
+          updatedAt: new Date(),
+        })
+        .where(eq(tenants.id, req.params.tenantId))
+        .returning();
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "tenant_registry",
+        resourceId: req.params.tenantId,
+        oldValue: existingTenant,
+        newValue: updatedTenant,
+        metadata: { action: "update_tenant", changes: Object.keys(parsed.data) },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(updatedTenant);
+    } catch (error) {
+      console.error("Update tenant error:", error);
+      res.status(500).json({ message: "Failed to update tenant" });
+    }
+  });
+
+  // Change tenant lifecycle status (Super Admin only)
+  const changeStatusSchema = z.object({
+    status: z.enum(["active", "suspended", "cancelled"]),
+    reason: z.string().min(1, "Reason is required").max(500),
+  });
+
+  app.post("/api/platform-admin/tenants/:tenantId/status", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = changeStatusSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const [existingTenant] = await db.select().from(tenants).where(eq(tenants.id, req.params.tenantId));
+      if (!existingTenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const { status, reason } = parsed.data;
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+
+      const [updatedTenant] = await db.update(tenants)
+        .set({
+          status,
+          isActive: status === "active",
+          statusChangedAt: new Date(),
+          statusChangedBy: adminId,
+          statusChangeReason: reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(tenants.id, req.params.tenantId))
+        .returning();
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: adminId,
+        action: "update",
+        resource: "tenant_lifecycle",
+        resourceId: req.params.tenantId,
+        oldValue: { status: existingTenant.status },
+        newValue: { status },
+        metadata: { 
+          action: "change_tenant_status", 
+          tenantName: existingTenant.name,
+          previousStatus: existingTenant.status,
+          newStatus: status,
+          reason 
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        message: `Tenant status changed to ${status}`,
+        tenant: updatedTenant
+      });
+    } catch (error) {
+      console.error("Change tenant status error:", error);
+      res.status(500).json({ message: "Failed to change tenant status" });
+    }
+  });
+
+  // Get tenant statistics by region/country
+  app.get("/api/platform-admin/tenants/stats/summary", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_analytics"), async (req, res) => {
+    try {
+      const allTenants = await db.select().from(tenants);
+
+      const stats = {
+        total: allTenants.length,
+        byStatus: {
+          active: allTenants.filter(t => t.status === "active").length,
+          suspended: allTenants.filter(t => t.status === "suspended").length,
+          cancelled: allTenants.filter(t => t.status === "cancelled").length,
+        },
+        byCountry: {
+          india: allTenants.filter(t => t.country === "india").length,
+          uae: allTenants.filter(t => t.country === "uae").length,
+          uk: allTenants.filter(t => t.country === "uk").length,
+          malaysia: allTenants.filter(t => t.country === "malaysia").length,
+          singapore: allTenants.filter(t => t.country === "singapore").length,
+        },
+        byRegion: {
+          asia_pacific: allTenants.filter(t => t.region === "asia_pacific").length,
+          middle_east: allTenants.filter(t => t.region === "middle_east").length,
+          europe: allTenants.filter(t => t.region === "europe").length,
+        },
+        byBusinessType: {
+          clinic: allTenants.filter(t => t.businessType === "clinic").length,
+          salon: allTenants.filter(t => t.businessType === "salon").length,
+          pg: allTenants.filter(t => t.businessType === "pg").length,
+          coworking: allTenants.filter(t => t.businessType === "coworking").length,
+          service: allTenants.filter(t => t.businessType === "service").length,
+        },
+        bySubscription: {
+          free: allTenants.filter(t => t.subscriptionTier === "free").length,
+          pro: allTenants.filter(t => t.subscriptionTier === "pro").length,
+          enterprise: allTenants.filter(t => t.subscriptionTier === "enterprise").length,
+        }
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Get tenant stats error:", error);
+      res.status(500).json({ message: "Failed to get tenant statistics" });
     }
   });
 

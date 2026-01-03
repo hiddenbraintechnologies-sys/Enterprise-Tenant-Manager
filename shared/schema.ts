@@ -16,6 +16,9 @@ export const bookingStatusEnum = pgEnum("booking_status", ["pending", "confirmed
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "refunded"]);
 export const businessTypeEnum = pgEnum("business_type", ["clinic", "salon", "pg", "coworking", "service"]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
+export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore"]);
+export const tenantStatusEnum = pgEnum("tenant_status", ["active", "suspended", "cancelled"]);
+export const tenantRegionEnum = pgEnum("tenant_region", ["asia_pacific", "middle_east", "europe"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp", "push"]);
 export const notificationStatusEnum = pgEnum("notification_status", ["pending", "sent", "delivered", "failed"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "pending", "paid", "partial", "overdue", "cancelled", "refunded"]);
@@ -33,6 +36,9 @@ export const tenants = pgTable("tenants", {
   name: text("name").notNull(),
   slug: varchar("slug", { length: 100 }).unique(),
   businessType: businessTypeEnum("business_type").default("service"),
+  country: tenantCountryEnum("country").default("india"),
+  region: tenantRegionEnum("region").default("asia_pacific"),
+  status: tenantStatusEnum("status").default("active"),
   email: text("email"),
   phone: text("phone"),
   address: text("address"),
@@ -46,10 +52,17 @@ export const tenants = pgTable("tenants", {
   subscriptionExpiresAt: timestamp("subscription_expires_at"),
   maxUsers: integer("max_users").default(5),
   maxCustomers: integer("max_customers").default(100),
+  statusChangedAt: timestamp("status_changed_at"),
+  statusChangedBy: varchar("status_changed_by"),
+  statusChangeReason: text("status_change_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
-});
+}, (table) => [
+  index("idx_tenants_country").on(table.country),
+  index("idx_tenants_region").on(table.region),
+  index("idx_tenants_status").on(table.status),
+]);
 
 export const tenantDomains = pgTable("tenant_domains", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
