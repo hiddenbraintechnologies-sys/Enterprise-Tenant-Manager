@@ -1,7 +1,7 @@
 import jwt, { SignOptions, JwtPayload } from "jsonwebtoken";
 import { randomBytes, createHash } from "crypto";
 import { db } from "../db";
-import { refreshTokens, apiTokens, users, type User } from "@shared/schema";
+import { refreshTokens, apiTokens, users, platformAdmins, type User, type PlatformAdminRole } from "@shared/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { resolveTenantFromUser } from "./context";
 
@@ -26,6 +26,8 @@ export interface TokenPayload extends JwtPayload {
   type: "access" | "refresh";
   jti: string;
   ver: number;
+  isPlatformAdmin?: boolean;
+  platformRole?: PlatformAdminRole;
 }
 
 export interface TokenPair {
@@ -41,6 +43,8 @@ export interface DecodedToken {
   roleId: string | null;
   permissions: string[];
   jti: string;
+  isPlatformAdmin?: boolean;
+  platformRole?: PlatformAdminRole;
 }
 
 function generateTokenId(): string {
@@ -131,10 +135,80 @@ export class JWTAuthService {
         roleId: decoded.rol,
         permissions: decoded.perms,
         jti: decoded.jti,
+        isPlatformAdmin: decoded.isPlatformAdmin,
+        platformRole: decoded.platformRole,
       };
     } catch (error) {
       return null;
     }
+  }
+
+  async generatePlatformAdminTokenPair(
+    adminId: string,
+    platformRole: PlatformAdminRole,
+    deviceInfo?: { userAgent?: string; ipAddress?: string }
+  ): Promise<TokenPair> {
+    const accessJti = generateTokenId();
+    const refreshJti = generateTokenId();
+
+    const platformPermissions = platformRole === "SUPER_ADMIN" 
+      ? ["platform:*", "tenants:*", "users:*", "admins:*"]
+      : ["platform:read", "tenants:read", "users:read"];
+
+    const accessPayload: TokenPayload = {
+      sub: adminId,
+      tnt: null,
+      rol: null,
+      perms: platformPermissions,
+      type: "access",
+      jti: accessJti,
+      ver: 1,
+      isPlatformAdmin: true,
+      platformRole,
+    };
+
+    const refreshPayload: TokenPayload = {
+      sub: adminId,
+      tnt: null,
+      rol: null,
+      perms: [],
+      type: "refresh",
+      jti: refreshJti,
+      ver: 1,
+      isPlatformAdmin: true,
+      platformRole,
+    };
+
+    const accessToken = jwt.sign(accessPayload, JWT_SECRET, {
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+      issuer: "bizflow",
+      audience: "bizflow-api",
+    } as SignOptions);
+
+    const refreshExpiresAt = new Date();
+    refreshExpiresAt.setDate(refreshExpiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
+
+    const refreshToken = jwt.sign(refreshPayload, JWT_SECRET, {
+      expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
+      issuer: "bizflow",
+      audience: "bizflow-api",
+    } as SignOptions);
+
+    await db.insert(refreshTokens).values({
+      userId: adminId,
+      tenantId: null,
+      tokenHash: hashToken(refreshJti),
+      deviceInfo: { ...deviceInfo, isPlatformAdmin: true },
+      expiresAt: refreshExpiresAt,
+      isRevoked: false,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: 15 * 60,
+      tokenType: "Bearer",
+    };
   }
 
   async verifyRefreshToken(token: string): Promise<DecodedToken | null> {

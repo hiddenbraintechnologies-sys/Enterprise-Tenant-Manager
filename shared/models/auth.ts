@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
 
 // Session storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
@@ -28,3 +30,37 @@ export const users = pgTable("users", {
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Platform Admin roles enum
+export const platformAdminRoleEnum = pgEnum("platform_admin_role", ["SUPER_ADMIN", "PLATFORM_ADMIN"]);
+
+// Platform Admin table - NOT tied to any tenant
+export const platformAdmins = pgTable("platform_admins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  email: varchar("email").unique().notNull(),
+  passwordHash: varchar("password_hash").notNull(),
+  role: platformAdminRoleEnum("role").notNull().default("PLATFORM_ADMIN"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPlatformAdminSchema = createInsertSchema(platformAdmins).omit({
+  id: true,
+  passwordHash: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLoginAt: true,
+}).extend({
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number"),
+});
+
+export type InsertPlatformAdmin = z.infer<typeof insertPlatformAdminSchema>;
+export type PlatformAdmin = typeof platformAdmins.$inferSelect;
+export type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN";
