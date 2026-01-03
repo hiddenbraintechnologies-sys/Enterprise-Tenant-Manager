@@ -42,9 +42,11 @@ export const platformAdmins = pgTable("platform_admins", {
   passwordHash: varchar("password_hash").notNull(),
   role: platformAdminRoleEnum("role").notNull().default("PLATFORM_ADMIN"),
   isActive: boolean("is_active").notNull().default(true),
+  forcePasswordReset: boolean("force_password_reset").notNull().default(false),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by"),
 });
 
 export const insertPlatformAdminSchema = createInsertSchema(platformAdmins).omit({

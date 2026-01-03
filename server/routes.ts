@@ -543,6 +543,8 @@ export async function registerRoutes(
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
     role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN"]).optional(),
+    forcePasswordReset: z.boolean().optional().default(true),
+    permissions: z.array(z.string()).optional(),
   });
 
   app.post("/api/platform-admin/admins", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
@@ -555,7 +557,7 @@ export async function registerRoutes(
         });
       }
 
-      const { name, email, password, role } = parsed.data;
+      const { name, email, password, role, forcePasswordReset, permissions } = parsed.data;
 
       const existingAdmin = await storage.getPlatformAdminByEmail(email);
       if (existingAdmin) {
@@ -568,7 +570,21 @@ export async function registerRoutes(
         email,
         passwordHash,
         role: role || "PLATFORM_ADMIN",
+        forcePasswordReset: forcePasswordReset ?? true,
+        createdBy: req.platformAdminContext?.platformAdmin.id,
       });
+
+      // Assign permissions if provided (only for PLATFORM_ADMIN role)
+      const assignedPermissions: string[] = [];
+      if (permissions && permissions.length > 0 && (role || "PLATFORM_ADMIN") !== "SUPER_ADMIN") {
+        for (const permCode of permissions) {
+          const perm = await storage.getPlatformAdminPermission(permCode);
+          if (perm) {
+            await storage.assignPermissionToAdmin(admin.id, permCode, req.platformAdminContext?.platformAdmin.id);
+            assignedPermissions.push(permCode);
+          }
+        }
+      }
 
       auditService.logAsync({
         tenantId: undefined,
@@ -576,7 +592,12 @@ export async function registerRoutes(
         action: "create",
         resource: "platform_admin",
         resourceId: admin.id,
-        metadata: { adminEmail: admin.email, role: admin.role },
+        metadata: { 
+          adminEmail: admin.email, 
+          role: admin.role,
+          forcePasswordReset: admin.forcePasswordReset,
+          assignedPermissions,
+        },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       });
@@ -587,6 +608,8 @@ export async function registerRoutes(
         email: admin.email,
         role: admin.role,
         isActive: admin.isActive,
+        forcePasswordReset: admin.forcePasswordReset,
+        permissions: assignedPermissions,
         createdAt: admin.createdAt,
       });
     } catch (error) {
