@@ -67,15 +67,50 @@ export const tenants = pgTable("tenants", {
   index("idx_tenants_status").on(table.status),
 ]);
 
+// Domain verification status enum
+export const domainVerificationStatusEnum = pgEnum("domain_verification_status", [
+  "pending",
+  "verifying",
+  "verified",
+  "failed",
+  "revoked",
+]);
+
 export const tenantDomains = pgTable("tenant_domains", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   domain: varchar("domain", { length: 255 }).notNull().unique(),
   isPrimary: boolean("is_primary").default(false),
   isVerified: boolean("is_verified").default(false),
+  
+  // Verification status and tracking
+  verificationStatus: domainVerificationStatusEnum("verification_status").default("pending"),
+  verificationToken: varchar("verification_token", { length: 100 }),
+  verificationTokenHash: varchar("verification_token_hash", { length: 255 }),
+  verificationMethod: varchar("verification_method", { length: 20 }).default("dns_txt"),
+  verificationRequestedAt: timestamp("verification_requested_at"),
+  verificationCheckedAt: timestamp("verification_checked_at"),
+  verificationAttempts: integer("verification_attempts").default(0),
+  verificationError: text("verification_error"),
+  verifiedAt: timestamp("verified_at"),
+  
+  // SSL/TLS certificate status
+  certificateStatus: varchar("certificate_status", { length: 50 }).default("pending"),
+  certificateExpiresAt: timestamp("certificate_expires_at"),
+  
+  // Redirect configuration
+  redirectToSlug: varchar("redirect_to_slug", { length: 100 }),
+  enforceHttps: boolean("enforce_https").default(true),
+  
+  // Metadata
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("idx_tenant_domains_tenant").on(table.tenantId),
+  index("idx_tenant_domains_verified").on(table.isVerified),
+  index("idx_tenant_domains_status").on(table.verificationStatus),
 ]);
 
 export const tenantSettings = pgTable("tenant_settings", {
@@ -1256,7 +1291,7 @@ export const whatsappWebhookEvents = pgTable("whatsapp_webhook_events", {
 // ============================================
 
 export const insertTenantSchema = createInsertSchema(tenants).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertTenantDomainSchema = createInsertSchema(tenantDomains).omit({ id: true, createdAt: true });
+export const insertTenantDomainSchema = createInsertSchema(tenantDomains).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTenantSettingsSchema = createInsertSchema(tenantSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFeatureFlagSchema = createInsertSchema(featureFlags).omit({ id: true, createdAt: true });
 export const insertTenantFeatureSchema = createInsertSchema(tenantFeatures).omit({ id: true, enabledAt: true });

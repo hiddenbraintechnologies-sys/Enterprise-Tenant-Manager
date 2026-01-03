@@ -20,3 +20,4 @@ export {
   type BusinessModule 
 } from "./business-modules";
 export { whatsappService, whatsappProviderSelector, initializeWhatsappProviders } from "./whatsapp";
+export { domainService, resolveTenantByDomain, requireVerifiedDomain, attachDomainBranding } from "./domain";

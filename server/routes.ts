@@ -34,6 +34,7 @@ import {
   initializeWhatsappProviders,
 } from "./core";
 import { ssoRoutes } from "./sso";
+import { domainRoutes } from "./core/domain";
 import { complianceService } from "./core/compliance/compliance-service";
 import {
   adminIpRestriction,
@@ -66,6 +67,9 @@ export async function registerRoutes(
 
   // Register SSO routes
   app.use('/api/sso', ssoRoutes);
+  
+  // Register domain management routes
+  app.use('/api/domains', domainRoutes);
 
   // ==================== AUTH ROUTES ====================
   
