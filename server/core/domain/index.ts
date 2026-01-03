@@ -11,3 +11,13 @@ export {
   attachDomainBranding 
 } from './domain-resolution-middleware';
 export { default as domainRoutes } from './domain-routes';
+export { sslService, SSLService } from './ssl-service';
+export { domainVerificationService, DomainVerificationService } from './domain-verification-service';
+export {
+  securityHeaders,
+  customDomainCORS,
+  requestId,
+  rateLimitHeaders,
+  cacheControl,
+  apiSecurityHeaders,
+} from './security-headers-middleware';
