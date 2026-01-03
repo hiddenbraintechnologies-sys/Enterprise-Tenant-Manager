@@ -261,6 +261,276 @@ router.post("/tenants/:id/unsuspend",
   }
 );
 
+const updateTenantSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  businessType: z.enum(["clinic", "salon", "pg", "coworking", "service"]).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+router.patch("/tenants/:id",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const parsed = updateTenantSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const tenantId = req.params.id;
+      const { name, businessType, email, phone, address, isActive } = parsed.data;
+
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      if (name !== undefined) updates.name = name;
+      if (businessType !== undefined) updates.businessType = businessType;
+      if (email !== undefined) updates.email = email;
+      if (phone !== undefined) updates.phone = phone;
+      if (address !== undefined) updates.address = address;
+      if (isActive !== undefined) updates.isActive = isActive;
+
+      await db.update(tenants).set(updates).where(eq(tenants.id, tenantId));
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "update_tenant",
+        "tenant",
+        tenantId,
+        tenantId,
+        { updatedFields: Object.keys(updates).filter(k => k !== "updatedAt"), businessType },
+        req
+      );
+
+      res.json({ message: "Tenant updated successfully" });
+    } catch (error) {
+      console.error("Error updating tenant:", error);
+      res.status(500).json({ message: "Failed to update tenant" });
+    }
+  }
+);
+
+router.get("/tenants/:id/users",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const tenantId = req.params.id;
+
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const tenantUsers = await db.select({
+        id: userTenants.id,
+        userId: userTenants.userId,
+        roleId: userTenants.roleId,
+        isDefault: userTenants.isDefault,
+        joinedAt: userTenants.joinedAt,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        roleName: roles.name,
+        roleDisplayName: roles.displayName,
+      })
+        .from(userTenants)
+        .innerJoin(users, eq(userTenants.userId, users.id))
+        .leftJoin(roles, eq(userTenants.roleId, roles.id))
+        .where(eq(userTenants.tenantId, tenantId))
+        .orderBy(desc(userTenants.joinedAt));
+
+      res.json(tenantUsers);
+    } catch (error) {
+      console.error("Error fetching tenant users:", error);
+      res.status(500).json({ message: "Failed to fetch tenant users" });
+    }
+  }
+);
+
+const addTenantUserSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  password: z.string().min(8),
+  roleId: z.string().optional(),
+});
+
+router.post("/tenants/:id/users",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const parsed = addTenantUserSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const tenantId = req.params.id;
+      const { email, firstName, lastName, password, roleId } = parsed.data;
+
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      let [user] = await db.select().from(users).where(eq(users.email, email));
+
+      if (!user) {
+        const passwordHash = await bcrypt.hash(password, 12);
+        [user] = await db.insert(users).values({
+          email,
+          firstName,
+          lastName,
+          passwordHash,
+        }).returning();
+      }
+
+      const [existingMembership] = await db.select().from(userTenants)
+        .where(and(eq(userTenants.userId, user.id), eq(userTenants.tenantId, tenantId)));
+
+      if (existingMembership) {
+        return res.status(409).json({ message: "User is already a member of this tenant" });
+      }
+
+      await db.insert(userTenants).values({
+        userId: user.id,
+        tenantId,
+        roleId: roleId || null,
+        isDefault: false,
+        invitedBy: req.platformContext!.user.id,
+      });
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "add_tenant_user",
+        "user_tenant",
+        user.id,
+        tenantId,
+        { email, roleId },
+        req
+      );
+
+      res.status(201).json({ message: "User added to tenant successfully", userId: user.id });
+    } catch (error) {
+      console.error("Error adding tenant user:", error);
+      res.status(500).json({ message: "Failed to add user to tenant" });
+    }
+  }
+);
+
+const updateTenantUserSchema = z.object({
+  roleId: z.string().nullable().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+router.patch("/tenants/:id/users/:userId",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const parsed = updateTenantUserSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+      }
+
+      const { id: tenantId, userId } = req.params;
+      const { roleId, isDefault } = parsed.data;
+
+      const [membership] = await db.select().from(userTenants)
+        .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
+
+      if (!membership) {
+        return res.status(404).json({ message: "User is not a member of this tenant" });
+      }
+
+      const updates: Record<string, unknown> = {};
+      if (roleId !== undefined) updates.roleId = roleId;
+      if (isDefault !== undefined) updates.isDefault = isDefault;
+
+      if (Object.keys(updates).length > 0) {
+        await db.update(userTenants).set(updates)
+          .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
+      }
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "update_tenant_user",
+        "user_tenant",
+        userId,
+        tenantId,
+        { roleId },
+        req
+      );
+
+      res.json({ message: "User updated successfully" });
+    } catch (error) {
+      console.error("Error updating tenant user:", error);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  }
+);
+
+router.delete("/tenants/:id/users/:userId",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const { id: tenantId, userId } = req.params;
+
+      const [membership] = await db.select().from(userTenants)
+        .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
+
+      if (!membership) {
+        return res.status(404).json({ message: "User is not a member of this tenant" });
+      }
+
+      await db.delete(userTenants)
+        .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
+
+      await logPlatformAction(
+        req.platformContext!.platformAdmin.id,
+        "remove_tenant_user",
+        "user_tenant",
+        userId,
+        tenantId,
+        {},
+        req
+      );
+
+      res.json({ message: "User removed from tenant successfully" });
+    } catch (error) {
+      console.error("Error removing tenant user:", error);
+      res.status(500).json({ message: "Failed to remove user from tenant" });
+    }
+  }
+);
+
+router.get("/tenants/:id/roles",
+  requirePlatformRole("super_admin"),
+  async (req, res) => {
+    try {
+      const tenantId = req.params.id;
+
+      const tenantRoles = await db.select({
+        id: roles.id,
+        name: roles.name,
+        displayName: roles.displayName,
+        permissions: roles.permissions,
+      })
+        .from(roles)
+        .where(eq(roles.tenantId, tenantId))
+        .orderBy(roles.displayName);
+
+      res.json(tenantRoles);
+    } catch (error) {
+      console.error("Error fetching tenant roles:", error);
+      res.status(500).json({ message: "Failed to fetch tenant roles" });
+    }
+  }
+);
+
 router.patch("/tenants/:id/subscription",
   requirePlatformRole("super_admin"),
   async (req, res) => {
