@@ -6,6 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import { ssoService } from './sso-service';
+import { googleSsoService } from './google-sso';
 import { z } from 'zod';
 
 const router = Router();
@@ -322,6 +323,182 @@ router.post('/discover', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error in HRD:', error);
     res.status(500).json({ error: 'Failed to discover SSO provider' });
+  }
+});
+
+// ==================== GOOGLE SSO ROUTES ====================
+
+const setupGoogleSchema = z.object({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+  allowedDomains: z.array(z.string()).optional(),
+  autoCreateUsers: z.boolean().optional(),
+  enforceForDomains: z.boolean().optional(),
+});
+
+/**
+ * Setup/update Google SSO for a tenant
+ */
+router.post('/google/setup', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Tenant context required' });
+    }
+
+    const hasPermission = req.context?.permissions?.includes('tenant:manage') ||
+                          req.context?.role?.name === 'Admin';
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const parsed = setupGoogleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    }
+
+    const provider = await googleSsoService.setupGoogleProvider(tenantId, parsed.data);
+
+    res.json({
+      success: true,
+      providerId: provider.id,
+      status: provider.status,
+    });
+  } catch (error: any) {
+    console.error('Error setting up Google SSO:', error);
+    res.status(500).json({ error: 'Failed to setup Google SSO' });
+  }
+});
+
+/**
+ * Check if Google SSO is available for a tenant
+ */
+router.get('/google/status', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id || req.query.tenantId as string;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const provider = await googleSsoService.getGoogleProvider(tenantId);
+
+    res.json({
+      enabled: !!provider,
+      providerId: provider?.id,
+      allowedDomains: provider?.allowedDomains || [],
+    });
+  } catch (error: any) {
+    console.error('Error checking Google SSO status:', error);
+    res.status(500).json({ error: 'Failed to check Google SSO status' });
+  }
+});
+
+/**
+ * Initiate Google login
+ */
+router.get('/google/login', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string || req.context?.tenant?.id;
+    const returnUrl = req.query.returnUrl as string;
+    const loginHint = req.query.loginHint as string;
+    const hostedDomain = req.query.hd as string;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const provider = await googleSsoService.getGoogleProvider(tenantId);
+    if (!provider) {
+      return res.status(404).json({ error: 'Google SSO not configured for this tenant' });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/sso/google/callback`;
+
+    const authUrl = await googleSsoService.getAuthorizationUrl({
+      tenantId,
+      providerId: provider.id,
+      redirectUri,
+      returnUrl,
+      loginHint,
+      hostedDomain: hostedDomain || (provider.allowedDomains as string[])?.[0],
+    });
+
+    res.redirect(authUrl);
+  } catch (error: any) {
+    console.error('Error initiating Google login:', error);
+    res.redirect(`/auth/error?error=google_init_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+/**
+ * Google OAuth callback
+ */
+router.get('/google/callback', async (req: Request, res: Response) => {
+  try {
+    const { code, state, error, error_description } = req.query;
+
+    if (error) {
+      console.error('Google OAuth error:', error, error_description);
+      return res.redirect(`/auth/error?error=${error}&description=${error_description}`);
+    }
+
+    if (!code || !state) {
+      return res.redirect('/auth/error?error=missing_params');
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/sso/google/callback`;
+
+    const result = await googleSsoService.handleCallback({
+      code: code as string,
+      state: state as string,
+      redirectUri,
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    });
+
+    // Set session with user info (integrate with existing auth system)
+    if (req.session) {
+      (req.session as any).userId = result.user.id;
+      (req.session as any).tenantId = result.tenant.id;
+      (req.session as any).ssoProvider = 'google';
+    }
+
+    // Redirect to dashboard or return URL
+    const returnUrl = req.query.returnUrl as string || '/dashboard';
+    res.redirect(`${returnUrl}?sso=google&new_user=${result.user.isNewUser}`);
+  } catch (error: any) {
+    console.error('Google OAuth callback error:', error);
+    res.redirect(`/auth/error?error=google_callback_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+/**
+ * Revoke Google access for current user
+ */
+router.post('/google/revoke', async (req: Request, res: Response) => {
+  try {
+    const userId = req.context?.user?.id;
+    const tenantId = req.context?.tenant?.id;
+    
+    if (!userId || !tenantId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const provider = await googleSsoService.getGoogleProvider(tenantId);
+    if (!provider) {
+      return res.status(404).json({ error: 'Google SSO not configured' });
+    }
+
+    await googleSsoService.revokeAccess(userId, provider.id);
+
+    res.json({ success: true, message: 'Google access revoked' });
+  } catch (error: any) {
+    console.error('Error revoking Google access:', error);
+    res.status(500).json({ error: 'Failed to revoke Google access' });
   }
 });
 
