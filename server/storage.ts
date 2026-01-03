@@ -189,8 +189,8 @@ export interface IStorage {
   getPlatformAdmins(): Promise<PlatformAdmin[]>;
   getPlatformAdmin(id: string): Promise<PlatformAdmin | undefined>;
   getPlatformAdminByEmail(email: string): Promise<PlatformAdmin | undefined>;
-  createPlatformAdmin(admin: { name: string; email: string; passwordHash: string; role?: PlatformAdminRole }): Promise<PlatformAdmin>;
-  updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean }>): Promise<PlatformAdmin | undefined>;
+  createPlatformAdmin(admin: { name: string; email: string; passwordHash: string; role?: PlatformAdminRole; forcePasswordReset?: boolean; createdBy?: string }): Promise<PlatformAdmin>;
+  updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean; forcePasswordReset: boolean }>): Promise<PlatformAdmin | undefined>;
   deletePlatformAdmin(id: string): Promise<void>;
   updatePlatformAdminLastLogin(id: string): Promise<void>;
 }
@@ -843,17 +843,19 @@ export class DatabaseStorage implements IStorage {
     return admin;
   }
 
-  async createPlatformAdmin(admin: { name: string; email: string; passwordHash: string; role?: PlatformAdminRole }): Promise<PlatformAdmin> {
+  async createPlatformAdmin(admin: { name: string; email: string; passwordHash: string; role?: PlatformAdminRole; forcePasswordReset?: boolean; createdBy?: string }): Promise<PlatformAdmin> {
     const [created] = await db.insert(platformAdmins).values({
       name: admin.name,
       email: admin.email.toLowerCase(),
       passwordHash: admin.passwordHash,
       role: admin.role || "PLATFORM_ADMIN",
+      forcePasswordReset: admin.forcePasswordReset ?? true,
+      createdBy: admin.createdBy,
     }).returning();
     return created;
   }
 
-  async updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean }>): Promise<PlatformAdmin | undefined> {
+  async updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean; forcePasswordReset: boolean }>): Promise<PlatformAdmin | undefined> {
     const updateData: any = { ...admin, updatedAt: new Date() };
     if (admin.email) {
       updateData.email = admin.email.toLowerCase();

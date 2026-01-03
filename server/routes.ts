@@ -487,6 +487,7 @@ export async function registerRoutes(
         refreshToken: tokens.refreshToken,
         expiresIn: tokens.expiresIn,
         tokenType: tokens.tokenType,
+        forcePasswordReset: admin.forcePasswordReset,
         admin: {
           id: admin.id,
           name: admin.name,
@@ -497,6 +498,67 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Platform admin login error:", error);
       res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Password reset endpoint for platform admins (self-service)
+  const platformAdminPasswordResetSchema = z.object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number"),
+  });
+
+  app.post("/api/platform-admin/reset-password", authenticateJWT(), async (req, res) => {
+    try {
+      if (!req.platformAdminContext) {
+        return res.status(403).json({ message: "Platform admin access required" });
+      }
+
+      const parsed = platformAdminPasswordResetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const { currentPassword, newPassword } = parsed.data;
+      const adminId = req.platformAdminContext.platformAdmin.id;
+
+      const admin = await storage.getPlatformAdmin(adminId);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      const isValidPassword = await bcrypt.compare(currentPassword, admin.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      const newPasswordHash = await bcrypt.hash(newPassword, 12);
+      await storage.updatePlatformAdmin(adminId, { 
+        passwordHash: newPasswordHash,
+        forcePasswordReset: false,
+      });
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: adminId,
+        action: "update",
+        resource: "platform_admin",
+        resourceId: adminId,
+        metadata: { action: "password_reset", self_service: true },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Platform admin password reset error:", error);
+      res.status(500).json({ message: "Failed to reset password" });
     }
   });
 
@@ -564,6 +626,24 @@ export async function registerRoutes(
         return res.status(409).json({ message: "Email already registered" });
       }
 
+      // Validate permissions upfront before creating the admin
+      const invalidPermissions: string[] = [];
+      if (permissions && permissions.length > 0 && (role || "PLATFORM_ADMIN") !== "SUPER_ADMIN") {
+        for (const permCode of permissions) {
+          const perm = await storage.getPlatformAdminPermission(permCode);
+          if (!perm) {
+            invalidPermissions.push(permCode);
+          }
+        }
+        
+        if (invalidPermissions.length > 0) {
+          return res.status(400).json({ 
+            message: "Invalid permission codes provided",
+            invalidPermissions,
+          });
+        }
+      }
+
       const passwordHash = await bcrypt.hash(password, 12);
       const admin = await storage.createPlatformAdmin({
         name,
@@ -574,15 +654,12 @@ export async function registerRoutes(
         createdBy: req.platformAdminContext?.platformAdmin.id,
       });
 
-      // Assign permissions if provided (only for PLATFORM_ADMIN role)
+      // Assign validated permissions (only for PLATFORM_ADMIN role)
       const assignedPermissions: string[] = [];
       if (permissions && permissions.length > 0 && (role || "PLATFORM_ADMIN") !== "SUPER_ADMIN") {
         for (const permCode of permissions) {
-          const perm = await storage.getPlatformAdminPermission(permCode);
-          if (perm) {
-            await storage.assignPermissionToAdmin(admin.id, permCode, req.platformAdminContext?.platformAdmin.id);
-            assignedPermissions.push(permCode);
-          }
+          await storage.assignPermissionToAdmin(admin.id, permCode, req.platformAdminContext?.platformAdmin.id);
+          assignedPermissions.push(permCode);
         }
       }
 
@@ -638,6 +715,7 @@ export async function registerRoutes(
         email: admin.email,
         role: admin.role,
         isActive: admin.isActive,
+        forcePasswordReset: admin.forcePasswordReset,
         lastLoginAt: admin.lastLoginAt,
         createdAt: admin.createdAt,
       })));
@@ -654,14 +732,19 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Admin not found" });
       }
 
+      const permissions = await storage.getAdminPermissions(admin.id);
+
       res.json({
         id: admin.id,
         name: admin.name,
         email: admin.email,
         role: admin.role,
         isActive: admin.isActive,
+        forcePasswordReset: admin.forcePasswordReset,
+        permissions,
         lastLoginAt: admin.lastLoginAt,
         createdAt: admin.createdAt,
+        createdBy: admin.createdBy,
       });
     } catch (error) {
       console.error("Get platform admin error:", error);
@@ -680,6 +763,7 @@ export async function registerRoutes(
       .optional(),
     role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN"]).optional(),
     isActive: z.boolean().optional(),
+    forcePasswordReset: z.boolean().optional(),
   });
 
   app.patch("/api/platform-admin/admins/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
@@ -697,7 +781,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Admin not found" });
       }
 
-      const { name, email, password, role, isActive } = parsed.data;
+      const { name, email, password, role, isActive, forcePasswordReset } = parsed.data;
 
       if (email && email !== existingAdmin.email) {
         const existingWithEmail = await storage.getPlatformAdminByEmail(email);
@@ -712,6 +796,7 @@ export async function registerRoutes(
       if (password) updateData.passwordHash = await bcrypt.hash(password, 12);
       if (role) updateData.role = role;
       if (typeof isActive === "boolean") updateData.isActive = isActive;
+      if (typeof forcePasswordReset === "boolean") updateData.forcePasswordReset = forcePasswordReset;
 
       const admin = await storage.updatePlatformAdmin(req.params.id, updateData);
 
@@ -732,6 +817,7 @@ export async function registerRoutes(
         email: admin?.email,
         role: admin?.role,
         isActive: admin?.isActive,
+        forcePasswordReset: admin?.forcePasswordReset,
       });
     } catch (error) {
       console.error("Update platform admin error:", error);
