@@ -22,8 +22,15 @@ import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 import { AdminLayout } from "@/components/admin-layout";
+import { SuperAdminRouteGuard } from "@/contexts/admin-context";
 import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
+import AdminTenants from "@/pages/admin/tenants";
+import AdminPlatformAdmins from "@/pages/admin/platform-admins";
+import AdminBilling from "@/pages/admin/billing";
+import AdminWhatsApp from "@/pages/admin/whatsapp";
+import AdminAuditLogs from "@/pages/admin/audit-logs";
+import AdminSettings from "@/pages/admin/settings";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -134,20 +141,45 @@ function AuthenticatedRoutes() {
   );
 }
 
-function AdminRoutes() {
+function SuperAdminRoutes() {
   return (
-    <AdminLayout>
+    <SuperAdminRouteGuard>
       <Switch>
         <Route path="/super-admin" component={SuperAdminDashboard} />
-        <Route path="/super-admin/:rest*">
-          <SuperAdminDashboard />
-        </Route>
-        <Route path="/admin" component={PlatformAdminDashboard} />
-        <Route path="/admin/:rest*">
-          <PlatformAdminDashboard />
-        </Route>
+        <Route path="/super-admin/tenants" component={AdminTenants} />
+        <Route path="/super-admin/admins" component={AdminPlatformAdmins} />
+        <Route path="/super-admin/billing" component={AdminBilling} />
+        <Route path="/super-admin/whatsapp" component={AdminWhatsApp} />
+        <Route path="/super-admin/audit-logs" component={AdminAuditLogs} />
+        <Route path="/super-admin/settings" component={AdminSettings} />
         <Route component={NotFound} />
       </Switch>
+    </SuperAdminRouteGuard>
+  );
+}
+
+function PlatformAdminRoutes() {
+  return (
+    <Switch>
+      <Route path="/admin" component={PlatformAdminDashboard} />
+      <Route path="/admin/tenants" component={AdminTenants} />
+      <Route path="/admin/admins" component={AdminPlatformAdmins} />
+      <Route path="/admin/billing" component={AdminBilling} />
+      <Route path="/admin/whatsapp" component={AdminWhatsApp} />
+      <Route path="/admin/audit-logs" component={AdminAuditLogs} />
+      <Route path="/admin/settings" component={AdminSettings} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function AdminRoutes() {
+  const [location] = useLocation();
+  const isSuperAdminPath = location.startsWith("/super-admin");
+
+  return (
+    <AdminLayout>
+      {isSuperAdminPath ? <SuperAdminRoutes /> : <PlatformAdminRoutes />}
     </AdminLayout>
   );
 }

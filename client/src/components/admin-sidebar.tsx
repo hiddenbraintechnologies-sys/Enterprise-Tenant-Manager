@@ -27,6 +27,9 @@ import {
   LogOut,
   Crown,
   UserCog,
+  DollarSign,
+  MessageSquare,
+  Cog,
 } from "lucide-react";
 
 interface MenuItem {
@@ -46,21 +49,39 @@ const superAdminMenuItems: MenuItem[] = [
     superAdminOnly: true,
   },
   {
+    title: "Tenants",
+    url: "/super-admin/tenants",
+    icon: Building2,
+    superAdminOnly: true,
+  },
+  {
     title: "Platform Admins",
     url: "/super-admin/admins",
     icon: UserCog,
     superAdminOnly: true,
   },
   {
-    title: "All Tenants",
-    url: "/super-admin/tenants",
-    icon: Building2,
+    title: "Billing",
+    url: "/super-admin/billing",
+    icon: DollarSign,
+    superAdminOnly: true,
+  },
+  {
+    title: "WhatsApp",
+    url: "/super-admin/whatsapp",
+    icon: MessageSquare,
+    superAdminOnly: true,
+  },
+  {
+    title: "Audit Logs",
+    url: "/super-admin/audit-logs",
+    icon: FileText,
     superAdminOnly: true,
   },
   {
     title: "System Settings",
     url: "/super-admin/settings",
-    icon: Settings,
+    icon: Cog,
     superAdminOnly: true,
   },
 ];
@@ -84,22 +105,16 @@ const platformAdminMenuItems: MenuItem[] = [
     permission: "read_users",
   },
   {
-    title: "Error Logs",
-    url: "/admin/errors",
-    icon: AlertTriangle,
-    permission: "view_logs",
+    title: "Billing",
+    url: "/admin/billing",
+    icon: DollarSign,
+    permission: "view_billing",
   },
   {
-    title: "Support Tickets",
-    url: "/admin/tickets",
-    icon: Ticket,
-    permission: "view_logs",
-  },
-  {
-    title: "Analytics",
-    url: "/admin/analytics",
-    icon: BarChart3,
-    permission: "view_analytics",
+    title: "WhatsApp",
+    url: "/admin/whatsapp",
+    icon: MessageSquare,
+    permission: "manage_features",
   },
   {
     title: "Audit Logs",
@@ -108,10 +123,10 @@ const platformAdminMenuItems: MenuItem[] = [
     permission: "view_logs",
   },
   {
-    title: "Billing",
-    url: "/admin/billing",
-    icon: Shield,
-    permission: "view_billing",
+    title: "System Settings",
+    url: "/admin/settings",
+    icon: Cog,
+    permissions: ["manage_features"],
   },
 ];
 
@@ -121,10 +136,15 @@ export function AdminSidebar() {
 
   const menuItems = isSuperAdmin ? superAdminMenuItems : platformAdminMenuItems;
 
+  const hasAnyPermission = (perms: string[]): boolean => {
+    if (isSuperAdmin) return true;
+    return perms.some(p => hasPermission(p));
+  };
+
   const visibleItems = menuItems.filter((item) => {
     if (item.superAdminOnly && !isSuperAdmin) return false;
     if (item.permission && !hasPermission(item.permission)) return false;
-    if (item.permissions && !item.permissions.some(p => hasPermission(p))) return false;
+    if (item.permissions && !hasAnyPermission(item.permissions)) return false;
     return true;
   });
 

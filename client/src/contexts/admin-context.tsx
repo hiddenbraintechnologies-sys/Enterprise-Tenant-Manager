@@ -169,6 +169,41 @@ export function SuperAdminGuard({ children }: { children: React.ReactNode }) {
   return <AdminGuard requiredRole="SUPER_ADMIN">{children}</AdminGuard>;
 }
 
+export function SuperAdminRouteGuard({ children }: { children: React.ReactNode }) {
+  const { admin, isLoading, isSuperAdmin } = useAdmin();
+  const [, setLocation] = useLocation();
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && admin && !isSuperAdmin) {
+      setShouldRedirect(true);
+    }
+  }, [isLoading, admin, isSuperAdmin]);
+
+  useEffect(() => {
+    if (shouldRedirect) {
+      setLocation("/admin");
+    }
+  }, [shouldRedirect, setLocation]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!admin || shouldRedirect || !isSuperAdmin) {
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
 export function PermissionGuard({ 
   permission, 
   children,
