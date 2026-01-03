@@ -148,17 +148,22 @@ function AppRouter() {
   if (!user) {
     return (
       <Switch>
-        <Route path="/register" component={Register} />
         <Route path="/platform-admin" component={PlatformAdmin} />
+        <Route path="/register" component={Register} />
         <Route component={Landing} />
       </Switch>
     );
   }
 
   return (
-    <TenantProvider>
-      <AuthenticatedRoutes />
-    </TenantProvider>
+    <Switch>
+      <Route path="/platform-admin" component={PlatformAdmin} />
+      <Route>
+        <TenantProvider>
+          <AuthenticatedRoutes />
+        </TenantProvider>
+      </Route>
+    </Switch>
   );
 }
 
