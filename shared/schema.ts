@@ -7,6 +7,9 @@ import { z } from "zod";
 export * from "./models/auth";
 import { users } from "./models/auth";
 
+// Re-export SSO models
+export * from "./models/sso";
+
 // ============================================
 // ENUMS
 // ============================================

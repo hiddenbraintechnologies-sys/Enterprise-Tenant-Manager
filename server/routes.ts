@@ -33,6 +33,7 @@ import {
   whatsappService,
   initializeWhatsappProviders,
 } from "./core";
+import { ssoRoutes } from "./sso";
 import { complianceService } from "./core/compliance/compliance-service";
 import {
   adminIpRestriction,
@@ -62,6 +63,9 @@ export async function registerRoutes(
   await featureService.seedFeatureFlags();
   await tenantService.getOrCreateDefaultTenant();
   await initializeWhatsappProviders();
+
+  // Register SSO routes
+  app.use('/api/sso', ssoRoutes);
 
   // ==================== AUTH ROUTES ====================
   
