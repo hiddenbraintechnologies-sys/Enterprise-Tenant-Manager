@@ -483,7 +483,7 @@ export function adminSessionTimeout() {
     const token = authHeader.slice(7);
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-    const { valid, reason } = await checkSessionValidity(tokenHash);
+    const { valid, session, reason } = await checkSessionValidity(tokenHash);
 
     if (!valid) {
       return res.status(401).json({
@@ -493,7 +493,9 @@ export function adminSessionTimeout() {
       });
     }
 
-    await updateSessionActivity(tokenHash);
+    if (session) {
+      await updateSessionActivity(session.id);
+    }
 
     next();
   };
