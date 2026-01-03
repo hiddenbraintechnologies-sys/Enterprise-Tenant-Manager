@@ -168,35 +168,52 @@ export async function seedSuperAdmin(): Promise<{
   email: string;
   password?: string;
 }> {
-  const defaultEmail = "superadmin@bizflow.local";
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  const adminEmail = process.env.INITIAL_SUPER_ADMIN_EMAIL || "superadmin@bizflow.local";
+  const adminPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD;
+  const adminName = process.env.INITIAL_SUPER_ADMIN_NAME || "Super Admin";
+
+  if (isProduction && !adminPassword) {
+    console.error("ERROR: INITIAL_SUPER_ADMIN_PASSWORD environment variable is required in production");
+    console.error("Set this securely and remove it after initial setup");
+    throw new Error("Missing required environment variable: INITIAL_SUPER_ADMIN_PASSWORD");
+  }
 
   const [existing] = await db
     .select()
     .from(platformAdmins)
-    .where(eq(platformAdmins.email, defaultEmail));
+    .where(eq(platformAdmins.email, adminEmail));
 
   if (existing) {
-    console.log(`Super Admin already exists: ${defaultEmail}`);
-    return { created: false, email: defaultEmail };
+    console.log(`Super Admin already exists: ${adminEmail}`);
+    return { created: false, email: adminEmail };
   }
 
-  const defaultPassword = generateSecurePassword();
-  const passwordHash = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
+  const finalPassword = adminPassword || generateSecurePassword();
+  const passwordHash = await bcrypt.hash(finalPassword, SALT_ROUNDS);
 
   await db.insert(platformAdmins).values({
-    name: "Super Admin",
-    email: defaultEmail,
+    name: adminName,
+    email: adminEmail,
     passwordHash,
     role: "SUPER_ADMIN",
     isActive: true,
     forcePasswordReset: true,
   });
 
-  console.log(`Created Super Admin: ${defaultEmail}`);
-  console.log(`Initial password: ${defaultPassword}`);
-  console.log("IMPORTANT: Change this password immediately after first login!");
-
-  return { created: true, email: defaultEmail, password: defaultPassword };
+  console.log(`Created Super Admin: ${adminEmail}`);
+  
+  if (isProduction) {
+    console.log("Super Admin created successfully.");
+    console.log("IMPORTANT: Remove INITIAL_SUPER_ADMIN_PASSWORD from environment after setup!");
+    console.log("Password change will be required on first login.");
+    return { created: true, email: adminEmail };
+  } else {
+    console.log(`Initial password: ${finalPassword}`);
+    console.log("IMPORTANT: Change this password immediately after first login!");
+    return { created: true, email: adminEmail, password: finalPassword };
+  }
 }
 
 export async function seedPlatformPermissions(): Promise<number> {

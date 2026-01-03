@@ -34,6 +34,33 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui for a mo
 - **Extensibility**: The architecture is designed to be extensible, with considerations for future microservices extraction, Redis integration for caching, and further evolution of the JWT system.
 - **Healthcare Module**: A specialized, feature-flagged module for enterprise clients, offering patient management, doctor profiles, appointment scheduling, and Electronic Medical Records (EMR).
 
+## Admin System (Production Ready)
+
+### Initial Setup
+- **Development**: Run `npx tsx server/seed.ts` to create Super Admin with auto-generated password
+- **Production**: Set `INITIAL_SUPER_ADMIN_EMAIL`, `INITIAL_SUPER_ADMIN_PASSWORD`, and `NODE_ENV=production` before seeding
+- **Documentation**: See `docs/ADMIN_SYSTEM.md` for comprehensive admin documentation
+
+### Security Features
+- Login rate limiting (30 req/min per IP)
+- Account lockout (5 failed attempts = 30 min lockout)
+- IP whitelist/blacklist with CIDR support
+- Session management (60 min inactivity, 24 hour absolute timeout)
+- 2FA readiness with TOTP support
+- Comprehensive audit logging with risk levels
+
+### Environment Variables for Admin System
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SESSION_SECRET` | Yes | Session encryption key |
+| `INITIAL_SUPER_ADMIN_EMAIL` | Prod only | Initial admin email |
+| `INITIAL_SUPER_ADMIN_PASSWORD` | Prod only | Initial admin password (remove after setup) |
+
+### Backup Priority
+1. Daily: `platform_admins`, `admin_security_config`, `admin_ip_rules`
+2. Weekly: `admin_sessions`, `admin_login_attempts`
+3. Archive: `admin_audit_logs` (365 day retention)
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: Used for initial user authentication.
 - **PostgreSQL**: The primary database for all application data.
