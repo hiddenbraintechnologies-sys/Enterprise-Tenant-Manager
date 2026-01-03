@@ -2109,6 +2109,262 @@ export type InsertSiteVisit = z.infer<typeof insertSiteVisitSchema>;
 export type Agent = typeof agents.$inferSelect;
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 
+// ============================================
+// TOURISM MODULE
+// ============================================
+
+// Enums for Tourism
+export const tourPackageTypeEnum = pgEnum("tour_package_type", [
+  "domestic", "international", "adventure", "pilgrimage", "honeymoon", "family", "group", "corporate", "custom"
+]);
+
+export const tourPackageStatusEnum = pgEnum("tour_package_status", [
+  "draft", "active", "paused", "expired", "archived"
+]);
+
+export const tourBookingStatusEnum = pgEnum("tour_booking_status", [
+  "inquiry", "pending", "confirmed", "partial_paid", "paid", "in_progress", "completed", "cancelled", "refunded"
+]);
+
+export const itineraryDayStatusEnum = pgEnum("itinerary_day_status", [
+  "planned", "confirmed", "in_progress", "completed", "skipped"
+]);
+
+export const vendorTypeEnum = pgEnum("vendor_type", [
+  "hotel", "transport", "airline", "restaurant", "activity", "guide", "insurance", "visa", "other"
+]);
+
+export const vendorStatusEnum = pgEnum("vendor_status", ["active", "inactive", "blacklisted"]);
+
+export const travelerTypeEnum = pgEnum("traveler_type", ["adult", "child", "infant"]);
+
+// Tour Packages Table
+export const tourPackages = pgTable("tour_packages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  code: varchar("code", { length: 50 }),
+  packageType: tourPackageTypeEnum("package_type").default("domestic"),
+  status: tourPackageStatusEnum("status").default("draft"),
+  description: text("description"),
+  highlights: jsonb("highlights").default([]),
+  inclusions: jsonb("inclusions").default([]),
+  exclusions: jsonb("exclusions").default([]),
+  destinations: jsonb("destinations").default([]),
+  duration: integer("duration").notNull(),
+  durationUnit: varchar("duration_unit", { length: 20 }).default("days"),
+  nights: integer("nights"),
+  basePrice: decimal("base_price", { precision: 15, scale: 2 }).notNull(),
+  childPrice: decimal("child_price", { precision: 15, scale: 2 }),
+  infantPrice: decimal("infant_price", { precision: 15, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  minGroupSize: integer("min_group_size").default(1),
+  maxGroupSize: integer("max_group_size"),
+  departureCity: varchar("departure_city", { length: 100 }),
+  departureDates: jsonb("departure_dates").default([]),
+  isCustomizable: boolean("is_customizable").default(false),
+  isFeatured: boolean("is_featured").default(false),
+  images: jsonb("images").default([]),
+  documents: jsonb("documents").default([]),
+  termsAndConditions: text("terms_and_conditions"),
+  cancellationPolicy: text("cancellation_policy"),
+  validFrom: date("valid_from"),
+  validTo: date("valid_to"),
+  viewCount: integer("view_count").default(0),
+  bookingCount: integer("booking_count").default(0),
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  reviewCount: integer("review_count").default(0),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tour_packages_tenant").on(table.tenantId),
+  index("idx_tour_packages_status").on(table.status),
+  index("idx_tour_packages_type").on(table.packageType),
+  index("idx_tour_packages_featured").on(table.isFeatured),
+]);
+
+// Tour Bookings Table
+export const tourBookings = pgTable("tour_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  bookingNumber: varchar("booking_number", { length: 50 }).notNull(),
+  packageId: varchar("package_id").references(() => tourPackages.id, { onDelete: "set null" }),
+  customerId: varchar("customer_id"),
+  status: tourBookingStatusEnum("status").default("inquiry"),
+  departureDate: date("departure_date").notNull(),
+  returnDate: date("return_date"),
+  adults: integer("adults").default(1),
+  children: integer("children").default(0),
+  infants: integer("infants").default(0),
+  baseAmount: decimal("base_amount", { precision: 15, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 15, scale: 2 }).default("0"),
+  discountAmount: decimal("discount_amount", { precision: 15, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  paidAmount: decimal("paid_amount", { precision: 15, scale: 2 }).default("0"),
+  balanceAmount: decimal("balance_amount", { precision: 15, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  paymentDueDate: date("payment_due_date"),
+  specialRequests: text("special_requests"),
+  dietaryPreferences: jsonb("dietary_preferences").default([]),
+  emergencyContact: jsonb("emergency_contact").default({}),
+  pickupDetails: jsonb("pickup_details").default({}),
+  assignedAgentId: varchar("assigned_agent_id"),
+  notes: text("notes"),
+  cancellationReason: text("cancellation_reason"),
+  cancelledAt: timestamp("cancelled_at"),
+  confirmedAt: timestamp("confirmed_at"),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tour_bookings_tenant").on(table.tenantId),
+  index("idx_tour_bookings_package").on(table.packageId),
+  index("idx_tour_bookings_customer").on(table.customerId),
+  index("idx_tour_bookings_status").on(table.status),
+  index("idx_tour_bookings_departure").on(table.departureDate),
+  uniqueIndex("idx_tour_bookings_number").on(table.tenantId, table.bookingNumber),
+]);
+
+// Itineraries Table
+export const itineraries = pgTable("itineraries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  packageId: varchar("package_id").references(() => tourPackages.id, { onDelete: "cascade" }),
+  bookingId: varchar("booking_id").references(() => tourBookings.id, { onDelete: "cascade" }),
+  dayNumber: integer("day_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: itineraryDayStatusEnum("status").default("planned"),
+  date: date("date"),
+  startTime: time("start_time"),
+  endTime: time("end_time"),
+  location: text("location"),
+  city: varchar("city", { length: 100 }),
+  accommodation: jsonb("accommodation").default({}),
+  meals: jsonb("meals").default([]),
+  activities: jsonb("activities").default([]),
+  transport: jsonb("transport").default({}),
+  vendorIds: jsonb("vendor_ids").default([]),
+  notes: text("notes"),
+  images: jsonb("images").default([]),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_itineraries_tenant").on(table.tenantId),
+  index("idx_itineraries_package").on(table.packageId),
+  index("idx_itineraries_booking").on(table.bookingId),
+  index("idx_itineraries_day").on(table.dayNumber),
+]);
+
+// Vendors Table
+export const tourVendors = pgTable("tour_vendors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  vendorType: vendorTypeEnum("vendor_type").notNull(),
+  status: vendorStatusEnum("status").default("active"),
+  email: text("email"),
+  phone: varchar("phone", { length: 20 }),
+  alternatePhone: varchar("alternate_phone", { length: 20 }),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 100 }),
+  country: varchar("country", { length: 100 }),
+  contactPerson: text("contact_person"),
+  contactDesignation: varchar("contact_designation", { length: 100 }),
+  gstNumber: varchar("gst_number", { length: 50 }),
+  panNumber: varchar("pan_number", { length: 20 }),
+  bankDetails: jsonb("bank_details").default({}),
+  serviceAreas: jsonb("service_areas").default([]),
+  services: jsonb("services").default([]),
+  pricing: jsonb("pricing").default({}),
+  contractStartDate: date("contract_start_date"),
+  contractEndDate: date("contract_end_date"),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }),
+  paymentTerms: text("payment_terms"),
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  reviewCount: integer("review_count").default(0),
+  totalBookings: integer("total_bookings").default(0),
+  documents: jsonb("documents").default([]),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tour_vendors_tenant").on(table.tenantId),
+  index("idx_tour_vendors_type").on(table.vendorType),
+  index("idx_tour_vendors_status").on(table.status),
+  index("idx_tour_vendors_city").on(table.city),
+]);
+
+// Travelers Table
+export const travelers = pgTable("travelers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  bookingId: varchar("booking_id").notNull().references(() => tourBookings.id, { onDelete: "cascade" }),
+  travelerType: travelerTypeEnum("traveler_type").default("adult"),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email"),
+  phone: varchar("phone", { length: 20 }),
+  dateOfBirth: date("date_of_birth"),
+  gender: varchar("gender", { length: 20 }),
+  nationality: varchar("nationality", { length: 100 }),
+  passportNumber: varchar("passport_number", { length: 50 }),
+  passportExpiry: date("passport_expiry"),
+  passportCountry: varchar("passport_country", { length: 100 }),
+  visaNumber: varchar("visa_number", { length: 100 }),
+  visaExpiry: date("visa_expiry"),
+  idType: varchar("id_type", { length: 50 }),
+  idNumber: varchar("id_number", { length: 100 }),
+  dietaryPreferences: jsonb("dietary_preferences").default([]),
+  medicalConditions: text("medical_conditions"),
+  specialAssistance: text("special_assistance"),
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: varchar("emergency_contact_phone", { length: 20 }),
+  emergencyContactRelation: varchar("emergency_contact_relation", { length: 50 }),
+  roomPreference: varchar("room_preference", { length: 50 }),
+  seatPreference: varchar("seat_preference", { length: 50 }),
+  isPrimary: boolean("is_primary").default(false),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_travelers_tenant").on(table.tenantId),
+  index("idx_travelers_booking").on(table.bookingId),
+  index("idx_travelers_type").on(table.travelerType),
+]);
+
+// Insert schemas for Tourism
+export const insertTourPackageSchema = createInsertSchema(tourPackages).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTourBookingSchema = createInsertSchema(tourBookings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertItinerarySchema = createInsertSchema(itineraries).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTourVendorSchema = createInsertSchema(tourVendors).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTravelerSchema = createInsertSchema(travelers).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Tourism types
+export type TourPackage = typeof tourPackages.$inferSelect;
+export type InsertTourPackage = z.infer<typeof insertTourPackageSchema>;
+
+export type TourBooking = typeof tourBookings.$inferSelect;
+export type InsertTourBooking = z.infer<typeof insertTourBookingSchema>;
+
+export type Itinerary = typeof itineraries.$inferSelect;
+export type InsertItinerary = z.infer<typeof insertItinerarySchema>;
+
+export type TourVendor = typeof tourVendors.$inferSelect;
+export type InsertTourVendor = z.infer<typeof insertTourVendorSchema>;
+
+export type Traveler = typeof travelers.$inferSelect;
+export type InsertTraveler = z.infer<typeof insertTravelerSchema>;
+
 // Extended types for joins
 export type BookingWithDetails = Booking & {
   customer: Customer;
