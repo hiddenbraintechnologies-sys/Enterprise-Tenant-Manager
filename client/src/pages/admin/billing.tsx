@@ -40,22 +40,40 @@ interface BillingStats {
   activeSubscriptions: number;
   pendingInvoices: number;
   revenueChange: number;
+  revenueByBusinessType?: Record<string, number>;
+  subscriptionsByBusinessType?: Record<string, number>;
 }
 
 interface Invoice {
   id: string;
   tenantId: string;
   tenantName: string;
+  businessType?: string;
   amount: number;
   status: "paid" | "pending" | "overdue" | "cancelled";
   dueDate: string;
   createdAt: string;
 }
 
+const BUSINESS_TYPES = [
+  { value: "clinic", label: "Clinic" },
+  { value: "salon", label: "Salon" },
+  { value: "pg", label: "PG/Hostel" },
+  { value: "coworking", label: "Coworking" },
+  { value: "service", label: "Service" },
+  { value: "real_estate", label: "Real Estate" },
+  { value: "tourism", label: "Tourism" },
+];
+
+const getBusinessTypeLabel = (type: string) => {
+  return BUSINESS_TYPES.find((t) => t.value === type)?.label || type;
+};
+
 function BillingContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [businessTypeFilter, setBusinessTypeFilter] = useState<string>("all");
 
   const { data: stats, isLoading: statsLoading } = useQuery<BillingStats>({
     queryKey: ["/api/platform-admin/billing/stats"],
@@ -193,6 +211,36 @@ function BillingContent() {
         </Card>
       </div>
 
+      {stats?.revenueByBusinessType && Object.keys(stats.revenueByBusinessType).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Revenue by Business Type</CardTitle>
+            <CardDescription>Monthly revenue breakdown across business verticals</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {Object.entries(stats.revenueByBusinessType).map(([type, revenue]) => (
+                <div
+                  key={type}
+                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                  data-testid={`revenue-${type}`}
+                >
+                  <div>
+                    <p className="text-sm font-medium">{getBusinessTypeLabel(type)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {stats.subscriptionsByBusinessType?.[type] || 0} subscriptions
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold">{formatCurrency(revenue)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Recent Invoices</CardTitle>
@@ -208,6 +256,20 @@ function BillingContent() {
                 data-testid="input-search-invoices"
               />
             </div>
+            <Select value={businessTypeFilter} onValueChange={setBusinessTypeFilter}>
+              <SelectTrigger className="w-[150px]" data-testid="select-business-type-filter">
+                <Building2 className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Business Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {BUSINESS_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
                 <Filter className="h-4 w-4 mr-2" />
@@ -240,6 +302,7 @@ function BillingContent() {
                 <TableRow>
                   <TableHead>Invoice ID</TableHead>
                   <TableHead>Tenant</TableHead>
+                  <TableHead>Business Type</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Due Date</TableHead>
@@ -247,7 +310,9 @@ function BillingContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoicesData?.invoices?.map((invoice) => (
+                {invoicesData?.invoices
+                  ?.filter(invoice => businessTypeFilter === "all" || invoice.businessType === businessTypeFilter)
+                  .map((invoice) => (
                   <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
                     <TableCell className="font-mono text-sm">{invoice.id}</TableCell>
                     <TableCell>
@@ -255,6 +320,11 @@ function BillingContent() {
                         <Building2 className="h-4 w-4 text-muted-foreground" />
                         {invoice.tenantName}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {getBusinessTypeLabel(invoice.businessType || "service")}
+                      </Badge>
                     </TableCell>
                     <TableCell className="font-medium">{formatCurrency(invoice.amount)}</TableCell>
                     <TableCell>{getStatusBadge(invoice.status)}</TableCell>

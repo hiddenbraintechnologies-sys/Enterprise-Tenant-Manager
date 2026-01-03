@@ -64,8 +64,8 @@ interface Tenant {
   id: string;
   name: string;
   slug: string | null;
-  businessType: "clinic" | "salon" | "pg" | "coworking" | "service";
-  country: "india" | "uae" | "uk" | "malaysia" | "singapore";
+  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
+  country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
   region: "asia_pacific" | "middle_east" | "europe";
   status: "active" | "suspended" | "cancelled";
   email: string | null;
@@ -98,11 +98,13 @@ const REGIONS = [
 ];
 
 const BUSINESS_TYPES = [
-  { value: "clinic", label: "Clinic" },
-  { value: "salon", label: "Salon" },
-  { value: "pg", label: "PG/Hostel" },
-  { value: "coworking", label: "Coworking" },
-  { value: "service", label: "Service" },
+  { value: "clinic", label: "Clinic", icon: "medical" },
+  { value: "salon", label: "Salon", icon: "scissors" },
+  { value: "pg", label: "PG/Hostel", icon: "home" },
+  { value: "coworking", label: "Coworking", icon: "building" },
+  { value: "service", label: "Service", icon: "briefcase" },
+  { value: "real_estate", label: "Real Estate", icon: "building2" },
+  { value: "tourism", label: "Tourism", icon: "plane" },
 ];
 
 const STATUSES = [
