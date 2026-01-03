@@ -457,13 +457,19 @@ export async function registerRoutes(
 
       await storage.updatePlatformAdminLastLogin(admin.id);
 
+      // Load admin permissions from database for PLATFORM_ADMIN role
+      const adminPermissions = admin.role === "PLATFORM_ADMIN" 
+        ? await storage.getAdminPermissions(admin.id)
+        : undefined;
+
       const tokens = await jwtAuthService.generatePlatformAdminTokenPair(
         admin.id,
         admin.role as "SUPER_ADMIN" | "PLATFORM_ADMIN",
         {
           userAgent: req.headers["user-agent"],
           ipAddress: req.ip || undefined,
-        }
+        },
+        adminPermissions
       );
 
       auditService.logAsync({
@@ -761,6 +767,200 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get all tenants error:", error);
       res.status(500).json({ message: "Failed to get tenants" });
+    }
+  });
+
+  // ==================== PLATFORM ADMIN PERMISSION MANAGEMENT ====================
+
+  // Get all available permissions
+  app.get("/api/platform-admin/permissions", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const permissions = await storage.getAllPlatformAdminPermissions();
+      res.json(permissions);
+    } catch (error) {
+      console.error("Get permissions error:", error);
+      res.status(500).json({ message: "Failed to get permissions" });
+    }
+  });
+
+  // Get permissions for a specific admin
+  app.get("/api/platform-admin/admins/:id/permissions", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const admin = await storage.getPlatformAdmin(req.params.id);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      const permissions = await storage.getAdminPermissions(req.params.id);
+      res.json({ adminId: req.params.id, permissions });
+    } catch (error) {
+      console.error("Get admin permissions error:", error);
+      res.status(500).json({ message: "Failed to get admin permissions" });
+    }
+  });
+
+  // Assign permission to an admin
+  const assignPermissionSchema = z.object({
+    permissionCode: z.string().min(1),
+  });
+
+  app.post("/api/platform-admin/admins/:id/permissions", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = assignPermissionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const admin = await storage.getPlatformAdmin(req.params.id);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      // SUPER_ADMINs don't need explicit permission assignments
+      if (admin.role === "SUPER_ADMIN") {
+        return res.status(400).json({ message: "SUPER_ADMIN role has all permissions automatically" });
+      }
+
+      const permission = await storage.getPlatformAdminPermission(parsed.data.permissionCode);
+      if (!permission) {
+        return res.status(404).json({ message: "Permission not found" });
+      }
+
+      // Check if already assigned
+      const existing = await storage.hasAdminPermission(req.params.id, parsed.data.permissionCode);
+      if (existing) {
+        return res.status(409).json({ message: "Permission already assigned" });
+      }
+
+      const assignment = await storage.assignPermissionToAdmin(
+        req.params.id,
+        parsed.data.permissionCode,
+        req.platformAdminContext?.platformAdmin.id
+      );
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "platform_admin_permission",
+        resourceId: assignment.id,
+        metadata: { 
+          adminId: req.params.id, 
+          adminEmail: admin.email,
+          permissionCode: parsed.data.permissionCode 
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.status(201).json(assignment);
+    } catch (error) {
+      console.error("Assign permission error:", error);
+      res.status(500).json({ message: "Failed to assign permission" });
+    }
+  });
+
+  // Revoke permission from an admin
+  app.delete("/api/platform-admin/admins/:id/permissions/:permissionCode", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const admin = await storage.getPlatformAdmin(req.params.id);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      const hasPermission = await storage.hasAdminPermission(req.params.id, req.params.permissionCode);
+      if (!hasPermission) {
+        return res.status(404).json({ message: "Permission not assigned to this admin" });
+      }
+
+      await storage.revokePermissionFromAdmin(req.params.id, req.params.permissionCode);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "delete",
+        resource: "platform_admin_permission",
+        metadata: { 
+          adminId: req.params.id, 
+          adminEmail: admin.email,
+          permissionCode: req.params.permissionCode 
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ message: "Permission revoked successfully" });
+    } catch (error) {
+      console.error("Revoke permission error:", error);
+      res.status(500).json({ message: "Failed to revoke permission" });
+    }
+  });
+
+  // Bulk assign permissions to an admin
+  const bulkAssignPermissionsSchema = z.object({
+    permissionCodes: z.array(z.string()).min(1),
+  });
+
+  app.post("/api/platform-admin/admins/:id/permissions/bulk", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = bulkAssignPermissionsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const admin = await storage.getPlatformAdmin(req.params.id);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      if (admin.role === "SUPER_ADMIN") {
+        return res.status(400).json({ message: "SUPER_ADMIN role has all permissions automatically" });
+      }
+
+      const currentPermissions = await storage.getAdminPermissions(req.params.id);
+      const results = { assigned: [] as string[], skipped: [] as string[], notFound: [] as string[] };
+
+      for (const code of parsed.data.permissionCodes) {
+        const permission = await storage.getPlatformAdminPermission(code);
+        if (!permission) {
+          results.notFound.push(code);
+          continue;
+        }
+
+        if (currentPermissions.includes(code)) {
+          results.skipped.push(code);
+          continue;
+        }
+
+        await storage.assignPermissionToAdmin(req.params.id, code, req.platformAdminContext?.platformAdmin.id);
+        results.assigned.push(code);
+      }
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "platform_admin_permission",
+        metadata: { 
+          adminId: req.params.id, 
+          adminEmail: admin.email,
+          bulkOperation: true,
+          results 
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(results);
+    } catch (error) {
+      console.error("Bulk assign permissions error:", error);
+      res.status(500).json({ message: "Failed to assign permissions" });
     }
   });
 

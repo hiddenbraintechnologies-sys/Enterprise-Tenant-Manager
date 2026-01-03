@@ -146,14 +146,16 @@ export class JWTAuthService {
   async generatePlatformAdminTokenPair(
     adminId: string,
     platformRole: PlatformAdminRole,
-    deviceInfo?: { userAgent?: string; ipAddress?: string }
+    deviceInfo?: { userAgent?: string; ipAddress?: string },
+    permissions?: string[]
   ): Promise<TokenPair> {
     const accessJti = generateTokenId();
     const refreshJti = generateTokenId();
 
+    // SUPER_ADMIN gets wildcard permissions; PLATFORM_ADMIN uses provided permissions
     const platformPermissions = platformRole === "SUPER_ADMIN" 
       ? ["platform:*", "tenants:*", "users:*", "admins:*"]
-      : ["platform:read", "tenants:read", "users:read"];
+      : (permissions || []);
 
     const accessPayload: TokenPayload = {
       sub: adminId,
