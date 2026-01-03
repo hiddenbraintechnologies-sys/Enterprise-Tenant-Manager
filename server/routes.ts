@@ -28,6 +28,8 @@ import {
   tenantResolutionMiddleware, enforceTenantBoundary,
   requirePlatformPermission,
   DataMasking,
+  whatsappService,
+  initializeWhatsappProviders,
 } from "./core";
 import {
   adminIpRestriction,
@@ -56,6 +58,7 @@ export async function registerRoutes(
   
   await featureService.seedFeatureFlags();
   await tenantService.getOrCreateDefaultTenant();
+  await initializeWhatsappProviders();
 
   // ==================== AUTH ROUTES ====================
   
@@ -3656,6 +3659,222 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching pricing:", error);
       res.status(500).json({ message: "Failed to fetch pricing" });
+    }
+  });
+
+  // ==================== GLOBAL WHATSAPP API (Platform Admin) ====================
+  
+  app.get("/api/platform-admin/whatsapp/stats", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const stats = await whatsappService.getGlobalStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching WhatsApp stats:", error);
+      res.status(500).json({ message: "Failed to fetch WhatsApp stats" });
+    }
+  });
+
+  app.get("/api/platform-admin/whatsapp/health", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      await whatsappService.updateProviderHealth();
+      const health = await whatsappService.getProviderHealthStatus();
+      res.json({ providers: health });
+    } catch (error) {
+      console.error("Error fetching WhatsApp health:", error);
+      res.status(500).json({ message: "Failed to fetch WhatsApp health" });
+    }
+  });
+
+  app.get("/api/platform-admin/whatsapp/provider-configs", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const configs = await whatsappService.getProviderConfigs();
+      res.json(configs);
+    } catch (error) {
+      console.error("Error fetching provider configs:", error);
+      res.status(500).json({ message: "Failed to fetch provider configs" });
+    }
+  });
+
+  app.get("/api/platform-admin/whatsapp/templates", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const { provider, status, isGlobal } = req.query;
+      const templates = await whatsappService.getTemplates({
+        provider: provider as any,
+        status: status as any,
+        isGlobal: isGlobal === "true" ? true : isGlobal === "false" ? false : undefined,
+      });
+      res.json({ templates, total: templates.length });
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  app.post("/api/platform-admin/whatsapp/templates", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { provider, ...templateParams } = req.body;
+      const result = await whatsappService.submitTemplate(templateParams, provider);
+      
+      if (result.success) {
+        res.status(201).json(result);
+      } else {
+        res.status(400).json({ message: result.errorMessage });
+      }
+    } catch (error) {
+      console.error("Error submitting template:", error);
+      res.status(500).json({ message: "Failed to submit template" });
+    }
+  });
+
+  app.post("/api/platform-admin/whatsapp/templates/:templateId/sync", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      await whatsappService.syncTemplateStatus(req.params.templateId);
+      res.json({ message: "Template status synced" });
+    } catch (error) {
+      console.error("Error syncing template:", error);
+      res.status(500).json({ message: "Failed to sync template status" });
+    }
+  });
+
+  app.get("/api/platform-admin/whatsapp/messages", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { tenantId, provider, status, limit } = req.query;
+      const messages = await whatsappService.getMessages({
+        tenantId: tenantId as string,
+        provider: provider as any,
+        status: status as string,
+        limit: limit ? parseInt(limit as string) : 50,
+      });
+      res.json({ messages, total: messages.length });
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // WhatsApp webhooks (public endpoints for providers)
+  app.post("/api/webhooks/whatsapp/gupshup", express.raw({ type: "*/*" }), async (req, res) => {
+    try {
+      const signature = req.headers["x-gupshup-signature"] as string;
+      const payload = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      await whatsappService.handleWebhook("gupshup", payload, signature);
+      res.status(200).send("OK");
+    } catch (error) {
+      console.error("Gupshup webhook error:", error);
+      res.status(500).send("Error");
+    }
+  });
+
+  app.post("/api/webhooks/whatsapp/meta", express.json(), async (req, res) => {
+    try {
+      const signature = req.headers["x-hub-signature-256"] as string;
+      await whatsappService.handleWebhook("meta", req.body, signature);
+      res.status(200).send("EVENT_RECEIVED");
+    } catch (error) {
+      console.error("Meta webhook error:", error);
+      res.status(500).send("Error");
+    }
+  });
+
+  app.get("/api/webhooks/whatsapp/meta", (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === process.env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN) {
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
+  });
+
+  app.post("/api/webhooks/whatsapp/twilio", express.urlencoded({ extended: true }), async (req, res) => {
+    try {
+      const signature = req.headers["x-twilio-signature"] as string;
+      await whatsappService.handleWebhook("twilio", req.body, signature);
+      res.status(200).send("<Response></Response>");
+    } catch (error) {
+      console.error("Twilio webhook error:", error);
+      res.status(500).send("Error");
+    }
+  });
+
+  // Tenant-level WhatsApp API (requires whatsapp feature flag)
+  app.get("/api/whatsapp/usage", authenticateJWT(), tenantResolutionMiddleware(), requireFeature("whatsapp"), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { yearMonth } = req.query;
+      const usage = await whatsappService.getUsageStats(tenantId, yearMonth as string);
+      res.json(usage || { message: "No usage data found" });
+    } catch (error) {
+      console.error("Error fetching usage:", error);
+      res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  app.post("/api/whatsapp/optins", authenticateJWT(), tenantResolutionMiddleware(), requireFeature("whatsapp"), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { phoneNumber, countryCode, source, customerId, consentText } = req.body;
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      
+      const result = await whatsappService.recordOptIn(
+        tenantId,
+        phoneNumber,
+        countryCode,
+        source,
+        customerId,
+        consentText,
+        ipAddress
+      );
+      
+      if (result.success) {
+        res.status(201).json(result);
+      } else {
+        res.status(400).json({ message: result.errorMessage });
+      }
+    } catch (error) {
+      console.error("Error recording opt-in:", error);
+      res.status(500).json({ message: "Failed to record opt-in" });
+    }
+  });
+
+  app.delete("/api/whatsapp/optins/:phoneNumber", authenticateJWT(), tenantResolutionMiddleware(), requireFeature("whatsapp"), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const result = await whatsappService.recordOptOut(tenantId, req.params.phoneNumber);
+      res.json(result);
+    } catch (error) {
+      console.error("Error recording opt-out:", error);
+      res.status(500).json({ message: "Failed to record opt-out" });
+    }
+  });
+
+  app.post("/api/whatsapp/send", authenticateJWT(), tenantResolutionMiddleware(), requireFeature("whatsapp"), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      const { toPhoneNumber, templateId, templateName, templateParams, messageType, content, mediaUrl, mediaType } = req.body;
+      
+      const result = await whatsappService.sendMessage({
+        tenantId,
+        toPhoneNumber,
+        templateId,
+        templateName,
+        templateParams,
+        messageType: messageType || "template",
+        content,
+        mediaUrl,
+        mediaType,
+      });
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json({ message: result.errorMessage, errorCode: result.errorCode });
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      res.status(500).json({ message: "Failed to send message" });
     }
   });
 

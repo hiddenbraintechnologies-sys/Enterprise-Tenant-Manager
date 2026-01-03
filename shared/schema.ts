@@ -1073,6 +1073,182 @@ export const paymentAttempts = pgTable("payment_attempts", {
 ]);
 
 // ============================================
+// GLOBAL WHATSAPP INTEGRATION
+// ============================================
+
+export const whatsappProviderEnum = pgEnum("whatsapp_provider", ["gupshup", "meta", "twilio"]);
+export const whatsappTemplateStatusEnum = pgEnum("whatsapp_template_status", ["pending", "approved", "rejected"]);
+export const whatsappMessageStatusEnum = pgEnum("whatsapp_message_status", ["pending", "sent", "delivered", "read", "failed"]);
+export const whatsappMessageTypeEnum = pgEnum("whatsapp_message_type", ["template", "text", "media", "interactive"]);
+
+// Country-wise provider configuration
+export const whatsappProviderConfigs = pgTable("whatsapp_provider_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  country: tenantCountryEnum("country").notNull(),
+  primaryProvider: whatsappProviderEnum("primary_provider").notNull(),
+  fallbackProvider: whatsappProviderEnum("fallback_provider"),
+  businessPhoneNumber: varchar("business_phone_number", { length: 20 }),
+  businessPhoneNumberId: varchar("business_phone_number_id", { length: 100 }),
+  providerConfig: jsonb("provider_config").default({}), // provider-specific settings
+  monthlyQuota: integer("monthly_quota").default(10000),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_whatsapp_provider_country").on(table.country),
+]);
+
+// Global WhatsApp templates (platform-managed)
+export const whatsappTemplates = pgTable("whatsapp_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // marketing, utility, authentication
+  language: varchar("language", { length: 10 }).notNull().default("en"),
+  provider: whatsappProviderEnum("provider").notNull(),
+  providerTemplateId: varchar("provider_template_id", { length: 255 }),
+  headerType: varchar("header_type", { length: 20 }), // text, image, video, document
+  headerContent: text("header_content"),
+  bodyText: text("body_text").notNull(),
+  footerText: varchar("footer_text", { length: 60 }),
+  buttons: jsonb("buttons").default([]), // array of button configs
+  placeholders: jsonb("placeholders").default([]), // list of placeholder variables
+  status: whatsappTemplateStatusEnum("status").default("pending"),
+  rejectionReason: text("rejection_reason"),
+  approvedAt: timestamp("approved_at"),
+  submittedAt: timestamp("submitted_at"),
+  isGlobal: boolean("is_global").default(true), // platform-wide template
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }), // null for global
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_whatsapp_templates_provider").on(table.provider),
+  index("idx_whatsapp_templates_status").on(table.status),
+  index("idx_whatsapp_templates_tenant").on(table.tenantId),
+  uniqueIndex("idx_whatsapp_templates_name_provider").on(table.name, table.provider, table.language),
+]);
+
+// Tenant opt-in tracking
+export const whatsappOptIns = pgTable("whatsapp_opt_ins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
+  countryCode: varchar("country_code", { length: 5 }).notNull(),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  optInSource: varchar("opt_in_source", { length: 50 }).notNull(), // web_form, sms, qr_code, manual
+  optInAt: timestamp("opt_in_at").defaultNow(),
+  optOutAt: timestamp("opt_out_at"),
+  isActive: boolean("is_active").default(true),
+  consentText: text("consent_text"),
+  consentIpAddress: varchar("consent_ip_address", { length: 45 }),
+  lastMessageAt: timestamp("last_message_at"),
+  messageCount: integer("message_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_whatsapp_optins_tenant_phone").on(table.tenantId, table.phoneNumber),
+  index("idx_whatsapp_optins_customer").on(table.customerId),
+  index("idx_whatsapp_optins_active").on(table.isActive),
+]);
+
+// Message logs for tracking
+export const whatsappMessages = pgTable("whatsapp_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  provider: whatsappProviderEnum("provider").notNull(),
+  providerMessageId: varchar("provider_message_id", { length: 255 }),
+  templateId: varchar("template_id").references(() => whatsappTemplates.id),
+  toPhoneNumber: varchar("to_phone_number", { length: 20 }).notNull(),
+  fromPhoneNumber: varchar("from_phone_number", { length: 20 }),
+  messageType: whatsappMessageTypeEnum("message_type").notNull(),
+  content: text("content"),
+  templateParams: jsonb("template_params").default({}),
+  mediaUrl: varchar("media_url", { length: 500 }),
+  status: whatsappMessageStatusEnum("status").default("pending"),
+  statusUpdatedAt: timestamp("status_updated_at"),
+  errorCode: varchar("error_code", { length: 50 }),
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at"),
+  deliveredAt: timestamp("delivered_at"),
+  readAt: timestamp("read_at"),
+  cost: decimal("cost", { precision: 10, scale: 6 }),
+  currency: varchar("currency", { length: 3 }).default("USD"),
+  country: tenantCountryEnum("country"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_whatsapp_messages_tenant").on(table.tenantId),
+  index("idx_whatsapp_messages_provider").on(table.provider),
+  index("idx_whatsapp_messages_status").on(table.status),
+  index("idx_whatsapp_messages_created").on(table.createdAt),
+  index("idx_whatsapp_messages_provider_id").on(table.providerMessageId),
+]);
+
+// Monthly usage tracking per tenant
+export const whatsappUsage = pgTable("whatsapp_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  country: tenantCountryEnum("country").notNull(),
+  provider: whatsappProviderEnum("provider").notNull(),
+  yearMonth: varchar("year_month", { length: 7 }).notNull(), // YYYY-MM format
+  messagesSent: integer("messages_sent").default(0),
+  messagesDelivered: integer("messages_delivered").default(0),
+  messagesRead: integer("messages_read").default(0),
+  messagesFailed: integer("messages_failed").default(0),
+  templateMessages: integer("template_messages").default(0),
+  sessionMessages: integer("session_messages").default(0),
+  totalCost: decimal("total_cost", { precision: 12, scale: 4 }).default("0"),
+  currency: varchar("currency", { length: 3 }).default("USD"),
+  quotaUsed: integer("quota_used").default(0),
+  quotaLimit: integer("quota_limit"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_whatsapp_usage_tenant_month").on(table.tenantId, table.yearMonth),
+  index("idx_whatsapp_usage_country").on(table.country),
+  index("idx_whatsapp_usage_year_month").on(table.yearMonth),
+]);
+
+// Provider health monitoring
+export const whatsappProviderHealth = pgTable("whatsapp_provider_health", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  provider: whatsappProviderEnum("provider").notNull(),
+  country: tenantCountryEnum("country"),
+  status: varchar("status", { length: 20 }).notNull().default("healthy"), // healthy, degraded, down
+  lastCheckAt: timestamp("last_check_at").defaultNow(),
+  lastSuccessAt: timestamp("last_success_at"),
+  lastFailureAt: timestamp("last_failure_at"),
+  consecutiveFailures: integer("consecutive_failures").default(0),
+  averageLatencyMs: integer("average_latency_ms"),
+  successRate: decimal("success_rate", { precision: 5, scale: 2 }),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_whatsapp_health_provider_country").on(table.provider, table.country),
+  index("idx_whatsapp_health_status").on(table.status),
+]);
+
+// Webhook events from WhatsApp providers
+export const whatsappWebhookEvents = pgTable("whatsapp_webhook_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  provider: whatsappProviderEnum("provider").notNull(),
+  eventId: varchar("event_id", { length: 255 }).notNull(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  messageId: varchar("message_id").references(() => whatsappMessages.id),
+  payload: jsonb("payload").notNull(),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, processed, failed
+  processedAt: timestamp("processed_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_whatsapp_webhook_provider_event").on(table.provider, table.eventId),
+  index("idx_whatsapp_webhook_status").on(table.status),
+  index("idx_whatsapp_webhook_message").on(table.messageId),
+]);
+
+// ============================================
 // INSERT SCHEMAS
 // ============================================
 
@@ -1125,6 +1301,15 @@ export const insertSubscriptionInvoiceSchema = createInsertSchema(subscriptionIn
 export const insertTransactionLogSchema = createInsertSchema(transactionLogs).omit({ id: true, createdAt: true });
 export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, createdAt: true });
 export const insertPaymentAttemptSchema = createInsertSchema(paymentAttempts).omit({ id: true, createdAt: true });
+
+// WhatsApp insert schemas
+export const insertWhatsappProviderConfigSchema = createInsertSchema(whatsappProviderConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWhatsappTemplateSchema = createInsertSchema(whatsappTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWhatsappOptInSchema = createInsertSchema(whatsappOptIns).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWhatsappMessageSchema = createInsertSchema(whatsappMessages).omit({ id: true, createdAt: true });
+export const insertWhatsappUsageSchema = createInsertSchema(whatsappUsage).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWhatsappProviderHealthSchema = createInsertSchema(whatsappProviderHealth).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWhatsappWebhookEventSchema = createInsertSchema(whatsappWebhookEvents).omit({ id: true, createdAt: true });
 
 // ============================================
 // TYPES
@@ -1263,6 +1448,28 @@ export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
 
 export type PaymentAttempt = typeof paymentAttempts.$inferSelect;
 export type InsertPaymentAttempt = z.infer<typeof insertPaymentAttemptSchema>;
+
+// WhatsApp types
+export type WhatsappProviderConfig = typeof whatsappProviderConfigs.$inferSelect;
+export type InsertWhatsappProviderConfig = z.infer<typeof insertWhatsappProviderConfigSchema>;
+
+export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect;
+export type InsertWhatsappTemplate = z.infer<typeof insertWhatsappTemplateSchema>;
+
+export type WhatsappOptIn = typeof whatsappOptIns.$inferSelect;
+export type InsertWhatsappOptIn = z.infer<typeof insertWhatsappOptInSchema>;
+
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
+export type InsertWhatsappMessage = z.infer<typeof insertWhatsappMessageSchema>;
+
+export type WhatsappUsage = typeof whatsappUsage.$inferSelect;
+export type InsertWhatsappUsage = z.infer<typeof insertWhatsappUsageSchema>;
+
+export type WhatsappProviderHealth = typeof whatsappProviderHealth.$inferSelect;
+export type InsertWhatsappProviderHealth = z.infer<typeof insertWhatsappProviderHealthSchema>;
+
+export type WhatsappWebhookEvent = typeof whatsappWebhookEvents.$inferSelect;
+export type InsertWhatsappWebhookEvent = z.infer<typeof insertWhatsappWebhookEventSchema>;
 
 // Extended types for joins
 export type BookingWithDetails = Booking & {

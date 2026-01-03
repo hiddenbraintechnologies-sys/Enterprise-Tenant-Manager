@@ -19,3 +19,4 @@ export {
   MODULE_DESCRIPTIONS,
   type BusinessModule 
 } from "./business-modules";
+export { whatsappService, whatsappProviderSelector, initializeWhatsappProviders } from "./whatsapp";
