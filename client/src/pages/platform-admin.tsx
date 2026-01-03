@@ -84,8 +84,9 @@ export default function PlatformAdminDashboard() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [suspensionReason, setSuspensionReason] = useState("");
 
-  const { data: adminProfile, isLoading: loadingProfile } = useQuery<PlatformAdmin>({
+  const { data: adminProfile, isLoading: loadingProfile, error: profileError } = useQuery<PlatformAdmin>({
     queryKey: ["/api/platform/me"],
+    retry: false,
   });
 
   const { data: analytics, isLoading: loadingAnalytics } = useQuery<PlatformAnalytics>({
@@ -135,15 +136,30 @@ export default function PlatformAdminDashboard() {
     },
   });
 
-  const filteredTenants = tenantsData?.tenants.filter(tenant =>
+  const filteredTenants = (tenantsData?.tenants || []).filter(tenant =>
     tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     tenant.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  );
 
   if (loadingProfile) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (profileError || !adminProfile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <Shield className="h-16 w-16 text-muted-foreground" />
+        <h1 className="text-2xl font-semibold">Access Denied</h1>
+        <p className="text-muted-foreground text-center max-w-md">
+          You must be logged in as a platform administrator to access this page.
+        </p>
+        <Button variant="outline" onClick={() => window.location.href = "/"}>
+          Return to Home
+        </Button>
       </div>
     );
   }
