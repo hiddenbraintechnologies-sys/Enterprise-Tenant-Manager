@@ -784,6 +784,95 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
 }));
 
 // ============================================
+// PLATFORM: SUPPORT TICKETS
+// ============================================
+
+export const ticketStatusEnum = pgEnum("ticket_status", ["open", "in_progress", "waiting", "resolved", "closed"]);
+export const ticketPriorityEnum = pgEnum("ticket_priority", ["low", "medium", "high", "critical"]);
+
+export const supportTickets = pgTable("support_tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  status: ticketStatusEnum("status").default("open"),
+  priority: ticketPriorityEnum("priority").default("medium"),
+  category: varchar("category", { length: 100 }),
+  assignedTo: varchar("assigned_to"),
+  resolvedAt: timestamp("resolved_at"),
+  closedAt: timestamp("closed_at"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_support_tickets_tenant").on(table.tenantId),
+  index("idx_support_tickets_status").on(table.status),
+  index("idx_support_tickets_created").on(table.createdAt),
+]);
+
+export const supportTicketMessages = pgTable("support_ticket_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull().references(() => supportTickets.id, { onDelete: "cascade" }),
+  senderId: varchar("sender_id"),
+  senderType: varchar("sender_type", { length: 50 }).notNull(),
+  message: text("message").notNull(),
+  attachments: jsonb("attachments").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_ticket_messages_ticket").on(table.ticketId),
+]);
+
+// ============================================
+// PLATFORM: ERROR LOGS
+// ============================================
+
+export const errorSeverityEnum = pgEnum("error_severity", ["debug", "info", "warning", "error", "critical"]);
+
+export const errorLogs = pgTable("error_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  severity: errorSeverityEnum("severity").default("error"),
+  source: varchar("source", { length: 100 }).notNull(),
+  message: text("message").notNull(),
+  stackTrace: text("stack_trace"),
+  metadata: jsonb("metadata").default({}),
+  requestPath: varchar("request_path", { length: 500 }),
+  requestMethod: varchar("request_method", { length: 10 }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  isResolved: boolean("is_resolved").default(false),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_error_logs_tenant").on(table.tenantId),
+  index("idx_error_logs_severity").on(table.severity),
+  index("idx_error_logs_source").on(table.source),
+  index("idx_error_logs_created").on(table.createdAt),
+]);
+
+// ============================================
+// PLATFORM: USAGE METRICS
+// ============================================
+
+export const usageMetrics = pgTable("usage_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  metricType: varchar("metric_type", { length: 50 }).notNull(),
+  metricValue: decimal("metric_value", { precision: 15, scale: 2 }).notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_usage_metrics_tenant").on(table.tenantId),
+  index("idx_usage_metrics_type").on(table.metricType),
+  index("idx_usage_metrics_period").on(table.periodStart, table.periodEnd),
+]);
+
+// ============================================
 // INSERT SCHEMAS
 // ============================================
 
@@ -821,6 +910,11 @@ export const insertPatientSchema = createInsertSchema(patients).omit({ id: true,
 export const insertDoctorSchema = createInsertSchema(doctors).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMedicalRecordSchema = createInsertSchema(medicalRecords).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSupportTicketMessageSchema = createInsertSchema(supportTicketMessages).omit({ id: true, createdAt: true });
+export const insertErrorLogSchema = createInsertSchema(errorLogs).omit({ id: true, createdAt: true });
+export const insertUsageMetricSchema = createInsertSchema(usageMetrics).omit({ id: true, createdAt: true });
 
 // ============================================
 // TYPES
@@ -922,6 +1016,18 @@ export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 
 export type MedicalRecord = typeof medicalRecords.$inferSelect;
 export type InsertMedicalRecord = z.infer<typeof insertMedicalRecordSchema>;
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+
+export type SupportTicketMessage = typeof supportTicketMessages.$inferSelect;
+export type InsertSupportTicketMessage = z.infer<typeof insertSupportTicketMessageSchema>;
+
+export type ErrorLog = typeof errorLogs.$inferSelect;
+export type InsertErrorLog = z.infer<typeof insertErrorLogSchema>;
+
+export type UsageMetric = typeof usageMetrics.$inferSelect;
+export type InsertUsageMetric = z.infer<typeof insertUsageMetricSchema>;
 
 // Extended types for joins
 export type BookingWithDetails = Booking & {
