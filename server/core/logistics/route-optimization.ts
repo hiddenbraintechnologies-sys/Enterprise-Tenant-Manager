@@ -5,7 +5,7 @@ import {
   type RouteOptimizationJob,
   type RouteOptimizationCache,
 } from "@shared/schema";
-import { eq, and, desc, gt, sql } from "drizzle-orm";
+import { eq, and, desc, sql, gt } from "drizzle-orm";
 import { aiService } from "../ai-service";
 import OpenAI from "openai";
 import crypto from "crypto";
@@ -93,12 +93,28 @@ class RouteOptimizationService {
       pickup: { lat: input.pickupLocation.lat, lng: input.pickupLocation.lng },
       drops: input.dropOffLocations.map(d => ({ lat: d.lat, lng: d.lng })).sort((a, b) => a.lat - b.lat || a.lng - b.lng),
       capacity: input.vehicleCapacity,
-      windowStart: input.deliveryWindowStart?.toISOString(),
-      windowEnd: input.deliveryWindowEnd?.toISOString(),
+      windowStart: input.deliveryWindowStart instanceof Date ? input.deliveryWindowStart.toISOString() : input.deliveryWindowStart,
+      windowEnd: input.deliveryWindowEnd instanceof Date ? input.deliveryWindowEnd.toISOString() : input.deliveryWindowEnd,
       hasTraffic: !!input.trafficData,
     };
     const hash = crypto.createHash("sha256").update(tenantId + JSON.stringify(payload)).digest("hex").substring(0, 64);
     return hash;
+  }
+  
+  private serializeForStorage(input: RouteOptimizationInput): {
+    pickupLocation: any;
+    dropOffLocations: any;
+    trafficData: any;
+    deliveryWindowStart: Date | undefined;
+    deliveryWindowEnd: Date | undefined;
+  } {
+    return {
+      pickupLocation: input.pickupLocation,
+      dropOffLocations: input.dropOffLocations,
+      trafficData: input.trafficData || null,
+      deliveryWindowStart: input.deliveryWindowStart instanceof Date ? input.deliveryWindowStart : (input.deliveryWindowStart ? new Date(input.deliveryWindowStart) : undefined),
+      deliveryWindowEnd: input.deliveryWindowEnd instanceof Date ? input.deliveryWindowEnd : (input.deliveryWindowEnd ? new Date(input.deliveryWindowEnd) : undefined),
+    };
   }
 
   private generatePayloadHash(input: RouteOptimizationInput): string {
@@ -266,9 +282,11 @@ class RouteOptimizationService {
     const cacheKey = this.generateCacheKey(tenantId, input);
 
     const consent = await aiService.checkAiConsent(tenantId);
-    const featureCheck = await aiService.checkFeatureAllowed(tenantId, "route_optimization");
+    const featureAllowed = await aiService.checkFeatureAllowed(tenantId, "route_optimization");
 
     const cached = await this.checkCache(tenantId, cacheKey);
+    const serialized = this.serializeForStorage(input);
+    
     if (cached) {
       const cachedResult = cached.responsePayload as unknown as Omit<RouteOptimizationResult, "jobId" | "cacheHit">;
       const [job] = await db.insert(routeOptimizationJobs).values({
@@ -276,13 +294,13 @@ class RouteOptimizationService {
         shipmentId: input.shipmentId,
         vehicleId: input.vehicleId,
         tripId: input.tripId,
-        pickupLocation: input.pickupLocation as any,
-        dropOffLocations: input.dropOffLocations as any,
+        pickupLocation: serialized.pickupLocation,
+        dropOffLocations: serialized.dropOffLocations,
         vehicleCapacity: input.vehicleCapacity?.toString(),
         capacityUnit: input.capacityUnit,
-        deliveryWindowStart: input.deliveryWindowStart,
-        deliveryWindowEnd: input.deliveryWindowEnd,
-        trafficData: input.trafficData as any,
+        deliveryWindowStart: serialized.deliveryWindowStart,
+        deliveryWindowEnd: serialized.deliveryWindowEnd,
+        trafficData: serialized.trafficData,
         optimizedRoute: cachedResult.optimizedRoute as any,
         etaMinutes: cachedResult.etaMinutes,
         distanceKm: cachedResult.distanceKm.toString(),
@@ -306,13 +324,13 @@ class RouteOptimizationService {
       shipmentId: input.shipmentId,
       vehicleId: input.vehicleId,
       tripId: input.tripId,
-      pickupLocation: input.pickupLocation as any,
-      dropOffLocations: input.dropOffLocations as any,
+      pickupLocation: serialized.pickupLocation,
+      dropOffLocations: serialized.dropOffLocations,
       vehicleCapacity: input.vehicleCapacity?.toString(),
       capacityUnit: input.capacityUnit,
-      deliveryWindowStart: input.deliveryWindowStart,
-      deliveryWindowEnd: input.deliveryWindowEnd,
-      trafficData: input.trafficData as any,
+      deliveryWindowStart: serialized.deliveryWindowStart,
+      deliveryWindowEnd: serialized.deliveryWindowEnd,
+      trafficData: serialized.trafficData,
       cacheKey,
       status: "processing",
       requestedBy,
@@ -324,11 +342,12 @@ class RouteOptimizationService {
     let usageLogId: string | undefined;
     let consentVersion: string | undefined;
 
-    if (consent.allowed && featureCheck.allowed) {
+    if (consent.allowed && featureAllowed) {
       const rateCheck = await aiService.checkRateLimit(tenantId);
-      const tokenCheck = await aiService.checkTokenQuota(tenantId);
+      const estimatedTokens = 1000;
+      const tokenCheck = await aiService.checkTokenQuota(tenantId, estimatedTokens);
 
-      if (rateCheck.allowed && tokenCheck.allowed) {
+      if (rateCheck.allowed && tokenCheck) {
         const startTime = Date.now();
         try {
           const aiResult = await this.callAiForRouteOptimization(input);
@@ -343,10 +362,9 @@ class RouteOptimizationService {
             const log = await aiService.logUsage({
               tenantId,
               feature: "route_optimization",
-              requestType: "route_optimization",
-              modelUsed: aiModel,
+              model: aiModel,
               provider: "openai",
-              tokensUsed: aiResult.tokensUsed,
+              totalTokens: aiResult.tokensUsed,
               success: true,
               latencyMs,
             });
@@ -359,10 +377,9 @@ class RouteOptimizationService {
           await aiService.logUsage({
             tenantId,
             feature: "route_optimization",
-            requestType: "route_optimization",
-            modelUsed: "gpt-4o-mini",
+            model: "gpt-4o-mini",
             provider: "openai",
-            tokensUsed: 0,
+            totalTokens: 0,
             success: false,
             latencyMs,
             errorMessage: error.message,
@@ -583,7 +600,7 @@ class RouteOptimizationService {
     const now = new Date();
     const result = await db
       .delete(routeOptimizationCache)
-      .where(gt(now, routeOptimizationCache.expiresAt));
+      .where(sql`${routeOptimizationCache.expiresAt} < ${now}`);
     return 0;
   }
 }
