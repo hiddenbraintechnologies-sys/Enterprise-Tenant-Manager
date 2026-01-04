@@ -83,6 +83,14 @@ async function createTablesIfNotExist(): Promise<void> {
     END $$;
   `);
   
+  // Add region column to tenants if missing
+  await db.execute(sql`
+    DO $$ BEGIN
+      ALTER TABLE tenants ADD COLUMN IF NOT EXISTS region tenant_region DEFAULT 'asia_pacific';
+    EXCEPTION WHEN undefined_column THEN null;
+    END $$;
+  `);
+  
   // Create whatsapp_provider_configs table
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS whatsapp_provider_configs (
