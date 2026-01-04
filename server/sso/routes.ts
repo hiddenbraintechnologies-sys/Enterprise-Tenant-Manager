@@ -10,6 +10,7 @@ import { googleSsoService } from './google-sso';
 import { microsoftSsoService } from './microsoft-sso';
 import { oktaSsoService } from './okta-sso';
 import { createSamlHandler } from './saml-handler';
+import { ssoUserProvisioningService } from './user-provisioning';
 import { z } from 'zod';
 
 const router = Router();
@@ -802,45 +803,37 @@ router.get('/okta/callback', async (req: Request, res: Response) => {
       redirectUri,
     });
 
-    let identity = await ssoService.findUserIdentity(
-      result.provider.id,
-      result.user.sub
-    );
-
-    if (identity) {
-      await ssoService.updateIdentityOnLogin(identity.id, {
-        access_token: result.tokens.accessToken,
-        refresh_token: result.tokens.refreshToken,
-        token_type: 'Bearer',
-        expires_in: 3600,
-      });
-
-      if (req.session) {
-        (req.session as any).userId = identity.userId;
-        (req.session as any).tenantId = result.session.tenantId;
-        (req.session as any).ssoProvider = 'okta';
-        (req.session as any).oktaGroups = result.groups;
-      }
-
-      const returnUrl = result.session.returnUrl || '/dashboard';
-      return res.redirect(`${returnUrl}?sso_success=true&user_id=${identity.userId}`);
-    }
-
-    if (result.provider.autoCreateUsers) {
-      const userInfo = encodeURIComponent(JSON.stringify({
-        email: result.user.email,
+    const provisionResult = await ssoUserProvisioningService.provisionUser({
+      provider: result.provider,
+      profile: {
+        providerUserId: result.user.sub,
+        email: result.user.email || '',
         firstName: result.user.given_name,
         lastName: result.user.family_name,
-        providerId: result.provider.id,
-        providerUserId: result.user.sub,
+        displayName: result.user.name,
         groups: result.groups,
-        tenantId: result.session.tenantId,
-      }));
-      
-      return res.redirect(`/auth/complete-registration?sso_data=${userInfo}`);
+        attributes: result.user,
+      },
+      tokens: {
+        accessToken: result.tokens.accessToken,
+        refreshToken: result.tokens.refreshToken,
+        idToken: result.tokens.idToken,
+        expiresIn: 3600,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    if (req.session) {
+      (req.session as any).userId = provisionResult.user.id;
+      (req.session as any).tenantId = result.session.tenantId;
+      (req.session as any).ssoProvider = 'okta';
+      (req.session as any).oktaGroups = result.groups;
+      (req.session as any).role = provisionResult.assignedRole;
     }
 
-    return res.redirect('/auth/error?error=user_not_found&provider=okta');
+    const returnUrl = result.session.returnUrl || '/dashboard';
+    return res.redirect(`${returnUrl}?sso_success=true`);
   } catch (error: any) {
     console.error('Okta OAuth callback error:', error);
     res.redirect(`/auth/error?error=okta_callback_failed&message=${encodeURIComponent(error.message)}`);
@@ -981,36 +974,31 @@ router.post('/saml/acs', async (req: Request, res: Response) => {
     const samlHandler = createSamlHandler(baseUrl);
     const result = await samlHandler.parseSamlResponse(provider, SAMLResponse, RelayState);
 
-    let identity = await ssoService.findUserIdentity(provider.id, result.user.email);
-
-    if (identity) {
-      if (req.session) {
-        (req.session as any).userId = identity.userId;
-        (req.session as any).tenantId = provider.tenantId;
-        (req.session as any).ssoProvider = 'saml';
-        (req.session as any).samlSessionIndex = result.sessionIndex;
-      }
-
-      const returnUrl = result.relayState || '/dashboard';
-      return res.redirect(`${returnUrl}?sso_success=true&user_id=${identity.userId}`);
-    }
-
-    if (provider.autoCreateUsers) {
-      const userInfo = encodeURIComponent(JSON.stringify({
+    const provisionResult = await ssoUserProvisioningService.provisionUser({
+      provider,
+      profile: {
+        providerUserId: result.user.nameId || result.user.email,
         email: result.user.email,
         firstName: result.user.firstName,
         lastName: result.user.lastName,
-        providerId: provider.id,
-        providerUserId: result.user.email,
+        displayName: result.user.displayName,
         groups: result.user.groups,
-        tenantId: provider.tenantId,
-        sessionIndex: result.sessionIndex,
-      }));
-      
-      return res.redirect(`/auth/complete-registration?sso_data=${userInfo}`);
+        attributes: result.user.attributes,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    if (req.session) {
+      (req.session as any).userId = provisionResult.user.id;
+      (req.session as any).tenantId = provider.tenantId;
+      (req.session as any).ssoProvider = 'saml';
+      (req.session as any).samlSessionIndex = result.sessionIndex;
+      (req.session as any).role = provisionResult.assignedRole;
     }
 
-    return res.redirect('/auth/error?error=user_not_found&provider=saml');
+    const returnUrl = result.relayState || '/dashboard';
+    return res.redirect(`${returnUrl}?sso_success=true`);
   } catch (error: any) {
     console.error('SAML ACS error:', error);
     res.redirect(`/auth/error?error=saml_acs_failed&message=${encodeURIComponent(error.message)}`);
@@ -1102,6 +1090,163 @@ router.get('/available-providers', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error fetching available providers:', error);
     res.status(500).json({ error: 'Failed to fetch SSO providers' });
+  }
+});
+
+// ==================== USER DEPROVISIONING WEBHOOKS ====================
+
+const scimWebhookSchema = z.object({
+  schemas: z.array(z.string()).optional(),
+  Operations: z.array(z.object({
+    op: z.enum(['add', 'remove', 'replace']),
+    path: z.string().optional(),
+    value: z.any().optional(),
+  })).optional(),
+  id: z.string().optional(),
+  userName: z.string().optional(),
+  active: z.boolean().optional(),
+});
+
+/**
+ * SCIM 2.0 User Deprovisioning Webhook
+ * Handles user deactivation/deletion from IdP
+ * Requires Bearer token authentication matching provider's webhook secret
+ */
+router.post('/webhooks/scim/:providerId', async (req: Request, res: Response) => {
+  try {
+    const { providerId } = req.params;
+    
+    const provider = await ssoService.getProviderById(providerId);
+    if (!provider) {
+      return res.status(404).json({ error: 'Provider not found' });
+    }
+
+    const authHeader = req.headers.authorization;
+    const webhookSecret = (provider as any).metadata?.scimWebhookSecret;
+    
+    if (webhookSecret) {
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Missing authorization header' });
+      }
+      const token = authHeader.substring(7);
+      if (token !== webhookSecret) {
+        return res.status(403).json({ error: 'Invalid webhook secret' });
+      }
+    }
+
+    const payload = scimWebhookSchema.parse(req.body);
+
+    if (payload.active === false || payload.Operations?.some(op => op.op === 'remove')) {
+      const userId = payload.id || payload.userName;
+      if (userId) {
+        await ssoUserProvisioningService.processScimDeprovision({
+          providerId,
+          scimUserId: userId,
+          action: payload.active === false ? 'deactivate' : 'delete',
+        });
+      }
+    }
+
+    res.status(200).json({ status: 'processed' });
+  } catch (error: any) {
+    console.error('SCIM webhook error:', error.message);
+    res.status(400).json({ error: 'Invalid request' });
+  }
+});
+
+/**
+ * Okta Event Hook for User Deprovisioning
+ * Validates Okta verification header for webhook authentication
+ */
+router.post('/webhooks/okta/:providerId', async (req: Request, res: Response) => {
+  try {
+    const { providerId } = req.params;
+
+    if (req.headers['x-okta-verification-challenge']) {
+      return res.json({ verification: req.headers['x-okta-verification-challenge'] });
+    }
+
+    const provider = await ssoService.getProviderById(providerId);
+    if (!provider || provider.providerType !== 'okta') {
+      return res.status(404).json({ error: 'Provider not found' });
+    }
+
+    const oktaWebhookSecret = (provider as any).metadata?.oktaWebhookSecret;
+    if (oktaWebhookSecret) {
+      const authorizationHeader = req.headers['authorization'];
+      if (!authorizationHeader || authorizationHeader !== oktaWebhookSecret) {
+        return res.status(403).json({ error: 'Invalid webhook authorization' });
+      }
+    }
+
+    const { events } = req.body;
+
+    for (const event of events || []) {
+      const eventType = event.eventType;
+      
+      if (eventType === 'user.lifecycle.deactivate' || 
+          eventType === 'user.lifecycle.suspend' ||
+          eventType === 'user.session.end') {
+        const userId = event.target?.[0]?.id;
+        if (userId) {
+          await ssoUserProvisioningService.deprovisionUser({
+            providerId,
+            providerUserId: userId,
+            reason: 'webhook_notification',
+          });
+        }
+      }
+    }
+
+    res.status(200).json({ status: 'processed' });
+  } catch (error: any) {
+    console.error('Okta webhook error:', error.message);
+    res.status(400).json({ error: 'Invalid request' });
+  }
+});
+
+/**
+ * Generic token revocation endpoint
+ * Can be called by admin or scheduled job to revoke user access
+ */
+router.post('/revoke-user/:providerId/:providerUserId', async (req: Request, res: Response) => {
+  try {
+    const { providerId, providerUserId } = req.params;
+    const { reason } = req.body;
+
+    const provider = await ssoService.getProviderById(providerId);
+    if (!provider) {
+      return res.status(404).json({ error: 'Provider not found' });
+    }
+
+    await ssoUserProvisioningService.deprovisionUser({
+      providerId,
+      providerUserId,
+      reason: reason || 'admin_action',
+      revokedBy: (req as any).userId,
+    });
+
+    res.json({ success: true, message: 'User access revoked' });
+  } catch (error: any) {
+    console.error('User revocation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Token introspection endpoint
+ * Checks if a user's SSO tokens are still valid
+ */
+router.post('/introspect/:identityId', async (req: Request, res: Response) => {
+  try {
+    const { identityId } = req.params;
+    
+    const isValid = await ssoUserProvisioningService.checkTokenValidity(identityId);
+    
+    res.json({ active: isValid });
+  } catch (error: any) {
+    console.error('Token introspection error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
