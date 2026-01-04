@@ -5209,6 +5209,7 @@ export const addonPricingTypeEnum = pgEnum("addon_pricing_type", [
 export const addonInstallStatusEnum = pgEnum("addon_install_status", [
   "pending",
   "installing",
+  "updating",
   "active",
   "disabled",
   "uninstalling",

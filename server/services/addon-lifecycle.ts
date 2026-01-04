@@ -697,14 +697,14 @@ export class AddonLifecycleService {
       .select()
       .from(addonInstallHistory)
       .where(eq(addonInstallHistory.tenantId, tenantId))
-      .orderBy(sql`${addonInstallHistory.createdAt} DESC`);
+      .orderBy(sql`${addonInstallHistory.performedAt} DESC`);
     
     if (addonId) {
       query = db
         .select()
         .from(addonInstallHistory)
         .where(and(eq(addonInstallHistory.tenantId, tenantId), eq(addonInstallHistory.addonId, addonId)))
-        .orderBy(sql`${addonInstallHistory.createdAt} DESC`);
+        .orderBy(sql`${addonInstallHistory.performedAt} DESC`);
     }
     
     return query;

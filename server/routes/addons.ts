@@ -15,6 +15,7 @@ import {
 import { eq, and, desc, sql, ilike, or } from "drizzle-orm";
 import { requireAuth, requireTenant } from "../core/context";
 import { requireRole } from "../core/auth-middleware";
+import { addonLifecycle } from "../services/addon-lifecycle";
 
 // Helper to enforce tenantId matches context
 function enforceTenantContext(req: Request, res: Response, next: Function) {
@@ -185,105 +186,44 @@ router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenant
   }
 });
 
-// Install an add-on
+// Install an add-on with dependency checks and rollback
 router.post("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
     const { addonId, pricingId, config = {} } = req.body;
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.id || "system";
 
-    // Verify addon exists and is published
-    const [addon] = await db
-      .select()
-      .from(addons)
-      .where(and(eq(addons.id, addonId), eq(addons.status, "published")))
-      .limit(1);
+    const result = await addonLifecycle.install(tenantId, addonId, pricingId, config, userId);
 
-    if (!addon) {
-      return res.status(404).json({ error: "Add-on not found or not available" });
+    if (!result.success) {
+      const statusCode = result.code === "ADDON_NOT_FOUND" ? 404 : 
+                         result.code === "MISSING_DEPENDENCIES" ? 422 : 400;
+      return res.status(statusCode).json({ 
+        error: result.error, 
+        code: result.code,
+        details: result.data,
+        rollbackPerformed: result.rollbackPerformed
+      });
     }
 
-    // Check if already installed
-    const existing = await db
-      .select()
-      .from(tenantAddons)
-      .where(and(eq(tenantAddons.tenantId, tenantId), eq(tenantAddons.addonId, addonId)))
-      .limit(1);
-
-    if (existing.length > 0) {
-      return res.status(400).json({ error: "Add-on already installed" });
-    }
-
-    // Get latest version
-    const [latestVersion] = await db
-      .select()
-      .from(addonVersions)
-      .where(and(eq(addonVersions.addonId, addonId), eq(addonVersions.isLatest, true)))
-      .limit(1);
-
-    if (!latestVersion) {
-      return res.status(400).json({ error: "No available version" });
-    }
-
-    // Get pricing if specified - verify it belongs to this addon
-    let selectedPricing = null;
-    if (pricingId) {
-      [selectedPricing] = await db
-        .select()
-        .from(addonPricing)
-        .where(and(eq(addonPricing.id, pricingId), eq(addonPricing.addonId, addonId)))
-        .limit(1);
-      
-      if (!selectedPricing) {
-        return res.status(400).json({ error: "Invalid pricing option for this add-on" });
-      }
-    }
-
-    // Create installation
-    const [installation] = await db
-      .insert(tenantAddons)
-      .values({
-        tenantId,
-        addonId,
-        versionId: latestVersion.id,
-        pricingId: selectedPricing?.id,
-        status: "installing",
-        config,
-        installedBy: userId,
-        trialEndsAt: selectedPricing?.trialDays 
-          ? new Date(Date.now() + selectedPricing.trialDays * 24 * 60 * 60 * 1000)
-          : null,
-      })
-      .returning();
-
-    // Record history
-    await db.insert(addonInstallHistory).values({
-      tenantAddonId: installation.id,
-      tenantId,
-      addonId,
-      action: "install",
-      toVersionId: latestVersion.id,
-      status: "completed",
-      performedBy: userId,
-      completedAt: new Date(),
-    });
-
-    // Update install count
-    await db
-      .update(addons)
-      .set({ installCount: sql`${addons.installCount} + 1` })
-      .where(eq(addons.id, addonId));
-
-    // Mark as active
-    await db
-      .update(tenantAddons)
-      .set({ status: "active" })
-      .where(eq(tenantAddons.id, installation.id));
-
-    res.status(201).json({ installation });
+    res.status(201).json({ installation: result.data });
   } catch (error) {
     console.error("Error installing add-on:", error);
     res.status(500).json({ error: "Failed to install add-on" });
+  }
+});
+
+// Check dependencies before install
+router.post("/tenant/:tenantId/addons/check-dependencies", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    const { addonId, versionId } = req.body;
+
+    const result = await addonLifecycle.checkDependencies(tenantId, addonId, versionId);
+    res.json(result);
+  } catch (error) {
+    console.error("Error checking dependencies:", error);
+    res.status(500).json({ error: "Failed to check dependencies" });
   }
 });
 
@@ -315,108 +255,120 @@ router.patch("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, en
   }
 });
 
-// Update add-on to new version
-router.post("/tenant/:tenantId/addons/:addonId/update", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+// Upgrade add-on to new version with dependency checks and rollback
+router.post("/tenant/:tenantId/addons/:addonId/upgrade", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const { targetVersionId } = req.body;
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.id || "system";
 
-    const [installation] = await db
-      .select()
-      .from(tenantAddons)
-      .where(and(eq(tenantAddons.tenantId, tenantId), eq(tenantAddons.addonId, addonId)))
-      .limit(1);
+    const result = await addonLifecycle.upgrade(tenantId, addonId, targetVersionId, userId);
 
-    if (!installation) {
-      return res.status(404).json({ error: "Installation not found" });
+    if (!result.success) {
+      const statusCode = result.code === "NOT_INSTALLED" || result.code === "VERSION_NOT_FOUND" ? 404 : 
+                         result.code === "MISSING_DEPENDENCIES" ? 422 : 400;
+      return res.status(statusCode).json({ 
+        error: result.error, 
+        code: result.code,
+        details: result.data,
+        rollbackPerformed: result.rollbackPerformed
+      });
     }
 
-    const fromVersionId = installation.versionId;
-
-    // Verify target version exists AND belongs to this addon
-    const [targetVersion] = await db
-      .select()
-      .from(addonVersions)
-      .where(and(eq(addonVersions.id, targetVersionId), eq(addonVersions.addonId, addonId)))
-      .limit(1);
-
-    if (!targetVersion) {
-      return res.status(400).json({ error: "Target version not found or invalid for this add-on" });
-    }
-
-    // Update installation
-    await db
-      .update(tenantAddons)
-      .set({ 
-        versionId: targetVersionId,
-        updatedAt: new Date(),
-      })
-      .where(eq(tenantAddons.id, installation.id));
-
-    // Record history
-    await db.insert(addonInstallHistory).values({
-      tenantAddonId: installation.id,
-      tenantId,
-      addonId,
-      action: "update",
-      fromVersionId,
-      toVersionId: targetVersionId,
-      status: "completed",
-      performedBy: userId,
-      completedAt: new Date(),
-    });
-
-    res.json({ success: true });
+    res.json({ success: true, ...result.data });
   } catch (error) {
-    console.error("Error updating add-on version:", error);
-    res.status(500).json({ error: "Failed to update add-on version" });
+    console.error("Error upgrading add-on:", error);
+    res.status(500).json({ error: "Failed to upgrade add-on" });
   }
 });
 
-// Uninstall add-on
+// Disable add-on (keeps installation but deactivates)
+router.post("/tenant/:tenantId/addons/:addonId/disable", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+  try {
+    const { tenantId, addonId } = req.params;
+    const userId = (req as any).user?.id || "system";
+
+    const result = await addonLifecycle.disable(tenantId, addonId, userId);
+
+    if (!result.success) {
+      const statusCode = result.code === "NOT_INSTALLED" ? 404 : 
+                         result.code === "HAS_DEPENDENTS" ? 422 : 400;
+      return res.status(statusCode).json({ 
+        error: result.error, 
+        code: result.code,
+        details: result.data
+      });
+    }
+
+    res.json({ success: true, ...result.data });
+  } catch (error) {
+    console.error("Error disabling add-on:", error);
+    res.status(500).json({ error: "Failed to disable add-on" });
+  }
+});
+
+// Enable a disabled add-on
+router.post("/tenant/:tenantId/addons/:addonId/enable", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+  try {
+    const { tenantId, addonId } = req.params;
+    const userId = (req as any).user?.id || "system";
+
+    const result = await addonLifecycle.enable(tenantId, addonId, userId);
+
+    if (!result.success) {
+      const statusCode = result.code === "NOT_INSTALLED" ? 404 : 
+                         result.code === "MISSING_DEPENDENCIES" ? 422 : 400;
+      return res.status(statusCode).json({ 
+        error: result.error, 
+        code: result.code,
+        details: result.data
+      });
+    }
+
+    res.json({ success: true, ...result.data });
+  } catch (error) {
+    console.error("Error enabling add-on:", error);
+    res.status(500).json({ error: "Failed to enable add-on" });
+  }
+});
+
+// Uninstall add-on with dependency checks and rollback
 router.delete("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.id || "system";
 
-    const [installation] = await db
-      .select()
-      .from(tenantAddons)
-      .where(and(eq(tenantAddons.tenantId, tenantId), eq(tenantAddons.addonId, addonId)))
-      .limit(1);
+    const result = await addonLifecycle.uninstall(tenantId, addonId, userId);
 
-    if (!installation) {
-      return res.status(404).json({ error: "Installation not found" });
+    if (!result.success) {
+      const statusCode = result.code === "NOT_INSTALLED" ? 404 : 
+                         result.code === "HAS_DEPENDENTS" ? 422 : 400;
+      return res.status(statusCode).json({ 
+        error: result.error, 
+        code: result.code,
+        details: result.data,
+        rollbackPerformed: result.rollbackPerformed
+      });
     }
-
-    // Record history before deletion
-    await db.insert(addonInstallHistory).values({
-      tenantAddonId: installation.id,
-      tenantId,
-      addonId,
-      action: "uninstall",
-      fromVersionId: installation.versionId,
-      status: "completed",
-      performedBy: userId,
-      completedAt: new Date(),
-    });
-
-    // Delete installation
-    await db
-      .delete(tenantAddons)
-      .where(eq(tenantAddons.id, installation.id));
-
-    // Update install count
-    await db
-      .update(addons)
-      .set({ installCount: sql`GREATEST(${addons.installCount} - 1, 0)` })
-      .where(eq(addons.id, addonId));
 
     res.json({ success: true });
   } catch (error) {
     console.error("Error uninstalling add-on:", error);
     res.status(500).json({ error: "Failed to uninstall add-on" });
+  }
+});
+
+// Get installation history
+router.get("/tenant/:tenantId/addons/history", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    const { addonId } = req.query;
+
+    const history = await addonLifecycle.getHistory(tenantId, addonId as string | undefined);
+    res.json({ history });
+  } catch (error) {
+    console.error("Error fetching history:", error);
+    res.status(500).json({ error: "Failed to fetch history" });
   }
 });
 
