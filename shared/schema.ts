@@ -2856,3 +2856,358 @@ export type InsertFee = z.infer<typeof insertFeeSchema>;
 
 export type FeePayment = typeof feePayments.$inferSelect;
 export type InsertFeePayment = z.infer<typeof insertFeePaymentSchema>;
+
+// ============================================
+// LOGISTICS & FLEET MODULE
+// ============================================
+
+export const vehicleStatusEnum = pgEnum("vehicle_status", ["active", "inactive", "maintenance", "retired"]);
+export const driverStatusEnum = pgEnum("driver_status", ["available", "on_trip", "off_duty", "suspended", "terminated"]);
+export const tripStatusEnum = pgEnum("trip_status", ["scheduled", "in_progress", "completed", "cancelled"]);
+export const shipmentStatusEnum = pgEnum("shipment_status", ["pending", "picked_up", "in_transit", "out_for_delivery", "delivered", "failed", "returned"]);
+export const maintenanceStatusEnum = pgEnum("maintenance_status", ["scheduled", "in_progress", "completed", "cancelled"]);
+export const maintenanceTypeEnum = pgEnum("maintenance_type", ["preventive", "corrective", "emergency", "inspection"]);
+
+// Vehicles Table
+export const vehicles = pgTable("vehicles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Vehicle Details
+  registrationNumber: varchar("registration_number", { length: 50 }).notNull(),
+  vehicleType: varchar("vehicle_type", { length: 50 }),
+  make: varchar("make", { length: 100 }),
+  model: varchar("model", { length: 100 }),
+  year: integer("year"),
+  color: varchar("color", { length: 50 }),
+  vin: varchar("vin", { length: 50 }),
+  
+  // Capacity
+  loadCapacity: decimal("load_capacity", { precision: 10, scale: 2 }),
+  loadCapacityUnit: varchar("load_capacity_unit", { length: 20 }).default("kg"),
+  volumeCapacity: decimal("volume_capacity", { precision: 10, scale: 2 }),
+  volumeCapacityUnit: varchar("volume_capacity_unit", { length: 20 }).default("cubic_m"),
+  passengerCapacity: integer("passenger_capacity"),
+  
+  // Fuel
+  fuelType: varchar("fuel_type", { length: 30 }),
+  fuelCapacity: decimal("fuel_capacity", { precision: 8, scale: 2 }),
+  mileage: decimal("mileage", { precision: 8, scale: 2 }),
+  currentOdometer: decimal("current_odometer", { precision: 12, scale: 2 }),
+  
+  // Insurance & Documents
+  insuranceNumber: varchar("insurance_number", { length: 100 }),
+  insuranceExpiry: date("insurance_expiry"),
+  registrationExpiry: date("registration_expiry"),
+  fitnessExpiry: date("fitness_expiry"),
+  permitExpiry: date("permit_expiry"),
+  
+  // GPS / Location (optional)
+  lastLatitude: decimal("last_latitude", { precision: 10, scale: 7 }),
+  lastLongitude: decimal("last_longitude", { precision: 10, scale: 7 }),
+  lastLocationUpdate: timestamp("last_location_update"),
+  gpsDeviceId: varchar("gps_device_id", { length: 100 }),
+  
+  // Assignment
+  assignedDriverId: varchar("assigned_driver_id"),
+  
+  status: vehicleStatusEnum("status").default("active"),
+  
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_vehicles_tenant").on(table.tenantId),
+  index("idx_vehicles_tenant_status").on(table.tenantId, table.status),
+  index("idx_vehicles_registration").on(table.registrationNumber),
+  index("idx_vehicles_type").on(table.vehicleType),
+]);
+
+// Drivers Table
+export const drivers = pgTable("drivers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Personal Information
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email"),
+  phone: varchar("phone", { length: 20 }),
+  alternatePhone: varchar("alternate_phone", { length: 20 }),
+  dateOfBirth: date("date_of_birth"),
+  gender: varchar("gender", { length: 20 }),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 100 }),
+  country: varchar("country", { length: 100 }),
+  postalCode: varchar("postal_code", { length: 20 }),
+  
+  // License Details
+  licenseNumber: varchar("license_number", { length: 50 }),
+  licenseType: varchar("license_type", { length: 30 }),
+  licenseExpiry: date("license_expiry"),
+  licenseState: varchar("license_state", { length: 100 }),
+  
+  // Employment
+  employeeId: varchar("employee_id", { length: 50 }),
+  joiningDate: date("joining_date"),
+  salary: decimal("salary", { precision: 12, scale: 2 }),
+  salaryCurrency: varchar("salary_currency", { length: 10 }).default("INR"),
+  
+  // Emergency Contact
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: varchar("emergency_contact_phone", { length: 20 }),
+  emergencyContactRelation: varchar("emergency_contact_relation", { length: 50 }),
+  
+  // GPS / Location (optional)
+  lastLatitude: decimal("last_latitude", { precision: 10, scale: 7 }),
+  lastLongitude: decimal("last_longitude", { precision: 10, scale: 7 }),
+  lastLocationUpdate: timestamp("last_location_update"),
+  
+  // Assigned Vehicle
+  assignedVehicleId: varchar("assigned_vehicle_id"),
+  
+  status: driverStatusEnum("status").default("available"),
+  
+  profileImageUrl: text("profile_image_url"),
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  totalTrips: integer("total_trips").default(0),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_drivers_tenant").on(table.tenantId),
+  index("idx_drivers_tenant_status").on(table.tenantId, table.status),
+  index("idx_drivers_license").on(table.licenseNumber),
+  index("idx_drivers_employee").on(table.employeeId),
+]);
+
+// Trips Table
+export const trips = pgTable("trips", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  vehicleId: varchar("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
+  driverId: varchar("driver_id").references(() => drivers.id, { onDelete: "set null" }),
+  
+  tripNumber: varchar("trip_number", { length: 50 }),
+  tripType: varchar("trip_type", { length: 50 }),
+  
+  // Origin
+  originAddress: text("origin_address"),
+  originCity: varchar("origin_city", { length: 100 }),
+  originState: varchar("origin_state", { length: 100 }),
+  originLatitude: decimal("origin_latitude", { precision: 10, scale: 7 }),
+  originLongitude: decimal("origin_longitude", { precision: 10, scale: 7 }),
+  
+  // Destination
+  destinationAddress: text("destination_address"),
+  destinationCity: varchar("destination_city", { length: 100 }),
+  destinationState: varchar("destination_state", { length: 100 }),
+  destinationLatitude: decimal("destination_latitude", { precision: 10, scale: 7 }),
+  destinationLongitude: decimal("destination_longitude", { precision: 10, scale: 7 }),
+  
+  // Schedule
+  scheduledStartTime: timestamp("scheduled_start_time"),
+  scheduledEndTime: timestamp("scheduled_end_time"),
+  actualStartTime: timestamp("actual_start_time"),
+  actualEndTime: timestamp("actual_end_time"),
+  
+  // Distance & Fuel
+  estimatedDistance: decimal("estimated_distance", { precision: 10, scale: 2 }),
+  actualDistance: decimal("actual_distance", { precision: 10, scale: 2 }),
+  distanceUnit: varchar("distance_unit", { length: 10 }).default("km"),
+  fuelConsumed: decimal("fuel_consumed", { precision: 10, scale: 2 }),
+  
+  // Current Location (for tracking)
+  currentLatitude: decimal("current_latitude", { precision: 10, scale: 7 }),
+  currentLongitude: decimal("current_longitude", { precision: 10, scale: 7 }),
+  lastLocationUpdate: timestamp("last_location_update"),
+  
+  // Waypoints
+  waypoints: jsonb("waypoints").default([]),
+  
+  status: tripStatusEnum("status").default("scheduled"),
+  
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_trips_tenant").on(table.tenantId),
+  index("idx_trips_tenant_status").on(table.tenantId, table.status),
+  index("idx_trips_vehicle").on(table.vehicleId),
+  index("idx_trips_driver").on(table.driverId),
+  index("idx_trips_number").on(table.tripNumber),
+  index("idx_trips_scheduled").on(table.scheduledStartTime),
+]);
+
+// Shipments Table
+export const shipments = pgTable("shipments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  tripId: varchar("trip_id").references(() => trips.id, { onDelete: "set null" }),
+  
+  // Tracking
+  trackingNumber: varchar("tracking_number", { length: 100 }),
+  awbNumber: varchar("awb_number", { length: 100 }),
+  
+  // Sender
+  senderName: text("sender_name"),
+  senderPhone: varchar("sender_phone", { length: 20 }),
+  senderEmail: text("sender_email"),
+  senderAddress: text("sender_address"),
+  senderCity: varchar("sender_city", { length: 100 }),
+  senderState: varchar("sender_state", { length: 100 }),
+  senderPostalCode: varchar("sender_postal_code", { length: 20 }),
+  senderLatitude: decimal("sender_latitude", { precision: 10, scale: 7 }),
+  senderLongitude: decimal("sender_longitude", { precision: 10, scale: 7 }),
+  
+  // Receiver
+  receiverName: text("receiver_name"),
+  receiverPhone: varchar("receiver_phone", { length: 20 }),
+  receiverEmail: text("receiver_email"),
+  receiverAddress: text("receiver_address"),
+  receiverCity: varchar("receiver_city", { length: 100 }),
+  receiverState: varchar("receiver_state", { length: 100 }),
+  receiverPostalCode: varchar("receiver_postal_code", { length: 20 }),
+  receiverLatitude: decimal("receiver_latitude", { precision: 10, scale: 7 }),
+  receiverLongitude: decimal("receiver_longitude", { precision: 10, scale: 7 }),
+  
+  // Package Details
+  packageType: varchar("package_type", { length: 50 }),
+  packageCount: integer("package_count").default(1),
+  weight: decimal("weight", { precision: 10, scale: 2 }),
+  weightUnit: varchar("weight_unit", { length: 10 }).default("kg"),
+  dimensions: jsonb("dimensions").default({}),
+  declaredValue: decimal("declared_value", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  contents: text("contents"),
+  specialInstructions: text("special_instructions"),
+  
+  // Charges
+  freightCharges: decimal("freight_charges", { precision: 12, scale: 2 }),
+  insuranceCharges: decimal("insurance_charges", { precision: 12, scale: 2 }),
+  handlingCharges: decimal("handling_charges", { precision: 12, scale: 2 }),
+  totalCharges: decimal("total_charges", { precision: 12, scale: 2 }),
+  paymentStatus: varchar("payment_status", { length: 20 }).default("pending"),
+  paymentMethod: varchar("payment_method", { length: 30 }),
+  
+  // Schedule
+  pickupDate: date("pickup_date"),
+  expectedDeliveryDate: date("expected_delivery_date"),
+  actualDeliveryDate: date("actual_delivery_date"),
+  
+  // Current Location (for tracking)
+  currentLatitude: decimal("current_latitude", { precision: 10, scale: 7 }),
+  currentLongitude: decimal("current_longitude", { precision: 10, scale: 7 }),
+  lastLocationUpdate: timestamp("last_location_update"),
+  currentLocation: text("current_location"),
+  
+  // Proof of Delivery
+  deliveredTo: text("delivered_to"),
+  deliverySignature: text("delivery_signature"),
+  deliveryPhoto: text("delivery_photo"),
+  
+  status: shipmentStatusEnum("status").default("pending"),
+  
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_shipments_tenant").on(table.tenantId),
+  index("idx_shipments_tenant_status").on(table.tenantId, table.status),
+  index("idx_shipments_tracking").on(table.trackingNumber),
+  index("idx_shipments_awb").on(table.awbNumber),
+  index("idx_shipments_trip").on(table.tripId),
+  index("idx_shipments_pickup_date").on(table.pickupDate),
+]);
+
+// Maintenance Logs Table
+export const maintenanceLogs = pgTable("maintenance_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  vehicleId: varchar("vehicle_id").notNull().references(() => vehicles.id, { onDelete: "cascade" }),
+  
+  // Maintenance Details
+  maintenanceType: maintenanceTypeEnum("maintenance_type").default("preventive"),
+  title: text("title").notNull(),
+  description: text("description"),
+  
+  // Schedule
+  scheduledDate: date("scheduled_date"),
+  startDate: date("start_date"),
+  completionDate: date("completion_date"),
+  
+  // Odometer
+  odometerReading: decimal("odometer_reading", { precision: 12, scale: 2 }),
+  
+  // Service Provider
+  serviceProvider: text("service_provider"),
+  serviceProviderContact: varchar("service_provider_contact", { length: 20 }),
+  serviceLocation: text("service_location"),
+  
+  // Costs
+  laborCost: decimal("labor_cost", { precision: 12, scale: 2 }),
+  partsCost: decimal("parts_cost", { precision: 12, scale: 2 }),
+  otherCost: decimal("other_cost", { precision: 12, scale: 2 }),
+  totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  
+  // Parts
+  partsReplaced: jsonb("parts_replaced").default([]),
+  
+  // Next Service
+  nextServiceDate: date("next_service_date"),
+  nextServiceOdometer: decimal("next_service_odometer", { precision: 12, scale: 2 }),
+  
+  status: maintenanceStatusEnum("status").default("scheduled"),
+  
+  invoiceNumber: varchar("invoice_number", { length: 100 }),
+  attachments: jsonb("attachments").default([]),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_maintenance_tenant").on(table.tenantId),
+  index("idx_maintenance_tenant_status").on(table.tenantId, table.status),
+  index("idx_maintenance_vehicle").on(table.vehicleId),
+  index("idx_maintenance_type").on(table.maintenanceType),
+  index("idx_maintenance_scheduled").on(table.scheduledDate),
+]);
+
+// Insert schemas for Logistics
+export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertDriverSchema = createInsertSchema(drivers).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertTripSchema = createInsertSchema(trips).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertShipmentSchema = createInsertSchema(shipments).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertMaintenanceLogSchema = createInsertSchema(maintenanceLogs).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+
+// Logistics types
+export type Vehicle = typeof vehicles.$inferSelect;
+export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
+
+export type Driver = typeof drivers.$inferSelect;
+export type InsertDriver = z.infer<typeof insertDriverSchema>;
+
+export type Trip = typeof trips.$inferSelect;
+export type InsertTrip = z.infer<typeof insertTripSchema>;
+
+export type Shipment = typeof shipments.$inferSelect;
+export type InsertShipment = z.infer<typeof insertShipmentSchema>;
+
+export type MaintenanceLog = typeof maintenanceLogs.$inferSelect;
+export type InsertMaintenanceLog = z.infer<typeof insertMaintenanceLogSchema>;
