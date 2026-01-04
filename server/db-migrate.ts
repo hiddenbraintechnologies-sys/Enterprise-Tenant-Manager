@@ -136,7 +136,7 @@ async function createTablesIfNotExist(): Promise<void> {
     );
   `);
   
-  // Create platform_region_configs table
+  // Create platform_region_configs table (matches shared/schema.ts exactly)
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS platform_region_configs (
       id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -151,13 +151,25 @@ async function createTablesIfNotExist(): Promise<void> {
       allowed_subscription_tiers JSONB,
       default_currency VARCHAR(5) NOT NULL,
       default_timezone VARCHAR(50) NOT NULL,
-      supported_languages JSONB DEFAULT '["en"]',
+      required_compliance_packs JSONB DEFAULT '[]',
+      data_residency_required BOOLEAN DEFAULT false NOT NULL,
+      data_residency_region VARCHAR(50),
+      tax_type VARCHAR(20),
+      tax_rate NUMERIC(5,2),
+      tax_inclusive BOOLEAN DEFAULT false NOT NULL,
+      sms_enabled BOOLEAN DEFAULT true NOT NULL,
+      whatsapp_enabled BOOLEAN DEFAULT true NOT NULL,
+      email_enabled BOOLEAN DEFAULT true NOT NULL,
       maintenance_message TEXT,
-      beta_access_codes JSONB DEFAULT '[]',
+      maintenance_start_at TIMESTAMP,
+      maintenance_end_at TIMESTAMP,
       launch_date TIMESTAMP,
+      beta_access_only BOOLEAN DEFAULT false NOT NULL,
+      beta_access_codes JSONB DEFAULT '[]',
+      created_by VARCHAR,
+      updated_by VARCHAR,
       created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW(),
-      updated_by VARCHAR
+      updated_at TIMESTAMP DEFAULT NOW()
     );
   `);
   
