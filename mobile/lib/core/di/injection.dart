@@ -116,6 +116,7 @@ void _registerNetwork() {
       apiClient: getIt<ApiClient>(),
       tenantStorage: getIt<TenantStorage>(),
       deepLinkHandler: getIt<DeepLinkHandler>(),
+      preferences: getIt<NotificationPreferences>(),
     ),
   );
 }

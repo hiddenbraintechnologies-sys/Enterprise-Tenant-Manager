@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../network/api_client.dart';
 import '../storage/tenant_storage.dart';
 import 'notification_model.dart';
+import 'notification_preferences.dart';
 import 'deep_link_handler.dart';
 
 @pragma('vm:entry-point')
@@ -18,6 +19,7 @@ class NotificationService {
   final ApiClient _apiClient;
   final TenantStorage _tenantStorage;
   final DeepLinkHandler _deepLinkHandler;
+  final NotificationPreferences _preferences;
   
   late final FirebaseMessaging _messaging;
   late final FlutterLocalNotificationsPlugin _localNotifications;
@@ -32,9 +34,11 @@ class NotificationService {
     required ApiClient apiClient,
     required TenantStorage tenantStorage,
     required DeepLinkHandler deepLinkHandler,
+    required NotificationPreferences preferences,
   })  : _apiClient = apiClient,
         _tenantStorage = tenantStorage,
-        _deepLinkHandler = deepLinkHandler;
+        _deepLinkHandler = deepLinkHandler,
+        _preferences = preferences;
 
   String? get fcmToken => _fcmToken;
   Stream<NotificationModel> get notificationStream => _notificationController.stream;
@@ -149,7 +153,9 @@ class NotificationService {
     final notification = NotificationModel.fromRemoteMessage(message);
     _notificationController.add(notification);
     
-    _showLocalNotification(notification);
+    if (_preferences.shouldShowNotification(notification.type)) {
+      _showLocalNotification(notification);
+    }
   }
 
   void _handleMessageOpenedApp(RemoteMessage message) {
@@ -229,7 +235,9 @@ class NotificationService {
     }
     await subscribeToTenant(newTenantId);
     
-    await _registerTokenWithServer(_fcmToken!);
+    if (_fcmToken != null) {
+      await _registerTokenWithServer(_fcmToken!);
+    }
   }
 
   void dispose() {

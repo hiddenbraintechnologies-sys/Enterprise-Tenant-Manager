@@ -1,5 +1,7 @@
 import 'package:hive/hive.dart';
 
+import 'notification_model.dart';
+
 class NotificationPreferences {
   static const String _boxName = 'notification_preferences';
   
@@ -89,15 +91,4 @@ class NotificationPreferences {
   Future<void> close() async {
     await _box?.close();
   }
-}
-
-enum NotificationType {
-  booking,
-  appointment,
-  payment,
-  reminder,
-  promotion,
-  chat,
-  system,
-  alert,
 }
