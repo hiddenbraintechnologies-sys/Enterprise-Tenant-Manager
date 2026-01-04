@@ -80,8 +80,6 @@ class AiService {
     tenantId: string,
     updates: Partial<{
       aiEnabled: boolean;
-      consentGiven: boolean;
-      consentGivenBy: string;
       preferredProvider: AiProvider;
       monthlyTokenLimit: number;
       rateLimitPerMinute: number;
@@ -94,8 +92,6 @@ class AiService {
       .update(tenantAiSettings)
       .set({
         ...updates,
-        consentGivenAt: updates.consentGiven ? now : undefined,
-        consentVersion: updates.consentGiven ? "1.0" : undefined,
         updatedAt: now,
       })
       .where(eq(tenantAiSettings.tenantId, tenantId))
@@ -103,7 +99,7 @@ class AiService {
     return updated;
   }
 
-  async checkAiConsent(tenantId: string): Promise<{ allowed: boolean; reason?: string }> {
+  async checkAiConsent(tenantId: string): Promise<{ allowed: boolean; reason?: string; consentVersion?: string }> {
     const settings = await this.getTenantAiSettings(tenantId);
     
     if (!settings) {
@@ -118,7 +114,49 @@ class AiService {
       return { allowed: false, reason: "Explicit AI consent not provided" };
     }
     
-    return { allowed: true };
+    return { allowed: true, consentVersion: settings.consentVersion || "1.0" };
+  }
+
+  async revokeConsent(tenantId: string): Promise<TenantAiSettings> {
+    const settings = await this.getTenantAiSettings(tenantId);
+    const currentVersion = settings?.consentVersion || "1.0";
+    const versionParts = currentVersion.split(".");
+    const major = parseInt(versionParts[0] || "1");
+    const newVersion = `${major + 1}.0`;
+
+    const [updated] = await db
+      .update(tenantAiSettings)
+      .set({
+        consentGiven: false,
+        aiEnabled: false,
+        consentVersion: newVersion,
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantAiSettings.tenantId, tenantId))
+      .returning();
+    return updated;
+  }
+
+  async grantConsent(tenantId: string, grantedBy: string): Promise<TenantAiSettings> {
+    const settings = await this.ensureTenantAiSettings(tenantId);
+    const currentVersion = settings.consentVersion || "1.0";
+    const versionParts = currentVersion.split(".");
+    const major = parseInt(versionParts[0] || "1");
+    const minor = parseInt(versionParts[1] || "0") + 1;
+
+    const [updated] = await db
+      .update(tenantAiSettings)
+      .set({
+        consentGiven: true,
+        consentGivenBy: grantedBy,
+        consentGivenAt: new Date(),
+        aiEnabled: true,
+        consentVersion: `${major}.${minor}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantAiSettings.tenantId, tenantId))
+      .returning();
+    return updated;
   }
 
   async checkFeatureAllowed(tenantId: string, feature: string): Promise<boolean> {

@@ -172,6 +172,24 @@ riskPredictionsRouter.post("/:studentId/risk-predictions", ...middleware, async 
   }
 });
 
+function shouldMaskAiContent(
+  predictionAiGenerated: boolean,
+  predictionConsentVersion: string | null,
+  currentConsentAllowed: boolean,
+  currentConsentVersion: string | undefined
+): boolean {
+  if (!predictionAiGenerated) return false;
+  if (!currentConsentAllowed) return true;
+  
+  const predVersion = predictionConsentVersion || "1.0";
+  const currVersion = currentConsentVersion || "1.0";
+  
+  const predMajor = parseInt(predVersion.split(".")[0] || "1");
+  const currMajor = parseInt(currVersion.split(".")[0] || "1");
+  
+  return currMajor > predMajor;
+}
+
 riskPredictionsRouter.get("/:studentId/risk-predictions", ...middleware, async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
@@ -187,7 +205,12 @@ riskPredictionsRouter.get("/:studentId/risk-predictions", ...middleware, async (
 
     res.json({
       data: predictions.map(p => {
-        const shouldMaskAi = p.aiGenerated && !consentCheck.allowed;
+        const shouldMask = shouldMaskAiContent(
+          p.aiGenerated || false,
+          p.consentVersion,
+          consentCheck.allowed,
+          consentCheck.consentVersion
+        );
         return {
           id: p.id,
           riskTier: p.riskTier,
@@ -198,10 +221,10 @@ riskPredictionsRouter.get("/:studentId/risk-predictions", ...middleware, async (
             exam: p.examRiskScore,
             engagement: p.engagementRiskScore,
           },
-          explanation: shouldMaskAi ? "[AI content hidden - consent required]" : p.explanation,
-          suggestedActions: shouldMaskAi ? [] : p.suggestedActions,
-          aiGenerated: shouldMaskAi ? false : p.aiGenerated,
-          aiContentMasked: shouldMaskAi,
+          explanation: shouldMask ? "[AI content hidden - consent required]" : p.explanation,
+          suggestedActions: shouldMask ? [] : p.suggestedActions,
+          aiGenerated: shouldMask ? false : p.aiGenerated,
+          aiContentMasked: shouldMask,
           isAdvisoryOnly: p.isAdvisoryOnly,
           predictedAt: p.predictedAt,
           validUntil: p.validUntil,
@@ -229,7 +252,12 @@ riskPredictionsRouter.get("/:studentId/risk-predictions/latest", ...middleware, 
     }
 
     const consentCheck = await aiService.checkAiConsent(tenantId);
-    const shouldMaskAi = prediction.aiGenerated && !consentCheck.allowed;
+    const shouldMask = shouldMaskAiContent(
+      prediction.aiGenerated || false,
+      prediction.consentVersion,
+      consentCheck.allowed,
+      consentCheck.consentVersion
+    );
 
     res.json({
       prediction: {
@@ -242,10 +270,10 @@ riskPredictionsRouter.get("/:studentId/risk-predictions/latest", ...middleware, 
           exam: prediction.examRiskScore,
           engagement: prediction.engagementRiskScore,
         },
-        explanation: shouldMaskAi ? "[AI content hidden - consent required]" : prediction.explanation,
-        suggestedActions: shouldMaskAi ? [] : prediction.suggestedActions,
-        aiGenerated: shouldMaskAi ? false : prediction.aiGenerated,
-        aiContentMasked: shouldMaskAi,
+        explanation: shouldMask ? "[AI content hidden - consent required]" : prediction.explanation,
+        suggestedActions: shouldMask ? [] : prediction.suggestedActions,
+        aiGenerated: shouldMask ? false : prediction.aiGenerated,
+        aiContentMasked: shouldMask,
         isAdvisoryOnly: prediction.isAdvisoryOnly,
         predictedAt: prediction.predictedAt,
         validUntil: prediction.validUntil,

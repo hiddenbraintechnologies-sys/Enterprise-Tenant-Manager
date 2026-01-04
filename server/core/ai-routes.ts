@@ -62,12 +62,21 @@ aiRouter.patch("/settings", ...middleware, async (req: Request, res: Response) =
     
     const body = updateSettingsSchema.parse(req.body);
 
-    const updates: any = { ...body };
-    if (body.consentGiven) {
-      updates.consentGivenBy = userId;
+    let settings;
+    if (body.consentGiven !== undefined) {
+      if (body.consentGiven) {
+        settings = await aiService.grantConsent(tenantId, userId || "system");
+      } else {
+        settings = await aiService.revokeConsent(tenantId);
+      }
+      
+      const { consentGiven, aiEnabled, ...otherUpdates } = body;
+      if (Object.keys(otherUpdates).length > 0) {
+        settings = await aiService.updateTenantAiSettings(tenantId, otherUpdates);
+      }
+    } else {
+      settings = await aiService.updateTenantAiSettings(tenantId, body);
     }
-
-    const settings = await aiService.updateTenantAiSettings(tenantId, updates);
 
     res.json({
       settings: {
@@ -96,13 +105,7 @@ aiRouter.post("/consent", ...middleware, async (req: Request, res: Response) => 
       return res.status(403).json({ message: "Tenant context required" });
     }
 
-    await aiService.ensureTenantAiSettings(tenantId);
-
-    const settings = await aiService.updateTenantAiSettings(tenantId, {
-      consentGiven: true,
-      consentGivenBy: userId,
-      aiEnabled: true,
-    });
+    const settings = await aiService.grantConsent(tenantId, userId || "system");
 
     res.json({
       message: "AI consent granted successfully",
@@ -121,12 +124,12 @@ aiRouter.delete("/consent", ...middleware, async (req: Request, res: Response) =
       return res.status(403).json({ message: "Tenant context required" });
     }
 
-    await aiService.updateTenantAiSettings(tenantId, {
-      consentGiven: false,
-      aiEnabled: false,
-    });
+    const settings = await aiService.revokeConsent(tenantId);
 
-    res.json({ message: "AI consent revoked successfully" });
+    res.json({ 
+      message: "AI consent revoked successfully",
+      consentVersion: settings.consentVersion,
+    });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }
