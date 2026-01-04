@@ -97,16 +97,18 @@ app.get('/health', (_req, res) => {
     });
   });
   
-  // Now run migrations in the background (server is already responding)
+  // Wrap all initialization in try-catch to prevent crashes
   try {
-    await runMigrations();
-  } catch (error) {
-    console.error("[startup] Migration error (non-fatal):", error);
-  }
-  
-  // Setup authentication (must be before routes)
-  await setupAuth(app);
-  registerAuthRoutes(app);
+    // Now run migrations in the background (server is already responding)
+    try {
+      await runMigrations();
+    } catch (error) {
+      console.error("[startup] Migration error (non-fatal):", error);
+    }
+    
+    // Setup authentication (must be before routes)
+    await setupAuth(app);
+    registerAuthRoutes(app);
   
   // Unified tenant context middleware (after auth, before routes)
   app.use(async (req, res, next) => {
@@ -224,4 +226,8 @@ app.get('/health', (_req, res) => {
 
   // Server is already listening (started at the top of this async block)
   // This ensures Replit health checks pass immediately
+  } catch (error) {
+    console.error("[startup] Fatal initialization error:", error);
+    // Don't exit - keep server running so health checks pass
+  }
 })();
