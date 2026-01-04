@@ -57,6 +57,7 @@ import {
 } from "./core/admin-security";
 import { onboardingService } from "./core/onboarding";
 import { resellerRoutes, resellerContextMiddleware } from "./core/reseller";
+import { brandingRoutes } from "./core/branding";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -112,6 +113,9 @@ export async function registerRoutes(
 
   // Register Reseller/White-label routes
   app.use('/api/resellers', authenticateJWT({ required: true }), resellerRoutes);
+
+  // Register Branding/Theming routes
+  app.use('/api/branding', isAuthenticated, brandingRoutes);
 
   // Seed onboarding flows
   await onboardingService.seedDefaultFlows();

@@ -6,6 +6,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { domainService } from './domain-service';
+import { tenantBrandingService as brandingService } from '../branding';
 
 // Default domain patterns that should use slug/session resolution
 const DEFAULT_DOMAIN_PATTERNS = [
@@ -191,13 +192,48 @@ export function requireVerifiedDomain() {
 export function attachDomainBranding() {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.context?.tenant?.id) {
-      const primaryDomain = await domainService.getPrimaryDomain(req.context.tenant.id);
-      if (primaryDomain) {
-        (req.context as any).branding = {
-          customDomain: primaryDomain.domain,
-          enforceHttps: primaryDomain.enforceHttps,
-        };
-      }
+      const tenantId = req.context.tenant.id;
+      
+      // Get primary domain info
+      const primaryDomain = await domainService.getPrimaryDomain(tenantId);
+      
+      // Get tenant branding
+      const tenantBranding = await brandingService.getBranding(tenantId);
+      
+      (req.context as any).branding = {
+        customDomain: primaryDomain?.domain || null,
+        enforceHttps: primaryDomain?.enforceHttps || false,
+        theme: tenantBranding ? {
+          logoUrl: tenantBranding.logoUrl,
+          logoAltUrl: tenantBranding.logoAltUrl,
+          faviconUrl: tenantBranding.faviconUrl,
+          primaryColor: tenantBranding.primaryColor,
+          secondaryColor: tenantBranding.secondaryColor,
+          accentColor: tenantBranding.accentColor,
+          backgroundColor: tenantBranding.backgroundColor,
+          textColor: tenantBranding.textColor,
+          fontFamily: tenantBranding.fontFamily,
+          fontFamilyHeading: tenantBranding.fontFamilyHeading,
+          fontFamilyMono: tenantBranding.fontFamilyMono,
+          themeTokens: tenantBranding.themeTokens,
+          customCss: tenantBranding.customCss,
+        } : null,
+      };
+    }
+    next();
+  };
+}
+
+/**
+ * Middleware to inject CSS variables for tenant branding
+ */
+export function injectBrandingStyles() {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (req.context?.tenant?.id && !req.path.startsWith('/api/')) {
+      // Load tenant branding first, then generate CSS variables
+      const tenantBranding = await brandingService.getBranding(req.context.tenant.id);
+      const cssVars = brandingService.generateCssVariables(tenantBranding);
+      (req.context as any).brandingCss = cssVars;
     }
     next();
   };

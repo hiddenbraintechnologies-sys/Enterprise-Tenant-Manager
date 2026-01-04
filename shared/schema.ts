@@ -221,6 +221,115 @@ export const tenantSettings = pgTable("tenant_settings", {
 });
 
 // ============================================
+// CORE: TENANT BRANDING & THEMING
+// ============================================
+
+export const tenantBranding = pgTable("tenant_branding", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  
+  // Logo Assets
+  logoUrl: text("logo_url"),
+  logoAltUrl: text("logo_alt_url"),
+  faviconUrl: text("favicon_url"),
+  
+  // Color Palette
+  primaryColor: text("primary_color").default("#3B82F6"),
+  secondaryColor: text("secondary_color").default("#1E40AF"),
+  accentColor: text("accent_color").default("#10B981"),
+  backgroundColor: text("background_color").default("#FFFFFF"),
+  foregroundColor: text("foreground_color").default("#111827"),
+  mutedColor: text("muted_color").default("#6B7280"),
+  borderColor: text("border_color").default("#E5E7EB"),
+  
+  // Typography
+  fontFamily: text("font_family").default("Inter"),
+  fontFamilyHeading: text("font_family_heading"),
+  fontFamilyMono: text("font_family_mono").default("JetBrains Mono"),
+  
+  // Extended Theme Tokens (CSS variables, spacing, radii, etc.)
+  themeTokens: jsonb("theme_tokens").default({}),
+  
+  // Email Branding
+  emailFromName: text("email_from_name"),
+  emailFromAddress: text("email_from_address"),
+  emailReplyTo: text("email_reply_to"),
+  emailSignature: text("email_signature"),
+  emailHeaderHtml: text("email_header_html"),
+  emailFooterHtml: text("email_footer_html"),
+  
+  // Legal/Support Links
+  termsOfServiceUrl: text("terms_of_service_url"),
+  privacyPolicyUrl: text("privacy_policy_url"),
+  supportEmail: text("support_email"),
+  supportPhone: text("support_phone"),
+  supportUrl: text("support_url"),
+  
+  // Social Links
+  socialLinks: jsonb("social_links").default({}),
+  
+  // Custom CSS
+  customCss: text("custom_css"),
+  
+  // Metadata
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_branding_tenant").on(table.tenantId),
+]);
+
+// Email Template Types
+export const emailTemplateTypeEnum = pgEnum("email_template_type", [
+  "welcome",
+  "password_reset",
+  "email_verification",
+  "booking_confirmation",
+  "booking_reminder",
+  "booking_cancellation",
+  "invoice",
+  "payment_receipt",
+  "membership_welcome",
+  "membership_renewal",
+  "appointment_reminder",
+  "notification",
+  "custom",
+]);
+
+export const tenantEmailTemplates = pgTable("tenant_email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Template identification
+  templateType: emailTemplateTypeEnum("template_type").notNull(),
+  templateName: varchar("template_name", { length: 100 }).notNull(),
+  
+  // Template content
+  subject: text("subject").notNull(),
+  bodyHtml: text("body_html").notNull(),
+  bodyText: text("body_text"),
+  
+  // Template variables (available placeholders)
+  availableVariables: jsonb("available_variables").default([]),
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+  isDefault: boolean("is_default").default(false),
+  
+  // Versioning
+  version: integer("version").default(1),
+  
+  // Metadata
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_email_templates_tenant").on(table.tenantId),
+  index("idx_email_templates_type").on(table.templateType),
+  uniqueIndex("idx_email_templates_unique").on(table.tenantId, table.templateType, table.templateName),
+]);
+
+// ============================================
 // CORE: FEATURE FLAGS
 // ============================================
 
@@ -852,6 +961,14 @@ export const tenantDomainsRelations = relations(tenantDomains, ({ one }) => ({
 
 export const tenantSettingsRelations = relations(tenantSettings, ({ one }) => ({
   tenant: one(tenants, { fields: [tenantSettings.tenantId], references: [tenants.id] }),
+}));
+
+export const tenantBrandingRelations = relations(tenantBranding, ({ one }) => ({
+  tenant: one(tenants, { fields: [tenantBranding.tenantId], references: [tenants.id] }),
+}));
+
+export const tenantEmailTemplatesRelations = relations(tenantEmailTemplates, ({ one }) => ({
+  tenant: one(tenants, { fields: [tenantEmailTemplates.tenantId], references: [tenants.id] }),
 }));
 
 export const featureFlagsRelations = relations(featureFlags, ({ many }) => ({
@@ -1579,6 +1696,8 @@ export const studentRiskPredictions = pgTable("student_risk_predictions", {
 export const insertTenantSchema = createInsertSchema(tenants).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTenantDomainSchema = createInsertSchema(tenantDomains).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTenantSettingsSchema = createInsertSchema(tenantSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantBrandingSchema = createInsertSchema(tenantBranding).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantEmailTemplateSchema = createInsertSchema(tenantEmailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFeatureFlagSchema = createInsertSchema(featureFlags).omit({ id: true, createdAt: true });
 export const insertTenantFeatureSchema = createInsertSchema(tenantFeatures).omit({ id: true, enabledAt: true });
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true });
@@ -1657,6 +1776,12 @@ export type InsertTenantDomain = z.infer<typeof insertTenantDomainSchema>;
 
 export type TenantSettings = typeof tenantSettings.$inferSelect;
 export type InsertTenantSettings = z.infer<typeof insertTenantSettingsSchema>;
+
+export type TenantBranding = typeof tenantBranding.$inferSelect;
+export type InsertTenantBranding = z.infer<typeof insertTenantBrandingSchema>;
+
+export type TenantEmailTemplate = typeof tenantEmailTemplates.$inferSelect;
+export type InsertTenantEmailTemplate = z.infer<typeof insertTenantEmailTemplateSchema>;
 
 export type FeatureFlag = typeof featureFlags.$inferSelect;
 export type InsertFeatureFlag = z.infer<typeof insertFeatureFlagSchema>;

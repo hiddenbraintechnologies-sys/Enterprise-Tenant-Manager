@@ -8,7 +8,8 @@ export { domainService, DomainService } from './domain-service';
 export { 
   resolveTenantByDomain, 
   requireVerifiedDomain, 
-  attachDomainBranding 
+  attachDomainBranding,
+  injectBrandingStyles,
 } from './domain-resolution-middleware';
 export { default as domainRoutes } from './domain-routes';
 export { sslService, SSLService } from './ssl-service';

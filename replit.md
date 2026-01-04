@@ -156,6 +156,49 @@ The platform supports a white-label reseller model enabling partners to offer Bi
 - `server/core/reseller/reseller-scope.ts` - Hierarchy validation middleware
 - `shared/schema.ts` - Database tables and types
 
+## Tenant Branding System
+
+Comprehensive white-label theming for tenants with full customization support.
+
+### Database Schema
+- `tenant_branding`: Extended theme configuration (logos, colors, typography, custom CSS, theme tokens)
+- `tenant_email_templates`: 13 template types with variable substitution and versioning
+
+### Branding Features
+- **Logo Assets**: Primary logo, alternate (dark mode) logo, favicon
+- **Color Palette**: 8 customizable colors (primary, secondary, accent, background, text, success, warning, error)
+- **Typography**: Custom font families for body text, headings, and monospace
+- **Theme Tokens**: Flexible JSON-based design tokens for advanced customization
+- **Custom CSS**: Tenant-specific CSS injection for specialized styling
+- **Email Branding**: Logo, colors, and legal/support links for email templates
+
+### Email Template Types
+welcome, password_reset, email_verification, booking_confirmation, booking_reminder, booking_cancellation, invoice, payment_receipt, membership_welcome, membership_renewal, appointment_reminder, notification, custom
+
+### CSS Variable Generation
+- Automatic hex-to-HSL conversion for shadcn/ui compatibility
+- Generated CSS variables: `--primary`, `--secondary`, `--accent`, `--background`, `--foreground`, etc.
+
+### API Routes (Protected by Authentication)
+- `GET /api/branding` - Get tenant branding
+- `PUT /api/branding` - Update tenant branding
+- `GET /api/branding/css-variables` - Get generated CSS variables
+- `GET /api/branding/email-templates` - List email templates
+- `POST /api/branding/email-templates` - Create email template
+- `PUT /api/branding/email-templates/:id` - Update email template
+- `POST /api/branding/email-templates/:type/render` - Render email template with variables
+- `POST /api/branding/preview` - Preview branding with temporary overrides
+- `POST /api/branding/seed-defaults` - Seed default email templates
+
+### Domain Resolution Integration
+- `attachDomainBranding()` middleware loads tenant branding with custom domain info
+- `injectBrandingStyles()` middleware generates CSS variables for frontend injection
+
+### Important Files
+- `server/core/branding/branding-service.ts` - Core branding logic and CSS generation
+- `server/core/branding/branding-routes.ts` - API route handlers
+- `server/core/domain/domain-resolution-middleware.ts` - Branding injection middleware
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: Used for initial user authentication.
 - **PostgreSQL**: The primary database for all application data.
