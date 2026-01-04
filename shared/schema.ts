@@ -2488,3 +2488,371 @@ export type RequestContext = {
   permissions: string[];
   features: string[];
 };
+
+// ============================================
+// EDUCATION MODULE
+// ============================================
+
+export const studentStatusEnum = pgEnum("student_status", ["active", "inactive", "graduated", "withdrawn", "suspended"]);
+export const courseStatusEnum = pgEnum("course_status", ["draft", "active", "archived"]);
+export const batchStatusEnum = pgEnum("batch_status", ["upcoming", "ongoing", "completed", "cancelled"]);
+export const attendanceStatusEnum = pgEnum("attendance_status", ["present", "absent", "late", "excused"]);
+export const examStatusEnum = pgEnum("exam_status", ["scheduled", "ongoing", "completed", "cancelled"]);
+export const feeStatusEnum = pgEnum("fee_status", ["pending", "partial", "paid", "overdue", "waived"]);
+
+// Students Table
+export const students = pgTable("students", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Personal Information
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email"),
+  phone: varchar("phone", { length: 20 }),
+  dateOfBirth: date("date_of_birth"),
+  gender: varchar("gender", { length: 20 }),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 100 }),
+  country: varchar("country", { length: 100 }),
+  postalCode: varchar("postal_code", { length: 20 }),
+  
+  // Academic Information
+  enrollmentNumber: varchar("enrollment_number", { length: 50 }),
+  enrollmentDate: date("enrollment_date"),
+  currentBatchId: varchar("current_batch_id"),
+  status: studentStatusEnum("status").default("active"),
+  
+  // Guardian Information
+  guardianName: text("guardian_name"),
+  guardianPhone: varchar("guardian_phone", { length: 20 }),
+  guardianEmail: text("guardian_email"),
+  guardianRelation: varchar("guardian_relation", { length: 50 }),
+  
+  // Additional
+  profileImageUrl: text("profile_image_url"),
+  bloodGroup: varchar("blood_group", { length: 10 }),
+  medicalNotes: text("medical_notes"),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_students_tenant").on(table.tenantId),
+  index("idx_students_tenant_status").on(table.tenantId, table.status),
+  index("idx_students_enrollment").on(table.enrollmentNumber),
+  index("idx_students_batch").on(table.currentBatchId),
+]);
+
+// Courses Table
+export const courses = pgTable("courses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  name: text("name").notNull(),
+  code: varchar("code", { length: 50 }),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  
+  // Duration
+  durationValue: integer("duration_value"),
+  durationUnit: varchar("duration_unit", { length: 20 }).default("months"),
+  
+  // Fees
+  baseFee: decimal("base_fee", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  
+  // Course Details
+  syllabus: jsonb("syllabus").default([]),
+  prerequisites: jsonb("prerequisites").default([]),
+  objectives: jsonb("objectives").default([]),
+  maxStudents: integer("max_students"),
+  minStudents: integer("min_students"),
+  
+  status: courseStatusEnum("status").default("active"),
+  isActive: boolean("is_active").default(true),
+  
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_courses_tenant").on(table.tenantId),
+  index("idx_courses_tenant_status").on(table.tenantId, table.status),
+  index("idx_courses_code").on(table.code),
+  index("idx_courses_category").on(table.category),
+]);
+
+// Batches Table
+export const batches = pgTable("batches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  
+  name: text("name").notNull(),
+  code: varchar("code", { length: 50 }),
+  
+  // Schedule
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  schedule: jsonb("schedule").default({}),
+  
+  // Capacity
+  maxStudents: integer("max_students"),
+  currentStudentCount: integer("current_student_count").default(0),
+  
+  // Instructor
+  instructorId: varchar("instructor_id"),
+  instructorName: text("instructor_name"),
+  
+  // Location
+  room: varchar("room", { length: 100 }),
+  venue: text("venue"),
+  isOnline: boolean("is_online").default(false),
+  meetingLink: text("meeting_link"),
+  
+  status: batchStatusEnum("status").default("upcoming"),
+  
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_batches_tenant").on(table.tenantId),
+  index("idx_batches_tenant_status").on(table.tenantId, table.status),
+  index("idx_batches_course").on(table.courseId),
+  index("idx_batches_dates").on(table.startDate, table.endDate),
+]);
+
+// Batch Students (Many-to-Many)
+export const batchStudents = pgTable("batch_students", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  batchId: varchar("batch_id").notNull().references(() => batches.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
+  status: varchar("status", { length: 20 }).default("active"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_batch_students_tenant").on(table.tenantId),
+  index("idx_batch_students_batch").on(table.batchId),
+  index("idx_batch_students_student").on(table.studentId),
+  uniqueIndex("idx_batch_students_unique").on(table.batchId, table.studentId),
+]);
+
+// Attendance Table
+export const attendance = pgTable("attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  batchId: varchar("batch_id").notNull().references(() => batches.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  
+  date: date("date").notNull(),
+  status: attendanceStatusEnum("status").default("present"),
+  
+  checkInTime: time("check_in_time"),
+  checkOutTime: time("check_out_time"),
+  
+  remarks: text("remarks"),
+  markedBy: varchar("marked_by"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_attendance_tenant").on(table.tenantId),
+  index("idx_attendance_tenant_status").on(table.tenantId, table.status),
+  index("idx_attendance_batch").on(table.batchId),
+  index("idx_attendance_student").on(table.studentId),
+  index("idx_attendance_date").on(table.date),
+  uniqueIndex("idx_attendance_unique").on(table.batchId, table.studentId, table.date),
+]);
+
+// Exams Table
+export const exams = pgTable("exams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  courseId: varchar("course_id").references(() => courses.id, { onDelete: "set null" }),
+  batchId: varchar("batch_id").references(() => batches.id, { onDelete: "set null" }),
+  
+  name: text("name").notNull(),
+  code: varchar("code", { length: 50 }),
+  description: text("description"),
+  examType: varchar("exam_type", { length: 50 }).default("written"),
+  
+  // Schedule
+  examDate: date("exam_date"),
+  startTime: time("start_time"),
+  endTime: time("end_time"),
+  duration: integer("duration"),
+  
+  // Scoring
+  totalMarks: decimal("total_marks", { precision: 8, scale: 2 }),
+  passingMarks: decimal("passing_marks", { precision: 8, scale: 2 }),
+  
+  // Location
+  venue: text("venue"),
+  room: varchar("room", { length: 100 }),
+  
+  instructions: text("instructions"),
+  syllabusCovered: jsonb("syllabus_covered").default([]),
+  
+  status: examStatusEnum("status").default("scheduled"),
+  
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_exams_tenant").on(table.tenantId),
+  index("idx_exams_tenant_status").on(table.tenantId, table.status),
+  index("idx_exams_course").on(table.courseId),
+  index("idx_exams_batch").on(table.batchId),
+  index("idx_exams_date").on(table.examDate),
+]);
+
+// Exam Results Table
+export const examResults = pgTable("exam_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  examId: varchar("exam_id").notNull().references(() => exams.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  
+  marksObtained: decimal("marks_obtained", { precision: 8, scale: 2 }),
+  percentage: decimal("percentage", { precision: 5, scale: 2 }),
+  grade: varchar("grade", { length: 10 }),
+  rank: integer("rank"),
+  
+  isPassed: boolean("is_passed"),
+  remarks: text("remarks"),
+  
+  evaluatedBy: varchar("evaluated_by"),
+  evaluatedAt: timestamp("evaluated_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_exam_results_tenant").on(table.tenantId),
+  index("idx_exam_results_exam").on(table.examId),
+  index("idx_exam_results_student").on(table.studentId),
+  uniqueIndex("idx_exam_results_unique").on(table.examId, table.studentId),
+]);
+
+// Fees Table
+export const fees = pgTable("fees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  courseId: varchar("course_id").references(() => courses.id, { onDelete: "set null" }),
+  batchId: varchar("batch_id").references(() => batches.id, { onDelete: "set null" }),
+  
+  feeType: varchar("fee_type", { length: 50 }).default("tuition"),
+  description: text("description"),
+  
+  // Amounts
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
+  balanceAmount: decimal("balance_amount", { precision: 12, scale: 2 }),
+  
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  
+  // Due Date
+  dueDate: date("due_date"),
+  
+  // Installment
+  installmentNumber: integer("installment_number"),
+  totalInstallments: integer("total_installments"),
+  
+  status: feeStatusEnum("status").default("pending"),
+  
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_fees_tenant").on(table.tenantId),
+  index("idx_fees_tenant_status").on(table.tenantId, table.status),
+  index("idx_fees_student").on(table.studentId),
+  index("idx_fees_course").on(table.courseId),
+  index("idx_fees_due_date").on(table.dueDate),
+]);
+
+// Fee Payments Table
+export const feePayments = pgTable("fee_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  feeId: varchar("fee_id").notNull().references(() => fees.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  paymentDate: date("payment_date").notNull(),
+  paymentMethod: paymentMethodEnum("payment_method").default("cash"),
+  
+  transactionId: varchar("transaction_id", { length: 100 }),
+  receiptNumber: varchar("receipt_number", { length: 100 }),
+  
+  notes: text("notes"),
+  receivedBy: varchar("received_by"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_fee_payments_tenant").on(table.tenantId),
+  index("idx_fee_payments_fee").on(table.feeId),
+  index("idx_fee_payments_student").on(table.studentId),
+  index("idx_fee_payments_date").on(table.paymentDate),
+]);
+
+// Insert schemas for Education
+export const insertStudentSchema = createInsertSchema(students).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertCourseSchema = createInsertSchema(courses).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertBatchSchema = createInsertSchema(batches).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertBatchStudentSchema = createInsertSchema(batchStudents).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAttendanceSchema = createInsertSchema(attendance).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertExamSchema = createInsertSchema(exams).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertExamResultSchema = createInsertSchema(examResults).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFeeSchema = createInsertSchema(fees).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertFeePaymentSchema = createInsertSchema(feePayments).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Education types
+export type Student = typeof students.$inferSelect;
+export type InsertStudent = z.infer<typeof insertStudentSchema>;
+
+export type Course = typeof courses.$inferSelect;
+export type InsertCourse = z.infer<typeof insertCourseSchema>;
+
+export type Batch = typeof batches.$inferSelect;
+export type InsertBatch = z.infer<typeof insertBatchSchema>;
+
+export type BatchStudent = typeof batchStudents.$inferSelect;
+export type InsertBatchStudent = z.infer<typeof insertBatchStudentSchema>;
+
+export type Attendance = typeof attendance.$inferSelect;
+export type InsertAttendance = z.infer<typeof insertAttendanceSchema>;
+
+export type Exam = typeof exams.$inferSelect;
+export type InsertExam = z.infer<typeof insertExamSchema>;
+
+export type ExamResult = typeof examResults.$inferSelect;
+export type InsertExamResult = z.infer<typeof insertExamResultSchema>;
+
+export type Fee = typeof fees.$inferSelect;
+export type InsertFee = z.infer<typeof insertFeeSchema>;
+
+export type FeePayment = typeof feePayments.$inferSelect;
+export type InsertFeePayment = z.infer<typeof insertFeePaymentSchema>;
