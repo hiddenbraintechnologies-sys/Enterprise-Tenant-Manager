@@ -91,6 +91,42 @@ class WhatsappTriggerService {
     return this.executeTrigger("tourism", "booking.completed", context);
   }
 
+  async triggerEducationFeeReminder(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("education", "fee.reminder", context);
+  }
+
+  async triggerEducationAttendanceAlert(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("education", "attendance.alert", context);
+  }
+
+  async triggerEducationExamSchedule(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("education", "exam.schedule", context);
+  }
+
+  async triggerLogisticsShipmentStatus(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("logistics", "shipment.status_update", context);
+  }
+
+  async triggerLogisticsDeliveryConfirmation(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("logistics", "shipment.delivered", context);
+  }
+
+  async triggerLogisticsDriverAlert(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("logistics", "trip.driver_alert", context);
+  }
+
+  async triggerLegalAppointmentReminder(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("legal", "appointment.reminder", context);
+  }
+
+  async triggerLegalCaseUpdate(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("legal", "case.update", context);
+  }
+
+  async triggerLegalInvoiceNotification(context: TriggerContext): Promise<TriggerResult> {
+    return this.executeTrigger("legal", "invoice.created", context);
+  }
+
   async executeTrigger(
     businessType: BusinessTemplateCategory,
     triggerEvent: string,
@@ -367,6 +403,284 @@ export async function onTourismItineraryShared(
       "8": itinerary.businessName,
       "9": itinerary.downloadUrl || itinerary.itineraryPdfUrl || "",
       itinerary_pdf_url: itinerary.itineraryPdfUrl || "",
+    },
+  });
+}
+
+export async function onEducationFeeReminder(
+  tenantId: string,
+  fee: {
+    parentName: string;
+    parentPhone: string;
+    studentName: string;
+    studentId: string;
+    amountDue: string;
+    dueDate: string;
+    feeType: string;
+    contactNumber: string;
+    institutionName: string;
+    paymentUrl?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerEducationFeeReminder({
+    tenantId,
+    phoneNumber: fee.parentPhone,
+    params: {
+      "1": fee.parentName,
+      "2": fee.studentName,
+      "3": fee.studentId,
+      "4": fee.amountDue,
+      "5": fee.dueDate,
+      "6": fee.feeType,
+      "7": fee.contactNumber,
+      "8": fee.institutionName,
+      "9": fee.paymentUrl || "",
+    },
+  });
+}
+
+export async function onEducationAttendanceAlert(
+  tenantId: string,
+  attendance: {
+    parentName: string;
+    parentPhone: string;
+    studentName: string;
+    date: string;
+    attendanceStatus: string;
+    className: string;
+    additionalNote?: string;
+    institutionName: string;
+    contactNumber?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerEducationAttendanceAlert({
+    tenantId,
+    phoneNumber: attendance.parentPhone,
+    params: {
+      "1": attendance.parentName,
+      "2": attendance.studentName,
+      "3": attendance.date,
+      "4": attendance.attendanceStatus,
+      "5": attendance.className,
+      "6": attendance.additionalNote || "",
+      "7": attendance.institutionName,
+      "8": attendance.contactNumber || "",
+    },
+  });
+}
+
+export async function onEducationExamSchedule(
+  tenantId: string,
+  exam: {
+    studentName: string;
+    studentPhone: string;
+    courseName: string;
+    examName: string;
+    subject: string;
+    examDate: string;
+    examTime: string;
+    venue: string;
+    institutionName: string;
+    scheduleUrl?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerEducationExamSchedule({
+    tenantId,
+    phoneNumber: exam.studentPhone,
+    params: {
+      "1": exam.studentName,
+      "2": exam.courseName,
+      "3": exam.examName,
+      "4": exam.subject,
+      "5": exam.examDate,
+      "6": exam.examTime,
+      "7": exam.venue,
+      "8": exam.institutionName,
+      "9": exam.scheduleUrl || "",
+    },
+  });
+}
+
+export async function onLogisticsShipmentStatus(
+  tenantId: string,
+  shipment: {
+    customerName: string;
+    customerPhone: string;
+    trackingNumber: string;
+    status: string;
+    currentLocation: string;
+    expectedDelivery: string;
+    additionalInfo?: string;
+    companyName: string;
+    trackingUrl?: string;
+    supportNumber?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerLogisticsShipmentStatus({
+    tenantId,
+    phoneNumber: shipment.customerPhone,
+    params: {
+      "1": shipment.customerName,
+      "2": shipment.trackingNumber,
+      "3": shipment.status,
+      "4": shipment.currentLocation,
+      "5": shipment.expectedDelivery,
+      "6": shipment.additionalInfo || "",
+      "7": shipment.companyName,
+      "8": shipment.trackingUrl || "",
+      "9": shipment.supportNumber || "",
+    },
+  });
+}
+
+export async function onLogisticsDeliveryConfirmation(
+  tenantId: string,
+  delivery: {
+    customerName: string;
+    customerPhone: string;
+    trackingNumber: string;
+    deliveryAddress: string;
+    deliveryTime: string;
+    receivedBy: string;
+    companyName: string;
+    ratingUrl?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerLogisticsDeliveryConfirmation({
+    tenantId,
+    phoneNumber: delivery.customerPhone,
+    params: {
+      "1": delivery.customerName,
+      "2": delivery.trackingNumber,
+      "3": delivery.deliveryAddress,
+      "4": delivery.deliveryTime,
+      "5": delivery.receivedBy,
+      "6": delivery.companyName,
+      "7": delivery.ratingUrl || "",
+    },
+  });
+}
+
+export async function onLogisticsDriverAlert(
+  tenantId: string,
+  trip: {
+    driverName: string;
+    driverPhone: string;
+    tripNumber: string;
+    assignmentType: string;
+    origin: string;
+    destination: string;
+    pickupTime: string;
+    cargoType: string;
+    specialInstructions?: string;
+    dispatchNumber: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerLogisticsDriverAlert({
+    tenantId,
+    phoneNumber: trip.driverPhone,
+    params: {
+      "1": trip.driverName,
+      "2": trip.tripNumber,
+      "3": trip.assignmentType,
+      "4": trip.origin,
+      "5": trip.destination,
+      "6": trip.pickupTime,
+      "7": trip.cargoType,
+      "8": trip.specialInstructions || "None",
+      "9": trip.dispatchNumber,
+    },
+  });
+}
+
+export async function onLegalAppointmentReminder(
+  tenantId: string,
+  appointment: {
+    clientName: string;
+    clientPhone: string;
+    appointmentDate: string;
+    appointmentTime: string;
+    attorneyName: string;
+    location: string;
+    caseReference?: string;
+    firmName: string;
+    officeNumber?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerLegalAppointmentReminder({
+    tenantId,
+    phoneNumber: appointment.clientPhone,
+    params: {
+      "1": appointment.clientName,
+      "2": appointment.appointmentDate,
+      "3": appointment.appointmentTime,
+      "4": appointment.attorneyName,
+      "5": appointment.location,
+      "6": appointment.caseReference || "N/A",
+      "7": appointment.firmName,
+      "8": appointment.officeNumber || "",
+    },
+  });
+}
+
+export async function onLegalCaseUpdate(
+  tenantId: string,
+  caseUpdate: {
+    clientName: string;
+    clientPhone: string;
+    caseNumber: string;
+    caseTitle: string;
+    updateDescription: string;
+    nextSteps: string;
+    attorneyName: string;
+    firmName: string;
+    detailsUrl?: string;
+    attorneyPhone?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerLegalCaseUpdate({
+    tenantId,
+    phoneNumber: caseUpdate.clientPhone,
+    params: {
+      "1": caseUpdate.clientName,
+      "2": caseUpdate.caseNumber,
+      "3": caseUpdate.caseTitle,
+      "4": caseUpdate.updateDescription,
+      "5": caseUpdate.nextSteps,
+      "6": caseUpdate.attorneyName,
+      "7": caseUpdate.firmName,
+      "8": caseUpdate.detailsUrl || "",
+      "9": caseUpdate.attorneyPhone || "",
+    },
+  });
+}
+
+export async function onLegalInvoiceNotification(
+  tenantId: string,
+  invoice: {
+    clientName: string;
+    clientPhone: string;
+    invoiceNumber: string;
+    amount: string;
+    dueDate: string;
+    servicesDescription: string;
+    paymentLink?: string;
+    firmName: string;
+    invoiceUrl?: string;
+  }
+): Promise<TriggerResult> {
+  return whatsappTriggerService.triggerLegalInvoiceNotification({
+    tenantId,
+    phoneNumber: invoice.clientPhone,
+    params: {
+      "1": invoice.clientName,
+      "2": invoice.invoiceNumber,
+      "3": invoice.amount,
+      "4": invoice.dueDate,
+      "5": invoice.servicesDescription,
+      "6": invoice.paymentLink || "",
+      "7": invoice.firmName,
+      "8": invoice.invoiceUrl || "",
     },
   });
 }
