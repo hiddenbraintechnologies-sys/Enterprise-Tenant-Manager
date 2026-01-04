@@ -17,7 +17,14 @@ import { auditService } from "../audit";
 import crypto from "crypto";
 import OpenAI from "openai";
 
-const openai = new OpenAI();
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI();
+  }
+  return openaiClient;
+}
 
 interface TimelineEntry {
   date: string;
@@ -182,7 +189,7 @@ Priority: ${c.priority || "N/A"}
 Document ${i + 1}:
 - Title: ${doc.title}
 - Type: ${doc.documentType || "N/A"}
-- Date: ${doc.documentDate || doc.createdAt?.toISOString().split("T")[0] || "N/A"}
+- Date: ${doc.createdAt?.toISOString().split("T")[0] || "N/A"}
 - Description: ${isRedacted ? "[PRIVILEGED - CONTENT REDACTED]" : (doc.description || "No description")}
 `;
       });
@@ -259,7 +266,8 @@ IMPORTANT:
     tokensUsed: number;
   } | null> {
     try {
-      const response = await openai.chat.completions.create({
+      const client = getOpenAIClient();
+      const response = await client.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: "You are a legal case analysis assistant. Respond only with valid JSON." },
