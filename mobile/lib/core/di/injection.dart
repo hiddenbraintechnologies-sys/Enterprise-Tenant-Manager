@@ -11,6 +11,10 @@ import '../storage/tenant_storage.dart';
 import '../offline/database_helper.dart';
 import '../offline/connectivity_service.dart';
 import '../offline/sync_service.dart';
+import '../notifications/notification_service.dart';
+import '../notifications/notification_preferences.dart';
+import '../notifications/deep_link_handler.dart';
+import '../../presentation/routes/app_router.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/datasources/tenant_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
@@ -45,6 +49,10 @@ Future<void> _registerOfflineServices() async {
   final connectivityService = ConnectivityService.instance;
   await connectivityService.initialize();
   getIt.registerLazySingleton<ConnectivityService>(() => connectivityService);
+  
+  final notificationPrefs = NotificationPreferences();
+  await notificationPrefs.initialize();
+  getIt.registerLazySingleton<NotificationPreferences>(() => notificationPrefs);
 }
 
 void _registerStorage() {
@@ -93,6 +101,21 @@ void _registerNetwork() {
       apiClient: getIt<ApiClient>(),
       database: getIt<DatabaseHelper>(),
       connectivity: getIt<ConnectivityService>(),
+    ),
+  );
+  
+  getIt.registerLazySingleton<DeepLinkHandler>(
+    () => DeepLinkHandler(
+      router: AppRouter.router,
+      tenantStorage: getIt<TenantStorage>(),
+    ),
+  );
+  
+  getIt.registerLazySingleton<NotificationService>(
+    () => NotificationService(
+      apiClient: getIt<ApiClient>(),
+      tenantStorage: getIt<TenantStorage>(),
+      deepLinkHandler: getIt<DeepLinkHandler>(),
     ),
   );
 }

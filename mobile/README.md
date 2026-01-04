@@ -100,6 +100,14 @@ await Environment.initialize(EnvironmentType.production);
 - **Sync Queue**: Pending changes queued and processed when online
 - **Offline Indicator**: Visual feedback for connectivity status
 
+### 7. Push Notifications (FCM)
+- **Firebase Cloud Messaging**: Real-time push notifications
+- **Tenant Routing**: Notifications routed to correct tenant context
+- **Deep Links**: Tap notifications to navigate directly to modules
+- **Topic Subscriptions**: Subscribe by tenant, role, or module
+- **Local Notifications**: Foreground notification display
+- **Preferences**: Per-type notification settings
+
 ## Getting Started
 
 ### Prerequisites
