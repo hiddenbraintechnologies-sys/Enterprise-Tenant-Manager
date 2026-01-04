@@ -16,6 +16,16 @@ import { eq, and, desc, sql, ilike, or } from "drizzle-orm";
 import { requireAuth, requireTenant } from "../core/context";
 import { requireRole } from "../core/auth-middleware";
 
+// Helper to enforce tenantId matches context
+function enforceTenantContext(req: Request, res: Response, next: Function) {
+  const { tenantId } = req.params;
+  const contextTenantId = (req as any).context?.tenant?.id;
+  if (!contextTenantId || contextTenantId !== tenantId) {
+    return res.status(403).json({ error: "Cross-tenant access denied", code: "TENANT_MISMATCH" });
+  }
+  next();
+}
+
 const router = Router();
 
 // ============================================
@@ -106,7 +116,7 @@ router.get("/marketplace/:slug", async (req: Request, res: Response) => {
     const [addon] = await db
       .select()
       .from(addons)
-      .where(eq(addons.slug, slug))
+      .where(and(eq(addons.slug, slug), eq(addons.status, "published")))
       .limit(1);
 
     if (!addon) {
@@ -151,7 +161,7 @@ router.get("/marketplace/:slug", async (req: Request, res: Response) => {
 // ============================================
 
 // Get tenant's installed add-ons
-router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
 
@@ -176,11 +186,22 @@ router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, async (req: R
 });
 
 // Install an add-on
-router.post("/tenant/:tenantId/addons", requireAuth, requireTenant, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
     const { addonId, pricingId, config = {} } = req.body;
     const userId = (req as any).user?.id;
+
+    // Verify addon exists and is published
+    const [addon] = await db
+      .select()
+      .from(addons)
+      .where(and(eq(addons.id, addonId), eq(addons.status, "published")))
+      .limit(1);
+
+    if (!addon) {
+      return res.status(404).json({ error: "Add-on not found or not available" });
+    }
 
     // Check if already installed
     const existing = await db
@@ -204,14 +225,18 @@ router.post("/tenant/:tenantId/addons", requireAuth, requireTenant, requireRole(
       return res.status(400).json({ error: "No available version" });
     }
 
-    // Get pricing if specified
+    // Get pricing if specified - verify it belongs to this addon
     let selectedPricing = null;
     if (pricingId) {
       [selectedPricing] = await db
         .select()
         .from(addonPricing)
-        .where(eq(addonPricing.id, pricingId))
+        .where(and(eq(addonPricing.id, pricingId), eq(addonPricing.addonId, addonId)))
         .limit(1);
+      
+      if (!selectedPricing) {
+        return res.status(400).json({ error: "Invalid pricing option for this add-on" });
+      }
     }
 
     // Create installation
@@ -263,7 +288,7 @@ router.post("/tenant/:tenantId/addons", requireAuth, requireTenant, requireRole(
 });
 
 // Update add-on configuration
-router.patch("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.patch("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const { config, autoUpdate, status } = req.body;
@@ -291,7 +316,7 @@ router.patch("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, re
 });
 
 // Update add-on to new version
-router.post("/tenant/:tenantId/addons/:addonId/update", requireAuth, requireTenant, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons/:addonId/update", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const { targetVersionId } = req.body;
@@ -309,15 +334,15 @@ router.post("/tenant/:tenantId/addons/:addonId/update", requireAuth, requireTena
 
     const fromVersionId = installation.versionId;
 
-    // Verify target version exists
+    // Verify target version exists AND belongs to this addon
     const [targetVersion] = await db
       .select()
       .from(addonVersions)
-      .where(eq(addonVersions.id, targetVersionId))
+      .where(and(eq(addonVersions.id, targetVersionId), eq(addonVersions.addonId, addonId)))
       .limit(1);
 
     if (!targetVersion) {
-      return res.status(400).json({ error: "Target version not found" });
+      return res.status(400).json({ error: "Target version not found or invalid for this add-on" });
     }
 
     // Update installation
@@ -350,7 +375,7 @@ router.post("/tenant/:tenantId/addons/:addonId/update", requireAuth, requireTena
 });
 
 // Uninstall add-on
-router.delete("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.delete("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const userId = (req as any).user?.id;
@@ -400,7 +425,7 @@ router.delete("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, r
 // ============================================
 
 // Submit review
-router.post("/tenant/:tenantId/addons/:addonId/reviews", requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons/:addonId/reviews", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const { rating, title, body } = req.body;
