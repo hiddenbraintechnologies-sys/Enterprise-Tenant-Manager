@@ -5,8 +5,15 @@ export async function runMigrations(): Promise<void> {
   console.log("[db-migrate] Running database migrations...");
   
   try {
-    // Test database connection first
-    await db.execute(sql`SELECT 1`);
+    // Test database connection first with timeout
+    const connectionTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Database connection timeout after 10s")), 10000)
+    );
+    
+    await Promise.race([
+      db.execute(sql`SELECT 1`),
+      connectionTimeout
+    ]);
     console.log("[db-migrate] Database connection successful");
     
     // Create enums if they don't exist
