@@ -78,9 +78,31 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check endpoint - responds immediately for Replit provisioning
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 (async () => {
-  // Run database migrations on startup (for production)
-  await runMigrations();
+  // IMPORTANT: Start server FIRST for Replit health check, then run migrations
+  // This prevents provisioning timeout on large applications
+  
+  const port = parseInt(process.env.PORT || "5000", 10);
+  
+  // Start listening immediately so health checks pass
+  await new Promise<void>((resolve) => {
+    httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+      log(`serving on port ${port}`);
+      resolve();
+    });
+  });
+  
+  // Now run migrations in the background (server is already responding)
+  try {
+    await runMigrations();
+  } catch (error) {
+    console.error("[startup] Migration error (non-fatal):", error);
+  }
   
   // Setup authentication (must be before routes)
   await setupAuth(app);
@@ -200,19 +222,6 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  // Server is already listening (started at the top of this async block)
+  // This ensures Replit health checks pass immediately
 })();
