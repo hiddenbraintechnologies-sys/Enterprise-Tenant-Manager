@@ -6,15 +6,25 @@ import { execSync } from "child_process";
 // Run database migrations before build
 async function runMigrations() {
   console.log("Running database migrations...");
+  
+  // Check if DATABASE_URL is available
+  if (!process.env.DATABASE_URL) {
+    console.log("DATABASE_URL not set, skipping migrations (development mode)");
+    return;
+  }
+  
   try {
-    execSync("npx drizzle-kit push --force", { 
+    // Use explicit path to drizzle-kit and add timeout
+    execSync("node ./node_modules/drizzle-kit/bin.cjs push --force", { 
       stdio: "inherit",
-      env: { ...process.env }
+      env: { ...process.env },
+      timeout: 120000 // 2 minute timeout
     });
     console.log("Database migrations completed successfully");
-  } catch (error) {
-    console.error("Warning: Database migration failed, continuing with build...", error);
-    // Don't fail the build if migrations fail - the app may still work
+  } catch (error: any) {
+    console.error("Database migration failed:", error.message);
+    // Fail the build if migrations fail - we need the schema to be correct
+    throw new Error("Database migration failed. Please check DATABASE_URL and database connectivity.");
   }
 }
 
