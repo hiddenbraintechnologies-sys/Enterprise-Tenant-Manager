@@ -162,6 +162,40 @@ export const insertOnboardingFlowSchema = createInsertSchema(onboardingFlows).om
 export const insertOnboardingStepSchema = createInsertSchema(onboardingSteps).omit({ id: true, createdAt: true });
 export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgress).omit({ id: true, createdAt: true, updatedAt: true });
 
+// ============================================
+// BUSINESS TYPE REGISTRY
+// ============================================
+
+// Central registry for all business types - SuperAdmin managed only
+export const businessTypeRegistry = pgTable("business_type_registry", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  enabled: boolean("enabled").default(true),
+  defaultModules: jsonb("default_modules").default([]),
+  defaultFeatures: jsonb("default_features").default([]),
+  onboardingFlowId: varchar("onboarding_flow_id").references(() => onboardingFlows.id, { onDelete: "set null" }),
+  compliancePacks: text("compliance_packs").array().default([]),
+  displayOrder: integer("display_order").default(0),
+  icon: varchar("icon", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_business_type_registry_code").on(table.code),
+  index("idx_business_type_registry_enabled").on(table.enabled),
+]);
+
+// Business type registry types
+export type BusinessTypeRegistry = typeof businessTypeRegistry.$inferSelect;
+export type InsertBusinessTypeRegistry = typeof businessTypeRegistry.$inferInsert;
+
+export const insertBusinessTypeRegistrySchema = createInsertSchema(businessTypeRegistry).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
 // Domain verification status enum
 export const domainVerificationStatusEnum = pgEnum("domain_verification_status", [
   "pending",
