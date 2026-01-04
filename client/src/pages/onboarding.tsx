@@ -11,6 +11,31 @@ import { BusinessProfileStep } from "@/components/onboarding/business-profile-st
 import { ContactInfoStep } from "@/components/onboarding/contact-info-step";
 import { GenericSetupStep } from "@/components/onboarding/generic-setup-step";
 import { CompletionStep } from "@/components/onboarding/completion-step";
+import { 
+  InstitutionSetupStep, 
+  CoursesBatchesStep, 
+  FeeStructureStep, 
+  AdminStaffStep 
+} from "@/components/onboarding/education-steps";
+import { 
+  FleetDetailsStep, 
+  DriverOnboardingStep, 
+  ServiceAreasStep, 
+  PricingRulesStep 
+} from "@/components/onboarding/logistics-steps";
+import { 
+  FirmProfileStep, 
+  PracticeAreasStep, 
+  LawyerStaffStep, 
+  CaseTemplatesStep 
+} from "@/components/onboarding/legal-steps";
+import { 
+  AgencyDetailsStep, 
+  PropertyCategoriesStep, 
+  AgentOnboardingStep, 
+  PackageTemplatesStep, 
+  VendorSetupStep 
+} from "@/components/onboarding/realestate-tourism-steps";
 
 interface OnboardingStep {
   id: string;
@@ -50,6 +75,7 @@ const STEP_COMPONENTS: Record<string, any> = {
   BusinessProfileStep,
   ContactInfoStep,
   CompletionStep,
+  // Clinic/Salon/PG/Coworking/Service steps (use GenericSetupStep for now)
   ClinicSetupStep: GenericSetupStep,
   StaffSetupStep: GenericSetupStep,
   AppointmentSlotsStep: GenericSetupStep,
@@ -61,24 +87,28 @@ const STEP_COMPONENTS: Record<string, any> = {
   SpacesSetupStep: GenericSetupStep,
   MembershipPlansStep: GenericSetupStep,
   PricingSetupStep: GenericSetupStep,
-  AgencySetupStep: GenericSetupStep,
-  AgentsSetupStep: GenericSetupStep,
-  PropertyTypesStep: GenericSetupStep,
-  PackagesSetupStep: GenericSetupStep,
-  VendorsSetupStep: GenericSetupStep,
-  ItineraryTemplatesStep: GenericSetupStep,
-  InstitutionSetupStep: GenericSetupStep,
-  CoursesSetupStep: GenericSetupStep,
-  FacultySetupStep: GenericSetupStep,
-  FeeStructureStep: GenericSetupStep,
-  FleetSetupStep: GenericSetupStep,
-  DriversSetupStep: GenericSetupStep,
-  RoutesSetupStep: GenericSetupStep,
-  TrackingSetupStep: GenericSetupStep,
-  FirmSetupStep: GenericSetupStep,
-  PracticeAreasStep: GenericSetupStep,
-  AttorneysSetupStep: GenericSetupStep,
-  BillingRatesStep: GenericSetupStep,
+  // Education steps
+  InstitutionSetupStep,
+  CoursesBatchesStep,
+  FeeStructureStep,
+  AdminStaffStep,
+  // Logistics steps
+  FleetDetailsStep,
+  DriverOnboardingStep,
+  ServiceAreasStep,
+  PricingRulesStep,
+  // Legal steps
+  FirmProfileStep,
+  PracticeAreasStep,
+  LawyerStaffStep,
+  CaseTemplatesStep,
+  // Real Estate steps
+  AgencyDetailsStep,
+  PropertyCategoriesStep,
+  AgentOnboardingStep,
+  // Tourism steps
+  PackageTemplatesStep,
+  VendorSetupStep,
 };
 
 export default function OnboardingPage() {
