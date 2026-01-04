@@ -132,7 +132,8 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   legal: "/dashboard/legal",
 };
 
-const settingsItems: NavItem[] = [
+const systemItems: NavItem[] = [
+  { title: "Marketplace", url: "/marketplace", icon: Package },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -194,7 +195,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => (
+              {systemItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

@@ -38,6 +38,7 @@ import AdminWhatsApp from "@/pages/admin/whatsapp";
 import AdminAuditLogs from "@/pages/admin/audit-logs";
 import AdminSettings from "@/pages/admin/settings";
 import ResellerDashboard from "@/pages/reseller-dashboard";
+import Marketplace from "@/pages/marketplace";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -167,6 +168,7 @@ function AuthenticatedRoutes() {
         </ModuleGuard>
       </Route>
       <Route path="/analytics" component={Analytics} />
+      <Route path="/marketplace" component={Marketplace} />
       <Route path="/settings" component={Settings} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />
