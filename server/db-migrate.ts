@@ -78,6 +78,14 @@ async function createEnumsIfNotExist(): Promise<void> {
     END $$;
   `);
   
+  // Create tenant_status enum
+  await db.execute(sql`
+    DO $$ BEGIN
+      CREATE TYPE tenant_status AS ENUM ('active', 'suspended', 'cancelled');
+    EXCEPTION WHEN duplicate_object THEN null;
+    END $$;
+  `);
+  
   console.log("[db-migrate] Enums created/verified");
 }
 
@@ -94,6 +102,14 @@ async function createTablesIfNotExist(): Promise<void> {
   await db.execute(sql`
     DO $$ BEGIN
       ALTER TABLE tenants ADD COLUMN IF NOT EXISTS region tenant_region DEFAULT 'asia_pacific';
+    EXCEPTION WHEN undefined_column THEN null;
+    END $$;
+  `);
+  
+  // Add status column to tenants if missing
+  await db.execute(sql`
+    DO $$ BEGIN
+      ALTER TABLE tenants ADD COLUMN IF NOT EXISTS status tenant_status DEFAULT 'active';
     EXCEPTION WHEN undefined_column THEN null;
     END $$;
   `);
