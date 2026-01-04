@@ -23,3 +23,6 @@ export { whatsappService, whatsappProviderSelector, initializeWhatsappProviders 
 export { domainService, resolveTenantByDomain, requireVerifiedDomain, attachDomainBranding } from "./domain";
 export { realEstateRouter } from "./real-estate";
 export { tourismRouter } from "./tourism";
+export { educationRouter } from "./education";
+export { logisticsRouter } from "./logistics";
+export { legalRouter } from "./legal";

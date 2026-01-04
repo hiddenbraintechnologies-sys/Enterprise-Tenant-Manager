@@ -34,6 +34,9 @@ import {
   initializeWhatsappProviders,
   realEstateRouter,
   tourismRouter,
+  educationRouter,
+  logisticsRouter,
+  legalRouter,
 } from "./core";
 import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
@@ -78,6 +81,15 @@ export async function registerRoutes(
 
   // Register Tourism module routes
   app.use('/api/tourism', tourismRouter);
+
+  // Register Education module routes
+  app.use('/api/education', educationRouter);
+
+  // Register Logistics module routes
+  app.use('/api/logistics', logisticsRouter);
+
+  // Register Legal module routes
+  app.use('/api/legal', legalRouter);
 
   // ==================== AUTH ROUTES ====================
   
