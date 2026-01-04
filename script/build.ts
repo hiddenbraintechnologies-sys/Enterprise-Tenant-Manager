@@ -1,32 +1,9 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
-import { execSync } from "child_process";
 
-// Run database migrations before build
-async function runMigrations() {
-  console.log("Running database migrations...");
-  
-  // Check if DATABASE_URL is available
-  if (!process.env.DATABASE_URL) {
-    console.log("DATABASE_URL not set, skipping migrations (development mode)");
-    return;
-  }
-  
-  try {
-    // Use explicit path to drizzle-kit and add timeout
-    execSync("node ./node_modules/drizzle-kit/bin.cjs push --force", { 
-      stdio: "inherit",
-      env: { ...process.env },
-      timeout: 120000 // 2 minute timeout
-    });
-    console.log("Database migrations completed successfully");
-  } catch (error: any) {
-    console.error("Database migration failed:", error.message);
-    // Fail the build if migrations fail - we need the schema to be correct
-    throw new Error("Database migration failed. Please check DATABASE_URL and database connectivity.");
-  }
-}
+// Migrations are now handled at runtime startup, not build time
+// This prevents deployment build phase from hanging on database operations
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -59,9 +36,6 @@ const allowlist = [
 ];
 
 async function buildAll() {
-  // Run database migrations first
-  await runMigrations();
-  
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");
