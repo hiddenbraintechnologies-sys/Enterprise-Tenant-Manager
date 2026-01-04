@@ -2435,6 +2435,159 @@ export type TenantComplianceProgress = typeof tenantComplianceProgress.$inferSel
 export type InsertTenantComplianceProgress = z.infer<typeof insertTenantComplianceProgressSchema>;
 
 // ============================================
+// INDIA COMPLIANCE MODULE (GST, DLT, Aadhaar, RBI)
+// ============================================
+
+// GST Configuration for tenants
+export const gstConfigurations = pgTable("gst_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  gstin: varchar("gstin", { length: 15 }).notNull(),
+  legalName: varchar("legal_name", { length: 255 }).notNull(),
+  tradeName: varchar("trade_name", { length: 255 }),
+  registrationDate: timestamp("registration_date"),
+  gstType: varchar("gst_type", { length: 20 }).default("regular"), // regular, composition, unregistered
+  stateCode: varchar("state_code", { length: 2 }).notNull(),
+  placeOfSupply: varchar("place_of_supply", { length: 100 }),
+  hsnCodes: jsonb("hsn_codes").default([]),
+  sacCodes: jsonb("sac_codes").default([]),
+  isEInvoiceEnabled: boolean("is_e_invoice_enabled").default(false),
+  eInvoiceUsername: varchar("e_invoice_username", { length: 100 }),
+  isEWayBillEnabled: boolean("is_eway_bill_enabled").default(false),
+  eWayBillUsername: varchar("eway_bill_username", { length: 100 }),
+  defaultCgstRate: decimal("default_cgst_rate", { precision: 5, scale: 2 }).default("9.00"),
+  defaultSgstRate: decimal("default_sgst_rate", { precision: 5, scale: 2 }).default("9.00"),
+  defaultIgstRate: decimal("default_igst_rate", { precision: 5, scale: 2 }).default("18.00"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// GST Invoices
+export const gstInvoices = pgTable("gst_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  invoiceDate: timestamp("invoice_date").notNull(),
+  invoiceType: varchar("invoice_type", { length: 20 }).notNull(), // tax_invoice, bill_of_supply, credit_note, debit_note
+  supplyType: varchar("supply_type", { length: 20 }).default("B2C"), // B2B, B2C, B2G, SEZ, Export
+  placeOfSupply: varchar("place_of_supply", { length: 2 }).notNull(),
+  reverseCharge: boolean("reverse_charge").default(false),
+  customerGstin: varchar("customer_gstin", { length: 15 }),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  customerAddress: text("customer_address"),
+  customerState: varchar("customer_state", { length: 100 }),
+  customerStateCode: varchar("customer_state_code", { length: 2 }),
+  lineItems: jsonb("line_items").notNull().default([]),
+  taxableAmount: decimal("taxable_amount", { precision: 15, scale: 2 }).notNull(),
+  cgstAmount: decimal("cgst_amount", { precision: 15, scale: 2 }).default("0"),
+  sgstAmount: decimal("sgst_amount", { precision: 15, scale: 2 }).default("0"),
+  igstAmount: decimal("igst_amount", { precision: 15, scale: 2 }).default("0"),
+  cessAmount: decimal("cess_amount", { precision: 15, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  roundOff: decimal("round_off", { precision: 10, scale: 2 }).default("0"),
+  eInvoiceIrn: varchar("e_invoice_irn", { length: 100 }),
+  eInvoiceAckNo: varchar("e_invoice_ack_no", { length: 50 }),
+  eInvoiceAckDate: timestamp("e_invoice_ack_date"),
+  eInvoiceQrCode: text("e_invoice_qr_code"),
+  eWayBillNo: varchar("eway_bill_no", { length: 20 }),
+  eWayBillDate: timestamp("eway_bill_date"),
+  status: varchar("status", { length: 20 }).default("draft"), // draft, issued, cancelled, amended
+  linkedBookingId: varchar("linked_booking_id"),
+  linkedPaymentId: varchar("linked_payment_id"),
+  notes: text("notes"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// WhatsApp DLT Templates (TRAI compliance for India)
+export const dltTemplates = pgTable("dlt_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  templateId: varchar("template_id", { length: 50 }).notNull(),
+  templateName: varchar("template_name", { length: 100 }).notNull(),
+  senderId: varchar("sender_id", { length: 11 }).notNull(),
+  principalEntityId: varchar("principal_entity_id", { length: 30 }).notNull(),
+  templateType: varchar("template_type", { length: 20 }).notNull(), // transactional, promotional, service_implicit, service_explicit
+  contentType: varchar("content_type", { length: 20 }).default("text"), // text, unicode
+  templateContent: text("template_content").notNull(),
+  variables: jsonb("variables").default([]),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, approved, rejected, expired
+  approvedAt: timestamp("approved_at"),
+  expiresAt: timestamp("expires_at"),
+  category: varchar("category", { length: 50 }), // booking_confirmation, payment_reminder, etc.
+  language: varchar("language", { length: 10 }).default("en"),
+  isActive: boolean("is_active").default(true),
+  registeredWith: varchar("registered_with", { length: 50 }), // Jio, Airtel, Vodafone, BSNL
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Aadhaar masking configuration and logs
+export const aadhaarMaskingLogs = pgTable("aadhaar_masking_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  entityType: varchar("entity_type", { length: 50 }).notNull(), // customer, patient, member, etc.
+  entityId: varchar("entity_id").notNull(),
+  fieldName: varchar("field_name", { length: 50 }).notNull(),
+  maskedValue: varchar("masked_value", { length: 20 }).notNull(),
+  accessedBy: varchar("accessed_by"),
+  accessReason: varchar("access_reason", { length: 255 }),
+  accessedAt: timestamp("accessed_at").defaultNow(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+});
+
+// RBI Payment Compliance Configuration
+export const rbiPaymentCompliance = pgTable("rbi_payment_compliance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  paGuidelines: jsonb("pa_guidelines").default({}), // Payment Aggregator guidelines compliance
+  ppiGuidelines: jsonb("ppi_guidelines").default({}), // Prepaid Payment Instruments
+  cardStorageCompliant: boolean("card_storage_compliant").default(false),
+  tokenizationEnabled: boolean("tokenization_enabled").default(true),
+  recurringPaymentCompliant: boolean("recurring_payment_compliant").default(false),
+  eMandate2faEnabled: boolean("e_mandate_2fa_enabled").default(true),
+  maxRecurringAmount: decimal("max_recurring_amount", { precision: 15, scale: 2 }),
+  refundPolicyDays: integer("refund_policy_days").default(7),
+  disputeResolutionDays: integer("dispute_resolution_days").default(30),
+  gstOnPaymentServices: boolean("gst_on_payment_services").default(true),
+  merchantCategoryCode: varchar("merchant_category_code", { length: 10 }),
+  nodalofficerName: varchar("nodal_officer_name", { length: 255 }),
+  nodalOfficerEmail: varchar("nodal_officer_email", { length: 255 }),
+  nodalOfficerPhone: varchar("nodal_officer_phone", { length: 20 }),
+  lastAuditDate: timestamp("last_audit_date"),
+  nextAuditDue: timestamp("next_audit_due"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// India Compliance Insert Schemas
+export const insertGstConfigurationSchema = createInsertSchema(gstConfigurations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGstInvoiceSchema = createInsertSchema(gstInvoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDltTemplateSchema = createInsertSchema(dltTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAadhaarMaskingLogSchema = createInsertSchema(aadhaarMaskingLogs).omit({ id: true, accessedAt: true });
+export const insertRbiPaymentComplianceSchema = createInsertSchema(rbiPaymentCompliance).omit({ id: true, createdAt: true, updatedAt: true });
+
+// India Compliance Types
+export type GstConfiguration = typeof gstConfigurations.$inferSelect;
+export type InsertGstConfiguration = z.infer<typeof insertGstConfigurationSchema>;
+
+export type GstInvoice = typeof gstInvoices.$inferSelect;
+export type InsertGstInvoice = z.infer<typeof insertGstInvoiceSchema>;
+
+export type DltTemplate = typeof dltTemplates.$inferSelect;
+export type InsertDltTemplate = z.infer<typeof insertDltTemplateSchema>;
+
+export type AadhaarMaskingLog = typeof aadhaarMaskingLogs.$inferSelect;
+export type InsertAadhaarMaskingLog = z.infer<typeof insertAadhaarMaskingLogSchema>;
+
+export type RbiPaymentCompliance = typeof rbiPaymentCompliance.$inferSelect;
+export type InsertRbiPaymentCompliance = z.infer<typeof insertRbiPaymentComplianceSchema>;
+
+// ============================================
 // REAL ESTATE MODULE
 // ============================================
 
