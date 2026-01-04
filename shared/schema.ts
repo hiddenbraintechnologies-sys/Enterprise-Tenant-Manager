@@ -196,6 +196,42 @@ export const insertBusinessTypeRegistrySchema = createInsertSchema(businessTypeR
   updatedAt: true 
 });
 
+// ============================================
+// MODULE REGISTRY
+// ============================================
+
+// Module category enum
+export const moduleCategoryEnum = pgEnum("module_category", ["core", "optional"]);
+
+// Central registry for all modules - SuperAdmin managed only
+export const moduleRegistry = pgTable("module_registry", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: moduleCategoryEnum("category").default("optional"),
+  requiresAi: boolean("requires_ai").default(false),
+  enabled: boolean("enabled").default(true),
+  displayOrder: integer("display_order").default(0),
+  icon: varchar("icon", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_module_registry_code").on(table.code),
+  index("idx_module_registry_category").on(table.category),
+  index("idx_module_registry_enabled").on(table.enabled),
+]);
+
+// Module registry types
+export type ModuleRegistry = typeof moduleRegistry.$inferSelect;
+export type InsertModuleRegistry = typeof moduleRegistry.$inferInsert;
+
+export const insertModuleRegistrySchema = createInsertSchema(moduleRegistry).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
 // Domain verification status enum
 export const domainVerificationStatusEnum = pgEnum("domain_verification_status", [
   "pending",

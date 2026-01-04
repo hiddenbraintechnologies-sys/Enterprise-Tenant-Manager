@@ -66,6 +66,7 @@ import addonRoutes from "./routes/addons";
 import aiPermissionsRoutes from "./routes/ai-permissions";
 import aiAuditRoutes from "./routes/ai-audit";
 import businessRegistryRoutes from "./routes/business-registry";
+import moduleRegistryRoutes from "./routes/module-registry";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -884,6 +885,9 @@ export async function registerRoutes(
 
   // Register Business Registry routes (SuperAdmin only for management)
   app.use('/api/platform-admin/business-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), businessRegistryRoutes);
+
+  // Register Module Registry routes (SuperAdmin only for management)
+  app.use('/api/platform-admin/module-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), moduleRegistryRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
