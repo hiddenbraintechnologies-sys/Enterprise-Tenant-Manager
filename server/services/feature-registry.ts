@@ -1,5 +1,16 @@
 import { db } from "../db";
-import { featureRegistry, featureFlagOverrides, FeatureRegistry, InsertFeatureRegistry, FeatureFlagOverride, InsertFeatureFlagOverride } from "@shared/schema";
+import { 
+  featureRegistry, 
+  featureFlagOverrides, 
+  businessFeatureMap,
+  tenantFeatureOverride,
+  businessTypeRegistry,
+  tenants,
+  FeatureRegistry, 
+  InsertFeatureRegistry, 
+  FeatureFlagOverride, 
+  InsertFeatureFlagOverride 
+} from "@shared/schema";
 import { eq, asc, and, isNull, or } from "drizzle-orm";
 
 export class FeatureRegistryService {
@@ -113,7 +124,12 @@ export class FeatureRegistryService {
     return result.length > 0;
   }
 
-  // Runtime Feature Flag Evaluation
+  // Runtime Feature Flag Evaluation with Business Gating
+  // Evaluation order: 
+  // 1. Feature must be globally enabled
+  // 2. Business must allow the feature (via businessFeatureMap)
+  // 3. Tenant override (via tenantFeatureOverride) - only if business allows
+  // 4. Fall back to business default, then feature default
   async isFeatureEnabled(
     featureCode: string, 
     context: { tenantId?: string; businessType?: string } = {}
@@ -124,47 +140,135 @@ export class FeatureRegistryService {
       return false;
     }
 
+    // Step 1: Check if feature is globally enabled
     if (!feature.enabled) {
       return false;
     }
 
-    // Check for overrides based on scope
+    // Step 2: For global scope, return the default
     if (feature.scope === "global") {
       return feature.defaultEnabled ?? false;
     }
 
-    // Check for tenant-specific override
-    if (context.tenantId && (feature.scope === "tenant" || feature.scope === "business")) {
-      const [tenantOverride] = await db.select()
-        .from(featureFlagOverrides)
-        .where(and(
-          eq(featureFlagOverrides.featureId, feature.id),
-          eq(featureFlagOverrides.tenantId, context.tenantId),
-          isNull(featureFlagOverrides.businessType)
-        ));
-      
-      if (tenantOverride) {
-        return tenantOverride.enabled;
+    // Step 3: Get business type from context or from tenant
+    let businessTypeCode = context.businessType;
+    if (!businessTypeCode && context.tenantId) {
+      const [tenant] = await db.select()
+        .from(tenants)
+        .where(eq(tenants.id, context.tenantId));
+      if (tenant?.businessType) {
+        businessTypeCode = tenant.businessType;
       }
     }
 
-    // Check for business-type override
-    if (context.businessType && feature.scope === "business") {
-      const [businessOverride] = await db.select()
-        .from(featureFlagOverrides)
-        .where(and(
-          eq(featureFlagOverrides.featureId, feature.id),
-          eq(featureFlagOverrides.businessType, context.businessType),
-          isNull(featureFlagOverrides.tenantId)
-        ));
+    // Step 4: Check business-level gating (if business type is known)
+    if (businessTypeCode && (feature.scope === "business" || feature.scope === "tenant")) {
+      // Find the business type registry entry
+      const [businessTypeEntry] = await db.select()
+        .from(businessTypeRegistry)
+        .where(eq(businessTypeRegistry.code, businessTypeCode));
       
-      if (businessOverride) {
-        return businessOverride.enabled;
+      if (businessTypeEntry) {
+        // Check if business allows this feature
+        const [businessMapping] = await db.select()
+          .from(businessFeatureMap)
+          .where(and(
+            eq(businessFeatureMap.businessTypeId, businessTypeEntry.id),
+            eq(businessFeatureMap.featureId, feature.id)
+          ));
+
+        // If no mapping exists, feature is not allowed for this business
+        if (!businessMapping) {
+          return false;
+        }
+
+        // If required, it must be enabled
+        if (businessMapping.isRequired) {
+          return true;
+        }
+
+        // Step 5: Check tenant-specific override (only if tenant-scoped feature)
+        if (context.tenantId && feature.scope === "tenant") {
+          const [tOverride] = await db.select()
+            .from(tenantFeatureOverride)
+            .where(and(
+              eq(tenantFeatureOverride.tenantId, context.tenantId),
+              eq(tenantFeatureOverride.featureId, feature.id)
+            ));
+          
+          if (tOverride) {
+            return tOverride.enabled;
+          }
+        }
+
+        // Fall back to business mapping default
+        return businessMapping.defaultEnabled;
       }
     }
 
-    // Fall back to default
+    // Step 6: Check legacy tenant override (featureFlagOverrides table)
+    if (context.tenantId) {
+      const [legacyOverride] = await db.select()
+        .from(featureFlagOverrides)
+        .where(and(
+          eq(featureFlagOverrides.featureId, feature.id),
+          eq(featureFlagOverrides.tenantId, context.tenantId)
+        ));
+      
+      if (legacyOverride) {
+        return legacyOverride.enabled;
+      }
+    }
+
+    // Fall back to feature default
     return feature.defaultEnabled ?? false;
+  }
+
+  // Check if a feature is allowed for a specific business type
+  async isFeatureAllowedForBusiness(featureId: string, businessTypeCode: string): Promise<boolean> {
+    const [businessTypeEntry] = await db.select()
+      .from(businessTypeRegistry)
+      .where(eq(businessTypeRegistry.code, businessTypeCode));
+    
+    if (!businessTypeEntry) {
+      return false;
+    }
+
+    const [mapping] = await db.select()
+      .from(businessFeatureMap)
+      .where(and(
+        eq(businessFeatureMap.businessTypeId, businessTypeEntry.id),
+        eq(businessFeatureMap.featureId, featureId)
+      ));
+
+    return !!mapping;
+  }
+
+  // Get features allowed for a business type
+  async getFeaturesForBusinessType(businessTypeCode: string): Promise<FeatureRegistry[]> {
+    const [businessTypeEntry] = await db.select()
+      .from(businessTypeRegistry)
+      .where(eq(businessTypeRegistry.code, businessTypeCode));
+    
+    if (!businessTypeEntry) {
+      return [];
+    }
+
+    const mappings = await db.select()
+      .from(businessFeatureMap)
+      .where(eq(businessFeatureMap.businessTypeId, businessTypeEntry.id));
+
+    const featureIds = mappings.map(m => m.featureId);
+    if (featureIds.length === 0) {
+      return [];
+    }
+
+    const features: FeatureRegistry[] = [];
+    for (const fId of featureIds) {
+      const feature = await this.getById(fId);
+      if (feature) features.push(feature);
+    }
+    return features;
   }
 
   // Get all feature flags with their effective status for a context

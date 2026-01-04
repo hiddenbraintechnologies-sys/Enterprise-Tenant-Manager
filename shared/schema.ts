@@ -295,6 +295,81 @@ export const insertFeatureFlagOverrideSchema = createInsertSchema(featureFlagOve
 
 export const updateFeatureRegistrySchema = insertFeatureRegistrySchema.omit({ code: true }).partial();
 
+// Business-Module Mapping - defines which modules a business type can use
+export const businessModuleMap = pgTable("business_module_map", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  businessTypeId: varchar("business_type_id").notNull().references(() => businessTypeRegistry.id, { onDelete: "cascade" }),
+  moduleId: varchar("module_id").notNull().references(() => moduleRegistry.id, { onDelete: "cascade" }),
+  isRequired: boolean("is_required").notNull().default(false),
+  defaultEnabled: boolean("default_enabled").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_business_module_unique").on(table.businessTypeId, table.moduleId),
+  index("idx_business_module_business").on(table.businessTypeId),
+  index("idx_business_module_module").on(table.moduleId),
+]);
+
+// Business-Feature Mapping - defines which features a business type can use
+export const businessFeatureMap = pgTable("business_feature_map", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  businessTypeId: varchar("business_type_id").notNull().references(() => businessTypeRegistry.id, { onDelete: "cascade" }),
+  featureId: varchar("feature_id").notNull().references(() => featureRegistry.id, { onDelete: "cascade" }),
+  isRequired: boolean("is_required").notNull().default(false),
+  defaultEnabled: boolean("default_enabled").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_business_feature_unique").on(table.businessTypeId, table.featureId),
+  index("idx_business_feature_business").on(table.businessTypeId),
+  index("idx_business_feature_feature").on(table.featureId),
+]);
+
+// Tenant Feature Override - tenant-specific feature settings (scoped to what business allows)
+export const tenantFeatureOverride = pgTable("tenant_feature_override", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  featureId: varchar("feature_id").notNull().references(() => featureRegistry.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull(),
+  reason: text("reason"),
+  requestedBy: varchar("requested_by"),
+  approvedBy: varchar("approved_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_tenant_feature_unique").on(table.tenantId, table.featureId),
+  index("idx_tenant_feature_tenant").on(table.tenantId),
+  index("idx_tenant_feature_feature").on(table.featureId),
+]);
+
+// Mapping table types
+export type BusinessModuleMap = typeof businessModuleMap.$inferSelect;
+export type InsertBusinessModuleMap = typeof businessModuleMap.$inferInsert;
+export type BusinessFeatureMap = typeof businessFeatureMap.$inferSelect;
+export type InsertBusinessFeatureMap = typeof businessFeatureMap.$inferInsert;
+export type TenantFeatureOverride = typeof tenantFeatureOverride.$inferSelect;
+export type InsertTenantFeatureOverride = typeof tenantFeatureOverride.$inferInsert;
+
+export const insertBusinessModuleMapSchema = createInsertSchema(businessModuleMap).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBusinessFeatureMapSchema = createInsertSchema(businessFeatureMap).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTenantFeatureOverrideSchema = createInsertSchema(tenantFeatureOverride).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Domain verification status enum
 export const domainVerificationStatusEnum = pgEnum("domain_verification_status", [
   "pending",
