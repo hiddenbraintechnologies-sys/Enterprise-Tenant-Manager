@@ -1,9 +1,10 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import { execSync } from "child_process";
 
-// Migrations are now handled at runtime startup, not build time
-// This prevents deployment build phase from hanging on database operations
+// Database schema is synced during build phase via drizzle-kit push
+// This prevents deployment startup from hanging on DDL operations
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -62,6 +63,23 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  // Sync database schema during build (before server starts)
+  if (process.env.DATABASE_URL) {
+    console.log("syncing database schema...");
+    try {
+      execSync("npx drizzle-kit push --force", { 
+        stdio: "inherit",
+        timeout: 120000 
+      });
+      console.log("database schema synced successfully");
+    } catch (error) {
+      console.error("database schema sync failed (may already be synced):", error);
+      // Don't fail the build - schema may already be up to date
+    }
+  } else {
+    console.log("skipping database sync (no DATABASE_URL)");
+  }
 }
 
 buildAll().catch((err) => {
