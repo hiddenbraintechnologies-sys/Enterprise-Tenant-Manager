@@ -3951,3 +3951,143 @@ export type InsertLegalInvoice = z.infer<typeof insertLegalInvoiceSchema>;
 
 export type CaseActivityLog = typeof caseActivityLog.$inferSelect;
 export type InsertCaseActivityLog = z.infer<typeof insertCaseActivityLogSchema>;
+
+// Case Notes
+export const caseNotes = pgTable("case_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  caseId: varchar("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+  
+  // Note Content
+  title: varchar("title", { length: 255 }),
+  content: text("content").notNull(),
+  noteType: varchar("note_type", { length: 50 }).default("general"), // general, hearing, client_meeting, research, strategy
+  
+  // Confidentiality
+  isConfidential: boolean("is_confidential").default(false),
+  isPrivileged: boolean("is_privileged").default(false), // Attorney-client privilege
+  accessRestrictions: jsonb("access_restrictions").default([]),
+  
+  // Author Info
+  createdBy: varchar("created_by").notNull(),
+  createdByName: text("created_by_name"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_case_notes_tenant").on(table.tenantId),
+  index("idx_case_notes_case").on(table.caseId),
+]);
+
+// Case Hearings
+export const caseHearings = pgTable("case_hearings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  caseId: varchar("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+  
+  // Hearing Details
+  hearingDate: timestamp("hearing_date").notNull(),
+  hearingType: varchar("hearing_type", { length: 100 }), // motion, trial, pre-trial, settlement, etc.
+  location: text("location"),
+  courtroom: varchar("courtroom", { length: 50 }),
+  judgeName: text("judge_name"),
+  
+  // Status
+  status: varchar("status", { length: 50 }).default("scheduled"), // scheduled, completed, postponed, cancelled
+  
+  // Outcome (after hearing)
+  outcome: text("outcome"),
+  outcomeNotes: text("outcome_notes"),
+  nextSteps: jsonb("next_steps").default([]),
+  
+  // Attendees
+  attendees: jsonb("attendees").default([]),
+  
+  // Documents
+  relatedDocumentIds: jsonb("related_document_ids").default([]),
+  
+  // Confidentiality
+  isConfidential: boolean("is_confidential").default(false),
+  
+  // Author Info
+  createdBy: varchar("created_by").notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_case_hearings_tenant").on(table.tenantId),
+  index("idx_case_hearings_case").on(table.caseId),
+  index("idx_case_hearings_date").on(table.hearingDate),
+]);
+
+// Case Summarization Jobs
+export const caseSummaryJobs = pgTable("case_summary_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  caseId: varchar("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+  
+  // Job Status
+  status: varchar("status", { length: 50 }).default("pending"), // pending, processing, completed, failed
+  
+  // Input Snapshot Hash (for cache invalidation)
+  inputSnapshotHash: varchar("input_snapshot_hash", { length: 64 }),
+  
+  // Source Material Counts (for audit)
+  documentCount: integer("document_count").default(0),
+  noteCount: integer("note_count").default(0),
+  hearingCount: integer("hearing_count").default(0),
+  
+  // AI Generated Outputs
+  caseSummary: text("case_summary"),
+  timeline: jsonb("timeline").default([]), // Array of {date, event, description, significance}
+  actionItems: jsonb("action_items").default([]), // Array of {item, priority, dueDate, assignee, status}
+  keyFindings: jsonb("key_findings").default([]),
+  riskFactors: jsonb("risk_factors").default([]),
+  
+  // AI Metadata
+  aiGenerated: boolean("ai_generated").default(false),
+  aiModel: varchar("ai_model", { length: 50 }),
+  aiUsageLogId: varchar("ai_usage_log_id"),
+  consentVersion: varchar("consent_version", { length: 20 }),
+  promptHash: varchar("prompt_hash", { length: 64 }),
+  responseHash: varchar("response_hash", { length: 64 }),
+  
+  // Error Handling
+  errorMessage: text("error_message"),
+  errorCode: varchar("error_code", { length: 50 }),
+  
+  // Cache
+  cacheHit: boolean("cache_hit").default(false),
+  
+  // Requestor
+  requestedBy: varchar("requested_by").notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_case_summary_jobs_tenant").on(table.tenantId),
+  index("idx_case_summary_jobs_case").on(table.caseId),
+  index("idx_case_summary_jobs_status").on(table.status),
+  index("idx_case_summary_jobs_hash").on(table.tenantId, table.caseId, table.inputSnapshotHash),
+]);
+
+// Insert schemas for Case Notes, Hearings, Summary Jobs
+export const insertCaseNoteSchema = createInsertSchema(caseNotes).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertCaseHearingSchema = createInsertSchema(caseHearings).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertCaseSummaryJobSchema = createInsertSchema(caseSummaryJobs).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+
+// Types for Case Notes, Hearings, Summary Jobs
+export type CaseNote = typeof caseNotes.$inferSelect;
+export type InsertCaseNote = z.infer<typeof insertCaseNoteSchema>;
+
+export type CaseHearing = typeof caseHearings.$inferSelect;
+export type InsertCaseHearing = z.infer<typeof insertCaseHearingSchema>;
+
+export type CaseSummaryJob = typeof caseSummaryJobs.$inferSelect;
+export type InsertCaseSummaryJob = z.infer<typeof insertCaseSummaryJobSchema>;
