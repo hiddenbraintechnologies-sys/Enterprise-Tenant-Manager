@@ -13,6 +13,7 @@
  */
 
 import { runMigration as addBusinessTypes } from "./001_add_business_types";
+import { runMigration as addUsageTypes } from "./002_add_usage_types";
 
 interface MigrationResult {
   name: string;
@@ -29,6 +30,7 @@ interface MigrationDefinition {
 
 const MIGRATIONS: MigrationDefinition[] = [
   { name: "001_add_business_types", run: addBusinessTypes },
+  { name: "002_add_usage_types", run: addUsageTypes },
 ];
 
 export async function runAllMigrations(): Promise<MigrationResult[]> {

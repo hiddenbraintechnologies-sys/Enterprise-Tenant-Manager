@@ -43,9 +43,27 @@ export const FEATURES = {
   PACKAGES: "packages",
   ITINERARIES: "itineraries",
   VENDORS: "vendors",
+  // Education modules
+  STUDENTS: "students",
+  COURSES: "courses",
+  EXAMS: "exams",
+  ATTENDANCE: "attendance",
+  FACULTY: "faculty",
+  // Logistics modules
+  VEHICLES: "vehicles",
+  TRIPS: "trips",
+  SHIPMENTS: "shipments",
+  DRIVERS: "drivers",
+  TRACKING: "tracking",
+  // Legal modules
+  CASES: "cases",
+  CLIENTS: "clients",
+  DOCUMENTS: "documents",
+  COURT_DATES: "court_dates",
+  TIME_TRACKING: "time_tracking",
 } as const;
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
 
 export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
   clinic: [
@@ -119,6 +137,47 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
     FEATURES.NOTIFICATIONS_EMAIL,
     FEATURES.NOTIFICATIONS_SMS,
     FEATURES.ANALYTICS_BASIC,
+  ],
+  education: [
+    FEATURES.STUDENTS,
+    FEATURES.COURSES,
+    FEATURES.EXAMS,
+    FEATURES.ATTENDANCE,
+    FEATURES.FACULTY,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.BILLING_SUBSCRIPTIONS,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  logistics: [
+    FEATURES.VEHICLES,
+    FEATURES.TRIPS,
+    FEATURES.SHIPMENTS,
+    FEATURES.DRIVERS,
+    FEATURES.TRACKING,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.NOTIFICATIONS_WHATSAPP,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  legal: [
+    FEATURES.CASES,
+    FEATURES.CLIENTS,
+    FEATURES.DOCUMENTS,
+    FEATURES.COURT_DATES,
+    FEATURES.TIME_TRACKING,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
   ],
 };
 
@@ -331,6 +390,24 @@ export class FeatureService {
       { code: FEATURES.ROOMS, name: "Room Management", category: "accommodation", defaultEnabled: false },
       { code: FEATURES.TENANTS_MANAGEMENT, name: "Tenant Management", category: "accommodation", defaultEnabled: false },
       { code: FEATURES.SERVICES, name: "Services", category: "core", defaultEnabled: true },
+      // Education modules
+      { code: FEATURES.STUDENTS, name: "Student Management", category: "education", defaultEnabled: false },
+      { code: FEATURES.COURSES, name: "Course Management", category: "education", defaultEnabled: false },
+      { code: FEATURES.EXAMS, name: "Exam Management", category: "education", defaultEnabled: false },
+      { code: FEATURES.ATTENDANCE, name: "Attendance Tracking", category: "education", defaultEnabled: false },
+      { code: FEATURES.FACULTY, name: "Faculty Management", category: "education", defaultEnabled: false },
+      // Logistics modules
+      { code: FEATURES.VEHICLES, name: "Vehicle Management", category: "logistics", defaultEnabled: false },
+      { code: FEATURES.TRIPS, name: "Trip Management", category: "logistics", defaultEnabled: false },
+      { code: FEATURES.SHIPMENTS, name: "Shipment Tracking", category: "logistics", defaultEnabled: false },
+      { code: FEATURES.DRIVERS, name: "Driver Management", category: "logistics", defaultEnabled: false },
+      { code: FEATURES.TRACKING, name: "GPS Tracking", category: "logistics", requiredTier: "pro" },
+      // Legal modules
+      { code: FEATURES.CASES, name: "Case Management", category: "legal", defaultEnabled: false },
+      { code: FEATURES.CLIENTS, name: "Client Management", category: "legal", defaultEnabled: false },
+      { code: FEATURES.DOCUMENTS, name: "Document Management", category: "legal", defaultEnabled: false },
+      { code: FEATURES.COURT_DATES, name: "Court Date Tracking", category: "legal", defaultEnabled: false },
+      { code: FEATURES.TIME_TRACKING, name: "Time Tracking", category: "legal", requiredTier: "pro" },
     ];
 
     for (const feature of featureDefinitions) {
