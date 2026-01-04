@@ -24,6 +24,7 @@ import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
 import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
+import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
 import { AdminLayout } from "@/components/admin-layout";
@@ -166,6 +167,7 @@ function AuthenticatedRoutes() {
       </Route>
       <Route path="/analytics" component={Analytics} />
       <Route path="/settings" component={Settings} />
+      <Route path="/onboarding" component={Onboarding} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -239,6 +241,7 @@ function AppRouter() {
     return (
       <Switch>
         <Route path="/register" component={Register} />
+        <Route path="/onboarding" component={Onboarding} />
         <Route component={Landing} />
       </Switch>
     );

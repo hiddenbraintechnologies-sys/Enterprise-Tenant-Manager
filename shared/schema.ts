@@ -69,6 +69,8 @@ export const tenants = pgTable("tenants", {
   statusChangedAt: timestamp("status_changed_at"),
   statusChangedBy: varchar("status_changed_by"),
   statusChangeReason: text("status_change_reason"),
+  onboardingCompleted: boolean("onboarding_completed").default(false),
+  businessTypeLocked: boolean("business_type_locked").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -77,6 +79,77 @@ export const tenants = pgTable("tenants", {
   index("idx_tenants_region").on(table.region),
   index("idx_tenants_status").on(table.status),
 ]);
+
+// Onboarding status enum
+export const onboardingStatusEnum = pgEnum("onboarding_status", [
+  "not_started",
+  "in_progress",
+  "completed",
+  "skipped",
+]);
+
+// Onboarding flows table
+export const onboardingFlows = pgTable("onboarding_flows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  businessType: varchar("business_type", { length: 50 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  version: integer("version").default(1),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_onboarding_flows_business_type").on(table.businessType),
+]);
+
+// Onboarding steps table
+export const onboardingSteps = pgTable("onboarding_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  flowId: varchar("flow_id").notNull().references(() => onboardingFlows.id, { onDelete: "cascade" }),
+  stepOrder: integer("step_order").notNull(),
+  stepKey: varchar("step_key", { length: 100 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  component: varchar("component", { length: 255 }).notNull(),
+  isRequired: boolean("is_required").default(true),
+  isSkippable: boolean("is_skippable").default(false),
+  config: jsonb("config").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_onboarding_steps_flow_id").on(table.flowId),
+  uniqueIndex("idx_onboarding_steps_flow_order").on(table.flowId, table.stepOrder),
+]);
+
+// Onboarding progress table
+export const onboardingProgress = pgTable("onboarding_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  flowId: varchar("flow_id").notNull().references(() => onboardingFlows.id, { onDelete: "cascade" }),
+  currentStepIndex: integer("current_step_index").default(0),
+  status: onboardingStatusEnum("status").default("not_started"),
+  stepData: jsonb("step_data").default({}),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_onboarding_progress_tenant_id").on(table.tenantId),
+  index("idx_onboarding_progress_status").on(table.status),
+  uniqueIndex("idx_onboarding_progress_tenant_flow").on(table.tenantId, table.flowId),
+]);
+
+// Onboarding types
+export type OnboardingFlow = typeof onboardingFlows.$inferSelect;
+export type InsertOnboardingFlow = typeof onboardingFlows.$inferInsert;
+export type OnboardingStep = typeof onboardingSteps.$inferSelect;
+export type InsertOnboardingStep = typeof onboardingSteps.$inferInsert;
+export type OnboardingProgress = typeof onboardingProgress.$inferSelect;
+export type InsertOnboardingProgress = typeof onboardingProgress.$inferInsert;
+
+export const insertOnboardingFlowSchema = createInsertSchema(onboardingFlows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOnboardingStepSchema = createInsertSchema(onboardingSteps).omit({ id: true, createdAt: true });
+export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgress).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Domain verification status enum
 export const domainVerificationStatusEnum = pgEnum("domain_verification_status", [

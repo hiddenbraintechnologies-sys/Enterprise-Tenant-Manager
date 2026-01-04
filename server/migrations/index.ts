@@ -14,6 +14,7 @@
 
 import { runMigration as addBusinessTypes } from "./001_add_business_types";
 import { runMigration as addUsageTypes } from "./002_add_usage_types";
+import { migration_003_add_onboarding } from "./003_add_onboarding";
 
 interface MigrationResult {
   name: string;
@@ -31,6 +32,7 @@ interface MigrationDefinition {
 const MIGRATIONS: MigrationDefinition[] = [
   { name: "001_add_business_types", run: addBusinessTypes },
   { name: "002_add_usage_types", run: addUsageTypes },
+  { name: "003_add_onboarding", run: async () => { await migration_003_add_onboarding.run(); return { success: true }; } },
 ];
 
 export async function runAllMigrations(): Promise<MigrationResult[]> {

@@ -50,6 +50,7 @@ import {
   logAdminAction,
   getClientIp,
 } from "./core/admin-security";
+import { onboardingService } from "./core/onboarding";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -90,6 +91,129 @@ export async function registerRoutes(
 
   // Register Legal module routes
   app.use('/api/legal', legalRouter);
+
+  // Seed onboarding flows
+  await onboardingService.seedDefaultFlows();
+
+  // ==================== ONBOARDING ROUTES ====================
+
+  app.get("/api/onboarding/status", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const isRequired = await onboardingService.isOnboardingRequired(tenantId);
+      const { progress, flow, steps, currentStep } = await onboardingService.getTenantProgress(tenantId);
+
+      res.json({
+        isRequired,
+        progress,
+        flow,
+        steps,
+        currentStep,
+        totalSteps: steps.length,
+        completedSteps: progress?.currentStepIndex || 0,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/onboarding/initialize", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      if (tenant.onboardingCompleted) {
+        return res.status(400).json({ message: "Onboarding already completed" });
+      }
+
+      const businessType = tenant.businessType || "service";
+      const progress = await onboardingService.initializeOnboarding(tenantId, businessType as any);
+      const { flow, steps, currentStep } = await onboardingService.getTenantProgress(tenantId);
+
+      res.json({
+        progress,
+        flow,
+        steps,
+        currentStep,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/onboarding/step/:stepKey", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const { stepKey } = req.params;
+      const stepData = req.body.data || {};
+
+      const progress = await onboardingService.saveStepData(tenantId, stepKey, stepData);
+
+      res.json({ success: true, progress });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/onboarding/advance", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const result = await onboardingService.advanceStep(tenantId);
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/onboarding/skip", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const result = await onboardingService.skipStep(tenantId);
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/onboarding/can-modify-business-type", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const canModify = await onboardingService.canModifyBusinessType(tenantId);
+
+      res.json({ canModify });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
 
   // ==================== AUTH ROUTES ====================
   
