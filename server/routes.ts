@@ -56,6 +56,7 @@ import {
   getClientIp,
 } from "./core/admin-security";
 import { onboardingService } from "./core/onboarding";
+import { resellerRoutes, resellerContextMiddleware } from "./core/reseller";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -108,6 +109,9 @@ export async function registerRoutes(
 
   // Register Legal module routes (protected)
   app.use('/api/legal', ...moduleProtectedMiddleware("legal"), legalRouter);
+
+  // Register Reseller/White-label routes
+  app.use('/api/resellers', authenticateJWT({ required: true }), resellerRoutes);
 
   // Seed onboarding flows
   await onboardingService.seedDefaultFlows();
