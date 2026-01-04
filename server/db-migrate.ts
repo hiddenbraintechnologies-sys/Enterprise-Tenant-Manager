@@ -86,6 +86,22 @@ async function createEnumsIfNotExist(): Promise<void> {
     END $$;
   `);
   
+  // Create tenant_type enum (for reseller hierarchy)
+  await db.execute(sql`
+    DO $$ BEGIN
+      CREATE TYPE tenant_type AS ENUM ('platform', 'reseller', 'direct');
+    EXCEPTION WHEN duplicate_object THEN null;
+    END $$;
+  `);
+  
+  // Create business_type enum if missing
+  await db.execute(sql`
+    DO $$ BEGIN
+      CREATE TYPE business_type AS ENUM ('pg_hostel', 'salon', 'gym', 'coaching', 'clinic', 'diagnostic', 'service', 'retail', 'restaurant', 'hotel', 'healthcare', 'logistics', 'legal');
+    EXCEPTION WHEN duplicate_object THEN null;
+    END $$;
+  `);
+  
   console.log("[db-migrate] Enums created/verified");
 }
 
@@ -112,6 +128,19 @@ async function createTablesIfNotExist(): Promise<void> {
       ALTER TABLE tenants ADD COLUMN IF NOT EXISTS status tenant_status DEFAULT 'active';
     EXCEPTION WHEN undefined_column THEN null;
     END $$;
+  `);
+  
+  // Add all potentially missing tenant columns
+  await db.execute(sql`
+    ALTER TABLE tenants 
+      ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS status_changed_by VARCHAR,
+      ADD COLUMN IF NOT EXISTS status_change_reason TEXT,
+      ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS business_type_locked BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS tenant_type tenant_type DEFAULT 'direct',
+      ADD COLUMN IF NOT EXISTS parent_reseller_id VARCHAR,
+      ADD COLUMN IF NOT EXISTS pinned_version_id VARCHAR;
   `);
   
   // Create whatsapp_provider_configs table
