@@ -1,0 +1,2434 @@
+Warning, this migration may permanently remove some data from your production database, learn more:
+You're about to delete is_suspended column in tenants table with 1 items
+You're about to delete suspension_reason column in tenants table with 1 items
+You're about to delete suspended_at column in tenants table with 1 items
+You're about to delete suspended_by column in tenants table with 1 items
+CREATE TYPE "public"."ai_provider" AS ENUM('openai', 'anthropic', 'local', 'custom');
+CREATE TYPE "public"."ai_risk_tier" AS ENUM('low', 'medium', 'high');
+CREATE TYPE "public"."attendance_status" AS ENUM('present', 'absent', 'late', 'excused');
+CREATE TYPE "public"."batch_status" AS ENUM('upcoming', 'ongoing', 'completed', 'cancelled');
+CREATE TYPE "public"."billing_cadence" AS ENUM('monthly', 'quarterly', 'annually');
+CREATE TYPE "public"."billing_cycle" AS ENUM('monthly', 'quarterly', 'yearly');
+CREATE TYPE "public"."case_priority" AS ENUM('low', 'medium', 'high', 'urgent');
+CREATE TYPE "public"."case_status" AS ENUM('open', 'in_progress', 'on_hold', 'closed', 'won', 'lost', 'settled');
+CREATE TYPE "public"."course_status" AS ENUM('draft', 'active', 'archived');
+CREATE TYPE "public"."currency_code" AS ENUM('INR', 'AED', 'GBP', 'MYR', 'SGD', 'USD');
+CREATE TYPE "public"."document_confidentiality" AS ENUM('public', 'internal', 'confidential', 'privileged', 'highly_restricted');
+CREATE TYPE "public"."driver_status" AS ENUM('available', 'on_trip', 'off_duty', 'suspended', 'terminated');
+CREATE TYPE "public"."error_severity" AS ENUM('debug', 'info', 'warning', 'error', 'critical');
+CREATE TYPE "public"."exam_status" AS ENUM('scheduled', 'ongoing', 'completed', 'cancelled');
+CREATE TYPE "public"."feature_scope" AS ENUM('global', 'business', 'tenant');
+CREATE TYPE "public"."fee_status" AS ENUM('pending', 'partial', 'paid', 'overdue', 'waived');
+CREATE TYPE "public"."legal_appointment_status" AS ENUM('scheduled', 'confirmed', 'completed', 'cancelled', 'no_show');
+CREATE TYPE "public"."legal_client_status" AS ENUM('active', 'inactive', 'prospect', 'archived');
+CREATE TYPE "public"."legal_client_type" AS ENUM('individual', 'corporate', 'government', 'nonprofit');
+CREATE TYPE "public"."legal_invoice_status" AS ENUM('draft', 'pending', 'sent', 'partial', 'paid', 'overdue', 'cancelled', 'written_off');
+CREATE TYPE "public"."maintenance_status" AS ENUM('scheduled', 'in_progress', 'completed', 'cancelled');
+CREATE TYPE "public"."maintenance_type" AS ENUM('preventive', 'corrective', 'emergency', 'inspection');
+CREATE TYPE "public"."module_category" AS ENUM('core', 'optional');
+CREATE TYPE "public"."onboarding_status" AS ENUM('not_started', 'in_progress', 'completed', 'skipped');
+CREATE TYPE "public"."payment_gateway" AS ENUM('stripe', 'razorpay', 'paytabs', 'billplz');
+CREATE TYPE "public"."platform_admin_role" AS ENUM('SUPER_ADMIN', 'PLATFORM_ADMIN');
+CREATE TYPE "public"."reseller_status" AS ENUM('active', 'suspended', 'pending_approval', 'terminated');
+CREATE TYPE "public"."revenue_share_type" AS ENUM('percentage', 'fixed', 'tiered');
+CREATE TYPE "public"."route_optimization_status" AS ENUM('pending', 'processing', 'completed', 'failed', 'expired');
+CREATE TYPE "public"."shipment_status" AS ENUM('pending', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'failed', 'returned');
+CREATE TYPE "public"."student_status" AS ENUM('active', 'inactive', 'graduated', 'withdrawn', 'suspended');
+CREATE TYPE "public"."subscription_status" AS ENUM('active', 'past_due', 'suspended', 'cancelled', 'trialing');
+CREATE TYPE "public"."tenant_status" AS ENUM('active', 'suspended', 'cancelled');
+CREATE TYPE "public"."tenant_type" AS ENUM('platform', 'reseller', 'direct');
+CREATE TYPE "public"."ticket_priority" AS ENUM('low', 'medium', 'high', 'critical');
+CREATE TYPE "public"."ticket_status" AS ENUM('open', 'in_progress', 'waiting', 'resolved', 'closed');
+CREATE TYPE "public"."trip_status" AS ENUM('scheduled', 'in_progress', 'completed', 'cancelled');
+CREATE TYPE "public"."usage_type" AS ENUM('whatsapp_messages', 'bookings', 'leads', 'properties', 'listings', 'tour_packages', 'tour_bookings', 'travelers', 'site_visits', 'api_calls', 'students', 'courses', 'exams', 'vehicles', 'trips', 'shipments', 'cases', 'clients', 'documents');
+CREATE TYPE "public"."vehicle_status" AS ENUM('active', 'inactive', 'maintenance', 'retired');
+CREATE TYPE "public"."version_status" AS ENUM('draft', 'published', 'retired');
+ALTER TYPE "public"."business_type" ADD VALUE 'real_estate';
+ALTER TYPE "public"."business_type" ADD VALUE 'tourism';
+ALTER TYPE "public"."business_type" ADD VALUE 'education';
+ALTER TYPE "public"."business_type" ADD VALUE 'logistics';
+ALTER TYPE "public"."business_type" ADD VALUE 'legal';
+CREATE TABLE "usage_metrics" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"metric_type" varchar(50) NOT NULL,
+	"metric_value" numeric(15, 2) NOT NULL,
+	"period_start" timestamp NOT NULL,
+	"period_end" timestamp NOT NULL,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "admin_sessions" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"admin_id" varchar NOT NULL,
+	"token_hash" varchar(255) NOT NULL,
+	"ip_address" varchar(45) NOT NULL,
+	"user_agent" varchar(500),
+	"device_info" jsonb DEFAULT '{}'::jsonb,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"last_activity_at" timestamp DEFAULT now(),
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"terminated_at" timestamp,
+	"termination_reason" varchar(100)
+);
+CREATE TABLE "sso_domain_mappings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar(255) NOT NULL,
+	"provider_id" uuid NOT NULL,
+	"domain" varchar(255) NOT NULL,
+	"is_verified" boolean DEFAULT false,
+	"verification_token" varchar(255),
+	"verified_at" timestamp,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "sso_domain_mappings_tenant_id_domain_key" UNIQUE("tenant_id","domain")
+);
+CREATE TABLE "support_ticket_messages" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"ticket_id" varchar NOT NULL,
+	"sender_id" varchar,
+	"sender_type" varchar(50) NOT NULL,
+	"message" text NOT NULL,
+	"attachments" jsonb DEFAULT '[]'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "sso_audit_log" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar(255),
+	"user_id" varchar(100),
+	"provider_id" uuid,
+	"action" varchar(100) NOT NULL,
+	"status" varchar(20) NOT NULL,
+	"email" varchar(255),
+	"provider_user_id" varchar(500),
+	"error_message" text,
+	"ip_address" varchar(50),
+	"user_agent" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "compliance_configs" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"regulation" varchar(20) NOT NULL,
+	"display_name" varchar(100) NOT NULL,
+	"data_retention_days" integer DEFAULT 2555 NOT NULL,
+	"breach_notification_hours" integer DEFAULT 72 NOT NULL,
+	"consent_expiry_days" integer,
+	"require_explicit_consent" boolean DEFAULT true NOT NULL,
+	"cross_border_rules" jsonb DEFAULT '[]'::jsonb,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "compliance_configs_regulation_key" UNIQUE("regulation")
+);
+CREATE TABLE "platform_admin_permissions" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(100) NOT NULL,
+	"name" varchar(200) NOT NULL,
+	"description" varchar(500),
+	"category" varchar(100) DEFAULT 'general',
+	"created_at" timestamp DEFAULT now(),
+	CONSTRAINT "platform_admin_permissions_code_key" UNIQUE("code")
+);
+CREATE TABLE "onboarding_progress" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"flow_id" varchar NOT NULL,
+	"current_step_index" integer DEFAULT 0,
+	"status" "onboarding_status" DEFAULT 'not_started',
+	"step_data" jsonb DEFAULT '{}'::jsonb,
+	"started_at" timestamp,
+	"completed_at" timestamp,
+	"last_activity_at" timestamp DEFAULT now(),
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "onboarding_progress_tenant_id_flow_id_key" UNIQUE("tenant_id","flow_id")
+);
+CREATE TABLE "admin_ip_rules" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"ip_pattern" varchar(100) NOT NULL,
+	"rule_type" varchar(20) NOT NULL,
+	"description" varchar(255),
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"expires_at" timestamp
+);
+CREATE TABLE "region_access_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"country_code" varchar(5) NOT NULL,
+	"action" varchar(50) NOT NULL,
+	"result" varchar(20) NOT NULL,
+	"tenant_id" varchar,
+	"user_id" varchar,
+	"ip_address" varchar(45),
+	"user_agent" text,
+	"reason" text,
+	"metadata" jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "transaction_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar,
+	"subscription_id" varchar,
+	"invoice_id" varchar,
+	"gateway" "payment_gateway" NOT NULL,
+	"gateway_transaction_id" varchar(255),
+	"transaction_type" varchar(50) NOT NULL,
+	"country" "tenant_country" NOT NULL,
+	"currency" "currency_code" NOT NULL,
+	"amount" numeric(12, 2) NOT NULL,
+	"status" varchar(50) NOT NULL,
+	"error_code" varchar(100),
+	"error_message" text,
+	"gateway_response" jsonb DEFAULT '{}'::jsonb,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"ip_address" varchar(45),
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "ai_usage_logs" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"user_id" varchar,
+	"provider" "ai_provider" NOT NULL,
+	"model" varchar(100) NOT NULL,
+	"feature" varchar(100) NOT NULL,
+	"input_tokens" integer DEFAULT 0,
+	"output_tokens" integer DEFAULT 0,
+	"total_tokens" integer DEFAULT 0,
+	"estimated_cost" numeric(10, 6) DEFAULT '0',
+	"latency_ms" integer,
+	"success" boolean DEFAULT true,
+	"error_message" text,
+	"request_metadata" jsonb DEFAULT '{}'::jsonb,
+	"response_metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "error_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar,
+	"user_id" varchar,
+	"severity" "error_severity" DEFAULT 'error',
+	"source" varchar(100) NOT NULL,
+	"message" text NOT NULL,
+	"stack_trace" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"request_path" varchar(500),
+	"request_method" varchar(10),
+	"ip_address" varchar(45),
+	"user_agent" text,
+	"is_resolved" boolean DEFAULT false,
+	"resolved_at" timestamp,
+	"resolved_by" varchar,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "admin_two_factor_auth" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"admin_id" varchar NOT NULL,
+	"method" varchar(20) DEFAULT 'totp' NOT NULL,
+	"secret_key" varchar(255),
+	"phone_number" varchar(20),
+	"backup_codes" jsonb DEFAULT '[]'::jsonb,
+	"is_enabled" boolean DEFAULT false NOT NULL,
+	"is_verified" boolean DEFAULT false NOT NULL,
+	"last_used_at" timestamp,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "admin_two_factor_auth_admin_id_key" UNIQUE("admin_id")
+);
+CREATE TABLE "admin_security_config" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"config_key" varchar(100) NOT NULL,
+	"config_value" jsonb NOT NULL,
+	"description" varchar(255),
+	"updated_by" varchar,
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "admin_security_config_config_key_key" UNIQUE("config_key")
+);
+CREATE TABLE "tenant_compliance_settings" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(50) NOT NULL,
+	"primary_regulation" varchar(20) DEFAULT 'gdpr' NOT NULL,
+	"additional_regulations" text[] DEFAULT '{}',
+	"data_retention_days" integer DEFAULT 2555 NOT NULL,
+	"auto_delete_expired_data" boolean DEFAULT false NOT NULL,
+	"require_consent_for_marketing" boolean DEFAULT true NOT NULL,
+	"enable_data_masking" boolean DEFAULT true NOT NULL,
+	"enable_audit_logging" boolean DEFAULT true NOT NULL,
+	"dpo_email" varchar(255),
+	"dpo_name" varchar(255),
+	"privacy_policy_url" varchar(500),
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "tenant_compliance_settings_tenant_id_key" UNIQUE("tenant_id")
+);
+CREATE TABLE "dsar_requests" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(50) NOT NULL,
+	"request_type" varchar(20) NOT NULL,
+	"status" varchar(30) DEFAULT 'submitted' NOT NULL,
+	"subject_email" varchar(255) NOT NULL,
+	"subject_name" varchar(255),
+	"subject_phone" varchar(50),
+	"verification_status" varchar(20) DEFAULT 'pending' NOT NULL,
+	"verification_method" varchar(30),
+	"verified_at" timestamp,
+	"request_details" text,
+	"data_categories" text[] DEFAULT '{}',
+	"regulation" varchar(20) DEFAULT 'gdpr',
+	"response_deadline" timestamp,
+	"completed_at" timestamp,
+	"response_notes" text,
+	"assigned_to" varchar(50),
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "exam_results" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"exam_id" varchar NOT NULL,
+	"student_id" varchar NOT NULL,
+	"marks_obtained" numeric(8, 2),
+	"percentage" numeric(5, 2),
+	"grade" varchar(10),
+	"rank" integer,
+	"is_passed" boolean,
+	"remarks" text,
+	"evaluated_by" varchar,
+	"evaluated_at" timestamp,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "dsar_activity_log" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"dsar_id" varchar(50) NOT NULL,
+	"action" varchar(50) NOT NULL,
+	"performed_by" varchar(50),
+	"performed_by_type" varchar(20) DEFAULT 'system' NOT NULL,
+	"details" text,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "subscription_invoices" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"subscription_id" varchar,
+	"invoice_number" varchar(50) NOT NULL,
+	"status" "invoice_status" DEFAULT 'pending',
+	"country" "tenant_country" NOT NULL,
+	"currency" "currency_code" NOT NULL,
+	"subtotal" numeric(12, 2) NOT NULL,
+	"tax_name" varchar(20) NOT NULL,
+	"tax_rate" numeric(5, 2) NOT NULL,
+	"tax_amount" numeric(12, 2) NOT NULL,
+	"total_amount" numeric(12, 2) NOT NULL,
+	"amount_paid" numeric(12, 2) DEFAULT '0',
+	"amount_due" numeric(12, 2) NOT NULL,
+	"due_date" timestamp NOT NULL,
+	"paid_at" timestamp,
+	"period_start" timestamp,
+	"period_end" timestamp,
+	"gateway_invoice_id" varchar(255),
+	"gateway" "payment_gateway",
+	"line_items" jsonb DEFAULT '[]'::jsonb,
+	"billing_details" jsonb DEFAULT '{}'::jsonb,
+	"notes" text,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "subscription_invoices_invoice_number_key" UNIQUE("invoice_number")
+);
+CREATE TABLE "platform_admin_permission_assignments" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"admin_id" varchar NOT NULL,
+	"permission_code" varchar(100) NOT NULL,
+	"granted_at" timestamp DEFAULT now(),
+	"granted_by" varchar
+);
+CREATE TABLE "ai_audit_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"user_id" varchar NOT NULL,
+	"role_id" varchar,
+	"feature_code" varchar(100) NOT NULL,
+	"action" "ai_audit_action" DEFAULT 'invoke' NOT NULL,
+	"input_metadata" jsonb DEFAULT '{}'::jsonb,
+	"output_reference" jsonb DEFAULT '{}'::jsonb,
+	"ip_address" varchar(45),
+	"user_agent" text,
+	"session_id" varchar(255),
+	"error_code" varchar(100),
+	"error_category" varchar(100),
+	"consent_recorded" boolean DEFAULT false,
+	"data_retention_days" integer DEFAULT 90,
+	"compliance_flags" text[],
+	"triggered_at" timestamp DEFAULT now() NOT NULL,
+	"completed_at" timestamp,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "data_masking_rules" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(50),
+	"role_id" varchar(50),
+	"data_category" varchar(30) NOT NULL,
+	"resource_type" varchar(50),
+	"field_name" varchar(100) NOT NULL,
+	"masking_type" varchar(20) DEFAULT 'full' NOT NULL,
+	"is_enabled" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "admin_login_attempts" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"email" varchar(255) NOT NULL,
+	"ip_address" varchar(45) NOT NULL,
+	"user_agent" varchar(500),
+	"success" boolean DEFAULT false NOT NULL,
+	"failure_reason" varchar(100),
+	"attempted_at" timestamp DEFAULT now()
+);
+CREATE TABLE "batch_students" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"batch_id" varchar NOT NULL,
+	"student_id" varchar NOT NULL,
+	"enrolled_at" timestamp DEFAULT now(),
+	"status" varchar(20) DEFAULT 'active',
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "trips" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"vehicle_id" varchar,
+	"driver_id" varchar,
+	"trip_number" varchar(50),
+	"trip_type" varchar(50),
+	"origin_address" text,
+	"origin_city" varchar(100),
+	"origin_state" varchar(100),
+	"origin_latitude" numeric(10, 7),
+	"origin_longitude" numeric(10, 7),
+	"destination_address" text,
+	"destination_city" varchar(100),
+	"destination_state" varchar(100),
+	"destination_latitude" numeric(10, 7),
+	"destination_longitude" numeric(10, 7),
+	"scheduled_start_time" timestamp,
+	"scheduled_end_time" timestamp,
+	"actual_start_time" timestamp,
+	"actual_end_time" timestamp,
+	"estimated_distance" numeric(10, 2),
+	"actual_distance" numeric(10, 2),
+	"distance_unit" varchar(10) DEFAULT 'km',
+	"fuel_consumed" numeric(10, 2),
+	"current_latitude" numeric(10, 7),
+	"current_longitude" numeric(10, 7),
+	"last_location_update" timestamp,
+	"waypoints" jsonb DEFAULT '[]'::jsonb,
+	"status" "trip_status" DEFAULT 'scheduled',
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "onboarding_flows" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"business_type" varchar(50) NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"description" text,
+	"version" integer DEFAULT 1,
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "compliance_packs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"description" text,
+	"country_code" varchar(10) NOT NULL,
+	"regulation_type" varchar(100) NOT NULL,
+	"version" varchar(50) DEFAULT '1.0',
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "global_pricing_plans" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"tier" varchar(20) NOT NULL,
+	"billing_cycle" "billing_cycle" DEFAULT 'monthly',
+	"base_price" numeric(10, 2) NOT NULL,
+	"max_users" integer DEFAULT 5,
+	"max_customers" integer DEFAULT 100,
+	"features" jsonb DEFAULT '[]'::jsonb,
+	"is_active" boolean DEFAULT true,
+	"sort_order" integer DEFAULT 0,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "global_pricing_plans_code_key" UNIQUE("code")
+);
+CREATE TABLE "admin_account_lockouts" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"admin_id" varchar,
+	"email" varchar(255) NOT NULL,
+	"ip_address" varchar(45),
+	"lockout_type" varchar(50) NOT NULL,
+	"reason" varchar(255) NOT NULL,
+	"failed_attempts" varchar(10) DEFAULT '0' NOT NULL,
+	"locked_at" timestamp DEFAULT now(),
+	"expires_at" timestamp NOT NULL,
+	"unlocked_at" timestamp,
+	"unlocked_by" varchar
+);
+CREATE TABLE "business_type_versions" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"business_type_id" varchar NOT NULL,
+	"version_number" integer NOT NULL,
+	"status" "version_status" DEFAULT 'draft' NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"effective_at" timestamp,
+	"retired_at" timestamp,
+	"created_by" varchar,
+	"published_by" varchar,
+	"published_at" timestamp,
+	"module_snapshot" jsonb DEFAULT '[]'::jsonb,
+	"feature_snapshot" jsonb DEFAULT '[]'::jsonb,
+	"migration_notes" text,
+	"is_backward_compatible" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "consent_records" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(50) NOT NULL,
+	"subject_type" varchar(20) NOT NULL,
+	"subject_id" varchar(50) NOT NULL,
+	"subject_email" varchar(255),
+	"consent_type" varchar(30) NOT NULL,
+	"status" varchar(20) DEFAULT 'pending' NOT NULL,
+	"purpose" text NOT NULL,
+	"legal_basis" varchar(30) DEFAULT 'consent' NOT NULL,
+	"consent_text" text,
+	"version" varchar(20) DEFAULT '1.0',
+	"granted_at" timestamp,
+	"withdrawn_at" timestamp,
+	"expires_at" timestamp,
+	"collection_method" varchar(30) DEFAULT 'web_form',
+	"ip_address" varchar(45),
+	"user_agent" text,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "students" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"first_name" text NOT NULL,
+	"last_name" text NOT NULL,
+	"email" text,
+	"phone" varchar(20),
+	"date_of_birth" date,
+	"gender" varchar(20),
+	"address" text,
+	"city" varchar(100),
+	"state" varchar(100),
+	"country" varchar(100),
+	"postal_code" varchar(20),
+	"enrollment_number" varchar(50),
+	"enrollment_date" date,
+	"current_batch_id" varchar,
+	"status" "student_status" DEFAULT 'active',
+	"guardian_name" text,
+	"guardian_phone" varchar(20),
+	"guardian_email" text,
+	"guardian_relation" varchar(50),
+	"profile_image_url" text,
+	"blood_group" varchar(10),
+	"medical_notes" text,
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "onboarding_steps" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"flow_id" varchar NOT NULL,
+	"step_order" integer NOT NULL,
+	"step_key" varchar(100) NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"description" text,
+	"component" varchar(255) NOT NULL,
+	"is_required" boolean DEFAULT true,
+	"is_skippable" boolean DEFAULT false,
+	"config" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "courses" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"name" text NOT NULL,
+	"code" varchar(50),
+	"description" text,
+	"category" varchar(100),
+	"duration_value" integer,
+	"duration_unit" varchar(20) DEFAULT 'months',
+	"base_fee" numeric(12, 2),
+	"currency" varchar(10) DEFAULT 'INR',
+	"syllabus" jsonb DEFAULT '[]'::jsonb,
+	"prerequisites" jsonb DEFAULT '[]'::jsonb,
+	"objectives" jsonb DEFAULT '[]'::jsonb,
+	"max_students" integer,
+	"min_students" integer,
+	"status" "course_status" DEFAULT 'active',
+	"is_active" boolean DEFAULT true,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "tenant_ai_settings" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"ai_enabled" boolean DEFAULT false,
+	"consent_given" boolean DEFAULT false,
+	"consent_given_at" timestamp,
+	"consent_given_by" varchar,
+	"consent_version" varchar(20) DEFAULT '1.0',
+	"preferred_provider" "ai_provider" DEFAULT 'openai',
+	"monthly_token_limit" integer DEFAULT 100000,
+	"tokens_used_this_month" integer DEFAULT 0,
+	"rate_limit_per_minute" integer DEFAULT 10,
+	"rate_limit_per_hour" integer DEFAULT 100,
+	"allowed_features" jsonb DEFAULT '[]'::jsonb,
+	"custom_provider_config" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "tenant_ai_settings_tenant_id_key" UNIQUE("tenant_id")
+);
+CREATE TABLE "usage_events" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"usage_type" "usage_type" NOT NULL,
+	"quantity" integer DEFAULT 1,
+	"unit_cost" numeric(10, 4),
+	"resource_id" varchar,
+	"resource_type" varchar(50),
+	"description" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "versioned_feature_map" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"version_id" varchar NOT NULL,
+	"feature_id" varchar NOT NULL,
+	"is_required" boolean DEFAULT false NOT NULL,
+	"default_enabled" boolean DEFAULT true NOT NULL,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "gst_configurations" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"gstin" varchar(15) NOT NULL,
+	"legal_name" varchar(255) NOT NULL,
+	"trade_name" varchar(255),
+	"registration_date" timestamp,
+	"gst_type" varchar(20) DEFAULT 'regular',
+	"state_code" varchar(2) NOT NULL,
+	"place_of_supply" varchar(100),
+	"hsn_codes" jsonb DEFAULT '[]'::jsonb,
+	"sac_codes" jsonb DEFAULT '[]'::jsonb,
+	"is_e_invoice_enabled" boolean DEFAULT false,
+	"e_invoice_username" varchar(100),
+	"is_eway_bill_enabled" boolean DEFAULT false,
+	"eway_bill_username" varchar(100),
+	"default_cgst_rate" numeric(5, 2) DEFAULT '9.00',
+	"default_sgst_rate" numeric(5, 2) DEFAULT '9.00',
+	"default_igst_rate" numeric(5, 2) DEFAULT '18.00',
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "gst_configurations_tenant_id_key" UNIQUE("tenant_id")
+);
+CREATE TABLE "case_activity_log" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"case_id" varchar NOT NULL,
+	"activity_type" varchar(50) NOT NULL,
+	"activity_description" text,
+	"related_document_id" varchar,
+	"related_appointment_id" varchar,
+	"related_invoice_id" varchar,
+	"previous_value" jsonb,
+	"new_value" jsonb,
+	"changed_fields" jsonb DEFAULT '[]'::jsonb,
+	"performed_by" varchar,
+	"performed_by_name" text,
+	"performed_by_role" varchar(50),
+	"ip_address" varchar(50),
+	"user_agent" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "tenant_feature_override" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"feature_id" varchar NOT NULL,
+	"enabled" boolean NOT NULL,
+	"reason" text,
+	"requested_by" varchar,
+	"approved_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "fee_payments" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"fee_id" varchar NOT NULL,
+	"student_id" varchar NOT NULL,
+	"amount" numeric(12, 2) NOT NULL,
+	"payment_date" date NOT NULL,
+	"payment_method" "payment_method" DEFAULT 'cash',
+	"transaction_id" varchar(100),
+	"receipt_number" varchar(100),
+	"notes" text,
+	"received_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "sso_auth_sessions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar(255),
+	"provider_id" uuid,
+	"state" varchar(255) NOT NULL,
+	"nonce" varchar(255),
+	"code_verifier" varchar(255),
+	"code_challenge" varchar(255),
+	"code_challenge_method" varchar(10),
+	"redirect_uri" text,
+	"return_url" text,
+	"status" varchar(20) DEFAULT 'pending',
+	"ip_address" varchar(50),
+	"user_agent" text,
+	"expires_at" timestamp NOT NULL,
+	"completed_at" timestamp,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "sso_auth_sessions_state_key" UNIQUE("state")
+);
+CREATE TABLE "attendance" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"batch_id" varchar NOT NULL,
+	"student_id" varchar NOT NULL,
+	"date" date NOT NULL,
+	"status" "attendance_status" DEFAULT 'present',
+	"check_in_time" time,
+	"check_out_time" time,
+	"remarks" text,
+	"marked_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "data_breach_records" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(50),
+	"breach_type" varchar(30) NOT NULL,
+	"severity" varchar(20) DEFAULT 'medium' NOT NULL,
+	"regulation" varchar(20) DEFAULT 'gdpr' NOT NULL,
+	"discovered_at" timestamp NOT NULL,
+	"reported_at" timestamp,
+	"report_deadline" timestamp,
+	"status" varchar(30) DEFAULT 'discovered' NOT NULL,
+	"affected_data_categories" text[] DEFAULT '{}',
+	"affected_subjects_count" integer DEFAULT 0,
+	"description" text,
+	"impact_assessment" text,
+	"containment_actions" text,
+	"notification_actions" text,
+	"remediation_plan" text,
+	"root_cause" text,
+	"lessons_learned" text,
+	"reported_by" varchar(50),
+	"assigned_to" varchar(50),
+	"closed_at" timestamp,
+	"closed_by" varchar(50),
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "sso_provider_configs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar(255) NOT NULL,
+	"provider_type" varchar(50) NOT NULL,
+	"provider_name" varchar(100) NOT NULL,
+	"display_name" varchar(200),
+	"client_id" varchar(500) NOT NULL,
+	"client_secret_encrypted" text NOT NULL,
+	"issuer_url" text,
+	"authorization_url" text,
+	"token_url" text,
+	"user_info_url" text,
+	"jwks_url" text,
+	"scopes" jsonb DEFAULT '["openid","profile","email"]'::jsonb,
+	"allowed_domains" jsonb DEFAULT '[]'::jsonb,
+	"claims_mapping" jsonb DEFAULT '{}'::jsonb,
+	"status" varchar(20) DEFAULT 'inactive',
+	"is_default" boolean DEFAULT false,
+	"auto_create_users" boolean DEFAULT true,
+	"auto_link_users" boolean DEFAULT true,
+	"enforce_for_domains" boolean DEFAULT false,
+	"last_used_at" timestamp,
+	"created_by" varchar(100),
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"logout_url" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"saml_metadata_url" text,
+	"saml_entity_id" text,
+	"saml_certificate" text,
+	"saml_signing_key" text,
+	"claim_mappings" jsonb DEFAULT '{"email":"email","lastName":"family_name","firstName":"given_name","profileImage":"picture"}'::jsonb,
+	"verified_at" timestamp,
+	CONSTRAINT "sso_provider_configs_tenant_id_provider_name_key" UNIQUE("tenant_id","provider_name")
+);
+CREATE TABLE "feature_registry" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"scope" "feature_scope" DEFAULT 'tenant' NOT NULL,
+	"default_enabled" boolean DEFAULT false NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "feature_registry_code_key" UNIQUE("code")
+);
+CREATE TABLE "rbi_payment_compliance" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"pa_guidelines" jsonb DEFAULT '{}'::jsonb,
+	"ppi_guidelines" jsonb DEFAULT '{}'::jsonb,
+	"card_storage_compliant" boolean DEFAULT false,
+	"tokenization_enabled" boolean DEFAULT true,
+	"recurring_payment_compliant" boolean DEFAULT false,
+	"e_mandate_2fa_enabled" boolean DEFAULT true,
+	"max_recurring_amount" numeric(15, 2),
+	"refund_policy_days" integer DEFAULT 7,
+	"dispute_resolution_days" integer DEFAULT 30,
+	"gst_on_payment_services" boolean DEFAULT true,
+	"merchant_category_code" varchar(10),
+	"nodal_officer_name" varchar(255),
+	"nodal_officer_email" varchar(255),
+	"nodal_officer_phone" varchar(20),
+	"last_audit_date" timestamp,
+	"next_audit_due" timestamp,
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "rbi_payment_compliance_tenant_id_key" UNIQUE("tenant_id")
+);
+CREATE TABLE "webhook_events" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"gateway" "payment_gateway" NOT NULL,
+	"event_id" varchar(255) NOT NULL,
+	"event_type" varchar(100) NOT NULL,
+	"payload" jsonb NOT NULL,
+	"status" varchar(20) DEFAULT 'pending',
+	"processed_at" timestamp,
+	"error_message" text,
+	"retry_count" integer DEFAULT 0,
+	"created_at" timestamp DEFAULT now(),
+	CONSTRAINT "webhook_events_gateway_event_id_key" UNIQUE("gateway","event_id")
+);
+CREATE TABLE "business_module_map" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"business_type_id" varchar NOT NULL,
+	"module_id" varchar NOT NULL,
+	"is_required" boolean DEFAULT false NOT NULL,
+	"default_enabled" boolean DEFAULT true NOT NULL,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "case_notes" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"case_id" varchar NOT NULL,
+	"title" varchar(255),
+	"content" text NOT NULL,
+	"note_type" varchar(50) DEFAULT 'general',
+	"is_confidential" boolean DEFAULT false,
+	"is_privileged" boolean DEFAULT false,
+	"access_restrictions" jsonb DEFAULT '[]'::jsonb,
+	"created_by" varchar NOT NULL,
+	"created_by_name" text,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "tenant_usage_tracking" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"usage_type" "usage_type" NOT NULL,
+	"period_start" timestamp NOT NULL,
+	"period_end" timestamp NOT NULL,
+	"used_units" integer DEFAULT 0,
+	"included_units" integer DEFAULT 0,
+	"overage_units" integer DEFAULT 0,
+	"overage_cost" numeric(10, 2) DEFAULT '0',
+	"is_billed" boolean DEFAULT false,
+	"billed_at" timestamp,
+	"invoice_id" varchar,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "case_hearings" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"case_id" varchar NOT NULL,
+	"hearing_date" timestamp NOT NULL,
+	"hearing_type" varchar(100),
+	"location" text,
+	"courtroom" varchar(50),
+	"judge_name" text,
+	"status" varchar(50) DEFAULT 'scheduled',
+	"outcome" text,
+	"outcome_notes" text,
+	"next_steps" jsonb DEFAULT '[]'::jsonb,
+	"attendees" jsonb DEFAULT '[]'::jsonb,
+	"related_document_ids" jsonb DEFAULT '[]'::jsonb,
+	"is_confidential" boolean DEFAULT false,
+	"created_by" varchar NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "plan_usage_limits" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"plan_id" varchar NOT NULL,
+	"business_type" "business_type" NOT NULL,
+	"usage_type" "usage_type" NOT NULL,
+	"included_units" integer DEFAULT 0,
+	"overage_rate" numeric(10, 4),
+	"hard_limit" integer,
+	"is_enabled" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "tenant_subscriptions" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"plan_id" varchar NOT NULL,
+	"status" "subscription_status" DEFAULT 'active',
+	"current_period_start" timestamp NOT NULL,
+	"current_period_end" timestamp NOT NULL,
+	"cancelled_at" timestamp,
+	"cancel_at_period_end" boolean DEFAULT false,
+	"trial_ends_at" timestamp,
+	"gateway_subscription_id" varchar(255),
+	"gateway" "payment_gateway",
+	"payment_failure_count" integer DEFAULT 0,
+	"last_payment_at" timestamp,
+	"next_payment_at" timestamp,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "tenant_subscriptions_tenant_id_key" UNIQUE("tenant_id")
+);
+CREATE TABLE "support_tickets" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar,
+	"user_id" varchar,
+	"subject" text NOT NULL,
+	"description" text NOT NULL,
+	"status" "ticket_status" DEFAULT 'open',
+	"priority" "ticket_priority" DEFAULT 'medium',
+	"category" varchar(100),
+	"assigned_to" varchar,
+	"resolved_at" timestamp,
+	"closed_at" timestamp,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "sensitive_data_access_logs" (
+	"id" varchar(50) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(50),
+	"accessor_type" varchar(20) NOT NULL,
+	"accessor_id" varchar(50) NOT NULL,
+	"accessor_email" varchar(255),
+	"accessor_role" varchar(50),
+	"data_category" varchar(30) NOT NULL,
+	"resource_type" varchar(50) NOT NULL,
+	"resource_id" varchar(50),
+	"access_type" varchar(20) NOT NULL,
+	"access_reason" varchar(50),
+	"access_reason_details" text,
+	"access_context" jsonb DEFAULT '{}'::jsonb,
+	"fields_accessed" text[] DEFAULT '{}',
+	"records_count" integer DEFAULT 1,
+	"response_size" integer,
+	"ip_address" varchar(45),
+	"user_agent" text,
+	"session_id" varchar(100),
+	"risk_level" varchar(20) DEFAULT 'low' NOT NULL,
+	"risk_score" integer DEFAULT 0,
+	"flagged" boolean DEFAULT false,
+	"flag_reason" text,
+	"flagged_at" timestamp,
+	"flagged_by" varchar(50),
+	"reviewed" boolean DEFAULT false,
+	"reviewed_at" timestamp,
+	"reviewed_by" varchar(50),
+	"review_notes" text,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "exams" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"course_id" varchar,
+	"batch_id" varchar,
+	"name" text NOT NULL,
+	"code" varchar(50),
+	"description" text,
+	"exam_type" varchar(50) DEFAULT 'written',
+	"exam_date" date,
+	"start_time" time,
+	"end_time" time,
+	"duration" integer,
+	"total_marks" numeric(8, 2),
+	"passing_marks" numeric(8, 2),
+	"venue" text,
+	"room" varchar(100),
+	"instructions" text,
+	"syllabus_covered" jsonb DEFAULT '[]'::jsonb,
+	"status" "exam_status" DEFAULT 'scheduled',
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "payment_attempts" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"invoice_id" varchar,
+	"gateway" "payment_gateway" NOT NULL,
+	"amount" numeric(12, 2) NOT NULL,
+	"currency" "currency_code" NOT NULL,
+	"status" varchar(50) NOT NULL,
+	"gateway_payment_id" varchar(255),
+	"error_code" varchar(100),
+	"error_message" text,
+	"attempt_number" integer DEFAULT 1,
+	"next_retry_at" timestamp,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "batches" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"course_id" varchar NOT NULL,
+	"name" text NOT NULL,
+	"code" varchar(50),
+	"start_date" date,
+	"end_date" date,
+	"schedule" jsonb DEFAULT '{}'::jsonb,
+	"max_students" integer,
+	"current_student_count" integer DEFAULT 0,
+	"instructor_id" varchar,
+	"instructor_name" text,
+	"room" varchar(100),
+	"venue" text,
+	"is_online" boolean DEFAULT false,
+	"meeting_link" text,
+	"status" "batch_status" DEFAULT 'upcoming',
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "dlt_templates" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"template_id" varchar(50) NOT NULL,
+	"template_name" varchar(100) NOT NULL,
+	"sender_id" varchar(11) NOT NULL,
+	"principal_entity_id" varchar(30) NOT NULL,
+	"template_type" varchar(20) NOT NULL,
+	"content_type" varchar(20) DEFAULT 'text',
+	"template_content" text NOT NULL,
+	"variables" jsonb DEFAULT '[]'::jsonb,
+	"status" varchar(20) DEFAULT 'pending',
+	"approved_at" timestamp,
+	"expires_at" timestamp,
+	"category" varchar(50),
+	"language" varchar(10) DEFAULT 'en',
+	"is_active" boolean DEFAULT true,
+	"registered_with" varchar(50),
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "business_feature_map" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"business_type_id" varchar NOT NULL,
+	"feature_id" varchar NOT NULL,
+	"is_required" boolean DEFAULT false NOT NULL,
+	"default_enabled" boolean DEFAULT true NOT NULL,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "legal_appointments" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"client_id" varchar,
+	"case_id" varchar,
+	"title" text NOT NULL,
+	"description" text,
+	"appointment_type" varchar(50) DEFAULT 'consultation',
+	"scheduled_date" date NOT NULL,
+	"start_time" time NOT NULL,
+	"end_time" time,
+	"duration" integer,
+	"timezone" varchar(50) DEFAULT 'Asia/Kolkata',
+	"location" text,
+	"is_virtual" boolean DEFAULT false,
+	"meeting_link" text,
+	"attendee_id" varchar,
+	"attendee_name" text,
+	"attendees" jsonb DEFAULT '[]'::jsonb,
+	"is_billable" boolean DEFAULT true,
+	"billed_amount" numeric(12, 2),
+	"billed_hours" numeric(8, 2),
+	"reminder_sent" boolean DEFAULT false,
+	"reminder_sent_at" timestamp,
+	"status" "legal_appointment_status" DEFAULT 'scheduled',
+	"confidentiality_level" "document_confidentiality" DEFAULT 'confidential',
+	"notes" text,
+	"outcome" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"updated_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "gst_invoices" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"invoice_number" varchar(50) NOT NULL,
+	"invoice_date" timestamp NOT NULL,
+	"invoice_type" varchar(20) NOT NULL,
+	"supply_type" varchar(20) DEFAULT 'B2C',
+	"place_of_supply" varchar(2) NOT NULL,
+	"reverse_charge" boolean DEFAULT false,
+	"customer_gstin" varchar(15),
+	"customer_name" varchar(255) NOT NULL,
+	"customer_address" text,
+	"customer_state" varchar(100),
+	"customer_state_code" varchar(2),
+	"line_items" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"taxable_amount" numeric(15, 2) NOT NULL,
+	"cgst_amount" numeric(15, 2) DEFAULT '0',
+	"sgst_amount" numeric(15, 2) DEFAULT '0',
+	"igst_amount" numeric(15, 2) DEFAULT '0',
+	"cess_amount" numeric(15, 2) DEFAULT '0',
+	"total_amount" numeric(15, 2) NOT NULL,
+	"round_off" numeric(10, 2) DEFAULT '0',
+	"e_invoice_irn" varchar(100),
+	"e_invoice_ack_no" varchar(50),
+	"e_invoice_ack_date" timestamp,
+	"e_invoice_qr_code" text,
+	"eway_bill_no" varchar(20),
+	"eway_bill_date" timestamp,
+	"status" varchar(20) DEFAULT 'draft',
+	"linked_booking_id" varchar,
+	"linked_payment_id" varchar,
+	"notes" text,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "tenant_business_type_history" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"from_version_id" varchar,
+	"to_version_id" varchar,
+	"action" varchar(50) NOT NULL,
+	"reason" text,
+	"performed_by" varchar,
+	"rollback_data" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "tenant_compliance_progress" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_pack_id" integer NOT NULL,
+	"item_id" integer NOT NULL,
+	"status" varchar(50) DEFAULT 'pending',
+	"completed_at" timestamp,
+	"completed_by" integer,
+	"evidence_url" text,
+	"notes" text,
+	"verified_at" timestamp,
+	"verified_by" integer,
+	CONSTRAINT "tenant_compliance_progress_tenant_pack_id_item_id_key" UNIQUE("tenant_pack_id","item_id")
+);
+CREATE TABLE "sso_user_identities" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" varchar(100) NOT NULL,
+	"tenant_id" varchar(255) NOT NULL,
+	"provider_id" uuid NOT NULL,
+	"provider_user_id" varchar(500) NOT NULL,
+	"provider_email" varchar(255),
+	"provider_profile" jsonb DEFAULT '{}'::jsonb,
+	"access_token_encrypted" text,
+	"refresh_token_encrypted" text,
+	"token_expires_at" timestamp,
+	"last_login_at" timestamp,
+	"login_count" varchar(20) DEFAULT '0',
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "sso_user_identities_provider_id_provider_user_id_key" UNIQUE("provider_id","provider_user_id")
+);
+CREATE TABLE "aadhaar_masking_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"entity_type" varchar(50) NOT NULL,
+	"entity_id" varchar NOT NULL,
+	"field_name" varchar(50) NOT NULL,
+	"masked_value" varchar(20) NOT NULL,
+	"accessed_by" varchar,
+	"access_reason" varchar(255),
+	"accessed_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"ip_address" varchar(45),
+	"user_agent" text
+);
+CREATE TABLE "vehicles" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"registration_number" varchar(50) NOT NULL,
+	"vehicle_type" varchar(50),
+	"make" varchar(100),
+	"model" varchar(100),
+	"year" integer,
+	"color" varchar(50),
+	"vin" varchar(50),
+	"load_capacity" numeric(10, 2),
+	"load_capacity_unit" varchar(20) DEFAULT 'kg',
+	"volume_capacity" numeric(10, 2),
+	"volume_capacity_unit" varchar(20) DEFAULT 'cubic_m',
+	"passenger_capacity" integer,
+	"fuel_type" varchar(30),
+	"fuel_capacity" numeric(8, 2),
+	"mileage" numeric(8, 2),
+	"current_odometer" numeric(12, 2),
+	"insurance_number" varchar(100),
+	"insurance_expiry" date,
+	"registration_expiry" date,
+	"fitness_expiry" date,
+	"permit_expiry" date,
+	"last_latitude" numeric(10, 7),
+	"last_longitude" numeric(10, 7),
+	"last_location_update" timestamp,
+	"gps_device_id" varchar(100),
+	"assigned_driver_id" varchar,
+	"status" "vehicle_status" DEFAULT 'active',
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "business_type_registry" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"enabled" boolean DEFAULT true,
+	"default_modules" jsonb DEFAULT '[]'::jsonb,
+	"default_features" jsonb DEFAULT '[]'::jsonb,
+	"onboarding_flow_id" varchar,
+	"compliance_packs" text[] DEFAULT '{}',
+	"display_order" integer DEFAULT 0,
+	"icon" varchar(100),
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"active_version_id" varchar,
+	"latest_version_number" integer DEFAULT 0,
+	CONSTRAINT "business_type_registry_code_key" UNIQUE("code")
+);
+CREATE TABLE "tenant_compliance_packs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer NOT NULL,
+	"pack_id" integer NOT NULL,
+	"status" varchar(50) DEFAULT 'not_started',
+	"assigned_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"due_date" timestamp,
+	"completed_at" timestamp,
+	"completion_percentage" integer DEFAULT 0,
+	"assigned_by" integer,
+	"notes" text,
+	CONSTRAINT "tenant_compliance_packs_tenant_id_pack_id_key" UNIQUE("tenant_id","pack_id")
+);
+CREATE TABLE "case_summary_jobs" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"case_id" varchar NOT NULL,
+	"status" varchar(50) DEFAULT 'pending',
+	"input_snapshot_hash" varchar(64),
+	"document_count" integer DEFAULT 0,
+	"note_count" integer DEFAULT 0,
+	"hearing_count" integer DEFAULT 0,
+	"case_summary" text,
+	"timeline" jsonb DEFAULT '[]'::jsonb,
+	"action_items" jsonb DEFAULT '[]'::jsonb,
+	"key_findings" jsonb DEFAULT '[]'::jsonb,
+	"risk_factors" jsonb DEFAULT '[]'::jsonb,
+	"ai_generated" boolean DEFAULT false,
+	"ai_model" varchar(50),
+	"ai_usage_log_id" varchar,
+	"consent_version" varchar(20),
+	"prompt_hash" varchar(64),
+	"response_hash" varchar(64),
+	"error_message" text,
+	"error_code" varchar(50),
+	"cache_hit" boolean DEFAULT false,
+	"requested_by" varchar NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"completed_at" timestamp
+);
+CREATE TABLE "feature_flag_overrides" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"feature_id" varchar NOT NULL,
+	"tenant_id" varchar,
+	"business_type" varchar(50),
+	"enabled" boolean NOT NULL,
+	"reason" text,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"created_by" varchar
+);
+CREATE TABLE "reseller_brand_assets" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"reseller_id" varchar NOT NULL,
+	"asset_type" varchar(50) NOT NULL,
+	"asset_name" text NOT NULL,
+	"asset_url" text NOT NULL,
+	"mime_type" varchar(100),
+	"file_size" integer,
+	"dimensions" jsonb DEFAULT '{}'::jsonb,
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "admin_audit_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"admin_id" varchar,
+	"admin_email" varchar(255),
+	"admin_role" varchar(50),
+	"session_id" varchar,
+	"action" varchar(100) NOT NULL,
+	"category" varchar(50) NOT NULL,
+	"resource" varchar(100),
+	"resource_id" varchar(100),
+	"target_tenant_id" varchar,
+	"target_user_id" varchar,
+	"old_value" jsonb,
+	"new_value" jsonb,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"ip_address" varchar(45),
+	"user_agent" varchar(500),
+	"geo_location" jsonb DEFAULT '{}'::jsonb,
+	"risk_level" varchar(20) DEFAULT 'low',
+	"reason" varchar(500),
+	"correlation_id" varchar(100),
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "module_registry" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" varchar(50) NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"category" "module_category" DEFAULT 'optional',
+	"requires_ai" boolean DEFAULT false,
+	"enabled" boolean DEFAULT true,
+	"display_order" integer DEFAULT 0,
+	"icon" varchar(100),
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "module_registry_code_key" UNIQUE("code")
+);
+CREATE TABLE "route_optimization_cache" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"cache_key" varchar(64) NOT NULL,
+	"request_payload_hash" varchar(64) NOT NULL,
+	"response_payload" jsonb NOT NULL,
+	"eta_minutes" integer,
+	"cost_estimate" numeric(12, 2),
+	"distance_km" numeric(12, 2),
+	"has_traffic_data" boolean DEFAULT false,
+	"traffic_context_hash" varchar(64),
+	"created_at" timestamp DEFAULT now(),
+	"expires_at" timestamp NOT NULL,
+	"last_used_at" timestamp DEFAULT now(),
+	"hit_count" integer DEFAULT 0
+);
+CREATE TABLE "fees" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"student_id" varchar NOT NULL,
+	"course_id" varchar,
+	"batch_id" varchar,
+	"fee_type" varchar(50) DEFAULT 'tuition',
+	"description" text,
+	"amount" numeric(12, 2) NOT NULL,
+	"discount_amount" numeric(12, 2) DEFAULT '0',
+	"tax_amount" numeric(12, 2) DEFAULT '0',
+	"total_amount" numeric(12, 2) NOT NULL,
+	"paid_amount" numeric(12, 2) DEFAULT '0',
+	"balance_amount" numeric(12, 2),
+	"currency" varchar(10) DEFAULT 'INR',
+	"due_date" date,
+	"installment_number" integer,
+	"total_installments" integer,
+	"status" "fee_status" DEFAULT 'pending',
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "legal_invoices" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"client_id" varchar NOT NULL,
+	"case_id" varchar,
+	"invoice_number" varchar(100),
+	"invoice_date" date NOT NULL,
+	"due_date" date,
+	"billing_period_start" date,
+	"billing_period_end" date,
+	"subtotal" numeric(15, 2) NOT NULL,
+	"discount_amount" numeric(12, 2) DEFAULT '0',
+	"discount_percentage" numeric(5, 2),
+	"tax_amount" numeric(12, 2) DEFAULT '0',
+	"tax_rate" numeric(5, 2),
+	"total_amount" numeric(15, 2) NOT NULL,
+	"paid_amount" numeric(15, 2) DEFAULT '0',
+	"balance_amount" numeric(15, 2),
+	"currency" varchar(10) DEFAULT 'INR',
+	"total_hours" numeric(10, 2),
+	"time_entries" jsonb DEFAULT '[]'::jsonb,
+	"expenses" jsonb DEFAULT '[]'::jsonb,
+	"trust_account_applied" numeric(15, 2) DEFAULT '0',
+	"payment_terms" varchar(50),
+	"payment_instructions" text,
+	"last_payment_date" date,
+	"status" "legal_invoice_status" DEFAULT 'draft',
+	"sent_at" timestamp,
+	"sent_to" text,
+	"viewed_at" timestamp,
+	"reminder_count" integer DEFAULT 0,
+	"last_reminder_sent_at" timestamp,
+	"notes" text,
+	"internal_notes" text,
+	"terms_and_conditions" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"updated_by" varchar,
+	"approved_by" varchar,
+	"approved_at" timestamp,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "reseller_child_invoices" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"reseller_id" varchar NOT NULL,
+	"child_tenant_id" varchar NOT NULL,
+	"revenue_record_id" varchar,
+	"invoice_number" varchar(50) NOT NULL,
+	"invoice_date" timestamp DEFAULT now(),
+	"due_date" timestamp,
+	"subtotal" numeric(10, 2) DEFAULT '0.00',
+	"discounts" numeric(10, 2) DEFAULT '0.00',
+	"taxes" numeric(10, 2) DEFAULT '0.00',
+	"total" numeric(10, 2) DEFAULT '0.00',
+	"currency" varchar(3) DEFAULT 'USD',
+	"status" "invoice_status" DEFAULT 'pending',
+	"paid_at" timestamp,
+	"payment_method" varchar(50),
+	"payment_reference" varchar(255),
+	"line_items" jsonb DEFAULT '[]'::jsonb,
+	"notes" text,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "versioned_module_map" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"version_id" varchar NOT NULL,
+	"module_id" varchar NOT NULL,
+	"is_required" boolean DEFAULT false NOT NULL,
+	"default_enabled" boolean DEFAULT true NOT NULL,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now()
+);
+CREATE TABLE "reseller_revenue_records" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"reseller_id" varchar NOT NULL,
+	"agreement_id" varchar NOT NULL,
+	"period_start" timestamp NOT NULL,
+	"period_end" timestamp NOT NULL,
+	"period_label" varchar(20),
+	"gross_revenue" numeric(12, 2) DEFAULT '0.00',
+	"refunds" numeric(12, 2) DEFAULT '0.00',
+	"net_revenue" numeric(12, 2) DEFAULT '0.00',
+	"active_child_tenants" integer DEFAULT 0,
+	"total_transactions" integer DEFAULT 0,
+	"reseller_share_amount" numeric(12, 2) DEFAULT '0.00',
+	"platform_share_amount" numeric(12, 2) DEFAULT '0.00',
+	"applied_share_percentage" numeric(5, 2),
+	"currency" varchar(3) DEFAULT 'USD',
+	"status" varchar(50) DEFAULT 'pending',
+	"payout_id" varchar,
+	"payout_status" varchar(50),
+	"paid_at" timestamp,
+	"platform_invoice_id" varchar,
+	"calculation_details" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"finalized_at" timestamp
+);
+CREATE TABLE "compliance_checklist_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"pack_id" integer NOT NULL,
+	"title" varchar(500) NOT NULL,
+	"description" text,
+	"category" varchar(100),
+	"priority" varchar(20) DEFAULT 'medium',
+	"order_index" integer DEFAULT 0,
+	"evidence_required" boolean DEFAULT false,
+	"auto_check_available" boolean DEFAULT false,
+	"external_reference" varchar(255),
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "reseller_profiles" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"status" "reseller_status" DEFAULT 'pending_approval',
+	"brand_name" text NOT NULL,
+	"brand_tagline" text,
+	"logo_url" text,
+	"logo_alt_url" text,
+	"favicon_url" text,
+	"primary_color" text DEFAULT '#3B82F6',
+	"secondary_color" text DEFAULT '#1E40AF',
+	"accent_color" text DEFAULT '#10B981',
+	"background_color" text DEFAULT '#FFFFFF',
+	"foreground_color" text DEFAULT '#111827',
+	"theme_tokens" jsonb DEFAULT '{}'::jsonb,
+	"custom_domain" varchar(255),
+	"custom_domain_verified" boolean DEFAULT false,
+	"custom_domain_verified_at" timestamp,
+	"subdomain_prefix" varchar(50),
+	"email_from_name" text,
+	"email_from_address" text,
+	"email_reply_to" text,
+	"email_signature" text,
+	"terms_of_service_url" text,
+	"privacy_policy_url" text,
+	"support_email" text,
+	"support_phone" text,
+	"allowed_business_types" jsonb DEFAULT '[]'::jsonb,
+	"max_child_tenants" integer DEFAULT 100,
+	"current_child_tenant_count" integer DEFAULT 0,
+	"analytics_id" varchar(100),
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"approved_at" timestamp,
+	"approved_by" varchar,
+	CONSTRAINT "reseller_profiles_tenant_id_key" UNIQUE("tenant_id")
+);
+CREATE TABLE "reseller_revenue_agreements" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"reseller_id" varchar NOT NULL,
+	"agreement_name" text NOT NULL,
+	"agreement_version" integer DEFAULT 1,
+	"is_active" boolean DEFAULT true,
+	"revenue_share_type" "revenue_share_type" DEFAULT 'percentage',
+	"base_share_percentage" numeric(5, 2) DEFAULT '20.00',
+	"tiered_rates" jsonb DEFAULT '[]'::jsonb,
+	"fixed_amount" numeric(10, 2) DEFAULT '0.00',
+	"fixed_currency" varchar(3) DEFAULT 'USD',
+	"billing_cadence" "billing_cadence" DEFAULT 'monthly',
+	"payment_terms_days" integer DEFAULT 30,
+	"payout_method" varchar(50) DEFAULT 'bank_transfer',
+	"payout_details" jsonb DEFAULT '{}'::jsonb,
+	"minimum_payout_amount" numeric(10, 2) DEFAULT '100.00',
+	"effective_from" timestamp DEFAULT now(),
+	"effective_until" timestamp,
+	"approved_at" timestamp,
+	"approved_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "shipments" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"trip_id" varchar,
+	"tracking_number" varchar(100),
+	"awb_number" varchar(100),
+	"sender_name" text,
+	"sender_phone" varchar(20),
+	"sender_email" text,
+	"sender_address" text,
+	"sender_city" varchar(100),
+	"sender_state" varchar(100),
+	"sender_postal_code" varchar(20),
+	"sender_latitude" numeric(10, 7),
+	"sender_longitude" numeric(10, 7),
+	"receiver_name" text,
+	"receiver_phone" varchar(20),
+	"receiver_email" text,
+	"receiver_address" text,
+	"receiver_city" varchar(100),
+	"receiver_state" varchar(100),
+	"receiver_postal_code" varchar(20),
+	"receiver_latitude" numeric(10, 7),
+	"receiver_longitude" numeric(10, 7),
+	"package_type" varchar(50),
+	"package_count" integer DEFAULT 1,
+	"weight" numeric(10, 2),
+	"weight_unit" varchar(10) DEFAULT 'kg',
+	"dimensions" jsonb DEFAULT '{}'::jsonb,
+	"declared_value" numeric(12, 2),
+	"currency" varchar(10) DEFAULT 'INR',
+	"contents" text,
+	"special_instructions" text,
+	"freight_charges" numeric(12, 2),
+	"insurance_charges" numeric(12, 2),
+	"handling_charges" numeric(12, 2),
+	"total_charges" numeric(12, 2),
+	"payment_status" varchar(20) DEFAULT 'pending',
+	"payment_method" varchar(30),
+	"pickup_date" date,
+	"expected_delivery_date" date,
+	"actual_delivery_date" date,
+	"current_latitude" numeric(10, 7),
+	"current_longitude" numeric(10, 7),
+	"last_location_update" timestamp,
+	"current_location" text,
+	"delivered_to" text,
+	"delivery_signature" text,
+	"delivery_photo" text,
+	"status" "shipment_status" DEFAULT 'pending',
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "legal_clients" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"client_type" "legal_client_type" DEFAULT 'individual',
+	"first_name" text,
+	"last_name" text,
+	"date_of_birth" date,
+	"gender" varchar(20),
+	"company_name" text,
+	"registration_number" varchar(100),
+	"tax_id" varchar(50),
+	"industry" varchar(100),
+	"email" text,
+	"phone" varchar(20),
+	"alternate_phone" varchar(20),
+	"address" text,
+	"city" varchar(100),
+	"state" varchar(100),
+	"country" varchar(100),
+	"postal_code" varchar(20),
+	"primary_contact_name" text,
+	"primary_contact_email" text,
+	"primary_contact_phone" varchar(20),
+	"primary_contact_designation" varchar(100),
+	"is_kyc_verified" boolean DEFAULT false,
+	"kyc_verified_at" timestamp,
+	"kyc_verified_by" varchar,
+	"conflict_check_completed" boolean DEFAULT false,
+	"conflict_check_date" date,
+	"conflict_check_notes" text,
+	"referral_source" varchar(100),
+	"referred_by" varchar(100),
+	"status" "legal_client_status" DEFAULT 'active',
+	"default_billing_rate" numeric(12, 2),
+	"billing_currency" varchar(10) DEFAULT 'INR',
+	"payment_terms" varchar(50) DEFAULT 'net_30',
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"updated_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "route_optimization_jobs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"shipment_id" varchar,
+	"vehicle_id" varchar,
+	"trip_id" varchar,
+	"pickup_location" jsonb NOT NULL,
+	"drop_off_locations" jsonb NOT NULL,
+	"vehicle_capacity" numeric(12, 2),
+	"capacity_unit" varchar(20) DEFAULT 'kg',
+	"delivery_window_start" timestamp,
+	"delivery_window_end" timestamp,
+	"traffic_data" jsonb,
+	"optimized_route" jsonb,
+	"eta_minutes" integer,
+	"distance_km" numeric(12, 2),
+	"cost_estimate" numeric(12, 2),
+	"cost_breakdown" jsonb,
+	"currency" varchar(10) DEFAULT 'INR',
+	"ai_generated" boolean DEFAULT false,
+	"ai_model" varchar(100),
+	"consent_version" varchar(20),
+	"usage_log_id" varchar,
+	"cache_key" varchar(64),
+	"cache_hit" boolean DEFAULT false,
+	"is_overridden" boolean DEFAULT false,
+	"override_route" jsonb,
+	"override_eta_minutes" integer,
+	"override_cost_estimate" numeric(12, 2),
+	"override_reason" text,
+	"overridden_by" varchar,
+	"overridden_at" timestamp,
+	"status" "route_optimization_status" DEFAULT 'pending',
+	"error_message" text,
+	"requested_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "student_risk_predictions" (
+	"id" varchar PRIMARY KEY DEFAULT (gen_random_uuid()) NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"student_id" varchar NOT NULL,
+	"attendance_percentage" numeric(5, 2),
+	"fee_delay_days" integer DEFAULT 0,
+	"average_exam_score" numeric(5, 2),
+	"engagement_score" numeric(5, 2),
+	"attendance_risk_score" numeric(4, 3) DEFAULT '0',
+	"fee_risk_score" numeric(4, 3) DEFAULT '0',
+	"exam_risk_score" numeric(4, 3) DEFAULT '0',
+	"engagement_risk_score" numeric(4, 3) DEFAULT '0',
+	"overall_risk_score" numeric(4, 3) DEFAULT '0',
+	"risk_tier" "ai_risk_tier" NOT NULL,
+	"factor_weights" jsonb DEFAULT '{}'::jsonb,
+	"explanation" text,
+	"suggested_actions" jsonb DEFAULT '[]'::jsonb,
+	"ai_generated" boolean DEFAULT false,
+	"ai_provider" "ai_provider",
+	"ai_model" varchar(100),
+	"ai_usage_log_id" varchar,
+	"consent_version" varchar(20),
+	"is_advisory_only" boolean DEFAULT true,
+	"predicted_at" timestamp DEFAULT now(),
+	"valid_until" timestamp,
+	"superseded_by_id" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+CREATE TABLE "maintenance_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"vehicle_id" varchar NOT NULL,
+	"maintenance_type" "maintenance_type" DEFAULT 'preventive',
+	"title" text NOT NULL,
+	"description" text,
+	"scheduled_date" date,
+	"start_date" date,
+	"completion_date" date,
+	"odometer_reading" numeric(12, 2),
+	"service_provider" text,
+	"service_provider_contact" varchar(20),
+	"service_location" text,
+	"labor_cost" numeric(12, 2),
+	"parts_cost" numeric(12, 2),
+	"other_cost" numeric(12, 2),
+	"total_cost" numeric(12, 2),
+	"currency" varchar(10) DEFAULT 'INR',
+	"parts_replaced" jsonb DEFAULT '[]'::jsonb,
+	"next_service_date" date,
+	"next_service_odometer" numeric(12, 2),
+	"status" "maintenance_status" DEFAULT 'scheduled',
+	"invoice_number" varchar(100),
+	"attachments" jsonb DEFAULT '[]'::jsonb,
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "drivers" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"first_name" text NOT NULL,
+	"last_name" text NOT NULL,
+	"email" text,
+	"phone" varchar(20),
+	"alternate_phone" varchar(20),
+	"date_of_birth" date,
+	"gender" varchar(20),
+	"address" text,
+	"city" varchar(100),
+	"state" varchar(100),
+	"country" varchar(100),
+	"postal_code" varchar(20),
+	"license_number" varchar(50),
+	"license_type" varchar(30),
+	"license_expiry" date,
+	"license_state" varchar(100),
+	"employee_id" varchar(50),
+	"joining_date" date,
+	"salary" numeric(12, 2),
+	"salary_currency" varchar(10) DEFAULT 'INR',
+	"emergency_contact_name" text,
+	"emergency_contact_phone" varchar(20),
+	"emergency_contact_relation" varchar(50),
+	"last_latitude" numeric(10, 7),
+	"last_longitude" numeric(10, 7),
+	"last_location_update" timestamp,
+	"assigned_vehicle_id" varchar,
+	"status" "driver_status" DEFAULT 'available',
+	"profile_image_url" text,
+	"rating" numeric(3, 2),
+	"total_trips" integer DEFAULT 0,
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "cases" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"client_id" varchar NOT NULL,
+	"case_number" varchar(100),
+	"title" text NOT NULL,
+	"description" text,
+	"practice_area" varchar(100),
+	"case_type" varchar(100),
+	"sub_type" varchar(100),
+	"court_name" text,
+	"court_case_number" varchar(100),
+	"jurisdiction" varchar(100),
+	"judge" text,
+	"filing_date" date,
+	"open_date" date,
+	"close_date" date,
+	"next_hearing_date" date,
+	"statute_of_limitations" date,
+	"opposing_party_name" text,
+	"opposing_counsel" text,
+	"opposing_counsel_firm" text,
+	"opposing_counsel_contact" varchar(100),
+	"lead_attorney_id" varchar,
+	"lead_attorney_name" text,
+	"assigned_team" jsonb DEFAULT '[]'::jsonb,
+	"estimated_value" numeric(15, 2),
+	"contingency_percentage" numeric(5, 2),
+	"retainer_amount" numeric(12, 2),
+	"billing_type" varchar(30) DEFAULT 'hourly',
+	"hourly_rate" numeric(12, 2),
+	"currency" varchar(10) DEFAULT 'INR',
+	"status" "case_status" DEFAULT 'open',
+	"priority" "case_priority" DEFAULT 'medium',
+	"confidentiality_level" "document_confidentiality" DEFAULT 'confidential',
+	"is_privileged" boolean DEFAULT true,
+	"tags" jsonb DEFAULT '[]'::jsonb,
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"updated_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+CREATE TABLE "legal_documents" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" varchar NOT NULL,
+	"client_id" varchar,
+	"case_id" varchar,
+	"title" text NOT NULL,
+	"description" text,
+	"document_type" varchar(100),
+	"document_category" varchar(100),
+	"file_name" text,
+	"file_url" text,
+	"file_size" integer,
+	"mime_type" varchar(100),
+	"version" integer DEFAULT 1,
+	"parent_document_id" varchar,
+	"is_latest_version" boolean DEFAULT true,
+	"confidentiality_level" "document_confidentiality" DEFAULT 'confidential',
+	"is_privileged" boolean DEFAULT false,
+	"is_attorney_client_privilege" boolean DEFAULT false,
+	"is_work_product" boolean DEFAULT false,
+	"access_restrictions" jsonb DEFAULT '[]'::jsonb,
+	"allowed_users" jsonb DEFAULT '[]'::jsonb,
+	"is_executed" boolean DEFAULT false,
+	"executed_date" date,
+	"executed_by" text,
+	"witnesses" jsonb DEFAULT '[]'::jsonb,
+	"effective_date" date,
+	"expiry_date" date,
+	"is_filed_with_court" boolean DEFAULT false,
+	"court_filing_date" date,
+	"court_filing_number" varchar(100),
+	"review_status" varchar(50) DEFAULT 'pending',
+	"reviewed_by" varchar,
+	"reviewed_at" timestamp,
+	"tags" jsonb DEFAULT '[]'::jsonb,
+	"notes" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_by" varchar,
+	"updated_by" varchar,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"deleted_at" timestamp
+);
+ALTER TABLE "platform_settings" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "platform_audit_logs" DISABLE ROW LEVEL SECURITY;
+DROP TABLE "platform_settings" CASCADE;
+DROP TABLE "platform_audit_logs" CASCADE;
+ALTER TABLE "platform_admins" DROP CONSTRAINT "platform_admins_user_id_key";
+ALTER TABLE "platform_admins" DROP CONSTRAINT "platform_admins_user_id_fkey";
+DROP INDEX "idx_platform_admins_role";
+DROP INDEX "idx_platform_admins_user";
+ALTER TABLE "whatsapp_provider_configs" ALTER COLUMN "id" SET DATA TYPE varchar(50);
+ALTER TABLE "whatsapp_provider_configs" ALTER COLUMN "id" SET DEFAULT (gen_random_uuid());
+ALTER TABLE "whatsapp_provider_configs" ALTER COLUMN "country" SET DATA TYPE varchar(10);
+ALTER TABLE "whatsapp_provider_configs" ALTER COLUMN "primary_provider" SET DATA TYPE varchar(20);
+ALTER TABLE "whatsapp_provider_configs" ALTER COLUMN "fallback_provider" SET DATA TYPE varchar(20);
+ALTER TABLE "whatsapp_provider_configs" ALTER COLUMN "created_at" SET DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "whatsapp_provider_configs" ALTER COLUMN "updated_at" SET DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "platform_admins" ALTER COLUMN "id" SET DATA TYPE varchar(36);
+ALTER TABLE "platform_admins" ALTER COLUMN "id" SET DEFAULT (gen_random_uuid());
+ALTER TABLE "platform_admins" ALTER COLUMN "role" DROP DEFAULT;
+ALTER TABLE "platform_admins" ALTER COLUMN "role" SET DATA TYPE "public"."platform_admin_role" USING "role"::text::"public"."platform_admin_role";
+ALTER TABLE "platform_admins" ALTER COLUMN "role" SET DEFAULT 'PLATFORM_ADMIN';
+ALTER TABLE "platform_admins" ALTER COLUMN "created_at" SET NOT NULL;
+ALTER TABLE "platform_admins" ALTER COLUMN "updated_at" SET NOT NULL;
+ALTER TABLE "country_pricing_configs" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "country_pricing_configs" ALTER COLUMN "tax_name" SET DATA TYPE varchar(20);
+ALTER TABLE "country_pricing_configs" ALTER COLUMN "tax_name" DROP DEFAULT;
+ALTER TABLE "country_pricing_configs" ALTER COLUMN "tax_name" SET NOT NULL;
+ALTER TABLE "country_pricing_configs" ALTER COLUMN "tax_rate" DROP DEFAULT;
+ALTER TABLE "country_pricing_configs" ALTER COLUMN "tax_rate" SET NOT NULL;
+ALTER TABLE "plan_local_prices" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "platform_region_configs" ALTER COLUMN "country_code" SET DATA TYPE varchar(5);
+ALTER TABLE "platform_region_configs" ALTER COLUMN "region" SET DATA TYPE "public"."tenant_region" USING "region"::"public"."tenant_region";
+ALTER TABLE "platform_region_configs" ALTER COLUMN "region" SET NOT NULL;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "status" SET DEFAULT 'enabled';
+ALTER TABLE "platform_region_configs" ALTER COLUMN "status" SET NOT NULL;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "registration_enabled" SET DEFAULT true;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "registration_enabled" SET NOT NULL;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "billing_enabled" SET DEFAULT true;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "billing_enabled" SET NOT NULL;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "sms_enabled" SET DEFAULT true;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "sms_enabled" SET NOT NULL;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "whatsapp_enabled" SET DEFAULT true;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "whatsapp_enabled" SET NOT NULL;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "email_enabled" SET NOT NULL;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "default_currency" SET DATA TYPE varchar(5);
+ALTER TABLE "platform_region_configs" ALTER COLUMN "default_currency" DROP DEFAULT;
+ALTER TABLE "platform_region_configs" ALTER COLUMN "default_currency" SET NOT NULL;
+ALTER TABLE "platform_admins" ADD COLUMN "name" varchar(200) NOT NULL;
+ALTER TABLE "platform_admins" ADD COLUMN "email" varchar(255) NOT NULL;
+ALTER TABLE "platform_admins" ADD COLUMN "password_hash" text NOT NULL;
+ALTER TABLE "platform_admins" ADD COLUMN "is_active" boolean DEFAULT true NOT NULL;
+ALTER TABLE "platform_admins" ADD COLUMN "force_password_reset" boolean DEFAULT false NOT NULL;
+ALTER TABLE "country_pricing_configs" ADD COLUMN "currency" "currency_code" NOT NULL;
+ALTER TABLE "country_pricing_configs" ADD COLUMN "primary_gateway" "payment_gateway" NOT NULL;
+ALTER TABLE "country_pricing_configs" ADD COLUMN "fallback_gateway" "payment_gateway";
+ALTER TABLE "country_pricing_configs" ADD COLUMN "exchange_rate" numeric(10, 4) DEFAULT '1.0000';
+ALTER TABLE "country_pricing_configs" ADD COLUMN "exchange_rate_updated_at" timestamp DEFAULT now();
+ALTER TABLE "country_pricing_configs" ADD COLUMN "gateway_config" jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE "plan_local_prices" ADD COLUMN "local_price" numeric(10, 2) NOT NULL;
+ALTER TABLE "platform_region_configs" ADD COLUMN "compliance_packs_enabled" boolean DEFAULT true NOT NULL;
+ALTER TABLE "platform_region_configs" ADD COLUMN "allowed_business_types" jsonb;
+ALTER TABLE "platform_region_configs" ADD COLUMN "allowed_subscription_tiers" jsonb;
+ALTER TABLE "platform_region_configs" ADD COLUMN "default_timezone" varchar(50) NOT NULL;
+ALTER TABLE "platform_region_configs" ADD COLUMN "required_compliance_packs" jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE "platform_region_configs" ADD COLUMN "data_residency_required" boolean DEFAULT false NOT NULL;
+ALTER TABLE "platform_region_configs" ADD COLUMN "data_residency_region" varchar(50);
+ALTER TABLE "platform_region_configs" ADD COLUMN "tax_type" varchar(20);
+ALTER TABLE "platform_region_configs" ADD COLUMN "tax_rate" numeric(5, 2);
+ALTER TABLE "platform_region_configs" ADD COLUMN "tax_inclusive" boolean DEFAULT false NOT NULL;
+ALTER TABLE "platform_region_configs" ADD COLUMN "maintenance_start_at" timestamp;
+ALTER TABLE "platform_region_configs" ADD COLUMN "maintenance_end_at" timestamp;
+ALTER TABLE "platform_region_configs" ADD COLUMN "beta_access_only" boolean DEFAULT false NOT NULL;
+ALTER TABLE "platform_region_configs" ADD COLUMN "created_by" varchar;
+ALTER TABLE "tenants" ADD COLUMN "region" "tenant_region" DEFAULT 'asia_pacific';
+ALTER TABLE "tenants" ADD COLUMN "status" "tenant_status" DEFAULT 'active';
+ALTER TABLE "tenants" ADD COLUMN "status_changed_at" timestamp;
+ALTER TABLE "tenants" ADD COLUMN "status_changed_by" varchar;
+ALTER TABLE "tenants" ADD COLUMN "status_change_reason" text;
+ALTER TABLE "tenants" ADD COLUMN "onboarding_completed" boolean DEFAULT false;
+ALTER TABLE "tenants" ADD COLUMN "business_type_locked" boolean DEFAULT false;
+ALTER TABLE "tenants" ADD COLUMN "tenant_type" "tenant_type" DEFAULT 'direct';
+ALTER TABLE "tenants" ADD COLUMN "parent_reseller_id" varchar;
+ALTER TABLE "tenants" ADD COLUMN "pinned_version_id" varchar;
+ALTER TABLE "usage_metrics" ADD CONSTRAINT "usage_metrics_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "admin_sessions" ADD CONSTRAINT "admin_sessions_admin_id_fkey" FOREIGN KEY ("admin_id") REFERENCES "public"."platform_admins"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sso_domain_mappings" ADD CONSTRAINT "sso_domain_mappings_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "public"."sso_provider_configs"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "sso_domain_mappings" ADD CONSTRAINT "sso_domain_mappings_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "support_ticket_messages" ADD CONSTRAINT "support_ticket_messages_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "public"."support_tickets"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sso_audit_log" ADD CONSTRAINT "sso_audit_log_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "public"."sso_provider_configs"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "sso_audit_log" ADD CONSTRAINT "sso_audit_log_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "onboarding_progress" ADD CONSTRAINT "onboarding_progress_flow_id_fkey" FOREIGN KEY ("flow_id") REFERENCES "public"."onboarding_flows"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "onboarding_progress" ADD CONSTRAINT "onboarding_progress_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "admin_ip_rules" ADD CONSTRAINT "admin_ip_rules_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."platform_admins"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "transaction_logs" ADD CONSTRAINT "transaction_logs_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "public"."subscription_invoices"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "transaction_logs" ADD CONSTRAINT "transaction_logs_subscription_id_fkey" FOREIGN KEY ("subscription_id") REFERENCES "public"."tenant_subscriptions"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "transaction_logs" ADD CONSTRAINT "transaction_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "ai_usage_logs" ADD CONSTRAINT "ai_usage_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "error_logs" ADD CONSTRAINT "error_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "error_logs" ADD CONSTRAINT "error_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "admin_two_factor_auth" ADD CONSTRAINT "admin_two_factor_auth_admin_id_fkey" FOREIGN KEY ("admin_id") REFERENCES "public"."platform_admins"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "admin_security_config" ADD CONSTRAINT "admin_security_config_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."platform_admins"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "tenant_compliance_settings" ADD CONSTRAINT "tenant_compliance_settings_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "dsar_requests" ADD CONSTRAINT "dsar_requests_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "exam_results" ADD CONSTRAINT "exam_results_exam_id_fkey" FOREIGN KEY ("exam_id") REFERENCES "public"."exams"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "exam_results" ADD CONSTRAINT "exam_results_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "exam_results" ADD CONSTRAINT "exam_results_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "dsar_activity_log" ADD CONSTRAINT "dsar_activity_log_dsar_id_fkey" FOREIGN KEY ("dsar_id") REFERENCES "public"."dsar_requests"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "subscription_invoices" ADD CONSTRAINT "subscription_invoices_subscription_id_fkey" FOREIGN KEY ("subscription_id") REFERENCES "public"."tenant_subscriptions"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "subscription_invoices" ADD CONSTRAINT "subscription_invoices_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "platform_admin_permission_assignments" ADD CONSTRAINT "platform_admin_permission_assignments_admin_id_fkey" FOREIGN KEY ("admin_id") REFERENCES "public"."platform_admins"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "platform_admin_permission_assignments" ADD CONSTRAINT "platform_admin_permission_assignments_permission_code_fkey" FOREIGN KEY ("permission_code") REFERENCES "public"."platform_admin_permissions"("code") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "ai_audit_logs" ADD CONSTRAINT "ai_audit_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "data_masking_rules" ADD CONSTRAINT "data_masking_rules_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "batch_students" ADD CONSTRAINT "batch_students_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."batches"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "batch_students" ADD CONSTRAINT "batch_students_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "batch_students" ADD CONSTRAINT "batch_students_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "trips" ADD CONSTRAINT "trips_driver_id_fkey" FOREIGN KEY ("driver_id") REFERENCES "public"."drivers"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "trips" ADD CONSTRAINT "trips_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "trips" ADD CONSTRAINT "trips_vehicle_id_fkey" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "admin_account_lockouts" ADD CONSTRAINT "admin_account_lockouts_admin_id_fkey" FOREIGN KEY ("admin_id") REFERENCES "public"."platform_admins"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "business_type_versions" ADD CONSTRAINT "business_type_versions_business_type_id_fkey" FOREIGN KEY ("business_type_id") REFERENCES "public"."business_type_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "consent_records" ADD CONSTRAINT "consent_records_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "students" ADD CONSTRAINT "students_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "onboarding_steps" ADD CONSTRAINT "onboarding_steps_flow_id_fkey" FOREIGN KEY ("flow_id") REFERENCES "public"."onboarding_flows"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "courses" ADD CONSTRAINT "courses_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_ai_settings" ADD CONSTRAINT "tenant_ai_settings_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "versioned_feature_map" ADD CONSTRAINT "versioned_feature_map_feature_id_fkey" FOREIGN KEY ("feature_id") REFERENCES "public"."feature_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "versioned_feature_map" ADD CONSTRAINT "versioned_feature_map_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "public"."business_type_versions"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "gst_configurations" ADD CONSTRAINT "gst_configurations_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_activity_log" ADD CONSTRAINT "case_activity_log_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_activity_log" ADD CONSTRAINT "case_activity_log_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_feature_override" ADD CONSTRAINT "tenant_feature_override_feature_id_fkey" FOREIGN KEY ("feature_id") REFERENCES "public"."feature_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_feature_override" ADD CONSTRAINT "tenant_feature_override_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "fee_payments" ADD CONSTRAINT "fee_payments_fee_id_fkey" FOREIGN KEY ("fee_id") REFERENCES "public"."fees"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "fee_payments" ADD CONSTRAINT "fee_payments_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "fee_payments" ADD CONSTRAINT "fee_payments_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sso_auth_sessions" ADD CONSTRAINT "sso_auth_sessions_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "public"."sso_provider_configs"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "sso_auth_sessions" ADD CONSTRAINT "sso_auth_sessions_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "attendance" ADD CONSTRAINT "attendance_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."batches"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "attendance" ADD CONSTRAINT "attendance_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "attendance" ADD CONSTRAINT "attendance_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "data_breach_records" ADD CONSTRAINT "data_breach_records_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "sso_provider_configs" ADD CONSTRAINT "sso_provider_configs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "rbi_payment_compliance" ADD CONSTRAINT "rbi_payment_compliance_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "business_module_map" ADD CONSTRAINT "business_module_map_business_type_id_fkey" FOREIGN KEY ("business_type_id") REFERENCES "public"."business_type_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "business_module_map" ADD CONSTRAINT "business_module_map_module_id_fkey" FOREIGN KEY ("module_id") REFERENCES "public"."module_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_notes" ADD CONSTRAINT "case_notes_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_notes" ADD CONSTRAINT "case_notes_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_usage_tracking" ADD CONSTRAINT "tenant_usage_tracking_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_hearings" ADD CONSTRAINT "case_hearings_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_hearings" ADD CONSTRAINT "case_hearings_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "plan_usage_limits" ADD CONSTRAINT "plan_usage_limits_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "public"."global_pricing_plans"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_subscriptions" ADD CONSTRAINT "tenant_subscriptions_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "public"."global_pricing_plans"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "tenant_subscriptions" ADD CONSTRAINT "tenant_subscriptions_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "support_tickets" ADD CONSTRAINT "support_tickets_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "support_tickets" ADD CONSTRAINT "support_tickets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "sensitive_data_access_logs" ADD CONSTRAINT "sensitive_data_access_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "exams" ADD CONSTRAINT "exams_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."batches"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "exams" ADD CONSTRAINT "exams_course_id_fkey" FOREIGN KEY ("course_id") REFERENCES "public"."courses"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "exams" ADD CONSTRAINT "exams_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "payment_attempts" ADD CONSTRAINT "payment_attempts_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "public"."subscription_invoices"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "payment_attempts" ADD CONSTRAINT "payment_attempts_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "batches" ADD CONSTRAINT "batches_course_id_fkey" FOREIGN KEY ("course_id") REFERENCES "public"."courses"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "batches" ADD CONSTRAINT "batches_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "dlt_templates" ADD CONSTRAINT "dlt_templates_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "business_feature_map" ADD CONSTRAINT "business_feature_map_business_type_id_fkey" FOREIGN KEY ("business_type_id") REFERENCES "public"."business_type_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "business_feature_map" ADD CONSTRAINT "business_feature_map_feature_id_fkey" FOREIGN KEY ("feature_id") REFERENCES "public"."feature_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "legal_appointments" ADD CONSTRAINT "legal_appointments_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "legal_appointments" ADD CONSTRAINT "legal_appointments_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "public"."legal_clients"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "legal_appointments" ADD CONSTRAINT "legal_appointments_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "gst_invoices" ADD CONSTRAINT "gst_invoices_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_business_type_history" ADD CONSTRAINT "tenant_business_type_history_from_version_id_fkey" FOREIGN KEY ("from_version_id") REFERENCES "public"."business_type_versions"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "tenant_business_type_history" ADD CONSTRAINT "tenant_business_type_history_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_business_type_history" ADD CONSTRAINT "tenant_business_type_history_to_version_id_fkey" FOREIGN KEY ("to_version_id") REFERENCES "public"."business_type_versions"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "tenant_compliance_progress" ADD CONSTRAINT "tenant_compliance_progress_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."compliance_checklist_items"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "tenant_compliance_progress" ADD CONSTRAINT "tenant_compliance_progress_tenant_pack_id_fkey" FOREIGN KEY ("tenant_pack_id") REFERENCES "public"."tenant_compliance_packs"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sso_user_identities" ADD CONSTRAINT "sso_user_identities_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "public"."sso_provider_configs"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "sso_user_identities" ADD CONSTRAINT "sso_user_identities_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "aadhaar_masking_logs" ADD CONSTRAINT "aadhaar_masking_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "business_type_registry" ADD CONSTRAINT "business_type_registry_onboarding_flow_id_fkey" FOREIGN KEY ("onboarding_flow_id") REFERENCES "public"."onboarding_flows"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "tenant_compliance_packs" ADD CONSTRAINT "tenant_compliance_packs_pack_id_fkey" FOREIGN KEY ("pack_id") REFERENCES "public"."compliance_packs"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_summary_jobs" ADD CONSTRAINT "case_summary_jobs_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "case_summary_jobs" ADD CONSTRAINT "case_summary_jobs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "feature_flag_overrides" ADD CONSTRAINT "feature_flag_overrides_feature_id_fkey" FOREIGN KEY ("feature_id") REFERENCES "public"."feature_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "feature_flag_overrides" ADD CONSTRAINT "feature_flag_overrides_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_brand_assets" ADD CONSTRAINT "reseller_brand_assets_reseller_id_fkey" FOREIGN KEY ("reseller_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "admin_audit_logs" ADD CONSTRAINT "admin_audit_logs_admin_id_fkey" FOREIGN KEY ("admin_id") REFERENCES "public"."platform_admins"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "admin_audit_logs" ADD CONSTRAINT "admin_audit_logs_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "public"."admin_sessions"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "route_optimization_cache" ADD CONSTRAINT "route_optimization_cache_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "fees" ADD CONSTRAINT "fees_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."batches"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "fees" ADD CONSTRAINT "fees_course_id_fkey" FOREIGN KEY ("course_id") REFERENCES "public"."courses"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "fees" ADD CONSTRAINT "fees_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "fees" ADD CONSTRAINT "fees_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "legal_invoices" ADD CONSTRAINT "legal_invoices_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "legal_invoices" ADD CONSTRAINT "legal_invoices_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "public"."legal_clients"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "legal_invoices" ADD CONSTRAINT "legal_invoices_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_child_invoices" ADD CONSTRAINT "reseller_child_invoices_child_tenant_id_fkey" FOREIGN KEY ("child_tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_child_invoices" ADD CONSTRAINT "reseller_child_invoices_reseller_id_fkey" FOREIGN KEY ("reseller_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_child_invoices" ADD CONSTRAINT "reseller_child_invoices_revenue_record_id_fkey" FOREIGN KEY ("revenue_record_id") REFERENCES "public"."reseller_revenue_records"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "versioned_module_map" ADD CONSTRAINT "versioned_module_map_module_id_fkey" FOREIGN KEY ("module_id") REFERENCES "public"."module_registry"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "versioned_module_map" ADD CONSTRAINT "versioned_module_map_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "public"."business_type_versions"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_revenue_records" ADD CONSTRAINT "reseller_revenue_records_agreement_id_fkey" FOREIGN KEY ("agreement_id") REFERENCES "public"."reseller_revenue_agreements"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_revenue_records" ADD CONSTRAINT "reseller_revenue_records_reseller_id_fkey" FOREIGN KEY ("reseller_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "compliance_checklist_items" ADD CONSTRAINT "compliance_checklist_items_pack_id_fkey" FOREIGN KEY ("pack_id") REFERENCES "public"."compliance_packs"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_profiles" ADD CONSTRAINT "reseller_profiles_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reseller_revenue_agreements" ADD CONSTRAINT "reseller_revenue_agreements_reseller_id_fkey" FOREIGN KEY ("reseller_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "shipments" ADD CONSTRAINT "shipments_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "shipments" ADD CONSTRAINT "shipments_trip_id_fkey" FOREIGN KEY ("trip_id") REFERENCES "public"."trips"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "legal_clients" ADD CONSTRAINT "legal_clients_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "route_optimization_jobs" ADD CONSTRAINT "route_optimization_jobs_shipment_id_fkey" FOREIGN KEY ("shipment_id") REFERENCES "public"."shipments"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "route_optimization_jobs" ADD CONSTRAINT "route_optimization_jobs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "route_optimization_jobs" ADD CONSTRAINT "route_optimization_jobs_trip_id_fkey" FOREIGN KEY ("trip_id") REFERENCES "public"."trips"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "route_optimization_jobs" ADD CONSTRAINT "route_optimization_jobs_vehicle_id_fkey" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "student_risk_predictions" ADD CONSTRAINT "student_risk_predictions_ai_usage_log_id_fkey" FOREIGN KEY ("ai_usage_log_id") REFERENCES "public"."ai_usage_logs"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "student_risk_predictions" ADD CONSTRAINT "student_risk_predictions_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "student_risk_predictions" ADD CONSTRAINT "student_risk_predictions_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "maintenance_logs" ADD CONSTRAINT "maintenance_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "maintenance_logs" ADD CONSTRAINT "maintenance_logs_vehicle_id_fkey" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "drivers" ADD CONSTRAINT "drivers_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "cases" ADD CONSTRAINT "cases_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "public"."legal_clients"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "cases" ADD CONSTRAINT "cases_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "legal_documents" ADD CONSTRAINT "legal_documents_case_id_fkey" FOREIGN KEY ("case_id") REFERENCES "public"."cases"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "legal_documents" ADD CONSTRAINT "legal_documents_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "public"."legal_clients"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "legal_documents" ADD CONSTRAINT "legal_documents_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "idx_usage_metrics_period" ON "usage_metrics" USING btree ("period_start","period_end");
+CREATE INDEX "idx_usage_metrics_tenant" ON "usage_metrics" USING btree ("tenant_id");
+CREATE INDEX "idx_usage_metrics_type" ON "usage_metrics" USING btree ("metric_type");
+CREATE INDEX "idx_admin_sessions_admin" ON "admin_sessions" USING btree ("admin_id");
+CREATE INDEX "idx_admin_sessions_expires" ON "admin_sessions" USING btree ("expires_at");
+CREATE INDEX "idx_admin_sessions_token" ON "admin_sessions" USING btree ("token_hash");
+CREATE INDEX "idx_ticket_messages_ticket" ON "support_ticket_messages" USING btree ("ticket_id");
+CREATE INDEX "idx_sso_audit_log_tenant" ON "sso_audit_log" USING btree ("tenant_id");
+CREATE INDEX "idx_sso_audit_log_user" ON "sso_audit_log" USING btree ("user_id");
+CREATE INDEX "idx_onboarding_progress_status" ON "onboarding_progress" USING btree ("status");
+CREATE INDEX "idx_onboarding_progress_tenant_id" ON "onboarding_progress" USING btree ("tenant_id");
+CREATE INDEX "idx_admin_ip_rules_type" ON "admin_ip_rules" USING btree ("rule_type");
+CREATE INDEX "idx_region_access_action" ON "region_access_logs" USING btree ("action");
+CREATE INDEX "idx_region_access_country" ON "region_access_logs" USING btree ("country_code");
+CREATE INDEX "idx_region_access_created" ON "region_access_logs" USING btree ("created_at");
+CREATE INDEX "idx_transaction_logs_country" ON "transaction_logs" USING btree ("country");
+CREATE INDEX "idx_transaction_logs_created" ON "transaction_logs" USING btree ("created_at");
+CREATE INDEX "idx_transaction_logs_gateway" ON "transaction_logs" USING btree ("gateway");
+CREATE INDEX "idx_transaction_logs_status" ON "transaction_logs" USING btree ("status");
+CREATE INDEX "idx_transaction_logs_tenant" ON "transaction_logs" USING btree ("tenant_id");
+CREATE INDEX "idx_ai_usage_created" ON "ai_usage_logs" USING btree ("created_at");
+CREATE INDEX "idx_ai_usage_feature" ON "ai_usage_logs" USING btree ("feature");
+CREATE INDEX "idx_ai_usage_provider" ON "ai_usage_logs" USING btree ("provider");
+CREATE INDEX "idx_ai_usage_tenant" ON "ai_usage_logs" USING btree ("tenant_id");
+CREATE INDEX "idx_error_logs_created" ON "error_logs" USING btree ("created_at");
+CREATE INDEX "idx_error_logs_severity" ON "error_logs" USING btree ("severity");
+CREATE INDEX "idx_error_logs_source" ON "error_logs" USING btree ("source");
+CREATE INDEX "idx_error_logs_tenant" ON "error_logs" USING btree ("tenant_id");
+CREATE INDEX "idx_admin_2fa_admin" ON "admin_two_factor_auth" USING btree ("admin_id");
+CREATE INDEX "idx_exam_results_exam" ON "exam_results" USING btree ("exam_id");
+CREATE INDEX "idx_exam_results_student" ON "exam_results" USING btree ("student_id");
+CREATE INDEX "idx_exam_results_tenant" ON "exam_results" USING btree ("tenant_id");
+CREATE UNIQUE INDEX "idx_exam_results_unique" ON "exam_results" USING btree ("exam_id","student_id");
+CREATE INDEX "idx_subscription_invoices_country" ON "subscription_invoices" USING btree ("country");
+CREATE INDEX "idx_subscription_invoices_status" ON "subscription_invoices" USING btree ("status");
+CREATE INDEX "idx_subscription_invoices_tenant" ON "subscription_invoices" USING btree ("tenant_id");
+CREATE INDEX "idx_platform_admin_perm_admin" ON "platform_admin_permission_assignments" USING btree ("admin_id");
+CREATE INDEX "idx_ai_audit_logs_action" ON "ai_audit_logs" USING btree ("action");
+CREATE INDEX "idx_ai_audit_logs_feature" ON "ai_audit_logs" USING btree ("feature_code");
+CREATE INDEX "idx_ai_audit_logs_tenant" ON "ai_audit_logs" USING btree ("tenant_id");
+CREATE INDEX "idx_ai_audit_logs_tenant_time" ON "ai_audit_logs" USING btree ("tenant_id","triggered_at");
+CREATE INDEX "idx_ai_audit_logs_triggered" ON "ai_audit_logs" USING btree ("triggered_at");
+CREATE INDEX "idx_ai_audit_logs_user" ON "ai_audit_logs" USING btree ("user_id");
+CREATE INDEX "idx_admin_login_attempts_email" ON "admin_login_attempts" USING btree ("email");
+CREATE INDEX "idx_admin_login_attempts_ip" ON "admin_login_attempts" USING btree ("ip_address");
+CREATE INDEX "idx_admin_login_attempts_time" ON "admin_login_attempts" USING btree ("attempted_at");
+CREATE INDEX "idx_batch_students_batch" ON "batch_students" USING btree ("batch_id");
+CREATE INDEX "idx_batch_students_student" ON "batch_students" USING btree ("student_id");
+CREATE INDEX "idx_batch_students_tenant" ON "batch_students" USING btree ("tenant_id");
+CREATE UNIQUE INDEX "idx_batch_students_unique" ON "batch_students" USING btree ("batch_id","student_id");
+CREATE INDEX "idx_trips_driver" ON "trips" USING btree ("driver_id");
+CREATE INDEX "idx_trips_number" ON "trips" USING btree ("trip_number");
+CREATE INDEX "idx_trips_scheduled" ON "trips" USING btree ("scheduled_start_time");
+CREATE INDEX "idx_trips_tenant" ON "trips" USING btree ("tenant_id");
+CREATE INDEX "idx_trips_tenant_status" ON "trips" USING btree ("tenant_id","status");
+CREATE INDEX "idx_trips_vehicle" ON "trips" USING btree ("vehicle_id");
+CREATE INDEX "idx_onboarding_flows_business_type" ON "onboarding_flows" USING btree ("business_type");
+CREATE INDEX "idx_global_pricing_plans_active" ON "global_pricing_plans" USING btree ("is_active");
+CREATE INDEX "idx_global_pricing_plans_tier" ON "global_pricing_plans" USING btree ("tier");
+CREATE INDEX "idx_admin_lockouts_email" ON "admin_account_lockouts" USING btree ("email");
+CREATE INDEX "idx_admin_lockouts_expires" ON "admin_account_lockouts" USING btree ("expires_at");
+CREATE INDEX "idx_admin_lockouts_ip" ON "admin_account_lockouts" USING btree ("ip_address");
+CREATE INDEX "idx_business_version_business" ON "business_type_versions" USING btree ("business_type_id");
+CREATE INDEX "idx_business_version_status" ON "business_type_versions" USING btree ("status");
+CREATE UNIQUE INDEX "idx_business_version_unique" ON "business_type_versions" USING btree ("business_type_id","version_number");
+CREATE INDEX "idx_consent_records_tenant_subject" ON "consent_records" USING btree ("tenant_id","subject_type","subject_id");
+CREATE INDEX "idx_students_batch" ON "students" USING btree ("current_batch_id");
+CREATE INDEX "idx_students_enrollment" ON "students" USING btree ("enrollment_number");
+CREATE INDEX "idx_students_tenant" ON "students" USING btree ("tenant_id");
+CREATE INDEX "idx_students_tenant_status" ON "students" USING btree ("tenant_id","status");
+CREATE INDEX "idx_onboarding_steps_flow_id" ON "onboarding_steps" USING btree ("flow_id");
+CREATE UNIQUE INDEX "idx_onboarding_steps_flow_order" ON "onboarding_steps" USING btree ("flow_id","step_order");
+CREATE INDEX "idx_courses_category" ON "courses" USING btree ("category");
+CREATE INDEX "idx_courses_code" ON "courses" USING btree ("code");
+CREATE INDEX "idx_courses_tenant" ON "courses" USING btree ("tenant_id");
+CREATE INDEX "idx_courses_tenant_status" ON "courses" USING btree ("tenant_id","status");
+CREATE INDEX "idx_tenant_ai_settings_enabled" ON "tenant_ai_settings" USING btree ("ai_enabled");
+CREATE INDEX "idx_tenant_ai_settings_tenant" ON "tenant_ai_settings" USING btree ("tenant_id");
+CREATE INDEX "idx_usage_events_created" ON "usage_events" USING btree ("created_at");
+CREATE INDEX "idx_usage_events_tenant" ON "usage_events" USING btree ("tenant_id");
+CREATE INDEX "idx_usage_events_type" ON "usage_events" USING btree ("usage_type");
+CREATE UNIQUE INDEX "idx_versioned_feature_unique" ON "versioned_feature_map" USING btree ("version_id","feature_id");
+CREATE INDEX "idx_versioned_feature_version" ON "versioned_feature_map" USING btree ("version_id");
+CREATE INDEX "idx_case_activity_case" ON "case_activity_log" USING btree ("case_id");
+CREATE INDEX "idx_case_activity_date" ON "case_activity_log" USING btree ("created_at");
+CREATE INDEX "idx_case_activity_tenant" ON "case_activity_log" USING btree ("tenant_id");
+CREATE INDEX "idx_case_activity_type" ON "case_activity_log" USING btree ("activity_type");
+CREATE INDEX "idx_case_activity_user" ON "case_activity_log" USING btree ("performed_by");
+CREATE INDEX "idx_tenant_feature_feature" ON "tenant_feature_override" USING btree ("feature_id");
+CREATE INDEX "idx_tenant_feature_tenant" ON "tenant_feature_override" USING btree ("tenant_id");
+CREATE UNIQUE INDEX "idx_tenant_feature_unique" ON "tenant_feature_override" USING btree ("tenant_id","feature_id");
+CREATE INDEX "idx_fee_payments_date" ON "fee_payments" USING btree ("payment_date");
+CREATE INDEX "idx_fee_payments_fee" ON "fee_payments" USING btree ("fee_id");
+CREATE INDEX "idx_fee_payments_student" ON "fee_payments" USING btree ("student_id");
+CREATE INDEX "idx_fee_payments_tenant" ON "fee_payments" USING btree ("tenant_id");
+CREATE INDEX "idx_sso_auth_sessions_state" ON "sso_auth_sessions" USING btree ("state");
+CREATE INDEX "idx_attendance_batch" ON "attendance" USING btree ("batch_id");
+CREATE INDEX "idx_attendance_date" ON "attendance" USING btree ("date");
+CREATE INDEX "idx_attendance_student" ON "attendance" USING btree ("student_id");
+CREATE INDEX "idx_attendance_tenant" ON "attendance" USING btree ("tenant_id");
+CREATE INDEX "idx_attendance_tenant_status" ON "attendance" USING btree ("tenant_id","status");
+CREATE UNIQUE INDEX "idx_attendance_unique" ON "attendance" USING btree ("batch_id","student_id","date");
+CREATE INDEX "idx_sso_provider_configs_tenant" ON "sso_provider_configs" USING btree ("tenant_id");
+CREATE INDEX "idx_sso_provider_configs_type" ON "sso_provider_configs" USING btree ("provider_type");
+CREATE INDEX "idx_feature_registry_code" ON "feature_registry" USING btree ("code");
+CREATE INDEX "idx_feature_registry_enabled" ON "feature_registry" USING btree ("enabled");
+CREATE INDEX "idx_feature_registry_scope" ON "feature_registry" USING btree ("scope");
+CREATE INDEX "idx_webhook_events_created" ON "webhook_events" USING btree ("created_at");
+CREATE INDEX "idx_webhook_events_status" ON "webhook_events" USING btree ("status");
+CREATE INDEX "idx_business_module_business" ON "business_module_map" USING btree ("business_type_id");
+CREATE INDEX "idx_business_module_module" ON "business_module_map" USING btree ("module_id");
+CREATE UNIQUE INDEX "idx_business_module_unique" ON "business_module_map" USING btree ("business_type_id","module_id");
+CREATE INDEX "idx_case_notes_case" ON "case_notes" USING btree ("case_id");
+CREATE INDEX "idx_case_notes_tenant" ON "case_notes" USING btree ("tenant_id");
+CREATE INDEX "idx_tenant_usage_billed" ON "tenant_usage_tracking" USING btree ("is_billed");
+CREATE UNIQUE INDEX "idx_tenant_usage_period" ON "tenant_usage_tracking" USING btree ("tenant_id","usage_type","period_start");
+CREATE INDEX "idx_tenant_usage_tenant" ON "tenant_usage_tracking" USING btree ("tenant_id");
+CREATE INDEX "idx_tenant_usage_type" ON "tenant_usage_tracking" USING btree ("usage_type");
+CREATE INDEX "idx_case_hearings_case" ON "case_hearings" USING btree ("case_id");
+CREATE INDEX "idx_case_hearings_date" ON "case_hearings" USING btree ("hearing_date");
+CREATE INDEX "idx_case_hearings_tenant" ON "case_hearings" USING btree ("tenant_id");
+CREATE INDEX "idx_plan_usage_limits_business_type" ON "plan_usage_limits" USING btree ("business_type");
+CREATE INDEX "idx_plan_usage_limits_plan" ON "plan_usage_limits" USING btree ("plan_id");
+CREATE UNIQUE INDEX "idx_plan_usage_limits_unique" ON "plan_usage_limits" USING btree ("plan_id","business_type","usage_type");
+CREATE INDEX "idx_tenant_subscriptions_plan" ON "tenant_subscriptions" USING btree ("plan_id");
+CREATE INDEX "idx_tenant_subscriptions_status" ON "tenant_subscriptions" USING btree ("status");
+CREATE INDEX "idx_support_tickets_created" ON "support_tickets" USING btree ("created_at");
+CREATE INDEX "idx_support_tickets_status" ON "support_tickets" USING btree ("status");
+CREATE INDEX "idx_support_tickets_tenant" ON "support_tickets" USING btree ("tenant_id");
+CREATE INDEX "idx_sensitive_access_logs_accessor" ON "sensitive_data_access_logs" USING btree ("accessor_id");
+CREATE INDEX "idx_sensitive_access_logs_category" ON "sensitive_data_access_logs" USING btree ("data_category");
+CREATE INDEX "idx_sensitive_access_logs_flagged" ON "sensitive_data_access_logs" USING btree ("flagged");
+CREATE INDEX "idx_sensitive_access_logs_risk" ON "sensitive_data_access_logs" USING btree ("risk_level");
+CREATE INDEX "idx_sensitive_access_logs_tenant" ON "sensitive_data_access_logs" USING btree ("tenant_id");
+CREATE INDEX "idx_exams_batch" ON "exams" USING btree ("batch_id");
+CREATE INDEX "idx_exams_course" ON "exams" USING btree ("course_id");
+CREATE INDEX "idx_exams_date" ON "exams" USING btree ("exam_date");
+CREATE INDEX "idx_exams_tenant" ON "exams" USING btree ("tenant_id");
+CREATE INDEX "idx_exams_tenant_status" ON "exams" USING btree ("tenant_id","status");
+CREATE INDEX "idx_payment_attempts_invoice" ON "payment_attempts" USING btree ("invoice_id");
+CREATE INDEX "idx_payment_attempts_status" ON "payment_attempts" USING btree ("status");
+CREATE INDEX "idx_payment_attempts_tenant" ON "payment_attempts" USING btree ("tenant_id");
+CREATE INDEX "idx_batches_course" ON "batches" USING btree ("course_id");
+CREATE INDEX "idx_batches_dates" ON "batches" USING btree ("start_date","end_date");
+CREATE INDEX "idx_batches_tenant" ON "batches" USING btree ("tenant_id");
+CREATE INDEX "idx_batches_tenant_status" ON "batches" USING btree ("tenant_id","status");
+CREATE INDEX "idx_business_feature_business" ON "business_feature_map" USING btree ("business_type_id");
+CREATE INDEX "idx_business_feature_feature" ON "business_feature_map" USING btree ("feature_id");
+CREATE UNIQUE INDEX "idx_business_feature_unique" ON "business_feature_map" USING btree ("business_type_id","feature_id");
+CREATE INDEX "idx_legal_appointments_attendee" ON "legal_appointments" USING btree ("attendee_id");
+CREATE INDEX "idx_legal_appointments_case" ON "legal_appointments" USING btree ("case_id");
+CREATE INDEX "idx_legal_appointments_client" ON "legal_appointments" USING btree ("client_id");
+CREATE INDEX "idx_legal_appointments_date" ON "legal_appointments" USING btree ("scheduled_date");
+CREATE INDEX "idx_legal_appointments_tenant" ON "legal_appointments" USING btree ("tenant_id");
+CREATE INDEX "idx_legal_appointments_tenant_status" ON "legal_appointments" USING btree ("tenant_id","status");
+CREATE INDEX "idx_tenant_version_history_action" ON "tenant_business_type_history" USING btree ("action");
+CREATE INDEX "idx_tenant_version_history_tenant" ON "tenant_business_type_history" USING btree ("tenant_id");
+CREATE INDEX "idx_sso_user_identities_provider" ON "sso_user_identities" USING btree ("provider_id");
+CREATE INDEX "idx_sso_user_identities_user" ON "sso_user_identities" USING btree ("user_id");
+CREATE INDEX "idx_vehicles_registration" ON "vehicles" USING btree ("registration_number");
+CREATE INDEX "idx_vehicles_tenant" ON "vehicles" USING btree ("tenant_id");
+CREATE INDEX "idx_vehicles_tenant_status" ON "vehicles" USING btree ("tenant_id","status");
+CREATE INDEX "idx_vehicles_type" ON "vehicles" USING btree ("vehicle_type");
+CREATE INDEX "idx_business_type_registry_code" ON "business_type_registry" USING btree ("code");
+CREATE UNIQUE INDEX "idx_business_type_registry_code_unique" ON "business_type_registry" USING btree ("code");
+CREATE INDEX "idx_business_type_registry_enabled" ON "business_type_registry" USING btree ("enabled");
+CREATE INDEX "idx_case_summary_jobs_case" ON "case_summary_jobs" USING btree ("case_id");
+CREATE INDEX "idx_case_summary_jobs_hash" ON "case_summary_jobs" USING btree ("tenant_id","case_id","input_snapshot_hash");
+CREATE INDEX "idx_case_summary_jobs_status" ON "case_summary_jobs" USING btree ("status");
+CREATE INDEX "idx_case_summary_jobs_tenant" ON "case_summary_jobs" USING btree ("tenant_id");
+CREATE INDEX "idx_feature_flag_overrides_business" ON "feature_flag_overrides" USING btree ("business_type");
+CREATE INDEX "idx_feature_flag_overrides_feature" ON "feature_flag_overrides" USING btree ("feature_id");
+CREATE INDEX "idx_feature_flag_overrides_tenant" ON "feature_flag_overrides" USING btree ("tenant_id");
+CREATE UNIQUE INDEX "idx_feature_flag_overrides_unique" ON "feature_flag_overrides" USING btree ("feature_id","tenant_id","business_type");
+CREATE INDEX "idx_reseller_brand_assets_reseller" ON "reseller_brand_assets" USING btree ("reseller_id");
+CREATE INDEX "idx_reseller_brand_assets_type" ON "reseller_brand_assets" USING btree ("asset_type");
+CREATE INDEX "idx_admin_audit_action" ON "admin_audit_logs" USING btree ("action");
+CREATE INDEX "idx_admin_audit_admin" ON "admin_audit_logs" USING btree ("admin_id");
+CREATE INDEX "idx_admin_audit_category" ON "admin_audit_logs" USING btree ("category");
+CREATE INDEX "idx_admin_audit_resource" ON "admin_audit_logs" USING btree ("resource","resource_id");
+CREATE INDEX "idx_admin_audit_risk" ON "admin_audit_logs" USING btree ("risk_level");
+CREATE INDEX "idx_admin_audit_target_tenant" ON "admin_audit_logs" USING btree ("target_tenant_id");
+CREATE INDEX "idx_admin_audit_time" ON "admin_audit_logs" USING btree ("created_at");
+CREATE INDEX "idx_module_registry_category" ON "module_registry" USING btree ("category");
+CREATE INDEX "idx_module_registry_code" ON "module_registry" USING btree ("code");
+CREATE INDEX "idx_module_registry_enabled" ON "module_registry" USING btree ("enabled");
+CREATE INDEX "idx_route_cache_expires" ON "route_optimization_cache" USING btree ("expires_at");
+CREATE INDEX "idx_route_cache_key" ON "route_optimization_cache" USING btree ("tenant_id","cache_key");
+CREATE INDEX "idx_route_cache_tenant" ON "route_optimization_cache" USING btree ("tenant_id");
+CREATE INDEX "idx_fees_course" ON "fees" USING btree ("course_id");
+CREATE INDEX "idx_fees_due_date" ON "fees" USING btree ("due_date");
+CREATE INDEX "idx_fees_student" ON "fees" USING btree ("student_id");
+CREATE INDEX "idx_fees_tenant" ON "fees" USING btree ("tenant_id");
+CREATE INDEX "idx_fees_tenant_status" ON "fees" USING btree ("tenant_id","status");
+CREATE INDEX "idx_legal_invoices_case" ON "legal_invoices" USING btree ("case_id");
+CREATE INDEX "idx_legal_invoices_client" ON "legal_invoices" USING btree ("client_id");
+CREATE INDEX "idx_legal_invoices_date" ON "legal_invoices" USING btree ("invoice_date");
+CREATE INDEX "idx_legal_invoices_due_date" ON "legal_invoices" USING btree ("due_date");
+CREATE INDEX "idx_legal_invoices_number" ON "legal_invoices" USING btree ("invoice_number");
+CREATE INDEX "idx_legal_invoices_tenant" ON "legal_invoices" USING btree ("tenant_id");
+CREATE INDEX "idx_legal_invoices_tenant_status" ON "legal_invoices" USING btree ("tenant_id","status");
+CREATE INDEX "idx_reseller_child_invoices_child" ON "reseller_child_invoices" USING btree ("child_tenant_id");
+CREATE UNIQUE INDEX "idx_reseller_child_invoices_number" ON "reseller_child_invoices" USING btree ("reseller_id","invoice_number");
+CREATE INDEX "idx_reseller_child_invoices_reseller" ON "reseller_child_invoices" USING btree ("reseller_id");
+CREATE INDEX "idx_reseller_child_invoices_revenue_record" ON "reseller_child_invoices" USING btree ("revenue_record_id");
+CREATE UNIQUE INDEX "idx_versioned_module_unique" ON "versioned_module_map" USING btree ("version_id","module_id");
+CREATE INDEX "idx_versioned_module_version" ON "versioned_module_map" USING btree ("version_id");
+CREATE INDEX "idx_reseller_revenue_records_period" ON "reseller_revenue_records" USING btree ("period_start","period_end");
+CREATE INDEX "idx_reseller_revenue_records_reseller" ON "reseller_revenue_records" USING btree ("reseller_id");
+CREATE INDEX "idx_reseller_revenue_records_status" ON "reseller_revenue_records" USING btree ("status");
+CREATE UNIQUE INDEX "idx_reseller_revenue_records_unique_period" ON "reseller_revenue_records" USING btree ("reseller_id","period_label");
+CREATE UNIQUE INDEX "idx_reseller_profiles_domain" ON "reseller_profiles" USING btree ("custom_domain");
+CREATE INDEX "idx_reseller_profiles_status" ON "reseller_profiles" USING btree ("status");
+CREATE UNIQUE INDEX "idx_reseller_profiles_subdomain" ON "reseller_profiles" USING btree ("subdomain_prefix");
+CREATE INDEX "idx_reseller_profiles_tenant" ON "reseller_profiles" USING btree ("tenant_id");
+CREATE INDEX "idx_reseller_revenue_agreements_active" ON "reseller_revenue_agreements" USING btree ("is_active");
+CREATE INDEX "idx_reseller_revenue_agreements_reseller" ON "reseller_revenue_agreements" USING btree ("reseller_id");
+CREATE INDEX "idx_shipments_awb" ON "shipments" USING btree ("awb_number");
+CREATE INDEX "idx_shipments_pickup_date" ON "shipments" USING btree ("pickup_date");
+CREATE INDEX "idx_shipments_tenant" ON "shipments" USING btree ("tenant_id");
+CREATE INDEX "idx_shipments_tenant_status" ON "shipments" USING btree ("tenant_id","status");
+CREATE INDEX "idx_shipments_tracking" ON "shipments" USING btree ("tracking_number");
+CREATE INDEX "idx_shipments_trip" ON "shipments" USING btree ("trip_id");
+CREATE INDEX "idx_legal_clients_company" ON "legal_clients" USING btree ("company_name");
+CREATE INDEX "idx_legal_clients_email" ON "legal_clients" USING btree ("email");
+CREATE INDEX "idx_legal_clients_tenant" ON "legal_clients" USING btree ("tenant_id");
+CREATE INDEX "idx_legal_clients_tenant_status" ON "legal_clients" USING btree ("tenant_id","status");
+CREATE INDEX "idx_legal_clients_type" ON "legal_clients" USING btree ("client_type");
+CREATE INDEX "idx_route_opt_cache_key" ON "route_optimization_jobs" USING btree ("cache_key");
+CREATE INDEX "idx_route_opt_shipment" ON "route_optimization_jobs" USING btree ("shipment_id");
+CREATE INDEX "idx_route_opt_tenant" ON "route_optimization_jobs" USING btree ("tenant_id");
+CREATE INDEX "idx_route_opt_tenant_status" ON "route_optimization_jobs" USING btree ("tenant_id","status");
+CREATE INDEX "idx_route_opt_vehicle" ON "route_optimization_jobs" USING btree ("vehicle_id");
+CREATE INDEX "idx_student_risk_predicted" ON "student_risk_predictions" USING btree ("predicted_at");
+CREATE INDEX "idx_student_risk_student" ON "student_risk_predictions" USING btree ("student_id");
+CREATE INDEX "idx_student_risk_tenant" ON "student_risk_predictions" USING btree ("tenant_id");
+CREATE INDEX "idx_student_risk_tier" ON "student_risk_predictions" USING btree ("risk_tier");
+CREATE INDEX "idx_maintenance_scheduled" ON "maintenance_logs" USING btree ("scheduled_date");
+CREATE INDEX "idx_maintenance_tenant" ON "maintenance_logs" USING btree ("tenant_id");
+CREATE INDEX "idx_maintenance_tenant_status" ON "maintenance_logs" USING btree ("tenant_id","status");
+CREATE INDEX "idx_maintenance_type" ON "maintenance_logs" USING btree ("maintenance_type");
+CREATE INDEX "idx_maintenance_vehicle" ON "maintenance_logs" USING btree ("vehicle_id");
+CREATE INDEX "idx_drivers_employee" ON "drivers" USING btree ("employee_id");
+CREATE INDEX "idx_drivers_license" ON "drivers" USING btree ("license_number");
+CREATE INDEX "idx_drivers_tenant" ON "drivers" USING btree ("tenant_id");
+CREATE INDEX "idx_drivers_tenant_status" ON "drivers" USING btree ("tenant_id","status");
+CREATE INDEX "idx_cases_client" ON "cases" USING btree ("client_id");
+CREATE INDEX "idx_cases_lead_attorney" ON "cases" USING btree ("lead_attorney_id");
+CREATE INDEX "idx_cases_next_hearing" ON "cases" USING btree ("next_hearing_date");
+CREATE INDEX "idx_cases_number" ON "cases" USING btree ("case_number");
+CREATE INDEX "idx_cases_practice_area" ON "cases" USING btree ("practice_area");
+CREATE INDEX "idx_cases_tenant" ON "cases" USING btree ("tenant_id");
+CREATE INDEX "idx_cases_tenant_status" ON "cases" USING btree ("tenant_id","status");
+CREATE INDEX "idx_legal_documents_case" ON "legal_documents" USING btree ("case_id");
+CREATE INDEX "idx_legal_documents_client" ON "legal_documents" USING btree ("client_id");
+CREATE INDEX "idx_legal_documents_confidentiality" ON "legal_documents" USING btree ("confidentiality_level");
+CREATE INDEX "idx_legal_documents_parent" ON "legal_documents" USING btree ("parent_document_id");
+CREATE INDEX "idx_legal_documents_tenant" ON "legal_documents" USING btree ("tenant_id");
+CREATE INDEX "idx_legal_documents_type" ON "legal_documents" USING btree ("document_type");
+ALTER TABLE "plan_local_prices" ADD CONSTRAINT "plan_local_prices_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "public"."global_pricing_plans"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "idx_tenants_country" ON "tenants" USING btree ("country");
+CREATE INDEX "idx_tenants_parent_reseller" ON "tenants" USING btree ("parent_reseller_id");
+CREATE INDEX "idx_tenants_region" ON "tenants" USING btree ("region");
+CREATE INDEX "idx_tenants_status" ON "tenants" USING btree ("status");
+CREATE INDEX "idx_tenants_type" ON "tenants" USING btree ("tenant_type");
+ALTER TABLE "platform_admins" DROP COLUMN "user_id";
+ALTER TABLE "platform_admins" DROP COLUMN "status";
+ALTER TABLE "platform_admins" DROP COLUMN "permissions";
+ALTER TABLE "platform_admins" DROP COLUMN "must_change_password";
+ALTER TABLE "country_pricing_configs" DROP COLUMN "currency_code";
+ALTER TABLE "country_pricing_configs" DROP COLUMN "currency_symbol";
+ALTER TABLE "country_pricing_configs" DROP COLUMN "min_transaction_amount";
+ALTER TABLE "country_pricing_configs" DROP COLUMN "payment_methods";
+ALTER TABLE "country_pricing_configs" DROP COLUMN "locale";
+ALTER TABLE "country_pricing_configs" DROP COLUMN "date_format";
+ALTER TABLE "plan_local_prices" DROP COLUMN "monthly_price";
+ALTER TABLE "plan_local_prices" DROP COLUMN "yearly_price";
+ALTER TABLE "plan_local_prices" DROP COLUMN "currency_code";
+ALTER TABLE "plan_local_prices" DROP COLUMN "stripe_price_id_monthly";
+ALTER TABLE "plan_local_prices" DROP COLUMN "stripe_price_id_yearly";
+ALTER TABLE "plan_local_prices" DROP COLUMN "is_active";
+ALTER TABLE "platform_region_configs" DROP COLUMN "compliance_enabled";
+ALTER TABLE "platform_region_configs" DROP COLUMN "supported_payment_methods";
+ALTER TABLE "platform_region_configs" DROP COLUMN "compliance_packs";
+ALTER TABLE "tenants" DROP COLUMN "is_suspended";
+ALTER TABLE "tenants" DROP COLUMN "suspension_reason";
+ALTER TABLE "tenants" DROP COLUMN "suspended_at";
+ALTER TABLE "tenants" DROP COLUMN "suspended_by";
+ALTER TABLE "whatsapp_provider_configs" ADD CONSTRAINT "whatsapp_provider_configs_country_key" UNIQUE("country");
+ALTER TABLE "platform_admins" ADD CONSTRAINT "platform_admins_email_key" UNIQUE("email");
+ALTER TABLE "plan_local_prices" ADD CONSTRAINT "plan_local_prices_plan_id_country_key" UNIQUE("plan_id","country");
+DROP TYPE "public"."platform_admin_status";
+DROP TYPE "public"."platform_role";
