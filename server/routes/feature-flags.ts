@@ -9,8 +9,15 @@ const router = Router();
 router.get("/check/:featureCode", async (req: Request, res: Response) => {
   try {
     const { featureCode } = req.params;
-    const tenantId = req.headers["x-tenant-id"] as string;
+    const tenantId = req.headers["x-tenant-id"] as string | undefined;
     const businessType = req.query.businessType as string | undefined;
+
+    // Validate tenantId is present for proper tenant isolation
+    if (!tenantId) {
+      return res.status(400).json({ 
+        error: "Missing X-Tenant-ID header. Tenant context is required for feature flag evaluation." 
+      });
+    }
 
     const enabled = await featureRegistryService.isFeatureEnabled(featureCode, {
       tenantId,
@@ -20,6 +27,7 @@ router.get("/check/:featureCode", async (req: Request, res: Response) => {
     res.json({ 
       feature: featureCode, 
       enabled,
+      tenantId,
       evaluatedAt: new Date().toISOString(),
     });
   } catch (error: any) {
@@ -31,8 +39,15 @@ router.get("/check/:featureCode", async (req: Request, res: Response) => {
 // Get all feature flags for the current context
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const tenantId = req.headers["x-tenant-id"] as string;
+    const tenantId = req.headers["x-tenant-id"] as string | undefined;
     const businessType = req.query.businessType as string | undefined;
+
+    // Validate tenantId is present for proper tenant isolation
+    if (!tenantId) {
+      return res.status(400).json({ 
+        error: "Missing X-Tenant-ID header. Tenant context is required for feature flag evaluation." 
+      });
+    }
 
     const flags = await featureRegistryService.getFeatureFlags({
       tenantId,
@@ -41,6 +56,7 @@ router.get("/", async (req: Request, res: Response) => {
 
     res.json({ 
       flags,
+      tenantId,
       evaluatedAt: new Date().toISOString(),
     });
   } catch (error: any) {

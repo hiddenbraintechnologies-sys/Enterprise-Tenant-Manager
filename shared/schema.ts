@@ -245,10 +245,10 @@ export const featureRegistry = pgTable("feature_registry", {
   code: varchar("code", { length: 50 }).notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  scope: featureScopeEnum("scope").default("tenant"),
-  defaultEnabled: boolean("default_enabled").default(false),
-  enabled: boolean("enabled").default(true),
-  displayOrder: integer("display_order").default(0),
+  scope: featureScopeEnum("scope").notNull().default("tenant"),
+  defaultEnabled: boolean("default_enabled").notNull().default(false),
+  enabled: boolean("enabled").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -292,6 +292,8 @@ export const insertFeatureFlagOverrideSchema = createInsertSchema(featureFlagOve
   createdAt: true, 
   updatedAt: true 
 });
+
+export const updateFeatureRegistrySchema = insertFeatureRegistrySchema.omit({ code: true }).partial();
 
 // Domain verification status enum
 export const domainVerificationStatusEnum = pgEnum("domain_verification_status", [

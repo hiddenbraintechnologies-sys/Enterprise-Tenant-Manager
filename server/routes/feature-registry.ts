@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { featureRegistryService } from "../services/feature-registry";
-import { insertFeatureRegistrySchema, insertFeatureFlagOverrideSchema } from "@shared/schema";
+import { insertFeatureRegistrySchema, updateFeatureRegistrySchema, insertFeatureFlagOverrideSchema } from "@shared/schema";
 import { z } from "zod";
 
 const router = Router();
@@ -76,15 +76,6 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
-const updateFeatureSchema = z.object({
-  name: z.string().min(1).optional(),
-  description: z.string().optional().nullable(),
-  scope: z.enum(["global", "business", "tenant"]).optional(),
-  defaultEnabled: z.boolean().optional(),
-  enabled: z.boolean().optional(),
-  displayOrder: z.number().int().min(0).optional(),
-});
-
 router.patch("/:id", async (req: Request, res: Response) => {
   try {
     const existing = await featureRegistryService.getById(req.params.id);
@@ -92,7 +83,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Feature not found" });
     }
 
-    const parsed = updateFeatureSchema.safeParse(req.body);
+    const parsed = updateFeatureRegistrySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ 
         error: "Validation failed", 
