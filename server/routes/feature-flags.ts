@@ -1,28 +1,47 @@
 import { Router, Request, Response } from "express";
-import { featureRegistryService } from "../services/feature-registry";
+import { featureResolutionService } from "../services/feature-resolution";
+import { cacheService } from "../services/cache";
 
 const router = Router();
 
-// Runtime feature flag evaluation - for tenant apps to check if features are enabled
-// This endpoint is meant to be called by authenticated tenant users
+// Runtime feature resolution - returns full feature matrix for a tenant
+// Uses cached resolution with Redis + in-memory fallback
+router.get("/matrix", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.headers["x-tenant-id"] as string | undefined;
 
+    if (!tenantId) {
+      return res.status(400).json({ 
+        error: "Missing X-Tenant-ID header. Tenant context is required." 
+      });
+    }
+
+    const matrix = await featureResolutionService.resolveTenantFeatures(tenantId);
+    
+    if (!matrix) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+
+    res.json(matrix);
+  } catch (error: any) {
+    console.error("Error resolving feature matrix:", error.message);
+    res.status(500).json({ error: "Failed to resolve feature matrix" });
+  }
+});
+
+// Check if a specific feature is enabled (cached)
 router.get("/check/:featureCode", async (req: Request, res: Response) => {
   try {
     const { featureCode } = req.params;
     const tenantId = req.headers["x-tenant-id"] as string | undefined;
-    const businessType = req.query.businessType as string | undefined;
 
-    // Validate tenantId is present for proper tenant isolation
     if (!tenantId) {
       return res.status(400).json({ 
-        error: "Missing X-Tenant-ID header. Tenant context is required for feature flag evaluation." 
+        error: "Missing X-Tenant-ID header. Tenant context is required." 
       });
     }
 
-    const enabled = await featureRegistryService.isFeatureEnabled(featureCode, {
-      tenantId,
-      businessType,
-    });
+    const enabled = await featureResolutionService.isFeatureEnabledCached(tenantId, featureCode);
 
     res.json({ 
       feature: featureCode, 
@@ -31,37 +50,57 @@ router.get("/check/:featureCode", async (req: Request, res: Response) => {
       evaluatedAt: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error("Error checking feature flag:", error.message);
-    res.status(500).json({ error: "Failed to check feature flag" });
+    console.error("Error checking feature:", error.message);
+    res.status(500).json({ error: "Failed to check feature" });
   }
 });
 
-// Get all feature flags for the current context
-router.get("/", async (req: Request, res: Response) => {
+// Check if a specific module is enabled (cached)
+router.get("/module/:moduleCode", async (req: Request, res: Response) => {
   try {
+    const { moduleCode } = req.params;
     const tenantId = req.headers["x-tenant-id"] as string | undefined;
-    const businessType = req.query.businessType as string | undefined;
 
-    // Validate tenantId is present for proper tenant isolation
     if (!tenantId) {
       return res.status(400).json({ 
-        error: "Missing X-Tenant-ID header. Tenant context is required for feature flag evaluation." 
+        error: "Missing X-Tenant-ID header. Tenant context is required." 
       });
     }
 
-    const flags = await featureRegistryService.getFeatureFlags({
-      tenantId,
-      businessType,
-    });
+    const enabled = await featureResolutionService.isModuleEnabledCached(tenantId, moduleCode);
 
     res.json({ 
-      flags,
+      module: moduleCode, 
+      enabled,
       tenantId,
       evaluatedAt: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error("Error fetching feature flags:", error.message);
-    res.status(500).json({ error: "Failed to fetch feature flags" });
+    console.error("Error checking module:", error.message);
+    res.status(500).json({ error: "Failed to check module" });
+  }
+});
+
+// Invalidate cache for a tenant (admin use)
+router.post("/invalidate/:tenantId", async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    await featureResolutionService.invalidateTenantCache(tenantId);
+    res.json({ success: true, message: `Cache invalidated for tenant ${tenantId}` });
+  } catch (error: any) {
+    console.error("Error invalidating cache:", error.message);
+    res.status(500).json({ error: "Failed to invalidate cache" });
+  }
+});
+
+// Cache health check
+router.get("/cache/health", async (req: Request, res: Response) => {
+  try {
+    const health = await cacheService.healthCheck();
+    res.json(health);
+  } catch (error: any) {
+    console.error("Error checking cache health:", error.message);
+    res.status(500).json({ error: "Failed to check cache health" });
   }
 });
 
