@@ -22,6 +22,16 @@ mobile/lib/
 │   │   ├── api_exceptions.dart  # Custom exceptions
 │   │   ├── auth_interceptor.dart    # JWT token handling
 │   │   └── tenant_interceptor.dart  # Multi-tenant headers
+│   ├── navigation/
+│   │   ├── navigation_item.dart     # Navigation item model
+│   │   └── business_navigation_config.dart  # Business-specific nav
+│   ├── permissions/
+│   │   └── role_permissions.dart    # Role-based permission matrix
+│   ├── offline/
+│   │   ├── database_helper.dart     # Hive cache management
+│   │   ├── connectivity_service.dart # Connection monitoring
+│   │   ├── sync_service.dart        # Background sync
+│   │   └── offline_repository_mixin.dart # Offline support mixin
 │   └── storage/
 │       ├── secure_storage.dart  # Encrypted storage
 │       ├── token_storage.dart   # JWT token persistence
@@ -75,6 +85,20 @@ await Environment.initialize(EnvironmentType.production);
 - `AuthBloc` - Authentication state
 - `TenantBloc` - Tenant selection state
 - Feature-specific BLoCs for domain logic
+
+### 5. Role-Based Navigation
+- Dashboard adapts based on BusinessType (PG/Hostel, Salon, Gym, Clinic, etc.)
+- Role permissions (Super Admin, Admin, Manager, Staff, Customer) control visible features
+- Navigation items dynamically filtered by user permissions
+- BusinessType is read-only from mobile (set by backend)
+
+### 6. Offline Support
+- **Local Cache**: Hive-based storage for offline data access
+- **Read-Only Mode**: Users can view cached data when offline
+- **Background Sync**: Automatic sync when connection restored
+- **Conflict Resolution**: Configurable strategies (server-wins, client-wins, merge)
+- **Sync Queue**: Pending changes queued and processed when online
+- **Offline Indicator**: Visual feedback for connectivity status
 
 ## Getting Started
 

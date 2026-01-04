@@ -8,6 +8,9 @@ import '../network/tenant_interceptor.dart';
 import '../storage/secure_storage.dart';
 import '../storage/token_storage.dart';
 import '../storage/tenant_storage.dart';
+import '../offline/database_helper.dart';
+import '../offline/connectivity_service.dart';
+import '../offline/sync_service.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/datasources/tenant_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
@@ -25,12 +28,23 @@ import '../../features/tenant/presentation/bloc/tenant_bloc.dart';
 final getIt = GetIt.instance;
 
 Future<void> configureDependencies() async {
+  await _registerOfflineServices();
   _registerStorage();
   _registerNetwork();
   _registerDataSources();
   _registerRepositories();
   _registerUseCases();
   _registerBlocs();
+}
+
+Future<void> _registerOfflineServices() async {
+  final databaseHelper = DatabaseHelper.instance;
+  await databaseHelper.initialize();
+  getIt.registerLazySingleton<DatabaseHelper>(() => databaseHelper);
+  
+  final connectivityService = ConnectivityService.instance;
+  await connectivityService.initialize();
+  getIt.registerLazySingleton<ConnectivityService>(() => connectivityService);
 }
 
 void _registerStorage() {
@@ -71,6 +85,14 @@ void _registerNetwork() {
       connectTimeout: Environment.config.connectTimeout,
       receiveTimeout: Environment.config.receiveTimeout,
       enableLogging: Environment.config.enableLogging,
+    ),
+  );
+  
+  getIt.registerLazySingleton<SyncService>(
+    () => SyncService(
+      apiClient: getIt<ApiClient>(),
+      database: getIt<DatabaseHelper>(),
+      connectivity: getIt<ConnectivityService>(),
     ),
   );
 }
