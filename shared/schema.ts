@@ -2273,6 +2273,112 @@ export const dataRetentionPolicies = pgTable("data_retention_policies", {
   index("idx_retention_enabled").on(table.isEnabled),
 ]);
 
+// Compliance checklist status enum
+export const complianceChecklistStatusEnum = pgEnum("compliance_checklist_status", [
+  "not_started",
+  "in_progress",
+  "completed",
+  "not_applicable",
+  "overdue",
+]);
+
+// Compliance packs - country/regulation-specific compliance packages
+export const compliancePacks = pgTable("compliance_packs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 200 }).notNull(),
+  code: varchar("code", { length: 50 }).notNull().unique(), // e.g., "gdpr_basic", "dpdp_full"
+  regulation: dataProtectionRegulationEnum("regulation").notNull(),
+  description: text("description"),
+  applicableCountries: jsonb("applicable_countries").default([]), // ["in", "gb", "sg"]
+  applicableBusinessTypes: jsonb("applicable_business_types").default([]), // ["clinic", "salon"]
+  tier: varchar("tier", { length: 50 }).default("standard"), // basic, standard, enterprise
+  version: varchar("version", { length: 20 }).default("1.0"),
+  totalItems: integer("total_items").default(0),
+  estimatedHours: integer("estimated_hours"), // Estimated time to complete
+  isActive: boolean("is_active").default(true),
+  isDefault: boolean("is_default").default(false), // Default pack for new tenants
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_compliance_packs_regulation").on(table.regulation),
+  index("idx_compliance_packs_code").on(table.code),
+  index("idx_compliance_packs_active").on(table.isActive),
+]);
+
+// Compliance checklist items - individual items within a pack
+export const complianceChecklistItems = pgTable("compliance_checklist_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  packId: varchar("pack_id").notNull().references(() => compliancePacks.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 100 }).notNull(), // e.g., "Data Collection", "Consent Management"
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  guidance: text("guidance"), // How to implement/complete this item
+  documentationUrl: text("documentation_url"), // Link to relevant docs
+  priority: varchar("priority", { length: 20 }).default("medium"), // low, medium, high, critical
+  isMandatory: boolean("is_mandatory").default(true),
+  requiresEvidence: boolean("requires_evidence").default(false),
+  evidenceTypes: jsonb("evidence_types").default([]), // ["document", "screenshot", "policy_link"]
+  dueDays: integer("due_days"), // Days from pack assignment to complete
+  sortOrder: integer("sort_order").default(0),
+  dependencies: jsonb("dependencies").default([]), // IDs of items that must be completed first
+  tags: jsonb("tags").default([]), // ["technical", "policy", "training"]
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_checklist_pack").on(table.packId),
+  index("idx_checklist_category").on(table.category),
+  index("idx_checklist_priority").on(table.priority),
+  index("idx_checklist_sort").on(table.sortOrder),
+]);
+
+// Tenant compliance pack assignments - which packs are assigned to which tenant
+export const tenantCompliancePacks = pgTable("tenant_compliance_packs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  packId: varchar("pack_id").notNull().references(() => compliancePacks.id, { onDelete: "cascade" }),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: varchar("assigned_by").references(() => users.id, { onDelete: "set null" }),
+  dueDate: timestamp("due_date"),
+  completedAt: timestamp("completed_at"),
+  completionPercentage: integer("completion_percentage").default(0),
+  status: varchar("status", { length: 50 }).default("active"), // active, completed, suspended
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_packs_tenant").on(table.tenantId),
+  index("idx_tenant_packs_pack").on(table.packId),
+  uniqueIndex("idx_tenant_packs_unique").on(table.tenantId, table.packId),
+]);
+
+// Tenant compliance progress - tracks progress on individual checklist items
+export const tenantComplianceProgress = pgTable("tenant_compliance_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  packId: varchar("pack_id").notNull().references(() => compliancePacks.id, { onDelete: "cascade" }),
+  itemId: varchar("item_id").notNull().references(() => complianceChecklistItems.id, { onDelete: "cascade" }),
+  status: complianceChecklistStatusEnum("status").default("not_started"),
+  assignedTo: varchar("assigned_to").references(() => users.id, { onDelete: "set null" }),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id, { onDelete: "set null" }),
+  dueDate: timestamp("due_date"),
+  evidenceUrl: text("evidence_url"),
+  evidenceDescription: text("evidence_description"),
+  notes: text("notes"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_progress_tenant").on(table.tenantId),
+  index("idx_progress_pack").on(table.packId),
+  index("idx_progress_item").on(table.itemId),
+  index("idx_progress_status").on(table.status),
+  uniqueIndex("idx_progress_unique").on(table.tenantId, table.packId, table.itemId),
+]);
+
 // Insert schemas for compliance tables
 export const insertComplianceConfigSchema = createInsertSchema(complianceConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTenantComplianceSettingsSchema = createInsertSchema(tenantComplianceSettings).omit({ id: true, createdAt: true, updatedAt: true });
@@ -2283,6 +2389,10 @@ export const insertSensitiveDataAccessLogSchema = createInsertSchema(sensitiveDa
 export const insertDataMaskingRuleSchema = createInsertSchema(dataMaskingRules).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDataBreachRecordSchema = createInsertSchema(dataBreachRecords).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDataRetentionPolicySchema = createInsertSchema(dataRetentionPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCompliancePackSchema = createInsertSchema(compliancePacks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertComplianceChecklistItemSchema = createInsertSchema(complianceChecklistItems).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantCompliancePackSchema = createInsertSchema(tenantCompliancePacks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantComplianceProgressSchema = createInsertSchema(tenantComplianceProgress).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Compliance types
 export type ComplianceConfig = typeof complianceConfigs.$inferSelect;
@@ -2311,6 +2421,18 @@ export type InsertDataBreachRecord = z.infer<typeof insertDataBreachRecordSchema
 
 export type DataRetentionPolicy = typeof dataRetentionPolicies.$inferSelect;
 export type InsertDataRetentionPolicy = z.infer<typeof insertDataRetentionPolicySchema>;
+
+export type CompliancePack = typeof compliancePacks.$inferSelect;
+export type InsertCompliancePack = z.infer<typeof insertCompliancePackSchema>;
+
+export type ComplianceChecklistItem = typeof complianceChecklistItems.$inferSelect;
+export type InsertComplianceChecklistItem = z.infer<typeof insertComplianceChecklistItemSchema>;
+
+export type TenantCompliancePack = typeof tenantCompliancePacks.$inferSelect;
+export type InsertTenantCompliancePack = z.infer<typeof insertTenantCompliancePackSchema>;
+
+export type TenantComplianceProgress = typeof tenantComplianceProgress.$inferSelect;
+export type InsertTenantComplianceProgress = z.infer<typeof insertTenantComplianceProgressSchema>;
 
 // ============================================
 // REAL ESTATE MODULE
