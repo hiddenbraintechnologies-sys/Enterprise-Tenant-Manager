@@ -134,9 +134,6 @@ export async function registerRoutes(
   // Register Add-on Marketplace routes
   app.use('/api/addons', addonRoutes);
 
-  // Register Business Registry routes (SuperAdmin only for management)
-  app.use('/api/platform-admin/business-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), businessRegistryRoutes);
-
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);
   
@@ -884,6 +881,9 @@ export async function registerRoutes(
       next();
     };
   };
+
+  // Register Business Registry routes (SuperAdmin only for management)
+  app.use('/api/platform-admin/business-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), businessRegistryRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {

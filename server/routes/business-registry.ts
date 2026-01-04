@@ -61,6 +61,18 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
+const updateBusinessTypeSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional().nullable(),
+  enabled: z.boolean().optional(),
+  defaultModules: z.array(z.string()).optional(),
+  defaultFeatures: z.array(z.string()).optional(),
+  onboardingFlowId: z.string().optional().nullable(),
+  compliancePacks: z.array(z.string()).optional(),
+  displayOrder: z.number().int().min(0).optional(),
+  icon: z.string().optional().nullable(),
+});
+
 router.patch("/:id", async (req: Request, res: Response) => {
   try {
     const existing = await businessRegistryService.getById(req.params.id);
@@ -68,8 +80,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Business type not found" });
     }
 
-    const updateSchema = insertBusinessTypeRegistrySchema.partial().omit({ code: true });
-    const parsed = updateSchema.safeParse(req.body);
+    const parsed = updateBusinessTypeSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ 
         error: "Validation failed", 

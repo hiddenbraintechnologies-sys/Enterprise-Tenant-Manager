@@ -30,6 +30,7 @@ import NotFound from "@/pages/not-found";
 import { AdminLayout } from "@/components/admin-layout";
 import { SuperAdminRouteGuard } from "@/contexts/admin-context";
 import SuperAdminDashboard from "@/pages/super-admin-dashboard";
+import SuperAdminBusinessRegistry from "@/pages/super-admin-business-registry";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import AdminPlatformAdmins from "@/pages/admin/platform-admins";
@@ -187,6 +188,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin" component={SuperAdminDashboard} />
         <Route path="/super-admin/tenants" component={AdminTenants} />
         <Route path="/super-admin/admins" component={AdminPlatformAdmins} />
+        <Route path="/super-admin/business-registry" component={SuperAdminBusinessRegistry} />
         <Route path="/super-admin/billing" component={AdminBilling} />
         <Route path="/super-admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/super-admin/audit-logs" component={AdminAuditLogs} />
