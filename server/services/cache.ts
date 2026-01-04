@@ -149,13 +149,13 @@ class CacheService {
     }
   }
 
-  async getTenantFeatureMatrix<T>(tenantId: string): Promise<T | null> {
-    const key = this.getTenantKey(tenantId, "feature-matrix");
+  async getTenantFeatureMatrix<T>(tenantId: string, versionId?: string): Promise<T | null> {
+    const key = this.getTenantKey(tenantId, "feature-matrix", versionId);
     return this.get<T>(key);
   }
 
-  async setTenantFeatureMatrix(tenantId: string, matrix: any, ttlSeconds: number = DEFAULT_TTL): Promise<boolean> {
-    const key = this.getTenantKey(tenantId, "feature-matrix");
+  async setTenantFeatureMatrix(tenantId: string, matrix: any, ttlSeconds: number = DEFAULT_TTL, versionId?: string): Promise<boolean> {
+    const key = this.getTenantKey(tenantId, "feature-matrix", versionId);
     return this.set(key, matrix, ttlSeconds);
   }
 

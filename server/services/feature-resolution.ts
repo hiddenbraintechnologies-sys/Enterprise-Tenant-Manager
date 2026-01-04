@@ -51,22 +51,48 @@ const CACHE_TTL = 300; // 5 minutes
 
 class FeatureResolutionService {
   async resolveTenantFeatures(tenantId: string): Promise<FeatureMatrix | null> {
-    // Step 1: Check cache first
-    const cached = await cacheService.getTenantFeatureMatrix<FeatureMatrix>(tenantId);
+    // Step 1: Get the effective version ID for this tenant (for cache key scoping)
+    const effectiveVersionId = await this.getEffectiveVersionId(tenantId);
+
+    // Step 2: Check cache with version-scoped key
+    const cached = await cacheService.getTenantFeatureMatrix<FeatureMatrix>(tenantId, effectiveVersionId);
     if (cached) {
       return { ...cached, cacheHit: true };
     }
 
-    // Step 2: Resolve from database
+    // Step 3: Resolve from database
     const matrix = await this.resolveFromDatabase(tenantId);
     if (!matrix) {
       return null;
     }
 
-    // Step 3: Cache the result
-    await cacheService.setTenantFeatureMatrix(tenantId, matrix, CACHE_TTL);
+    // Step 4: Cache the result with version-scoped key
+    const versionId = matrix.versionInfo?.versionId || undefined;
+    await cacheService.setTenantFeatureMatrix(tenantId, matrix, CACHE_TTL, versionId);
     
     return { ...matrix, cacheHit: false };
+  }
+
+  private async getEffectiveVersionId(tenantId: string): Promise<string | undefined> {
+    // Get tenant's pinned version or business type's active version
+    const [tenant] = await db.select({
+      pinnedVersionId: tenants.pinnedVersionId,
+      businessType: tenants.businessType,
+    })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId));
+
+    if (!tenant) return undefined;
+    if (tenant.pinnedVersionId) return tenant.pinnedVersionId;
+
+    if (tenant.businessType) {
+      const [bt] = await db.select({ activeVersionId: businessTypeRegistry.activeVersionId })
+        .from(businessTypeRegistry)
+        .where(eq(businessTypeRegistry.code, tenant.businessType));
+      return bt?.activeVersionId || undefined;
+    }
+
+    return undefined;
   }
 
   private async resolveFromDatabase(tenantId: string): Promise<FeatureMatrix | null> {
