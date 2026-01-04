@@ -3417,6 +3417,101 @@ export type InsertShipment = z.infer<typeof insertShipmentSchema>;
 export type MaintenanceLog = typeof maintenanceLogs.$inferSelect;
 export type InsertMaintenanceLog = z.infer<typeof insertMaintenanceLogSchema>;
 
+// Route Optimization AI Tables
+export const routeOptimizationStatusEnum = pgEnum("route_optimization_status", ["pending", "processing", "completed", "failed", "expired"]);
+
+export const routeOptimizationJobs = pgTable("route_optimization_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Optional references
+  shipmentId: varchar("shipment_id").references(() => shipments.id, { onDelete: "set null" }),
+  vehicleId: varchar("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
+  tripId: varchar("trip_id").references(() => trips.id, { onDelete: "set null" }),
+  
+  // Input data
+  pickupLocation: jsonb("pickup_location").notNull(), // { lat, lng, address }
+  dropOffLocations: jsonb("drop_off_locations").notNull(), // [{ lat, lng, address, order? }]
+  vehicleCapacity: decimal("vehicle_capacity", { precision: 12, scale: 2 }),
+  capacityUnit: varchar("capacity_unit", { length: 20 }).default("kg"),
+  deliveryWindowStart: timestamp("delivery_window_start"),
+  deliveryWindowEnd: timestamp("delivery_window_end"),
+  trafficData: jsonb("traffic_data"), // Optional traffic snapshot
+  
+  // AI Output
+  optimizedRoute: jsonb("optimized_route"), // { waypoints: [], totalDistance, totalDuration }
+  etaMinutes: integer("eta_minutes"),
+  distanceKm: decimal("distance_km", { precision: 12, scale: 2 }),
+  costEstimate: decimal("cost_estimate", { precision: 12, scale: 2 }),
+  costBreakdown: jsonb("cost_breakdown"), // { distanceCost, timeCost, trafficSurcharge }
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  
+  // AI metadata
+  aiGenerated: boolean("ai_generated").default(false),
+  aiModel: varchar("ai_model", { length: 100 }),
+  consentVersion: varchar("consent_version", { length: 20 }),
+  usageLogId: varchar("usage_log_id"),
+  cacheKey: varchar("cache_key", { length: 64 }),
+  cacheHit: boolean("cache_hit").default(false),
+  
+  // Manual override
+  isOverridden: boolean("is_overridden").default(false),
+  overrideRoute: jsonb("override_route"),
+  overrideEtaMinutes: integer("override_eta_minutes"),
+  overrideCostEstimate: decimal("override_cost_estimate", { precision: 12, scale: 2 }),
+  overrideReason: text("override_reason"),
+  overriddenBy: varchar("overridden_by"),
+  overriddenAt: timestamp("overridden_at"),
+  
+  status: routeOptimizationStatusEnum("status").default("pending"),
+  errorMessage: text("error_message"),
+  
+  requestedBy: varchar("requested_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_route_opt_tenant").on(table.tenantId),
+  index("idx_route_opt_tenant_status").on(table.tenantId, table.status),
+  index("idx_route_opt_shipment").on(table.shipmentId),
+  index("idx_route_opt_vehicle").on(table.vehicleId),
+  index("idx_route_opt_cache_key").on(table.cacheKey),
+]);
+
+export const routeOptimizationCache = pgTable("route_optimization_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  cacheKey: varchar("cache_key", { length: 64 }).notNull(),
+  requestPayloadHash: varchar("request_payload_hash", { length: 64 }).notNull(),
+  
+  // Cached response
+  responsePayload: jsonb("response_payload").notNull(),
+  etaMinutes: integer("eta_minutes"),
+  costEstimate: decimal("cost_estimate", { precision: 12, scale: 2 }),
+  distanceKm: decimal("distance_km", { precision: 12, scale: 2 }),
+  
+  // Traffic context for invalidation
+  hasTrafficData: boolean("has_traffic_data").default(false),
+  trafficContextHash: varchar("traffic_context_hash", { length: 64 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastUsedAt: timestamp("last_used_at").defaultNow(),
+  hitCount: integer("hit_count").default(0),
+}, (table) => [
+  index("idx_route_cache_tenant").on(table.tenantId),
+  index("idx_route_cache_key").on(table.tenantId, table.cacheKey),
+  index("idx_route_cache_expires").on(table.expiresAt),
+]);
+
+export const insertRouteOptimizationJobSchema = createInsertSchema(routeOptimizationJobs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRouteOptimizationCacheSchema = createInsertSchema(routeOptimizationCache).omit({ id: true, createdAt: true });
+
+export type RouteOptimizationJob = typeof routeOptimizationJobs.$inferSelect;
+export type InsertRouteOptimizationJob = z.infer<typeof insertRouteOptimizationJobSchema>;
+export type RouteOptimizationCache = typeof routeOptimizationCache.$inferSelect;
+export type InsertRouteOptimizationCache = z.infer<typeof insertRouteOptimizationCacheSchema>;
+
 // ============================================
 // LEGAL & CONSULTING MODULE
 // ============================================
