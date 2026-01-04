@@ -46,6 +46,7 @@ import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
 import { complianceService } from "./core/compliance";
 import complianceRoutes from "./core/compliance/compliance-routes";
+import indiaComplianceRoutes from "./core/india-compliance/india-compliance-routes";
 import { aiRouter } from "./core/ai-routes";
 import {
   adminIpRestriction,
@@ -120,6 +121,9 @@ export async function registerRoutes(
 
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);
+  
+  // Register India Compliance routes (GST, DLT, Aadhaar, RBI)
+  app.use('/api/india-compliance', indiaComplianceRoutes);
 
   // Seed onboarding flows
   await onboardingService.seedDefaultFlows();
