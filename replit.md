@@ -150,10 +150,18 @@ The platform supports a white-label reseller model enabling partners to offer Bi
 - `/api/resellers/branding` - Branding configuration
 - `/api/resellers/admin/*` - Platform admin routes for reseller management
 
+### Reseller Admin Dashboard
+A dedicated frontend dashboard at `/reseller` for resellers to manage their white-label business:
+- **Tenant Management**: Create, view, and manage child tenants with business type filtering
+- **Usage Analytics**: Overview of tenant activity and growth metrics
+- **Revenue Reports**: Track earnings, revenue share, and payment status by period
+- **Support Controls**: Configure support contact info and view tenant status
+
 ### Important Files
 - `server/core/reseller/reseller-service.ts` - Core reseller business logic
 - `server/core/reseller/reseller-routes.ts` - API route handlers
 - `server/core/reseller/reseller-scope.ts` - Hierarchy validation middleware
+- `client/src/pages/reseller-dashboard.tsx` - Reseller admin dashboard UI
 - `shared/schema.ts` - Database tables and types
 
 ## Tenant Branding System

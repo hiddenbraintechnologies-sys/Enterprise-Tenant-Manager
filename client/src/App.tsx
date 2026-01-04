@@ -37,6 +37,7 @@ import AdminBilling from "@/pages/admin/billing";
 import AdminWhatsApp from "@/pages/admin/whatsapp";
 import AdminAuditLogs from "@/pages/admin/audit-logs";
 import AdminSettings from "@/pages/admin/settings";
+import ResellerDashboard from "@/pages/reseller-dashboard";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -168,6 +169,7 @@ function AuthenticatedRoutes() {
       <Route path="/analytics" component={Analytics} />
       <Route path="/settings" component={Settings} />
       <Route path="/onboarding" component={Onboarding} />
+      <Route path="/reseller" component={ResellerDashboard} />
       <Route component={NotFound} />
     </Switch>
   );
