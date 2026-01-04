@@ -206,21 +206,17 @@ export class FeatureRegistryService {
       }
     }
 
-    // Step 6: Check legacy tenant override (featureFlagOverrides table)
-    if (context.tenantId) {
-      const [legacyOverride] = await db.select()
-        .from(featureFlagOverrides)
-        .where(and(
-          eq(featureFlagOverrides.featureId, feature.id),
-          eq(featureFlagOverrides.tenantId, context.tenantId)
-        ));
-      
-      if (legacyOverride) {
-        return legacyOverride.enabled;
-      }
+    // Legacy overrides (featureFlagOverrides table) are ONLY used for global-scoped features
+    // or when no business type mapping exists (backwards compatibility for unstructured data)
+    // Business/tenant scoped features MUST have a businessFeatureMap entry to be enabled
+    
+    // For business/tenant scoped features without business context, deny by default
+    if (feature.scope === "business" || feature.scope === "tenant") {
+      // No business type known and feature requires business context = deny
+      return false;
     }
 
-    // Fall back to feature default
+    // Fall back to feature default (only for global scope that fell through)
     return feature.defaultEnabled ?? false;
   }
 
