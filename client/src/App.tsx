@@ -39,6 +39,7 @@ import AdminAuditLogs from "@/pages/admin/audit-logs";
 import AdminSettings from "@/pages/admin/settings";
 import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
+import AiPermissions from "@/pages/ai-permissions";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -169,6 +170,7 @@ function AuthenticatedRoutes() {
       </Route>
       <Route path="/analytics" component={Analytics} />
       <Route path="/marketplace" component={Marketplace} />
+      <Route path="/ai-permissions" component={AiPermissions} />
       <Route path="/settings" component={Settings} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />

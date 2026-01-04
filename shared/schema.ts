@@ -1690,6 +1690,71 @@ export const studentRiskPredictions = pgTable("student_risk_predictions", {
 ]);
 
 // ============================================
+// AI ROLE-BASED PERMISSIONS
+// ============================================
+
+export const aiUsageResetWindowEnum = pgEnum("ai_usage_reset_window", ["daily", "weekly", "monthly"]);
+
+// Global AI feature catalog
+export const aiFeatures = pgTable("ai_features", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  isActive: boolean("is_active").default(true),
+  defaultEnabled: boolean("default_enabled").default(false),
+  defaultUsageLimit: integer("default_usage_limit"),
+  defaultResetWindow: aiUsageResetWindowEnum("default_reset_window").default("monthly"),
+  riskLevel: aiRiskTierEnum("risk_level").default("low"),
+  requiredTier: varchar("required_tier", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_ai_features_code").on(table.code),
+  index("idx_ai_features_category").on(table.category),
+  index("idx_ai_features_active").on(table.isActive),
+]);
+
+// Role-level AI settings (per tenant role)
+export const aiRoleSettings = pgTable("ai_role_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  featureId: varchar("feature_id").notNull().references(() => aiFeatures.id, { onDelete: "cascade" }),
+  isEnabled: boolean("is_enabled").default(true),
+  usageLimit: integer("usage_limit"),
+  resetWindow: aiUsageResetWindowEnum("reset_window").default("monthly"),
+  customConfig: jsonb("custom_config").default({}),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_ai_role_settings_unique").on(table.tenantId, table.roleId, table.featureId),
+  index("idx_ai_role_settings_tenant").on(table.tenantId),
+  index("idx_ai_role_settings_role").on(table.roleId),
+  index("idx_ai_role_settings_feature").on(table.featureId),
+]);
+
+// Usage counters for tracking per role/feature
+export const aiUsageCounters = pgTable("ai_usage_counters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  featureId: varchar("feature_id").notNull().references(() => aiFeatures.id, { onDelete: "cascade" }),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  usageCount: integer("usage_count").default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_ai_usage_counters_unique").on(table.tenantId, table.roleId, table.featureId, table.periodStart),
+  index("idx_ai_usage_counters_tenant").on(table.tenantId),
+  index("idx_ai_usage_counters_period").on(table.periodStart, table.periodEnd),
+]);
+
+// ============================================
 // INSERT SCHEMAS
 // ============================================
 
@@ -1763,6 +1828,11 @@ export const insertWhatsappWebhookEventSchema = createInsertSchema(whatsappWebho
 export const insertTenantAiSettingsSchema = createInsertSchema(tenantAiSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({ id: true, createdAt: true });
 export const insertStudentRiskPredictionSchema = createInsertSchema(studentRiskPredictions).omit({ id: true, createdAt: true, updatedAt: true });
+
+// AI role-based permissions schemas
+export const insertAiFeatureSchema = createInsertSchema(aiFeatures).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAiRoleSettingSchema = createInsertSchema(aiRoleSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAiUsageCounterSchema = createInsertSchema(aiUsageCounters).omit({ id: true, createdAt: true, updatedAt: true });
 
 // ============================================
 // TYPES
@@ -1951,6 +2021,18 @@ export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
 
 export type StudentRiskPrediction = typeof studentRiskPredictions.$inferSelect;
 export type InsertStudentRiskPrediction = z.infer<typeof insertStudentRiskPredictionSchema>;
+
+// AI role-based permissions types
+export type AiFeature = typeof aiFeatures.$inferSelect;
+export type InsertAiFeature = z.infer<typeof insertAiFeatureSchema>;
+
+export type AiRoleSetting = typeof aiRoleSettings.$inferSelect;
+export type InsertAiRoleSetting = z.infer<typeof insertAiRoleSettingSchema>;
+
+export type AiUsageCounter = typeof aiUsageCounters.$inferSelect;
+export type InsertAiUsageCounter = z.infer<typeof insertAiUsageCounterSchema>;
+
+export type AiUsageResetWindow = typeof aiUsageResetWindowEnum.enumValues[number];
 
 // ============================================
 // COMPLIANCE & DATA GOVERNANCE
