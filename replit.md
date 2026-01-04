@@ -31,6 +31,12 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - **WhatsApp/SMS DLT Compliance**: Template registration, sender ID management, variable extraction, consent scrubbing
   - **Aadhaar Data Protection**: Verhoeff checksum validation, secure masking (last 4 digits only), access logging with purpose tracking
   - **RBI Payment Guidelines**: Card tokenization checks, 2FA verification, recurring mandate compliance, refund policy validation
+- **UAE Compliance Module**: Comprehensive UAE-specific regulatory compliance features:
+  - **VAT Compliance**: TRN validation with check digit verification, 5% VAT calculation, zero-rated/exempt handling, reverse charge mechanism
+  - **TRA Messaging Compliance**: Sender ID registration, template approval workflow, opt-out mechanism support
+  - **Data Residency Tagging**: Data classification (personal/financial/health/government), storage location tracking, cross-border transfer compliance
+  - **Arabic Language Support**: Common business terms translation, dual-language invoice support, RTL display readiness
+  - **Emirates ID**: Validation with country code check, secure masking, formatted display
 
 ### System Design Choices
 - **Modular Structure**: Organized into `client`, `server`, and `shared` directories.

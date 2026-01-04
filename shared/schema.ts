@@ -2588,6 +2588,147 @@ export type RbiPaymentCompliance = typeof rbiPaymentCompliance.$inferSelect;
 export type InsertRbiPaymentCompliance = z.infer<typeof insertRbiPaymentComplianceSchema>;
 
 // ============================================
+// UAE COMPLIANCE MODULE
+// ============================================
+
+// UAE VAT Configuration for tenants
+export const uaeVatConfigurations = pgTable("uae_vat_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  trn: varchar("trn", { length: 15 }).notNull(), // Tax Registration Number (15 digits)
+  businessNameEn: varchar("business_name_en", { length: 255 }).notNull(),
+  businessNameAr: varchar("business_name_ar", { length: 255 }), // Arabic name
+  tradeLicenseNumber: varchar("trade_license_number", { length: 50 }),
+  emirate: varchar("emirate", { length: 50 }).notNull(), // Dubai, Abu Dhabi, Sharjah, etc.
+  freeZone: varchar("free_zone", { length: 100 }), // JAFZA, DAFZA, etc. (optional)
+  isDesignatedZone: boolean("is_designated_zone").default(false),
+  vatGroupNumber: varchar("vat_group_number", { length: 20 }), // For VAT group registrations
+  defaultVatRate: decimal("default_vat_rate", { precision: 5, scale: 2 }).default("5.00"),
+  fiscalYearEnd: varchar("fiscal_year_end", { length: 10 }), // e.g., "12-31"
+  vatReturnFrequency: varchar("vat_return_frequency", { length: 20 }).default("quarterly"), // monthly, quarterly
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// UAE VAT Invoices
+export const uaeVatInvoices = pgTable("uae_vat_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  invoiceDate: timestamp("invoice_date").notNull(),
+  supplyDate: timestamp("supply_date"), // Tax point
+  invoiceType: varchar("invoice_type", { length: 20 }).default("standard"), // standard, simplified, credit_note, debit_note
+  customerTrn: varchar("customer_trn", { length: 15 }), // Customer TRN (optional for B2C)
+  customerNameEn: varchar("customer_name_en", { length: 255 }).notNull(),
+  customerNameAr: varchar("customer_name_ar", { length: 255 }),
+  customerAddress: text("customer_address"),
+  customerEmirate: varchar("customer_emirate", { length: 50 }),
+  isExport: boolean("is_export").default(false),
+  isReverseCharge: boolean("is_reverse_charge").default(false), // Reverse charge mechanism
+  isZeroRated: boolean("is_zero_rated").default(false),
+  isExempt: boolean("is_exempt").default(false),
+  lineItems: jsonb("line_items").default([]), // Array of line items
+  taxableAmount: decimal("taxable_amount", { precision: 15, scale: 2 }).notNull(),
+  vatAmount: decimal("vat_amount", { precision: 15, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("AED"),
+  exchangeRate: decimal("exchange_rate", { precision: 10, scale: 6 }),
+  paymentTerms: varchar("payment_terms", { length: 100 }),
+  referenceNumber: varchar("reference_number", { length: 100 }),
+  status: varchar("status", { length: 20 }).default("draft"), // draft, issued, paid, cancelled
+  language: varchar("language", { length: 5 }).default("en"), // en, ar, both
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// TRA (Telecom Regulatory Authority) Message Templates
+export const traTemplates = pgTable("tra_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  templateName: varchar("template_name", { length: 100 }).notNull(),
+  senderId: varchar("sender_id", { length: 11 }).notNull(), // TRA registered sender ID
+  category: varchar("category", { length: 50 }).notNull(), // promotional, transactional, otp, service
+  templateContentEn: text("template_content_en").notNull(),
+  templateContentAr: text("template_content_ar"),
+  variables: jsonb("variables").default([]),
+  traApprovalStatus: varchar("tra_approval_status", { length: 20 }).default("pending"), // pending, approved, rejected
+  traApprovalId: varchar("tra_approval_id", { length: 50 }),
+  traSubmissionDate: timestamp("tra_submission_date"),
+  traApprovalDate: timestamp("tra_approval_date"),
+  messageType: varchar("message_type", { length: 10 }).default("sms"), // sms, whatsapp
+  isOptOutRequired: boolean("is_opt_out_required").default(true),
+  optOutText: varchar("opt_out_text", { length: 100 }).default("Reply STOP to unsubscribe"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Data Residency Logs for UAE compliance
+export const dataResidencyLogs = pgTable("data_residency_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  dataType: varchar("data_type", { length: 50 }).notNull(), // personal, financial, health, government
+  dataClassification: varchar("data_classification", { length: 30 }).notNull(), // public, internal, confidential, restricted
+  storageLocation: varchar("storage_location", { length: 50 }).notNull(), // uae, gcc, international
+  dataCenter: varchar("data_center", { length: 100 }), // Specific data center
+  isUaeResident: boolean("is_uae_resident").default(true),
+  requiresLocalStorage: boolean("requires_local_storage").default(false),
+  crossBorderTransfer: boolean("cross_border_transfer").default(false),
+  transferJustification: text("transfer_justification"),
+  dataSubjectConsent: boolean("data_subject_consent").default(false),
+  consentDate: timestamp("consent_date"),
+  retentionPeriodDays: integer("retention_period_days"),
+  deletionScheduled: timestamp("deletion_scheduled"),
+  lastAccessedAt: timestamp("last_accessed_at"),
+  accessedBy: varchar("accessed_by", { length: 255 }),
+  accessPurpose: text("access_purpose"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// UAE Compliance Settings
+export const uaeComplianceSettings = pgTable("uae_compliance_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  arabicLanguageEnabled: boolean("arabic_language_enabled").default(false),
+  defaultLanguage: varchar("default_language", { length: 5 }).default("en"), // en, ar
+  dualLanguageInvoices: boolean("dual_language_invoices").default(true),
+  dataResidencyRequired: boolean("data_residency_required").default(true),
+  primaryDataCenter: varchar("primary_data_center", { length: 100 }).default("UAE"),
+  backupDataCenter: varchar("backup_data_center", { length: 100 }),
+  gdprCompliant: boolean("gdpr_compliant").default(true), // UAE follows GDPR-like principles
+  pdpCompliant: boolean("pdp_compliant").default(true), // UAE Personal Data Protection
+  traRegistered: boolean("tra_registered").default(false),
+  traSenderIds: jsonb("tra_sender_ids").default([]), // Array of registered sender IDs
+  emiratesIdValidation: boolean("emirates_id_validation").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// UAE Compliance Insert Schemas
+export const insertUaeVatConfigurationSchema = createInsertSchema(uaeVatConfigurations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUaeVatInvoiceSchema = createInsertSchema(uaeVatInvoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTraTemplateSchema = createInsertSchema(traTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDataResidencyLogSchema = createInsertSchema(dataResidencyLogs).omit({ id: true, createdAt: true });
+export const insertUaeComplianceSettingsSchema = createInsertSchema(uaeComplianceSettings).omit({ id: true, createdAt: true, updatedAt: true });
+
+// UAE Compliance Types
+export type UaeVatConfiguration = typeof uaeVatConfigurations.$inferSelect;
+export type InsertUaeVatConfiguration = z.infer<typeof insertUaeVatConfigurationSchema>;
+
+export type UaeVatInvoice = typeof uaeVatInvoices.$inferSelect;
+export type InsertUaeVatInvoice = z.infer<typeof insertUaeVatInvoiceSchema>;
+
+export type TraTemplate = typeof traTemplates.$inferSelect;
+export type InsertTraTemplate = z.infer<typeof insertTraTemplateSchema>;
+
+export type DataResidencyLog = typeof dataResidencyLogs.$inferSelect;
+export type InsertDataResidencyLog = z.infer<typeof insertDataResidencyLogSchema>;
+
+export type UaeComplianceSettings = typeof uaeComplianceSettings.$inferSelect;
+export type InsertUaeComplianceSettings = z.infer<typeof insertUaeComplianceSettingsSchema>;
+
+// ============================================
 // REAL ESTATE MODULE
 // ============================================
 
