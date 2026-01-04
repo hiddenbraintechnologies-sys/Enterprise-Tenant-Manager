@@ -5242,6 +5242,7 @@ export const addons = pgTable("addons", {
   requiredFeatures: jsonb("required_features").default([]),
   supportedBusinessTypes: jsonb("supported_business_types").default([]),
   minPlatformVersion: varchar("min_platform_version", { length: 20 }),
+  dependencies: jsonb("dependencies").default([]), // Array of { addonId, optional, minVersion? }
   
   // Discovery
   tags: jsonb("tags").default([]),
