@@ -4,6 +4,7 @@ import { isAuthenticated } from "./replitAuth";
 import { db } from "../../db";
 import { userTenants, tenants } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { getCanonicalDashboardRoute } from "../../core/dashboard-access";
 
 // Register auth-specific routes
 export function registerAuthRoutes(app: Express): void {
@@ -25,18 +26,24 @@ export function registerAuthRoutes(app: Express): void {
         ));
 
       let tenant = null;
+      let dashboardRoute = "/dashboard/service";
       if (defaultTenantRelation) {
         const [tenantData] = await db.select()
           .from(tenants)
           .where(eq(tenants.id, defaultTenantRelation.tenantId));
-        tenant = tenantData ? {
-          id: tenantData.id,
-          name: tenantData.name,
-          businessType: tenantData.businessType,
-        } : null;
+        if (tenantData) {
+          tenant = {
+            id: tenantData.id,
+            name: tenantData.name,
+            businessType: tenantData.businessType,
+            businessTypeLocked: tenantData.businessTypeLocked,
+            onboardingCompleted: tenantData.onboardingCompleted,
+          };
+          dashboardRoute = getCanonicalDashboardRoute(tenantData.businessType || "service");
+        }
       }
 
-      res.json({ ...user, tenant });
+      res.json({ ...user, tenant, dashboardRoute });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });

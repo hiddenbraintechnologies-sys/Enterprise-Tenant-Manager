@@ -37,6 +37,10 @@ import {
   educationRouter,
   logisticsRouter,
   legalRouter,
+  getCanonicalDashboardRoute,
+  validateDashboardAccessAsync,
+  enforceDashboardLock,
+  validateModuleAccess,
 } from "./core";
 import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
@@ -77,20 +81,29 @@ export async function registerRoutes(
   // Register domain management routes
   app.use('/api/domains', domainRoutes);
 
-  // Register Real Estate module routes
-  app.use('/api/real-estate', realEstateRouter);
+  // Module-protected middleware stack (includes tenant context resolution)
+  const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal") => [
+    authenticateJWT({ required: true }),
+    tenantResolutionMiddleware(),
+    enforceTenantBoundary(),
+    tenantIsolationMiddleware(),
+    validateModuleAccess(businessType),
+  ];
 
-  // Register Tourism module routes
-  app.use('/api/tourism', tourismRouter);
+  // Register Real Estate module routes (protected)
+  app.use('/api/real-estate', ...moduleProtectedMiddleware("real_estate"), realEstateRouter);
 
-  // Register Education module routes
-  app.use('/api/education', educationRouter);
+  // Register Tourism module routes (protected)
+  app.use('/api/tourism', ...moduleProtectedMiddleware("tourism"), tourismRouter);
 
-  // Register Logistics module routes
-  app.use('/api/logistics', logisticsRouter);
+  // Register Education module routes (protected)
+  app.use('/api/education', ...moduleProtectedMiddleware("education"), educationRouter);
 
-  // Register Legal module routes
-  app.use('/api/legal', legalRouter);
+  // Register Logistics module routes (protected)
+  app.use('/api/logistics', ...moduleProtectedMiddleware("logistics"), logisticsRouter);
+
+  // Register Legal module routes (protected)
+  app.use('/api/legal', ...moduleProtectedMiddleware("legal"), legalRouter);
 
   // Seed onboarding flows
   await onboardingService.seedDefaultFlows();
@@ -210,6 +223,62 @@ export async function registerRoutes(
       const canModify = await onboardingService.canModifyBusinessType(tenantId);
 
       res.json({ canModify });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ==================== DASHBOARD ACCESS VALIDATION ====================
+
+  app.get("/api/dashboard/access", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const tenant = req.context?.tenant;
+      if (!tenant) {
+        return res.status(400).json({ message: "Tenant not found" });
+      }
+
+      const businessType = tenant.businessType || "service";
+      const canonicalRoute = getCanonicalDashboardRoute(businessType);
+
+      res.json({
+        businessType,
+        dashboardRoute: canonicalRoute,
+        businessTypeLocked: tenant.businessTypeLocked,
+        onboardingCompleted: tenant.onboardingCompleted,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/dashboard/validate-route", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant context required" });
+      }
+
+      const { route } = req.body;
+      if (!route || typeof route !== "string") {
+        return res.status(400).json({ message: "Route parameter required" });
+      }
+
+      const result = await validateDashboardAccessAsync(tenantId, route);
+
+      if (!result.allowed) {
+        return res.status(403).json({
+          allowed: false,
+          redirectTo: result.redirectTo,
+          reason: result.reason,
+        });
+      }
+
+      res.json({ allowed: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -2325,6 +2394,7 @@ export async function registerRoutes(
     enforceTenantBoundary(),
     tenantIsolationMiddleware(),
     blockBusinessTypeModification(),
+    enforceDashboardLock,
   ];
 
   app.get("/api/tenant", ...tenantProtectedMiddleware, async (req, res) => {

@@ -26,3 +26,12 @@ export { tourismRouter } from "./tourism";
 export { educationRouter } from "./education";
 export { logisticsRouter } from "./logistics";
 export { legalRouter } from "./legal";
+export { 
+  validateDashboardAccess, 
+  validateDashboardAccessAsync, 
+  enforceDashboardLock,
+  getCanonicalDashboardRoute,
+  getBusinessTypeFromRoute,
+  validateModuleAccess,
+  validateApiModuleAccess,
+} from "./dashboard-access";
