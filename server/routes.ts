@@ -44,7 +44,8 @@ import {
 } from "./core";
 import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
-import { complianceService } from "./core/compliance/compliance-service";
+import { complianceService } from "./core/compliance";
+import complianceRoutes from "./core/compliance/compliance-routes";
 import { aiRouter } from "./core/ai-routes";
 import {
   adminIpRestriction,
@@ -116,6 +117,9 @@ export async function registerRoutes(
 
   // Register Branding/Theming routes
   app.use('/api/branding', isAuthenticated, brandingRoutes);
+
+  // Register Compliance routes
+  app.use('/api/compliance', isAuthenticated, complianceRoutes);
 
   // Seed onboarding flows
   await onboardingService.seedDefaultFlows();

@@ -9,11 +9,21 @@ import {
   complianceConfigs,
   dataBreachRecords,
   dataRetentionPolicies,
+  compliancePacks,
+  complianceChecklistItems,
+  tenantCompliancePacks,
+  tenantComplianceProgress,
   type ConsentRecord,
   type DsarRequest,
   type SensitiveDataAccessLog,
   type DataMaskingRule,
   type TenantComplianceSettings,
+  type CompliancePack,
+  type ComplianceChecklistItem,
+  type TenantCompliancePack,
+  type TenantComplianceProgress,
+  type InsertCompliancePack,
+  type InsertComplianceChecklistItem,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, sql, or, isNull } from "drizzle-orm";
 
@@ -768,6 +778,681 @@ class ComplianceService {
     } catch {
       return { isUnusual: false, reasons: [], riskScore: 0 };
     }
+  }
+
+  // ============================================
+  // COMPLIANCE PACKS & CHECKLISTS
+  // ============================================
+
+  async getAvailablePacks(
+    regulation?: string,
+    country?: string,
+    businessType?: string
+  ): Promise<CompliancePack[]> {
+    try {
+      const packs = await db.select()
+        .from(compliancePacks)
+        .where(eq(compliancePacks.isActive, true))
+        .orderBy(desc(compliancePacks.createdAt));
+
+      return packs.filter((pack) => {
+        if (regulation && pack.regulation !== regulation) return false;
+        if (country) {
+          const countries = pack.applicableCountries as string[];
+          if (countries.length > 0 && !countries.includes(country)) return false;
+        }
+        if (businessType) {
+          const types = pack.applicableBusinessTypes as string[];
+          if (types.length > 0 && !types.includes(businessType)) return false;
+        }
+        return true;
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  async getPackById(packId: string): Promise<CompliancePack | null> {
+    try {
+      const [pack] = await db
+        .select()
+        .from(compliancePacks)
+        .where(eq(compliancePacks.id, packId))
+        .limit(1);
+      return pack || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getPackByCode(code: string): Promise<CompliancePack | null> {
+    try {
+      const [pack] = await db
+        .select()
+        .from(compliancePacks)
+        .where(eq(compliancePacks.code, code))
+        .limit(1);
+      return pack || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async createPack(data: InsertCompliancePack): Promise<CompliancePack | null> {
+    try {
+      const [pack] = await db.insert(compliancePacks).values(data).returning();
+      return pack || null;
+    } catch (error) {
+      console.error("Failed to create compliance pack:", error);
+      return null;
+    }
+  }
+
+  async updatePack(packId: string, data: Partial<InsertCompliancePack>): Promise<CompliancePack | null> {
+    try {
+      const [updated] = await db
+        .update(compliancePacks)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(compliancePacks.id, packId))
+        .returning();
+      return updated || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async deletePack(packId: string): Promise<boolean> {
+    try {
+      await db.delete(compliancePacks).where(eq(compliancePacks.id, packId));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getChecklistItems(packId: string): Promise<ComplianceChecklistItem[]> {
+    try {
+      return await db
+        .select()
+        .from(complianceChecklistItems)
+        .where(eq(complianceChecklistItems.packId, packId))
+        .orderBy(complianceChecklistItems.sortOrder);
+    } catch {
+      return [];
+    }
+  }
+
+  async createChecklistItem(data: InsertComplianceChecklistItem): Promise<ComplianceChecklistItem | null> {
+    try {
+      const [item] = await db.insert(complianceChecklistItems).values(data).returning();
+
+      await db
+        .update(compliancePacks)
+        .set({
+          totalItems: sql`${compliancePacks.totalItems} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(compliancePacks.id, data.packId));
+
+      return item || null;
+    } catch (error) {
+      console.error("Failed to create checklist item:", error);
+      return null;
+    }
+  }
+
+  async updateChecklistItem(
+    itemId: string,
+    data: Partial<InsertComplianceChecklistItem>
+  ): Promise<ComplianceChecklistItem | null> {
+    try {
+      const [updated] = await db
+        .update(complianceChecklistItems)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(complianceChecklistItems.id, itemId))
+        .returning();
+      return updated || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async deleteChecklistItem(itemId: string): Promise<boolean> {
+    try {
+      const [item] = await db
+        .select()
+        .from(complianceChecklistItems)
+        .where(eq(complianceChecklistItems.id, itemId))
+        .limit(1);
+
+      if (item) {
+        await db.delete(complianceChecklistItems).where(eq(complianceChecklistItems.id, itemId));
+        await db
+          .update(compliancePacks)
+          .set({
+            totalItems: sql`GREATEST(${compliancePacks.totalItems} - 1, 0)`,
+            updatedAt: new Date(),
+          })
+          .where(eq(compliancePacks.id, item.packId));
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async assignPackToTenant(
+    tenantId: string,
+    packId: string,
+    assignedBy: string,
+    dueDate?: Date
+  ): Promise<TenantCompliancePack | null> {
+    try {
+      const existing = await db
+        .select()
+        .from(tenantCompliancePacks)
+        .where(
+          and(eq(tenantCompliancePacks.tenantId, tenantId), eq(tenantCompliancePacks.packId, packId))
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        throw new Error("Pack already assigned to this tenant");
+      }
+
+      const [assignment] = await db
+        .insert(tenantCompliancePacks)
+        .values({
+          tenantId,
+          packId,
+          assignedBy,
+          dueDate,
+          status: "active",
+        })
+        .returning();
+
+      const items = await this.getChecklistItems(packId);
+      if (items.length > 0) {
+        await db.insert(tenantComplianceProgress).values(
+          items.map((item) => ({
+            tenantId,
+            packId,
+            itemId: item.id,
+            status: "not_started" as const,
+            dueDate: item.dueDays && dueDate
+              ? new Date(dueDate.getTime() - (item.dueDays * 24 * 60 * 60 * 1000))
+              : dueDate,
+          }))
+        );
+      }
+
+      return assignment || null;
+    } catch (error) {
+      console.error("Failed to assign pack to tenant:", error);
+      return null;
+    }
+  }
+
+  async unassignPackFromTenant(tenantId: string, packId: string): Promise<boolean> {
+    try {
+      await db
+        .delete(tenantComplianceProgress)
+        .where(
+          and(
+            eq(tenantComplianceProgress.tenantId, tenantId),
+            eq(tenantComplianceProgress.packId, packId)
+          )
+        );
+
+      await db
+        .delete(tenantCompliancePacks)
+        .where(
+          and(eq(tenantCompliancePacks.tenantId, tenantId), eq(tenantCompliancePacks.packId, packId))
+        );
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getTenantPacks(tenantId: string): Promise<(TenantCompliancePack & { pack: CompliancePack })[]> {
+    try {
+      const assignments = await db
+        .select()
+        .from(tenantCompliancePacks)
+        .where(eq(tenantCompliancePacks.tenantId, tenantId))
+        .orderBy(desc(tenantCompliancePacks.assignedAt));
+
+      const result = [];
+      for (const assignment of assignments) {
+        const pack = await this.getPackById(assignment.packId);
+        if (pack) {
+          result.push({ ...assignment, pack });
+        }
+      }
+      return result;
+    } catch {
+      return [];
+    }
+  }
+
+  async getTenantProgress(
+    tenantId: string,
+    packId: string
+  ): Promise<(TenantComplianceProgress & { item: ComplianceChecklistItem })[]> {
+    try {
+      const progress = await db
+        .select()
+        .from(tenantComplianceProgress)
+        .where(
+          and(
+            eq(tenantComplianceProgress.tenantId, tenantId),
+            eq(tenantComplianceProgress.packId, packId)
+          )
+        )
+        .orderBy(tenantComplianceProgress.createdAt);
+
+      const result = [];
+      for (const p of progress) {
+        const [item] = await db
+          .select()
+          .from(complianceChecklistItems)
+          .where(eq(complianceChecklistItems.id, p.itemId))
+          .limit(1);
+
+        if (item) {
+          result.push({ ...p, item });
+        }
+      }
+      return result;
+    } catch {
+      return [];
+    }
+  }
+
+  async updateItemProgress(
+    tenantId: string,
+    packId: string,
+    itemId: string,
+    data: {
+      status?: "not_started" | "in_progress" | "completed" | "not_applicable" | "overdue";
+      notes?: string;
+      evidenceUrl?: string;
+      evidenceDescription?: string;
+      assignedTo?: string;
+    },
+    userId: string
+  ): Promise<TenantComplianceProgress | null> {
+    try {
+      const updates: Record<string, unknown> = {
+        ...data,
+        updatedAt: new Date(),
+      };
+
+      if (data.status === "in_progress") {
+        updates.startedAt = new Date();
+      }
+
+      if (data.status === "completed") {
+        updates.completedAt = new Date();
+        updates.completedBy = userId;
+      }
+
+      const [updated] = await db
+        .update(tenantComplianceProgress)
+        .set(updates)
+        .where(
+          and(
+            eq(tenantComplianceProgress.tenantId, tenantId),
+            eq(tenantComplianceProgress.packId, packId),
+            eq(tenantComplianceProgress.itemId, itemId)
+          )
+        )
+        .returning();
+
+      if (updated) {
+        await this.updatePackCompletionPercentage(tenantId, packId);
+      }
+
+      return updated || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async updatePackCompletionPercentage(tenantId: string, packId: string): Promise<void> {
+    try {
+      const progress = await db
+        .select()
+        .from(tenantComplianceProgress)
+        .where(
+          and(
+            eq(tenantComplianceProgress.tenantId, tenantId),
+            eq(tenantComplianceProgress.packId, packId)
+          )
+        );
+
+      const total = progress.length;
+      const completed = progress.filter(
+        (p) => p.status === "completed" || p.status === "not_applicable"
+      ).length;
+
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      await db
+        .update(tenantCompliancePacks)
+        .set({
+          completionPercentage: percentage,
+          completedAt: percentage === 100 ? new Date() : null,
+          status: percentage === 100 ? "completed" : "active",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(tenantCompliancePacks.tenantId, tenantId), eq(tenantCompliancePacks.packId, packId))
+        );
+    } catch (error) {
+      console.error("Failed to update pack completion percentage:", error);
+    }
+  }
+
+  async getComplianceSummary(tenantId: string): Promise<{
+    totalPacks: number;
+    completedPacks: number;
+    totalItems: number;
+    completedItems: number;
+    inProgressItems: number;
+    overdueItems: number;
+    overallPercentage: number;
+  }> {
+    try {
+      const packs = await db
+        .select()
+        .from(tenantCompliancePacks)
+        .where(eq(tenantCompliancePacks.tenantId, tenantId));
+
+      const progress = await db
+        .select()
+        .from(tenantComplianceProgress)
+        .where(eq(tenantComplianceProgress.tenantId, tenantId));
+
+      const totalPacks = packs.length;
+      const completedPacks = packs.filter((p) => p.status === "completed").length;
+      const totalItems = progress.length;
+      const completedItems = progress.filter(
+        (p) => p.status === "completed" || p.status === "not_applicable"
+      ).length;
+      const inProgressItems = progress.filter((p) => p.status === "in_progress").length;
+      const overdueItems = progress.filter((p) => p.status === "overdue").length;
+      const overallPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+      return {
+        totalPacks,
+        completedPacks,
+        totalItems,
+        completedItems,
+        inProgressItems,
+        overdueItems,
+        overallPercentage,
+      };
+    } catch {
+      return {
+        totalPacks: 0,
+        completedPacks: 0,
+        totalItems: 0,
+        completedItems: 0,
+        inProgressItems: 0,
+        overdueItems: 0,
+        overallPercentage: 0,
+      };
+    }
+  }
+
+  async seedDefaultPacks(): Promise<void> {
+    try {
+      const existingPacks = await db.select().from(compliancePacks).limit(1);
+      if (existingPacks.length > 0) {
+        return;
+      }
+
+      const packs = [
+        {
+          name: "GDPR Essentials",
+          code: "gdpr_essentials",
+          regulation: "gdpr" as const,
+          description: "Essential GDPR compliance requirements for UK/EU businesses",
+          applicableCountries: ["gb", "eu"],
+          tier: "standard",
+          version: "1.0",
+          isActive: true,
+          isDefault: true,
+        },
+        {
+          name: "DPDP Act Compliance",
+          code: "dpdp_india",
+          regulation: "dpdp" as const,
+          description: "India Digital Personal Data Protection Act 2023 compliance",
+          applicableCountries: ["in"],
+          tier: "standard",
+          version: "1.0",
+          isActive: true,
+          isDefault: true,
+        },
+        {
+          name: "PDPA Singapore",
+          code: "pdpa_singapore",
+          regulation: "pdpa_sg" as const,
+          description: "Singapore Personal Data Protection Act compliance",
+          applicableCountries: ["sg"],
+          tier: "standard",
+          version: "1.0",
+          isActive: true,
+          isDefault: true,
+        },
+        {
+          name: "UAE Data Protection",
+          code: "uae_dpl",
+          regulation: "uae_dpl" as const,
+          description: "UAE Data Protection Law compliance",
+          applicableCountries: ["ae"],
+          tier: "standard",
+          version: "1.0",
+          isActive: true,
+          isDefault: true,
+        },
+      ];
+
+      for (const pack of packs) {
+        const [createdPack] = await db.insert(compliancePacks).values(pack).returning();
+
+        const items = this.getDefaultChecklistItems(pack.regulation);
+        let sortOrder = 0;
+        for (const item of items) {
+          await db.insert(complianceChecklistItems).values({
+            ...item,
+            packId: createdPack.id,
+            sortOrder: sortOrder++,
+          });
+        }
+
+        await db
+          .update(compliancePacks)
+          .set({ totalItems: items.length })
+          .where(eq(compliancePacks.id, createdPack.id));
+      }
+    } catch (error) {
+      console.error("Failed to seed default compliance packs:", error);
+    }
+  }
+
+  private getDefaultChecklistItems(regulation: string): Omit<InsertComplianceChecklistItem, "packId" | "sortOrder">[] {
+    const commonItems: Omit<InsertComplianceChecklistItem, "packId" | "sortOrder">[] = [
+      {
+        category: "Data Collection",
+        title: "Document all personal data collected",
+        description: "Create and maintain a comprehensive inventory of all personal data collected from customers",
+        guidance: "List all data points collected including name, email, phone, address, payment info, etc.",
+        priority: "high",
+        isMandatory: true,
+        requiresEvidence: true,
+        evidenceTypes: ["document"],
+        tags: ["documentation"],
+      },
+      {
+        category: "Consent Management",
+        title: "Implement consent collection mechanism",
+        description: "Set up clear consent checkboxes for data collection at registration and booking",
+        guidance: "Ensure consent is explicit, informed, and granular",
+        priority: "critical",
+        isMandatory: true,
+        requiresEvidence: true,
+        evidenceTypes: ["screenshot"],
+        tags: ["technical"],
+      },
+      {
+        category: "Privacy Policy",
+        title: "Create and publish privacy policy",
+        description: "Draft a comprehensive privacy policy covering data collection, use, and sharing",
+        guidance: "Include sections on data rights, retention, security measures",
+        priority: "critical",
+        isMandatory: true,
+        requiresEvidence: true,
+        evidenceTypes: ["policy_link"],
+        tags: ["policy"],
+      },
+      {
+        category: "Data Security",
+        title: "Enable data encryption",
+        description: "Ensure all sensitive data is encrypted at rest and in transit",
+        guidance: "Verify SSL/TLS is enabled, database encryption is active",
+        priority: "high",
+        isMandatory: true,
+        requiresEvidence: false,
+        tags: ["technical", "security"],
+      },
+      {
+        category: "Access Control",
+        title: "Configure role-based access control",
+        description: "Set up appropriate access levels for different staff roles",
+        guidance: "Ensure only authorized personnel can access personal data",
+        priority: "high",
+        isMandatory: true,
+        requiresEvidence: true,
+        evidenceTypes: ["screenshot"],
+        tags: ["technical"],
+      },
+      {
+        category: "Data Subject Rights",
+        title: "Enable data export functionality",
+        description: "Allow customers to request and download their personal data",
+        guidance: "Provide a mechanism for data portability requests",
+        priority: "medium",
+        isMandatory: true,
+        requiresEvidence: false,
+        tags: ["technical"],
+      },
+      {
+        category: "Data Subject Rights",
+        title: "Enable data deletion requests",
+        description: "Implement process to handle right to erasure requests",
+        guidance: "Set up workflow to receive, verify, and process deletion requests",
+        priority: "high",
+        isMandatory: true,
+        requiresEvidence: true,
+        evidenceTypes: ["document"],
+        tags: ["process"],
+      },
+      {
+        category: "Staff Training",
+        title: "Conduct data protection training",
+        description: "Train all staff on data protection principles and procedures",
+        guidance: "Cover data handling, security practices, and incident reporting",
+        priority: "medium",
+        isMandatory: true,
+        requiresEvidence: true,
+        evidenceTypes: ["document"],
+        tags: ["training"],
+      },
+    ];
+
+    const regulationSpecific: Record<string, typeof commonItems> = {
+      gdpr: [
+        {
+          category: "DPO",
+          title: "Appoint Data Protection Officer (if required)",
+          description: "Designate a DPO if your organization meets the criteria",
+          guidance: "Required for public authorities or organizations processing special categories of data at scale",
+          priority: "medium",
+          isMandatory: false,
+          requiresEvidence: true,
+          evidenceTypes: ["document"],
+          tags: ["governance"],
+        },
+        {
+          category: "Legal Basis",
+          title: "Document lawful basis for processing",
+          description: "Identify and document the legal basis for each processing activity",
+          guidance: "GDPR requires one of: consent, contract, legal obligation, vital interests, public task, or legitimate interests",
+          priority: "critical",
+          isMandatory: true,
+          requiresEvidence: true,
+          evidenceTypes: ["document"],
+          tags: ["documentation"],
+        },
+      ],
+      dpdp: [
+        {
+          category: "Data Fiduciary",
+          title: "Register as Data Fiduciary (if required)",
+          description: "Complete registration with the Data Protection Board of India",
+          guidance: "Required for significant data fiduciaries processing large volumes of data",
+          priority: "high",
+          isMandatory: false,
+          requiresEvidence: true,
+          evidenceTypes: ["document"],
+          tags: ["governance"],
+        },
+        {
+          category: "Consent Manager",
+          title: "Implement Consent Manager",
+          description: "Use an approved consent manager for collecting and managing user consent",
+          guidance: "DPDP requires consent managers to be registered with the Board",
+          priority: "high",
+          isMandatory: true,
+          requiresEvidence: true,
+          evidenceTypes: ["screenshot"],
+          tags: ["technical"],
+        },
+      ],
+      pdpa_sg: [
+        {
+          category: "PDPC",
+          title: "Register with PDPC",
+          description: "Register your organization with the Personal Data Protection Commission",
+          guidance: "All organizations handling personal data in Singapore should register",
+          priority: "high",
+          isMandatory: true,
+          requiresEvidence: true,
+          evidenceTypes: ["document"],
+          tags: ["governance"],
+        },
+      ],
+      uae_dpl: [
+        {
+          category: "Data Controller",
+          title: "Register as Data Controller",
+          description: "Complete registration with the UAE Data Office",
+          guidance: "Required for organizations processing personal data in the UAE",
+          priority: "high",
+          isMandatory: true,
+          requiresEvidence: true,
+          evidenceTypes: ["document"],
+          tags: ["governance"],
+        },
+      ],
+    };
+
+    return [...commonItems, ...(regulationSpecific[regulation] || [])];
   }
 }
 
