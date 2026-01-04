@@ -5166,3 +5166,342 @@ export type InsertResellerChildInvoice = z.infer<typeof insertResellerChildInvoi
 
 export type ResellerBrandAsset = typeof resellerBrandAssets.$inferSelect;
 export type InsertResellerBrandAsset = z.infer<typeof insertResellerBrandAssetSchema>;
+
+// ============================================
+// ADD-ON MARKETPLACE
+// ============================================
+
+export const addonCategoryEnum = pgEnum("addon_category", [
+  "analytics",
+  "automation",
+  "billing",
+  "booking",
+  "communication",
+  "compliance",
+  "crm",
+  "healthcare",
+  "integration",
+  "inventory",
+  "marketing",
+  "payments",
+  "reporting",
+  "scheduling",
+  "security",
+  "utilities",
+]);
+
+export const addonStatusEnum = pgEnum("addon_status", [
+  "draft",
+  "review",
+  "published",
+  "deprecated",
+  "archived",
+]);
+
+export const addonPricingTypeEnum = pgEnum("addon_pricing_type", [
+  "free",
+  "one_time",
+  "monthly",
+  "yearly",
+  "usage_based",
+]);
+
+export const addonInstallStatusEnum = pgEnum("addon_install_status", [
+  "pending",
+  "installing",
+  "active",
+  "disabled",
+  "uninstalling",
+  "failed",
+]);
+
+// Core add-on catalog
+export const addons = pgTable("addons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  shortDescription: text("short_description"),
+  fullDescription: text("full_description"),
+  category: addonCategoryEnum("category").notNull(),
+  status: addonStatusEnum("status").default("draft"),
+  
+  // Authorship
+  developerId: varchar("developer_id"),
+  developerName: varchar("developer_name", { length: 255 }),
+  developerEmail: text("developer_email"),
+  developerWebsite: text("developer_website"),
+  
+  // Branding
+  iconUrl: text("icon_url"),
+  bannerUrl: text("banner_url"),
+  screenshotUrls: jsonb("screenshot_urls").default([]),
+  
+  // Technical
+  entryPoint: varchar("entry_point", { length: 255 }),
+  permissions: jsonb("permissions").default([]),
+  requiredFeatures: jsonb("required_features").default([]),
+  supportedBusinessTypes: jsonb("supported_business_types").default([]),
+  minPlatformVersion: varchar("min_platform_version", { length: 20 }),
+  
+  // Discovery
+  tags: jsonb("tags").default([]),
+  featured: boolean("featured").default(false),
+  featuredOrder: integer("featured_order"),
+  
+  // Stats
+  installCount: integer("install_count").default(0),
+  averageRating: decimal("average_rating", { precision: 3, scale: 2 }).default("0"),
+  reviewCount: integer("review_count").default(0),
+  
+  // Metadata
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  publishedAt: timestamp("published_at"),
+  deprecatedAt: timestamp("deprecated_at"),
+}, (table) => [
+  index("idx_addons_category").on(table.category),
+  index("idx_addons_status").on(table.status),
+  index("idx_addons_featured").on(table.featured),
+  index("idx_addons_developer").on(table.developerId),
+]);
+
+// Versioned releases
+export const addonVersions = pgTable("addon_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "cascade" }),
+  version: varchar("version", { length: 50 }).notNull(),
+  semverMajor: integer("semver_major").notNull(),
+  semverMinor: integer("semver_minor").notNull(),
+  semverPatch: integer("semver_patch").notNull(),
+  
+  // Release info
+  releaseNotes: text("release_notes"),
+  isStable: boolean("is_stable").default(true),
+  isPrerelease: boolean("is_prerelease").default(false),
+  isLatest: boolean("is_latest").default(false),
+  
+  // Technical
+  bundleUrl: text("bundle_url"),
+  bundleHash: varchar("bundle_hash", { length: 64 }),
+  bundleSize: integer("bundle_size"),
+  configSchema: jsonb("config_schema").default({}),
+  migrationScripts: jsonb("migration_scripts").default([]),
+  
+  // Compatibility
+  minPlatformVersion: varchar("min_platform_version", { length: 20 }),
+  maxPlatformVersion: varchar("max_platform_version", { length: 20 }),
+  dependencies: jsonb("dependencies").default([]),
+  breakingChanges: jsonb("breaking_changes").default([]),
+  
+  // Stats
+  downloadCount: integer("download_count").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  publishedAt: timestamp("published_at"),
+}, (table) => [
+  index("idx_addon_versions_addon").on(table.addonId),
+  index("idx_addon_versions_latest").on(table.addonId, table.isLatest),
+  uniqueIndex("idx_addon_versions_unique").on(table.addonId, table.version),
+]);
+
+// Pricing tiers
+export const addonPricing = pgTable("addon_pricing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  pricingType: addonPricingTypeEnum("pricing_type").notNull(),
+  
+  // Pricing
+  price: decimal("price", { precision: 10, scale: 2 }).default("0"),
+  currency: varchar("currency", { length: 3 }).default("USD"),
+  billingPeriod: varchar("billing_period", { length: 20 }),
+  
+  // Usage-based pricing
+  usageMetric: varchar("usage_metric", { length: 100 }),
+  usageUnit: varchar("usage_unit", { length: 50 }),
+  usageTiers: jsonb("usage_tiers").default([]),
+  includedUsage: integer("included_usage"),
+  
+  // Limits
+  maxUsers: integer("max_users"),
+  maxRecords: integer("max_records"),
+  features: jsonb("features").default([]),
+  
+  // Trial
+  trialDays: integer("trial_days").default(0),
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+  isDefault: boolean("is_default").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_addon_pricing_addon").on(table.addonId),
+]);
+
+// Per-tenant installations
+export const tenantAddons = pgTable("tenant_addons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "restrict" }),
+  versionId: varchar("version_id").notNull().references(() => addonVersions.id, { onDelete: "restrict" }),
+  pricingId: varchar("pricing_id").references(() => addonPricing.id),
+  
+  // Status
+  status: addonInstallStatusEnum("status").default("pending"),
+  
+  // Configuration
+  config: jsonb("config").default({}),
+  enabledModules: jsonb("enabled_modules").default([]),
+  
+  // Subscription
+  subscriptionId: varchar("subscription_id"),
+  subscriptionStatus: varchar("subscription_status", { length: 50 }),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  
+  // Trial
+  trialEndsAt: timestamp("trial_ends_at"),
+  
+  // Usage tracking
+  usageThisPeriod: jsonb("usage_this_period").default({}),
+  
+  // Auto-update settings
+  autoUpdate: boolean("auto_update").default(true),
+  autoUpdateChannel: varchar("auto_update_channel", { length: 20 }).default("stable"),
+  
+  // Metadata
+  installedBy: varchar("installed_by"),
+  installedAt: timestamp("installed_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  lastActiveAt: timestamp("last_active_at"),
+  uninstalledAt: timestamp("uninstalled_at"),
+}, (table) => [
+  index("idx_tenant_addons_tenant").on(table.tenantId),
+  index("idx_tenant_addons_addon").on(table.addonId),
+  index("idx_tenant_addons_status").on(table.status),
+  uniqueIndex("idx_tenant_addons_unique").on(table.tenantId, table.addonId),
+]);
+
+// Installation history / audit
+export const addonInstallHistory = pgTable("addon_install_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantAddonId: varchar("tenant_addon_id").notNull().references(() => tenantAddons.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull(),
+  addonId: varchar("addon_id").notNull(),
+  
+  action: varchar("action", { length: 50 }).notNull(),
+  fromVersionId: varchar("from_version_id"),
+  toVersionId: varchar("to_version_id"),
+  
+  status: varchar("status", { length: 50 }).notNull(),
+  errorMessage: text("error_message"),
+  rollbackVersionId: varchar("rollback_version_id"),
+  
+  performedBy: varchar("performed_by"),
+  performedAt: timestamp("performed_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"),
+}, (table) => [
+  index("idx_addon_install_history_tenant_addon").on(table.tenantAddonId),
+  index("idx_addon_install_history_tenant").on(table.tenantId),
+]);
+
+// User reviews
+export const addonReviews = pgTable("addon_reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull(),
+  
+  rating: integer("rating").notNull(),
+  title: varchar("title", { length: 255 }),
+  body: text("body"),
+  
+  // Moderation
+  isVerifiedPurchase: boolean("is_verified_purchase").default(false),
+  isApproved: boolean("is_approved").default(true),
+  isFlagged: boolean("is_flagged").default(false),
+  
+  // Response
+  developerResponse: text("developer_response"),
+  developerRespondedAt: timestamp("developer_responded_at"),
+  
+  // Engagement
+  helpfulCount: integer("helpful_count").default(0),
+  reportCount: integer("report_count").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_addon_reviews_addon").on(table.addonId),
+  index("idx_addon_reviews_tenant").on(table.tenantId),
+  uniqueIndex("idx_addon_reviews_unique").on(table.addonId, table.tenantId),
+]);
+
+// Insert schemas
+export const insertAddonSchema = createInsertSchema(addons).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  publishedAt: true,
+  deprecatedAt: true,
+  installCount: true,
+  averageRating: true,
+  reviewCount: true,
+});
+
+export const insertAddonVersionSchema = createInsertSchema(addonVersions).omit({
+  id: true,
+  createdAt: true,
+  publishedAt: true,
+  downloadCount: true,
+});
+
+export const insertAddonPricingSchema = createInsertSchema(addonPricing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTenantAddonSchema = createInsertSchema(tenantAddons).omit({
+  id: true,
+  installedAt: true,
+  updatedAt: true,
+  lastActiveAt: true,
+  uninstalledAt: true,
+});
+
+export const insertAddonReviewSchema = createInsertSchema(addonReviews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  isVerifiedPurchase: true,
+  isApproved: true,
+  isFlagged: true,
+  developerResponse: true,
+  developerRespondedAt: true,
+  helpfulCount: true,
+  reportCount: true,
+});
+
+// Types
+export type Addon = typeof addons.$inferSelect;
+export type InsertAddon = z.infer<typeof insertAddonSchema>;
+
+export type AddonVersion = typeof addonVersions.$inferSelect;
+export type InsertAddonVersion = z.infer<typeof insertAddonVersionSchema>;
+
+export type AddonPricing = typeof addonPricing.$inferSelect;
+export type InsertAddonPricing = z.infer<typeof insertAddonPricingSchema>;
+
+export type TenantAddon = typeof tenantAddons.$inferSelect;
+export type InsertTenantAddon = z.infer<typeof insertTenantAddonSchema>;
+
+export type AddonInstallHistory = typeof addonInstallHistory.$inferSelect;
+
+export type AddonReview = typeof addonReviews.$inferSelect;
+export type InsertAddonReview = z.infer<typeof insertAddonReviewSchema>;

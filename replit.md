@@ -67,6 +67,13 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
 - **Extensibility**: Designed for future microservices, Redis integration, and JWT system evolution.
 - **Healthcare Module**: A specialized, feature-flagged module for enterprise clients, including patient management, doctor profiles, appointment scheduling, and EMR.
 - **Global Deployment Architecture**: Supports both AWS (EKS, Route53, RDS PostgreSQL, ElastiCache Redis, S3, CloudFront + WAF) and GCP (Global HTTP(S) Load Balancer, Cloud Run, Cloud SQL PostgreSQL, Memorystore Redis, Cloud Storage, Secret Manager) for multi-region deployment with DR capabilities (RPO 15 mins, RTO 1 hour for AWS; RPO 15 mins, RTO 45-60 mins for GCP).
+- **Add-on Marketplace**: Modular plugin system with:
+  - Versioned add-ons with semantic versioning (major.minor.patch)
+  - Per-tenant installation with configuration
+  - Free, one-time, subscription, and usage-based pricing models
+  - Reviews and ratings system
+  - Auto-update settings (stable/prerelease channels)
+  - Install/update/uninstall audit history
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: Initial user authentication.

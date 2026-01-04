@@ -62,6 +62,7 @@ import {
 import { onboardingService } from "./core/onboarding";
 import { resellerRoutes, resellerContextMiddleware } from "./core/reseller";
 import { brandingRoutes } from "./core/branding";
+import addonRoutes from "./routes/addons";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -120,6 +121,9 @@ export async function registerRoutes(
 
   // Register Branding/Theming routes
   app.use('/api/branding', isAuthenticated, brandingRoutes);
+
+  // Register Add-on Marketplace routes
+  app.use('/api/addons', addonRoutes);
 
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);
