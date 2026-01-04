@@ -45,6 +45,7 @@ import {
 import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
 import { complianceService } from "./core/compliance/compliance-service";
+import { aiRouter } from "./core/ai-routes";
 import {
   adminIpRestriction,
   adminRateLimit,
@@ -80,6 +81,9 @@ export async function registerRoutes(
   
   // Register domain management routes
   app.use('/api/domains', domainRoutes);
+
+  // Register AI service routes
+  app.use('/api/ai', aiRouter);
 
   // Module-protected middleware stack (includes tenant context resolution)
   const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal") => [

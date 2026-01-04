@@ -5,14 +5,16 @@ import { batchesRouter } from "./batches";
 import { attendanceRouter } from "./attendance";
 import { examsRouter } from "./exams";
 import { feesRouter } from "./fees";
+import { riskPredictionsRouter } from "./risk-predictions";
 
 export const educationRouter = Router();
 
 educationRouter.use("/students", studentsRouter);
+educationRouter.use("/students", riskPredictionsRouter);
 educationRouter.use("/courses", coursesRouter);
 educationRouter.use("/batches", batchesRouter);
 educationRouter.use("/attendance", attendanceRouter);
 educationRouter.use("/exams", examsRouter);
 educationRouter.use("/fees", feesRouter);
 
-export { studentsRouter, coursesRouter, batchesRouter, attendanceRouter, examsRouter, feesRouter };
+export { studentsRouter, coursesRouter, batchesRouter, attendanceRouter, examsRouter, feesRouter, riskPredictionsRouter };

@@ -1454,6 +1454,114 @@ export const whatsappWebhookEvents = pgTable("whatsapp_webhook_events", {
 ]);
 
 // ============================================
+// AI SERVICE LAYER
+// ============================================
+
+export const aiProviderEnum = pgEnum("ai_provider", ["openai", "anthropic", "local", "custom"]);
+export const aiRiskTierEnum = pgEnum("ai_risk_tier", ["low", "medium", "high"]);
+
+// Tenant AI settings and consent
+export const tenantAiSettings = pgTable("tenant_ai_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  aiEnabled: boolean("ai_enabled").default(false),
+  consentGiven: boolean("consent_given").default(false),
+  consentGivenAt: timestamp("consent_given_at"),
+  consentGivenBy: varchar("consent_given_by"),
+  consentVersion: varchar("consent_version", { length: 20 }).default("1.0"),
+  preferredProvider: aiProviderEnum("preferred_provider").default("openai"),
+  monthlyTokenLimit: integer("monthly_token_limit").default(100000),
+  tokensUsedThisMonth: integer("tokens_used_this_month").default(0),
+  rateLimitPerMinute: integer("rate_limit_per_minute").default(10),
+  rateLimitPerHour: integer("rate_limit_per_hour").default(100),
+  allowedFeatures: jsonb("allowed_features").default([]), // ["student_risk", "chat", etc]
+  customProviderConfig: jsonb("custom_provider_config").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_ai_settings_tenant").on(table.tenantId),
+  index("idx_tenant_ai_settings_enabled").on(table.aiEnabled),
+]);
+
+// AI usage logs for tracking and billing
+export const aiUsageLogs = pgTable("ai_usage_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id"),
+  provider: aiProviderEnum("provider").notNull(),
+  model: varchar("model", { length: 100 }).notNull(),
+  feature: varchar("feature", { length: 100 }).notNull(), // student_risk, chat, etc
+  inputTokens: integer("input_tokens").default(0),
+  outputTokens: integer("output_tokens").default(0),
+  totalTokens: integer("total_tokens").default(0),
+  estimatedCost: decimal("estimated_cost", { precision: 10, scale: 6 }).default("0"),
+  latencyMs: integer("latency_ms"),
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+  requestMetadata: jsonb("request_metadata").default({}),
+  responseMetadata: jsonb("response_metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_ai_usage_tenant").on(table.tenantId),
+  index("idx_ai_usage_feature").on(table.feature),
+  index("idx_ai_usage_created").on(table.createdAt),
+  index("idx_ai_usage_provider").on(table.provider),
+]);
+
+// Student risk predictions (Education module)
+export const studentRiskPredictions = pgTable("student_risk_predictions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  
+  // Input snapshot
+  attendancePercentage: decimal("attendance_percentage", { precision: 5, scale: 2 }),
+  feeDelayDays: integer("fee_delay_days").default(0),
+  averageExamScore: decimal("average_exam_score", { precision: 5, scale: 2 }),
+  engagementScore: decimal("engagement_score", { precision: 5, scale: 2 }),
+  
+  // Rule-based scores (0-1)
+  attendanceRiskScore: decimal("attendance_risk_score", { precision: 4, scale: 3 }).default("0"),
+  feeRiskScore: decimal("fee_risk_score", { precision: 4, scale: 3 }).default("0"),
+  examRiskScore: decimal("exam_risk_score", { precision: 4, scale: 3 }).default("0"),
+  engagementRiskScore: decimal("engagement_risk_score", { precision: 4, scale: 3 }).default("0"),
+  
+  // Composite scores
+  overallRiskScore: decimal("overall_risk_score", { precision: 4, scale: 3 }).default("0"),
+  riskTier: aiRiskTierEnum("risk_tier").notNull(),
+  
+  // Explainability
+  factorWeights: jsonb("factor_weights").default({}), // { attendance: 0.3, fee: 0.2, exam: 0.35, engagement: 0.15 }
+  explanation: text("explanation"), // Natural language explanation
+  suggestedActions: jsonb("suggested_actions").default([]), // Array of action strings
+  
+  // AI metadata
+  aiGenerated: boolean("ai_generated").default(false),
+  aiProvider: aiProviderEnum("ai_provider"),
+  aiModel: varchar("ai_model", { length: 100 }),
+  aiUsageLogId: varchar("ai_usage_log_id").references(() => aiUsageLogs.id),
+  
+  // Consent tracking
+  consentVersion: varchar("consent_version", { length: 20 }),
+  
+  // Advisory flag (no automated enforcement)
+  isAdvisoryOnly: boolean("is_advisory_only").default(true),
+  
+  // Prediction metadata
+  predictedAt: timestamp("predicted_at").defaultNow(),
+  validUntil: timestamp("valid_until"),
+  supersededById: varchar("superseded_by_id"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_student_risk_tenant").on(table.tenantId),
+  index("idx_student_risk_student").on(table.studentId),
+  index("idx_student_risk_tier").on(table.riskTier),
+  index("idx_student_risk_predicted").on(table.predictedAt),
+]);
+
+// ============================================
 // INSERT SCHEMAS
 // ============================================
 
@@ -1520,6 +1628,11 @@ export const insertWhatsappMessageSchema = createInsertSchema(whatsappMessages).
 export const insertWhatsappUsageSchema = createInsertSchema(whatsappUsage).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhatsappProviderHealthSchema = createInsertSchema(whatsappProviderHealth).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhatsappWebhookEventSchema = createInsertSchema(whatsappWebhookEvents).omit({ id: true, createdAt: true });
+
+// AI service schemas
+export const insertTenantAiSettingsSchema = createInsertSchema(tenantAiSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({ id: true, createdAt: true });
+export const insertStudentRiskPredictionSchema = createInsertSchema(studentRiskPredictions).omit({ id: true, createdAt: true, updatedAt: true });
 
 // ============================================
 // TYPES
@@ -1692,6 +1805,16 @@ export type InsertWhatsappProviderHealth = z.infer<typeof insertWhatsappProvider
 
 export type WhatsappWebhookEvent = typeof whatsappWebhookEvents.$inferSelect;
 export type InsertWhatsappWebhookEvent = z.infer<typeof insertWhatsappWebhookEventSchema>;
+
+// AI service types
+export type TenantAiSettings = typeof tenantAiSettings.$inferSelect;
+export type InsertTenantAiSettings = z.infer<typeof insertTenantAiSettingsSchema>;
+
+export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
+
+export type StudentRiskPrediction = typeof studentRiskPredictions.$inferSelect;
+export type InsertStudentRiskPrediction = z.infer<typeof insertStudentRiskPredictionSchema>;
 
 // ============================================
 // COMPLIANCE & DATA GOVERNANCE
