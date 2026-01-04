@@ -217,7 +217,8 @@ class UaeComplianceService {
       conditions.push(eq(uaeVatInvoices.status, filters.status));
     }
 
-    return db.select().from(uaeVatInvoices).where(and(...conditions)).orderBy(desc(uaeVatInvoices.createdAt));
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+    return db.select().from(uaeVatInvoices).where(whereClause).orderBy(desc(uaeVatInvoices.createdAt));
   }
 
   async getVatInvoice(tenantId: string, invoiceId: string): Promise<UaeVatInvoice | null> {
@@ -261,7 +262,8 @@ class UaeComplianceService {
       conditions.push(eq(traTemplates.category, category));
     }
 
-    return db.select().from(traTemplates).where(and(...conditions)).orderBy(desc(traTemplates.createdAt));
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+    return db.select().from(traTemplates).where(whereClause).orderBy(desc(traTemplates.createdAt));
   }
 
   async updateTraTemplate(tenantId: string, templateId: string, data: Partial<InsertTraTemplate>): Promise<TraTemplate | null> {
@@ -292,7 +294,8 @@ class UaeComplianceService {
       conditions.push(eq(dataResidencyLogs.storageLocation, filters.storageLocation));
     }
 
-    return db.select().from(dataResidencyLogs).where(and(...conditions)).orderBy(desc(dataResidencyLogs.createdAt));
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+    return db.select().from(dataResidencyLogs).where(whereClause).orderBy(desc(dataResidencyLogs.createdAt));
   }
 
   checkDataResidencyCompliance(
@@ -305,24 +308,54 @@ class UaeComplianceService {
     let compliant = true;
 
     const sensitiveTypes = ["personal", "financial", "health", "government"];
+    const uaeCompliantLocations = ["uae", "aws-me", "gcp-me", "azure-uae"];
+    const isUaeLocation = uaeCompliantLocations.includes(storageLocation.toLowerCase());
     
-    if (sensitiveTypes.includes(dataType) && storageLocation !== "uae") {
-      if (isUaeResident) {
+    if (dataType === "government") {
+      if (!isUaeLocation) {
         compliant = false;
-        requirements.push(`${dataType} data for UAE residents should be stored in UAE`);
-      } else {
-        warnings.push(`${dataType} data stored outside UAE requires additional compliance measures`);
+        requirements.push("Government-related data must be stored within UAE or UAE-compliant cloud regions");
+      }
+      if (storageLocation !== "uae") {
+        warnings.push("Government data in cloud regions should use sovereign cloud configurations");
       }
     }
 
-    if (dataType === "government" && storageLocation !== "uae") {
-      compliant = false;
-      requirements.push("Government-related data must be stored within UAE");
+    if (dataType === "health") {
+      if (!isUaeLocation) {
+        compliant = false;
+        requirements.push("Health data must be stored within UAE or UAE-compliant cloud regions per DHA/HAAD guidelines");
+      }
+      requirements.push("Ensure BAA (Business Associate Agreement) for cloud health data storage");
     }
 
-    if (storageLocation === "international" && isUaeResident) {
+    if (dataType === "financial") {
+      if (!isUaeLocation) {
+        warnings.push("Financial data stored outside UAE may require CBUAE notification");
+        requirements.push("Maintain audit trail for financial data access");
+      }
+      if (storageLocation === "international") {
+        compliant = false;
+        requirements.push("Financial data for UAE entities should not be stored in unrestricted international locations");
+      }
+    }
+
+    if (dataType === "personal") {
+      if (isUaeResident && !isUaeLocation) {
+        compliant = false;
+        requirements.push("personal data for UAE residents should be stored in UAE");
+      }
+      if (!isUaeResident && !isUaeLocation) {
+        warnings.push("personal data stored outside UAE requires additional compliance measures");
+      }
+    }
+
+    if (storageLocation === "international") {
       warnings.push("Cross-border data transfer requires explicit consent");
       requirements.push("Obtain data subject consent for international transfer");
+      if (sensitiveTypes.includes(dataType)) {
+        requirements.push("Conduct Data Protection Impact Assessment (DPIA) for cross-border transfers");
+      }
     }
 
     return { compliant, warnings, requirements };
