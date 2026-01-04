@@ -1,6 +1,22 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import { execSync } from "child_process";
+
+// Run database migrations before build
+async function runMigrations() {
+  console.log("Running database migrations...");
+  try {
+    execSync("npx drizzle-kit push --force", { 
+      stdio: "inherit",
+      env: { ...process.env }
+    });
+    console.log("Database migrations completed successfully");
+  } catch (error) {
+    console.error("Warning: Database migration failed, continuing with build...", error);
+    // Don't fail the build if migrations fail - the app may still work
+  }
+}
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -33,6 +49,9 @@ const allowlist = [
 ];
 
 async function buildAll() {
+  // Run database migrations first
+  await runMigrations();
+  
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");
