@@ -484,6 +484,134 @@ export class SsoService {
       })
       .where(eq(ssoProviderConfigs.id, providerId));
   }
+
+  /**
+   * Test provider connection by validating configuration
+   */
+  async testProviderConnection(providerId: string): Promise<{ success: boolean; message: string; details?: Record<string, unknown> }> {
+    const provider = await this.getProviderById(providerId);
+    if (!provider) {
+      return { success: false, message: 'Provider not found' };
+    }
+
+    const allowedHosts = [
+      'accounts.google.com',
+      'login.microsoftonline.com',
+      '.okta.com',
+      '.oktapreview.com',
+    ];
+
+    const fetchWithTimeout = async (url: string, timeoutMs = 5000): Promise<Response> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        return response;
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    try {
+      switch (provider.providerType) {
+        case 'google': {
+          const discoveryUrl = 'https://accounts.google.com/.well-known/openid-configuration';
+          const response = await fetchWithTimeout(discoveryUrl);
+          if (!response.ok) {
+            return { success: false, message: 'Failed to reach Google OIDC discovery endpoint' };
+          }
+          const config = await response.json();
+          return { 
+            success: true, 
+            message: 'Successfully connected to Google OAuth',
+            details: { issuer: config.issuer, authorizationEndpoint: config.authorization_endpoint }
+          };
+        }
+
+        case 'microsoft': {
+          const tenantId = (provider as any).metadata?.tenantId || 'common';
+          if (!/^[a-zA-Z0-9-]+$/.test(tenantId)) {
+            return { success: false, message: 'Invalid tenant ID format' };
+          }
+          const discoveryUrl = `https://login.microsoftonline.com/${tenantId}/v2.0/.well-known/openid-configuration`;
+          const response = await fetchWithTimeout(discoveryUrl);
+          if (!response.ok) {
+            return { success: false, message: 'Failed to reach Microsoft OIDC discovery endpoint' };
+          }
+          const config = await response.json();
+          return { 
+            success: true, 
+            message: 'Successfully connected to Microsoft Entra ID',
+            details: { issuer: config.issuer, tenant: tenantId }
+          };
+        }
+
+        case 'okta': {
+          const oktaDomain = provider.issuerUrl?.replace('https://', '').replace(/\/$/, '') || '';
+          if (!oktaDomain) {
+            return { success: false, message: 'Okta domain not configured' };
+          }
+          if (!oktaDomain.endsWith('.okta.com') && !oktaDomain.endsWith('.oktapreview.com')) {
+            return { success: false, message: 'Invalid Okta domain' };
+          }
+          const discoveryUrl = `https://${oktaDomain}/.well-known/openid-configuration`;
+          const response = await fetchWithTimeout(discoveryUrl);
+          if (!response.ok) {
+            return { success: false, message: 'Failed to reach Okta OIDC discovery endpoint' };
+          }
+          const config = await response.json();
+          return { 
+            success: true, 
+            message: 'Successfully connected to Okta',
+            details: { issuer: config.issuer, domain: oktaDomain }
+          };
+        }
+
+        case 'saml': {
+          const ssoUrl = (provider as any).ssoUrl || (provider as any).metadata?.ssoUrl;
+          if (!ssoUrl) {
+            return { success: false, message: 'SAML SSO URL not configured' };
+          }
+          const url = new URL(ssoUrl);
+          if (!url.protocol.startsWith('https')) {
+            return { success: false, message: 'SAML SSO URL must use HTTPS' };
+          }
+          return { 
+            success: true, 
+            message: 'SAML configuration validated',
+            details: { 
+              ssoUrl: ssoUrl,
+              entityId: (provider as any).entityId || (provider as any).metadata?.entityId,
+              host: url.host
+            }
+          };
+        }
+
+        default:
+          return { success: false, message: `Unknown provider type: ${provider.providerType}` };
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return { success: false, message: 'Connection timed out' };
+      }
+      return { 
+        success: false, 
+        message: 'Connection test failed',
+        details: { error: 'Request error' }
+      };
+    }
+  }
+
+  /**
+   * Delete a provider and its associated user identities
+   */
+  async deleteProvider(providerId: string): Promise<void> {
+    await db.delete(ssoUserIdentities)
+      .where(eq(ssoUserIdentities.providerId, providerId));
+    
+    await db.delete(ssoProviderConfigs)
+      .where(eq(ssoProviderConfigs.id, providerId));
+  }
 }
 
 export const ssoService = new SsoService();

@@ -198,6 +198,72 @@ router.post('/providers/:id/deactivate', async (req: Request, res: Response) => 
 });
 
 /**
+ * Test SSO provider connection
+ */
+router.post('/providers/:id/test', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Tenant context required' });
+    }
+
+    const hasPermission = req.context?.permissions?.includes('tenant:manage') ||
+                          req.context?.role?.name === 'Admin';
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const provider = await ssoService.getProviderById(req.params.id);
+    if (!provider || provider.tenantId !== tenantId) {
+      return res.status(404).json({ error: 'Provider not found' });
+    }
+
+    const result = await ssoService.testProviderConnection(req.params.id);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error testing SSO provider:', error.message);
+    res.json({ 
+      success: false, 
+      message: 'Connection test failed',
+      details: { error: 'Internal error' }
+    });
+  }
+});
+
+/**
+ * Delete a SSO provider
+ */
+router.delete('/providers/:id', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Tenant context required' });
+    }
+
+    const hasPermission = req.context?.permissions?.includes('tenant:manage') ||
+                          req.context?.role?.name === 'Admin';
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const provider = await ssoService.getProviderById(req.params.id);
+    if (!provider || provider.tenantId !== tenantId) {
+      return res.status(404).json({ error: 'Provider not found' });
+    }
+
+    if (provider.isDefault) {
+      return res.status(400).json({ error: 'Cannot delete default provider. Set another provider as default first.' });
+    }
+
+    await ssoService.deleteProvider(req.params.id);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error deleting SSO provider:', error.message);
+    res.status(500).json({ error: 'Failed to delete SSO provider' });
+  }
+});
+
+/**
  * Initiate SSO authentication flow
  */
 router.post('/auth/initiate', async (req: Request, res: Response) => {
