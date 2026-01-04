@@ -11,6 +11,7 @@ import type { RequestContext } from "@shared/schema";
 import { responseTimeMiddleware } from "./middleware/response-time";
 import { metricsMiddleware, metricsHandler, metricsJsonHandler } from "./middleware/performance/metrics";
 import { queryTrackerMiddleware } from "./middleware/performance/query-tracker";
+import { runMigrations } from "./db-migrate";
 
 const app = express();
 const httpServer = createServer(app);
@@ -78,6 +79,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run database migrations on startup (for production)
+  await runMigrations();
+  
   // Setup authentication (must be before routes)
   await setupAuth(app);
   registerAuthRoutes(app);
