@@ -32,6 +32,7 @@ import { SuperAdminRouteGuard } from "@/contexts/admin-context";
 import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import SuperAdminBusinessRegistry from "@/pages/super-admin-business-registry";
 import SuperAdminModuleRegistry from "@/pages/super-admin-module-registry";
+import SuperAdminFeatureRegistry from "@/pages/super-admin-feature-registry";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import AdminPlatformAdmins from "@/pages/admin/platform-admins";
@@ -191,6 +192,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/admins" component={AdminPlatformAdmins} />
         <Route path="/super-admin/business-registry" component={SuperAdminBusinessRegistry} />
         <Route path="/super-admin/module-registry" component={SuperAdminModuleRegistry} />
+        <Route path="/super-admin/feature-registry" component={SuperAdminFeatureRegistry} />
         <Route path="/super-admin/billing" component={AdminBilling} />
         <Route path="/super-admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/super-admin/audit-logs" component={AdminAuditLogs} />

@@ -232,6 +232,67 @@ export const insertModuleRegistrySchema = createInsertSchema(moduleRegistry).omi
   updatedAt: true 
 });
 
+// ============================================
+// FEATURE REGISTRY & FEATURE FLAGS
+// ============================================
+
+// Feature scope enum
+export const featureScopeEnum = pgEnum("feature_scope", ["global", "business", "tenant"]);
+
+// Central registry for all features - SuperAdmin managed only
+export const featureRegistry = pgTable("feature_registry", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  scope: featureScopeEnum("scope").default("tenant"),
+  defaultEnabled: boolean("default_enabled").default(false),
+  enabled: boolean("enabled").default(true),
+  displayOrder: integer("display_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_feature_registry_code").on(table.code),
+  index("idx_feature_registry_scope").on(table.scope),
+  index("idx_feature_registry_enabled").on(table.enabled),
+]);
+
+// Feature flag overrides for tenant/business-level control
+export const featureFlagOverrides = pgTable("feature_flag_overrides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  featureId: varchar("feature_id").notNull().references(() => featureRegistry.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  businessType: varchar("business_type", { length: 50 }),
+  enabled: boolean("enabled").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by"),
+}, (table) => [
+  index("idx_feature_flag_overrides_feature").on(table.featureId),
+  index("idx_feature_flag_overrides_tenant").on(table.tenantId),
+  index("idx_feature_flag_overrides_business").on(table.businessType),
+  uniqueIndex("idx_feature_flag_overrides_unique").on(table.featureId, table.tenantId, table.businessType),
+]);
+
+// Feature registry types
+export type FeatureRegistry = typeof featureRegistry.$inferSelect;
+export type InsertFeatureRegistry = typeof featureRegistry.$inferInsert;
+export type FeatureFlagOverride = typeof featureFlagOverrides.$inferSelect;
+export type InsertFeatureFlagOverride = typeof featureFlagOverrides.$inferInsert;
+
+export const insertFeatureRegistrySchema = createInsertSchema(featureRegistry).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
+export const insertFeatureFlagOverrideSchema = createInsertSchema(featureFlagOverrides).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
 // Domain verification status enum
 export const domainVerificationStatusEnum = pgEnum("domain_verification_status", [
   "pending",

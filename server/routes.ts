@@ -67,6 +67,8 @@ import aiPermissionsRoutes from "./routes/ai-permissions";
 import aiAuditRoutes from "./routes/ai-audit";
 import businessRegistryRoutes from "./routes/business-registry";
 import moduleRegistryRoutes from "./routes/module-registry";
+import featureRegistryRoutes from "./routes/feature-registry";
+import featureFlagsRoutes from "./routes/feature-flags";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -134,6 +136,9 @@ export async function registerRoutes(
 
   // Register Add-on Marketplace routes
   app.use('/api/addons', addonRoutes);
+
+  // Register Feature Flags runtime evaluation routes (for tenant apps)
+  app.use('/api/feature-flags', isAuthenticated, featureFlagsRoutes);
 
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);
@@ -888,6 +893,9 @@ export async function registerRoutes(
 
   // Register Module Registry routes (SuperAdmin only for management)
   app.use('/api/platform-admin/module-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), moduleRegistryRoutes);
+
+  // Register Feature Registry routes (SuperAdmin only for management)
+  app.use('/api/platform-admin/feature-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), featureRegistryRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
