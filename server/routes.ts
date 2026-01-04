@@ -70,6 +70,8 @@ import moduleRegistryRoutes from "./routes/module-registry";
 import featureRegistryRoutes from "./routes/feature-registry";
 import featureFlagsRoutes from "./routes/feature-flags";
 import businessVersionRoutes from "./routes/business-version";
+import regionLockRoutes from "./routes/region-lock";
+import { regionLockService } from "./services/region-lock";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -143,6 +145,14 @@ export async function registerRoutes(
 
   // Register Business Version management routes (SuperAdmin only)
   app.use('/api/business-versions', isAuthenticated, businessVersionRoutes);
+
+  // Register Region Lock management routes (SuperAdmin + public check endpoints)
+  // Note: Public endpoints (enabled, check/registration, check/billing) are unprotected
+  // Admin endpoints (CRUD, status, features, logs) require platform admin auth
+  app.use('/api/platform/regions', regionLockRoutes);
+  
+  // Seed default region configurations
+  await regionLockService.seedDefaultRegions();
 
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);

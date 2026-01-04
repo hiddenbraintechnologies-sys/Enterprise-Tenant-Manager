@@ -5972,3 +5972,120 @@ export type AddonInstallHistory = typeof addonInstallHistory.$inferSelect;
 
 export type AddonReview = typeof addonReviews.$inferSelect;
 export type InsertAddonReview = z.infer<typeof insertAddonReviewSchema>;
+
+// ============================================
+// PLATFORM REGION CONFIGURATION (Region-Lock System)
+// ============================================
+
+export const regionStatusEnum = pgEnum("region_status", [
+  "enabled",
+  "disabled",
+  "maintenance",
+  "coming_soon",
+]);
+
+export const platformRegionConfigs = pgTable("platform_region_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Region identification
+  countryCode: varchar("country_code", { length: 5 }).notNull().unique(), // ISO 3166-1 alpha-2: IN, AE, GB, SG, MY
+  countryName: varchar("country_name", { length: 100 }).notNull(),
+  region: tenantRegionEnum("region").notNull(), // asia_pacific, middle_east, europe
+  
+  // Status controls
+  status: regionStatusEnum("status").default("enabled").notNull(),
+  
+  // Feature toggles
+  registrationEnabled: boolean("registration_enabled").default(true).notNull(),
+  billingEnabled: boolean("billing_enabled").default(true).notNull(),
+  compliancePacksEnabled: boolean("compliance_packs_enabled").default(true).notNull(),
+  
+  // Allowed business types (null = all allowed)
+  allowedBusinessTypes: jsonb("allowed_business_types"), // ["clinic", "salon", "pg"]
+  
+  // Allowed subscription tiers (null = all allowed)
+  allowedSubscriptionTiers: jsonb("allowed_subscription_tiers"), // ["free", "pro", "enterprise"]
+  
+  // Currency and localization
+  defaultCurrency: varchar("default_currency", { length: 5 }).notNull(), // INR, AED, GBP
+  defaultTimezone: varchar("default_timezone", { length: 50 }).notNull(), // Asia/Kolkata
+  
+  // Compliance and legal
+  requiredCompliancePacks: jsonb("required_compliance_packs").default([]), // ["dpdp_basic", "gst_compliance"]
+  dataResidencyRequired: boolean("data_residency_required").default(false),
+  dataResidencyRegion: varchar("data_residency_region", { length: 50 }), // aws-ap-south-1, gcp-asia-south1
+  
+  // Tax configuration
+  taxType: varchar("tax_type", { length: 20 }), // GST, VAT, etc.
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }), // 18.00 for 18%
+  taxInclusive: boolean("tax_inclusive").default(false),
+  
+  // Messaging/communication restrictions
+  smsEnabled: boolean("sms_enabled").default(true),
+  whatsappEnabled: boolean("whatsapp_enabled").default(true),
+  emailEnabled: boolean("email_enabled").default(true),
+  
+  // Maintenance window
+  maintenanceMessage: text("maintenance_message"),
+  maintenanceStartAt: timestamp("maintenance_start_at"),
+  maintenanceEndAt: timestamp("maintenance_end_at"),
+  
+  // Launch configuration
+  launchDate: timestamp("launch_date"),
+  betaAccessOnly: boolean("beta_access_only").default(false),
+  betaAccessCodes: jsonb("beta_access_codes").default([]), // ["BETA2024", "EARLYADOPTER"]
+  
+  // Audit
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_region_config_country").on(table.countryCode),
+  index("idx_region_config_region").on(table.region),
+  index("idx_region_config_status").on(table.status),
+]);
+
+// Region access logs - for audit trail
+export const regionAccessLogs = pgTable("region_access_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  countryCode: varchar("country_code", { length: 5 }).notNull(),
+  action: varchar("action", { length: 50 }).notNull(), // registration_attempt, billing_attempt, access_denied
+  result: varchar("result", { length: 20 }).notNull(), // allowed, blocked, pending
+  
+  // Context
+  tenantId: varchar("tenant_id"),
+  userId: varchar("user_id"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  
+  // Details
+  reason: text("reason"), // Why blocked/allowed
+  metadata: jsonb("metadata"), // Additional context
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_region_access_country").on(table.countryCode),
+  index("idx_region_access_action").on(table.action),
+  index("idx_region_access_created").on(table.createdAt),
+]);
+
+// Insert schemas
+export const insertPlatformRegionConfigSchema = createInsertSchema(platformRegionConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertRegionAccessLogSchema = createInsertSchema(regionAccessLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type PlatformRegionConfig = typeof platformRegionConfigs.$inferSelect;
+export type InsertPlatformRegionConfig = z.infer<typeof insertPlatformRegionConfigSchema>;
+
+export type RegionAccessLog = typeof regionAccessLogs.$inferSelect;
+export type InsertRegionAccessLog = z.infer<typeof insertRegionAccessLogSchema>;
