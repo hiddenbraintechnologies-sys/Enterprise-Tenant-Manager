@@ -26,6 +26,11 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
 - **White-Label Reseller System**: Supports a white-label model with tenant hierarchy (Platform, Reseller, Direct), reseller profiles, revenue agreements/tracking, branding configuration, and an admin dashboard.
 - **Tenant Branding System**: Comprehensive white-label theming with custom logos, color palettes, typography, theme tokens, custom CSS, and 13 types of email template customization.
 - **Compliance Pack System**: Configurable framework for country-specific compliance (GDPR, DPDP, HIPAA) with checklist items, progress tracking, evidence management, and audit trails.
+- **India Compliance Module**: Comprehensive India-specific regulatory compliance features:
+  - **GST Compliance**: GSTIN validation with state code parsing, inter/intra-state tax calculation (CGST/SGST/IGST), e-invoice generation, HSN/SAC code support
+  - **WhatsApp/SMS DLT Compliance**: Template registration, sender ID management, variable extraction, consent scrubbing
+  - **Aadhaar Data Protection**: Verhoeff checksum validation, secure masking (last 4 digits only), access logging with purpose tracking
+  - **RBI Payment Guidelines**: Card tokenization checks, 2FA verification, recurring mandate compliance, refund policy validation
 
 ### System Design Choices
 - **Modular Structure**: Organized into `client`, `server`, and `shared` directories.

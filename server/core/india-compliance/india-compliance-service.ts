@@ -177,11 +177,19 @@ class IndiaComplianceService {
     const lineItems = data.lineItems as any[];
     let taxableAmount = 0;
 
+    let totalCgst = 0;
+    let totalSgst = 0;
+    let totalIgst = 0;
+
     const processedItems = lineItems.map((item) => {
       const itemTaxable = item.quantity * item.unitPrice - (item.discount || 0);
       taxableAmount += itemTaxable;
       const gstRate = item.gstRate || 18;
       const gst = this.calculateGst(itemTaxable, gstRate, isInterState);
+
+      totalCgst += gst.cgst;
+      totalSgst += gst.sgst;
+      totalIgst += gst.igst;
 
       return {
         ...item,
@@ -195,16 +203,16 @@ class IndiaComplianceService {
       };
     });
 
-    const totalGst = this.calculateGst(taxableAmount, 18, isInterState);
+    const totalAmount = taxableAmount + totalCgst + totalSgst + totalIgst;
 
     const invoiceData: InsertGstInvoice = {
       ...data,
       lineItems: processedItems,
       taxableAmount: String(taxableAmount),
-      cgstAmount: String(totalGst.cgst),
-      sgstAmount: String(totalGst.sgst),
-      igstAmount: String(totalGst.igst),
-      totalAmount: String(totalGst.total),
+      cgstAmount: String(totalCgst),
+      sgstAmount: String(totalSgst),
+      igstAmount: String(totalIgst),
+      totalAmount: String(totalAmount),
       supplyType: data.customerGstin ? "B2B" : "B2C",
     };
 
