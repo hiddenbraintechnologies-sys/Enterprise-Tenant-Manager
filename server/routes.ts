@@ -65,6 +65,7 @@ import { brandingRoutes } from "./core/branding";
 import addonRoutes from "./routes/addons";
 import aiPermissionsRoutes from "./routes/ai-permissions";
 import aiAuditRoutes from "./routes/ai-audit";
+import businessRegistryRoutes from "./routes/business-registry";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -132,6 +133,9 @@ export async function registerRoutes(
 
   // Register Add-on Marketplace routes
   app.use('/api/addons', addonRoutes);
+
+  // Register Business Registry routes (SuperAdmin only for management)
+  app.use('/api/platform-admin/business-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), businessRegistryRoutes);
 
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);
