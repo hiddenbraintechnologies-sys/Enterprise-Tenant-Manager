@@ -37,6 +37,13 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - **Data Residency Tagging**: Data classification (personal/financial/health/government), storage location tracking, cross-border transfer compliance
   - **Arabic Language Support**: Common business terms translation, dual-language invoice support, RTL display readiness
   - **Emirates ID**: Validation with country code check, secure masking, formatted display
+- **UK Compliance Module**: Comprehensive UK-specific regulatory compliance features:
+  - **GDPR Controls**: ICO registration tracking, lawful basis documentation, privacy policy management, DPO appointment, DPIA support
+  - **Data Retention Policies**: Configurable retention periods per data category, automated deletion, HMRC 6-year requirements, policy review scheduling
+  - **UK VAT Invoicing**: VAT number validation (Mod 97), 20% standard/5% reduced/0% zero rates, MTD compliance, reverse charge support
+  - **Consent Management**: Granular consent types, lawful basis tracking, consent proof/evidence, withdrawal mechanism, expiry management
+  - **DSAR Handling**: 30-day response tracking, request types (access/rectification/erasure/portability), identity verification, audit trail
+  - **Data Breach Register**: Severity assessment, ICO notification tracking (72 hours), data subject notification, remediation tracking
 
 ### System Design Choices
 - **Modular Structure**: Organized into `client`, `server`, and `shared` directories.

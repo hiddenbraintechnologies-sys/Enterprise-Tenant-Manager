@@ -2729,6 +2729,237 @@ export type UaeComplianceSettings = typeof uaeComplianceSettings.$inferSelect;
 export type InsertUaeComplianceSettings = z.infer<typeof insertUaeComplianceSettingsSchema>;
 
 // ============================================
+// UK COMPLIANCE MODULE
+// ============================================
+
+// UK VAT Configuration
+export const ukVatConfigurations = pgTable("uk_vat_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  vatNumber: varchar("vat_number", { length: 15 }).notNull(), // GB + 9 digits or GB + 12 digits
+  businessName: varchar("business_name", { length: 255 }).notNull(),
+  tradingName: varchar("trading_name", { length: 255 }),
+  address: text("address").notNull(),
+  postcode: varchar("postcode", { length: 10 }).notNull(),
+  mtdEnabled: boolean("mtd_enabled").default(true), // Making Tax Digital
+  vatScheme: varchar("vat_scheme", { length: 50 }).default("standard"), // standard, flat_rate, cash_accounting
+  flatRatePercentage: decimal("flat_rate_percentage", { precision: 5, scale: 2 }),
+  returnFrequency: varchar("return_frequency", { length: 20 }).default("quarterly"), // monthly, quarterly, annual
+  accountingPeriodStart: date("accounting_period_start"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// UK VAT Invoices
+export const ukVatInvoices = pgTable("uk_vat_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  customerVatNumber: varchar("customer_vat_number", { length: 15 }), // If VAT registered
+  customerAddress: text("customer_address"),
+  invoiceDate: date("invoice_date").notNull(),
+  dueDate: date("due_date"),
+  lineItems: jsonb("line_items").notNull().default([]),
+  netAmount: decimal("net_amount", { precision: 15, scale: 2 }).notNull(),
+  vatAmount: decimal("vat_amount", { precision: 15, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  vatRate: decimal("vat_rate", { precision: 5, scale: 2 }).default("20"), // Standard 20%
+  vatRateType: varchar("vat_rate_type", { length: 20 }).default("standard"), // standard, reduced, zero, exempt
+  isReverseCharge: boolean("is_reverse_charge").default(false),
+  isEcSupply: boolean("is_ec_supply").default(false), // EU/EC supply (post-Brexit rules)
+  status: varchar("status", { length: 20 }).default("draft"), // draft, issued, paid, cancelled
+  paidAt: timestamp("paid_at"),
+  currency: varchar("currency", { length: 3 }).default("GBP"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// GDPR Consent Records
+export const gdprConsentRecords = pgTable("gdpr_consent_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  dataSubjectId: varchar("data_subject_id").notNull(), // Customer/User ID
+  dataSubjectType: varchar("data_subject_type", { length: 20 }).notNull(), // customer, staff, visitor
+  dataSubjectEmail: varchar("data_subject_email", { length: 255 }),
+  consentType: varchar("consent_type", { length: 50 }).notNull(), // marketing_email, marketing_sms, data_processing, analytics, third_party_sharing
+  lawfulBasis: varchar("lawful_basis", { length: 50 }).notNull(), // consent, contract, legal_obligation, vital_interests, public_task, legitimate_interests
+  purpose: text("purpose").notNull(), // Description of processing purpose
+  dataCategories: jsonb("data_categories").default([]), // Types of data being processed
+  consentGiven: boolean("consent_given").notNull(),
+  consentMethod: varchar("consent_method", { length: 50 }).notNull(), // web_form, email, paper, verbal
+  consentText: text("consent_text"), // The actual consent text shown
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  evidenceUrl: text("evidence_url"), // Link to proof of consent
+  withdrawnAt: timestamp("withdrawn_at"),
+  withdrawalReason: text("withdrawal_reason"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// UK-specific Data Retention Policies (extends base retention with UK/GDPR requirements)
+export const ukDataRetentionPolicies = pgTable("uk_data_retention_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  policyName: varchar("policy_name", { length: 100 }).notNull(),
+  dataCategory: varchar("data_category", { length: 50 }).notNull(),
+  description: text("description"),
+  retentionPeriodDays: integer("retention_period_days").notNull(),
+  retentionBasis: varchar("retention_basis", { length: 100 }),
+  legalReference: text("legal_reference"),
+  automatedDeletion: boolean("automated_deletion").default(false),
+  deletionMethod: varchar("deletion_method", { length: 50 }).default("soft_delete"),
+  reviewFrequencyDays: integer("review_frequency_days").default(365),
+  lastReviewedAt: timestamp("last_reviewed_at"),
+  nextReviewAt: timestamp("next_review_at"),
+  approvedBy: varchar("approved_by"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// UK Data Retention Logs
+export const ukDataRetentionLogs = pgTable("uk_data_retention_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  policyId: varchar("policy_id").references(() => ukDataRetentionPolicies.id),
+  action: varchar("action", { length: 50 }).notNull(),
+  dataCategory: varchar("data_category", { length: 50 }).notNull(),
+  recordCount: integer("record_count").default(0),
+  recordIds: jsonb("record_ids").default([]),
+  reason: text("reason"),
+  performedBy: varchar("performed_by"),
+  performedAt: timestamp("performed_at").defaultNow(),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// GDPR Data Subject Access Requests (DSARs)
+export const gdprDsarRequests = pgTable("gdpr_dsar_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  requestNumber: varchar("request_number", { length: 50 }).notNull(),
+  dataSubjectId: varchar("data_subject_id"),
+  dataSubjectName: varchar("data_subject_name", { length: 255 }).notNull(),
+  dataSubjectEmail: varchar("data_subject_email", { length: 255 }).notNull(),
+  requestType: varchar("request_type", { length: 50 }).notNull(), // access, rectification, erasure, portability, restriction, objection
+  requestDetails: text("request_details"),
+  identityVerified: boolean("identity_verified").default(false),
+  verificationMethod: varchar("verification_method", { length: 50 }),
+  status: varchar("status", { length: 20 }).default("received"), // received, in_progress, completed, rejected, extended
+  priority: varchar("priority", { length: 20 }).default("normal"), // low, normal, high, urgent
+  receivedAt: timestamp("received_at").defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  dueDate: timestamp("due_date"), // 30 days from receipt by default
+  extendedDueDate: timestamp("extended_due_date"), // If extended
+  extensionReason: text("extension_reason"),
+  completedAt: timestamp("completed_at"),
+  responseMethod: varchar("response_method", { length: 50 }), // email, portal, post
+  responseDetails: text("response_details"),
+  rejectionReason: text("rejection_reason"),
+  assignedTo: varchar("assigned_to"),
+  attachments: jsonb("attachments").default([]),
+  auditTrail: jsonb("audit_trail").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// GDPR Data Breach Register
+export const gdprDataBreaches = pgTable("gdpr_data_breaches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  breachNumber: varchar("breach_number", { length: 50 }).notNull(),
+  discoveredAt: timestamp("discovered_at").notNull(),
+  occurredAt: timestamp("occurred_at"),
+  breachType: varchar("breach_type", { length: 50 }).notNull(), // confidentiality, integrity, availability
+  breachCategory: varchar("breach_category", { length: 100 }), // cyber_attack, human_error, system_failure, theft, unauthorized_access
+  description: text("description").notNull(),
+  dataTypesAffected: jsonb("data_types_affected").default([]),
+  dataSubjectsAffected: integer("data_subjects_affected").default(0),
+  dataSubjectCategories: jsonb("data_subject_categories").default([]), // customers, employees, suppliers
+  severity: varchar("severity", { length: 20 }).default("medium"), // low, medium, high, critical
+  riskToRights: varchar("risk_to_rights", { length: 50 }), // unlikely, possible, likely, high
+  icoNotificationRequired: boolean("ico_notification_required").default(false),
+  icoNotifiedAt: timestamp("ico_notified_at"),
+  icoReferenceNumber: varchar("ico_reference_number", { length: 50 }),
+  dataSubjectsNotified: boolean("data_subjects_notified").default(false),
+  dataSubjectsNotifiedAt: timestamp("data_subjects_notified_at"),
+  rootCause: text("root_cause"),
+  containmentActions: text("containment_actions"),
+  remediationActions: text("remediation_actions"),
+  preventionMeasures: text("prevention_measures"),
+  status: varchar("status", { length: 20 }).default("open"), // open, investigating, contained, resolved, closed
+  resolvedAt: timestamp("resolved_at"),
+  dpoReviewedAt: timestamp("dpo_reviewed_at"),
+  dpoComments: text("dpo_comments"),
+  attachments: jsonb("attachments").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// UK Compliance Settings
+export const ukComplianceSettings = pgTable("uk_compliance_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  gdprEnabled: boolean("gdpr_enabled").default(true),
+  icoCertificationNumber: varchar("ico_certification_number", { length: 50 }),
+  dpoName: varchar("dpo_name", { length: 255 }),
+  dpoEmail: varchar("dpo_email", { length: 255 }),
+  dpoPhone: varchar("dpo_phone", { length: 20 }),
+  privacyPolicyUrl: text("privacy_policy_url"),
+  cookiePolicyUrl: text("cookie_policy_url"),
+  dataRetentionEnabled: boolean("data_retention_enabled").default(true),
+  autoConsentExpiry: boolean("auto_consent_expiry").default(true),
+  consentExpiryDays: integer("consent_expiry_days").default(365),
+  dsarAutomation: boolean("dsar_automation").default(false),
+  dsarResponseDays: integer("dsar_response_days").default(30),
+  breachNotificationHours: integer("breach_notification_hours").default(72),
+  mtdEnabled: boolean("mtd_enabled").default(true),
+  vatReturnReminders: boolean("vat_return_reminders").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// UK Compliance Insert Schemas
+export const insertUkVatConfigurationSchema = createInsertSchema(ukVatConfigurations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUkVatInvoiceSchema = createInsertSchema(ukVatInvoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGdprConsentRecordSchema = createInsertSchema(gdprConsentRecords).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUkDataRetentionPolicySchema = createInsertSchema(ukDataRetentionPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUkDataRetentionLogSchema = createInsertSchema(ukDataRetentionLogs).omit({ id: true, createdAt: true });
+export const insertGdprDsarRequestSchema = createInsertSchema(gdprDsarRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGdprDataBreachSchema = createInsertSchema(gdprDataBreaches).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUkComplianceSettingsSchema = createInsertSchema(ukComplianceSettings).omit({ id: true, createdAt: true, updatedAt: true });
+
+// UK Compliance Types
+export type UkVatConfiguration = typeof ukVatConfigurations.$inferSelect;
+export type InsertUkVatConfiguration = z.infer<typeof insertUkVatConfigurationSchema>;
+
+export type UkVatInvoice = typeof ukVatInvoices.$inferSelect;
+export type InsertUkVatInvoice = z.infer<typeof insertUkVatInvoiceSchema>;
+
+export type GdprConsentRecord = typeof gdprConsentRecords.$inferSelect;
+export type InsertGdprConsentRecord = z.infer<typeof insertGdprConsentRecordSchema>;
+
+export type UkDataRetentionPolicy = typeof ukDataRetentionPolicies.$inferSelect;
+export type InsertUkDataRetentionPolicy = z.infer<typeof insertUkDataRetentionPolicySchema>;
+
+export type UkDataRetentionLog = typeof ukDataRetentionLogs.$inferSelect;
+export type InsertUkDataRetentionLog = z.infer<typeof insertUkDataRetentionLogSchema>;
+
+export type GdprDsarRequest = typeof gdprDsarRequests.$inferSelect;
+export type InsertGdprDsarRequest = z.infer<typeof insertGdprDsarRequestSchema>;
+
+export type GdprDataBreach = typeof gdprDataBreaches.$inferSelect;
+export type InsertGdprDataBreach = z.infer<typeof insertGdprDataBreachSchema>;
+
+export type UkComplianceSettings = typeof ukComplianceSettings.$inferSelect;
+export type InsertUkComplianceSettings = z.infer<typeof insertUkComplianceSettingsSchema>;
+
+// ============================================
 // REAL ESTATE MODULE
 // ============================================
 
