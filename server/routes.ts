@@ -69,6 +69,7 @@ import businessRegistryRoutes from "./routes/business-registry";
 import moduleRegistryRoutes from "./routes/module-registry";
 import featureRegistryRoutes from "./routes/feature-registry";
 import featureFlagsRoutes from "./routes/feature-flags";
+import businessVersionRoutes from "./routes/business-version";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -139,6 +140,9 @@ export async function registerRoutes(
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
   app.use('/api/feature-flags', isAuthenticated, featureFlagsRoutes);
+
+  // Register Business Version management routes (SuperAdmin only)
+  app.use('/api/business-versions', isAuthenticated, businessVersionRoutes);
 
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);

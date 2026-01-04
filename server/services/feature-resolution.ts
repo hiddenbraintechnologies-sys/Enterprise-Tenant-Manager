@@ -2,6 +2,9 @@ import { db } from "../db";
 import { 
   tenants,
   businessTypeRegistry,
+  businessTypeVersions,
+  versionedModuleMap,
+  versionedFeatureMap,
   moduleRegistry,
   featureRegistry,
   businessModuleMap,
@@ -36,6 +39,12 @@ export interface FeatureMatrix {
   features: ResolvedFeature[];
   resolvedAt: string;
   cacheHit: boolean;
+  versionInfo?: {
+    versionId: string;
+    versionNumber: number;
+    versionName: string;
+    isLegacy: boolean;
+  };
 }
 
 const CACHE_TTL = 300; // 5 minutes
@@ -103,11 +112,40 @@ class FeatureResolutionService {
       };
     }
 
-    // Step 3: Load allowed modules for this business type
-    const modules = await this.resolveModules(businessType.id);
+    // Step 3: Determine which version to use (pinned > active > legacy)
+    const versionId = tenant.pinnedVersionId || businessType.activeVersionId;
+    
+    let modules: ResolvedModule[];
+    let features: ResolvedFeature[];
+    let versionInfo: FeatureMatrix["versionInfo"];
 
-    // Step 4: Load allowed features with tenant overrides
-    const features = await this.resolveFeatures(businessType.id, tenantId);
+    if (versionId) {
+      // Use versioned definitions
+      const [version] = await db.select()
+        .from(businessTypeVersions)
+        .where(eq(businessTypeVersions.id, versionId));
+
+      if (version && version.status === "published") {
+        modules = await this.resolveVersionedModules(versionId);
+        features = await this.resolveVersionedFeatures(versionId, tenantId);
+        versionInfo = {
+          versionId: version.id,
+          versionNumber: version.versionNumber,
+          versionName: version.name,
+          isLegacy: false,
+        };
+      } else {
+        // Fallback to legacy if version not found or not published
+        modules = await this.resolveModules(businessType.id);
+        features = await this.resolveFeatures(businessType.id, tenantId);
+        versionInfo = { versionId: "", versionNumber: 0, versionName: "Legacy", isLegacy: true };
+      }
+    } else {
+      // Use legacy mapping tables (backward compatibility)
+      modules = await this.resolveModules(businessType.id);
+      features = await this.resolveFeatures(businessType.id, tenantId);
+      versionInfo = { versionId: "", versionNumber: 0, versionName: "Legacy", isLegacy: true };
+    }
 
     return {
       tenantId,
@@ -117,7 +155,89 @@ class FeatureResolutionService {
       features,
       resolvedAt: new Date().toISOString(),
       cacheHit: false,
+      versionInfo,
     };
+  }
+
+  private async resolveVersionedModules(versionId: string): Promise<ResolvedModule[]> {
+    const mappings = await db.select({
+      mapping: versionedModuleMap,
+      module: moduleRegistry,
+    })
+      .from(versionedModuleMap)
+      .innerJoin(moduleRegistry, eq(versionedModuleMap.moduleId, moduleRegistry.id))
+      .where(eq(versionedModuleMap.versionId, versionId))
+      .orderBy(asc(versionedModuleMap.displayOrder));
+
+    return mappings.map(({ mapping, module }) => ({
+      code: module.code,
+      name: module.name,
+      category: module.category || "optional",
+      enabled: mapping.defaultEnabled,
+      isRequired: mapping.isRequired,
+    }));
+  }
+
+  private async resolveVersionedFeatures(versionId: string, tenantId: string): Promise<ResolvedFeature[]> {
+    const mappings = await db.select({
+      mapping: versionedFeatureMap,
+      feature: featureRegistry,
+    })
+      .from(versionedFeatureMap)
+      .innerJoin(featureRegistry, eq(versionedFeatureMap.featureId, featureRegistry.id))
+      .where(and(
+        eq(versionedFeatureMap.versionId, versionId),
+        eq(featureRegistry.enabled, true)
+      ))
+      .orderBy(asc(versionedFeatureMap.displayOrder));
+
+    // Get tenant overrides ONLY for features in this version
+    const featureIds = mappings.map(m => m.feature.id);
+    const overrides = featureIds.length > 0 
+      ? await db.select()
+          .from(tenantFeatureOverride)
+          .where(and(
+            eq(tenantFeatureOverride.tenantId, tenantId),
+            inArray(tenantFeatureOverride.featureId, featureIds)
+          ))
+      : [];
+
+    const overrideMap = new Map(overrides.map(o => [o.featureId, o]));
+
+    return mappings.map(({ mapping, feature }) => {
+      const override = overrideMap.get(feature.id);
+      
+      if (mapping.isRequired) {
+        return {
+          code: feature.code,
+          name: feature.name,
+          scope: feature.scope,
+          enabled: true,
+          isRequired: true,
+          source: "business_default" as const,
+        };
+      }
+
+      if (override) {
+        return {
+          code: feature.code,
+          name: feature.name,
+          scope: feature.scope,
+          enabled: override.enabled,
+          isRequired: false,
+          source: "tenant_override" as const,
+        };
+      }
+
+      return {
+        code: feature.code,
+        name: feature.name,
+        scope: feature.scope,
+        enabled: mapping.defaultEnabled,
+        isRequired: false,
+        source: "business_default" as const,
+      };
+    });
   }
 
   private async resolveModules(businessTypeId: string): Promise<ResolvedModule[]> {

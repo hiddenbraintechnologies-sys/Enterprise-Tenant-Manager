@@ -56,8 +56,9 @@ class CacheService {
     }
   }
 
-  private getTenantKey(tenantId: string, key: string): string {
-    return `tenant:${tenantId}:${key}:${CACHE_VERSION}`;
+  private getTenantKey(tenantId: string, key: string, versionId?: string): string {
+    const versionSuffix = versionId ? `:v-${versionId}` : "";
+    return `tenant:${tenantId}:${key}${versionSuffix}:${CACHE_VERSION}`;
   }
 
   private getGlobalKey(key: string): string {
