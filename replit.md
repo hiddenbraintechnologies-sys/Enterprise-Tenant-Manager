@@ -45,8 +45,24 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - **DSAR Handling**: 30-day response tracking, request types (access/rectification/erasure/portability), identity verification, audit trail
   - **Data Breach Register**: Severity assessment, ICO notification tracking (72 hours), data subject notification, remediation tracking
 
+### Flutter Mobile Application
+- **Architecture**: Clean Architecture with presentation, domain, and data layers
+- **State Management**: Flutter BLoC pattern with Equatable for immutability
+- **Networking**: Dio HTTP client with interceptors for auth/tenant headers
+- **Authentication**: JWT with automatic token refresh, secure storage (flutter_secure_storage)
+- **Multi-Tenant**: TenantInterceptor injects X-Tenant-ID header on all authenticated requests
+- **Environment**: Supports dev (dev.bizflow.app) and prod (api.bizflow.app) environments
+- **Dependency Injection**: get_it for service location with proper registration order
+- **Routing**: GoRouter with authentication guards and tenant selection flow
+- **Key Directories**:
+  - `mobile/lib/core/` - DI, networking, storage, config
+  - `mobile/lib/domain/` - Entities, repositories, use cases
+  - `mobile/lib/data/` - Models, datasources, repository implementations
+  - `mobile/lib/features/` - Auth, tenant, dashboard modules
+  - `mobile/lib/presentation/` - Routes, shared pages/widgets
+
 ### System Design Choices
-- **Modular Structure**: Organized into `client`, `server`, and `shared` directories.
+- **Modular Structure**: Organized into `client`, `server`, `shared`, and `mobile` directories.
 - **API-First Approach**: RESTful API endpoints for core functionalities, business operations, notifications, billing, inventory, memberships, and healthcare.
 - **Extensibility**: Designed for future microservices, Redis integration, and JWT system evolution.
 - **Healthcare Module**: A specialized, feature-flagged module for enterprise clients, including patient management, doctor profiles, appointment scheduling, and EMR.

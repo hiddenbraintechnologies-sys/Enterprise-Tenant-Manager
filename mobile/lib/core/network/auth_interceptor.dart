@@ -4,10 +4,22 @@ import 'package:dio/dio.dart';
 import '../storage/token_storage.dart';
 import 'api_exceptions.dart';
 
+class _PendingRequest {
+  final Completer<String> completer;
+  final ErrorInterceptorHandler handler;
+  final DioException originalError;
+
+  _PendingRequest({
+    required this.completer,
+    required this.handler,
+    required this.originalError,
+  });
+}
+
 class AuthInterceptor extends Interceptor {
   final TokenStorage _tokenStorage;
   bool _isRefreshing = false;
-  final List<Function(String)> _pendingRequests = [];
+  final List<_PendingRequest> _pendingRequests = [];
 
   static const _noAuthPaths = [
     '/api/auth/login',
@@ -50,15 +62,12 @@ class AuthInterceptor extends Interceptor {
 
     if (_isRefreshing) {
       final completer = Completer<String>();
-      _pendingRequests.add((token) => completer.complete(token));
-      
-      try {
-        final newToken = await completer.future;
-        final response = await _retryRequest(error.requestOptions, newToken);
-        return handler.resolve(response);
-      } catch (e) {
-        return handler.next(error);
-      }
+      _pendingRequests.add(_PendingRequest(
+        completer: completer,
+        handler: handler,
+        originalError: error,
+      ));
+      return;
     }
 
     _isRefreshing = true;
@@ -87,27 +96,38 @@ class AuthInterceptor extends Interceptor {
         refreshToken: newRefreshToken ?? refreshToken,
       );
 
-      for (final callback in _pendingRequests) {
-        callback(newAccessToken);
-      }
-      _pendingRequests.clear();
-
       final retryResponse = await _retryRequest(error.requestOptions, newAccessToken);
       handler.resolve(retryResponse);
+
+      for (final pending in _pendingRequests) {
+        try {
+          final pendingRetry = await _retryRequest(pending.originalError.requestOptions, newAccessToken);
+          pending.handler.resolve(pendingRetry);
+        } catch (e) {
+          pending.handler.reject(DioException(
+            requestOptions: pending.originalError.requestOptions,
+            error: e,
+          ));
+        }
+      }
+      _pendingRequests.clear();
     } catch (e) {
       await _tokenStorage.clearTokens();
       
-      for (final callback in _pendingRequests) {
-        callback('');
+      final tokenExpiredException = DioException(
+        requestOptions: error.requestOptions,
+        error: const TokenExpiredException(),
+      );
+      
+      for (final pending in _pendingRequests) {
+        pending.handler.reject(DioException(
+          requestOptions: pending.originalError.requestOptions,
+          error: const TokenExpiredException(),
+        ));
       }
       _pendingRequests.clear();
       
-      handler.reject(
-        DioException(
-          requestOptions: error.requestOptions,
-          error: const TokenExpiredException(),
-        ),
-      );
+      handler.reject(tokenExpiredException);
     } finally {
       _isRefreshing = false;
     }
