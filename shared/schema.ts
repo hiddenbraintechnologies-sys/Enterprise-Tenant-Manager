@@ -80,6 +80,8 @@ export const tenants = pgTable("tenants", {
   // Reseller hierarchy fields
   tenantType: tenantTypeEnum("tenant_type").default("direct"),
   parentResellerId: varchar("parent_reseller_id"),
+  // Version pinning - null means use latest published version
+  pinnedVersionId: varchar("pinned_version_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -179,6 +181,9 @@ export const businessTypeRegistry = pgTable("business_type_registry", {
   compliancePacks: text("compliance_packs").array().default([]),
   displayOrder: integer("display_order").default(0),
   icon: varchar("icon", { length: 100 }),
+  // Version management - null means no versioning yet (use legacy mapping tables)
+  activeVersionId: varchar("active_version_id"),
+  latestVersionNumber: integer("latest_version_number").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -368,6 +373,108 @@ export const insertTenantFeatureOverrideSchema = createInsertSchema(tenantFeatur
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+// ============================================
+// BUSINESS TYPE VERSIONING
+// ============================================
+
+// Version status enum
+export const versionStatusEnum = pgEnum("version_status", ["draft", "published", "retired"]);
+
+// Business Type Versions - stores immutable configuration snapshots
+export const businessTypeVersions = pgTable("business_type_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  businessTypeId: varchar("business_type_id").notNull().references(() => businessTypeRegistry.id, { onDelete: "cascade" }),
+  versionNumber: integer("version_number").notNull(),
+  status: versionStatusEnum("status").notNull().default("draft"),
+  name: text("name").notNull(),
+  description: text("description"),
+  effectiveAt: timestamp("effective_at"),
+  retiredAt: timestamp("retired_at"),
+  createdBy: varchar("created_by"),
+  publishedBy: varchar("published_by"),
+  publishedAt: timestamp("published_at"),
+  moduleSnapshot: jsonb("module_snapshot").default([]),
+  featureSnapshot: jsonb("feature_snapshot").default([]),
+  migrationNotes: text("migration_notes"),
+  isBackwardCompatible: boolean("is_backward_compatible").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_business_version_unique").on(table.businessTypeId, table.versionNumber),
+  index("idx_business_version_status").on(table.status),
+  index("idx_business_version_business").on(table.businessTypeId),
+]);
+
+// Versioned Module Mappings - stores module configuration per version
+export const versionedModuleMap = pgTable("versioned_module_map", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  versionId: varchar("version_id").notNull().references(() => businessTypeVersions.id, { onDelete: "cascade" }),
+  moduleId: varchar("module_id").notNull().references(() => moduleRegistry.id, { onDelete: "cascade" }),
+  isRequired: boolean("is_required").notNull().default(false),
+  defaultEnabled: boolean("default_enabled").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_versioned_module_unique").on(table.versionId, table.moduleId),
+  index("idx_versioned_module_version").on(table.versionId),
+]);
+
+// Versioned Feature Mappings - stores feature configuration per version  
+export const versionedFeatureMap = pgTable("versioned_feature_map", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  versionId: varchar("version_id").notNull().references(() => businessTypeVersions.id, { onDelete: "cascade" }),
+  featureId: varchar("feature_id").notNull().references(() => featureRegistry.id, { onDelete: "cascade" }),
+  isRequired: boolean("is_required").notNull().default(false),
+  defaultEnabled: boolean("default_enabled").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_versioned_feature_unique").on(table.versionId, table.featureId),
+  index("idx_versioned_feature_version").on(table.versionId),
+]);
+
+// Tenant Business Type History - audit trail for version transitions
+export const tenantBusinessTypeHistory = pgTable("tenant_business_type_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  fromVersionId: varchar("from_version_id").references(() => businessTypeVersions.id, { onDelete: "set null" }),
+  toVersionId: varchar("to_version_id").references(() => businessTypeVersions.id, { onDelete: "set null" }),
+  action: varchar("action", { length: 50 }).notNull(),
+  reason: text("reason"),
+  performedBy: varchar("performed_by"),
+  rollbackData: jsonb("rollback_data").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_version_history_tenant").on(table.tenantId),
+  index("idx_tenant_version_history_action").on(table.action),
+]);
+
+// Versioning types
+export type BusinessTypeVersion = typeof businessTypeVersions.$inferSelect;
+export type InsertBusinessTypeVersion = typeof businessTypeVersions.$inferInsert;
+export type VersionedModuleMap = typeof versionedModuleMap.$inferSelect;
+export type InsertVersionedModuleMap = typeof versionedModuleMap.$inferInsert;
+export type VersionedFeatureMap = typeof versionedFeatureMap.$inferSelect;
+export type InsertVersionedFeatureMap = typeof versionedFeatureMap.$inferInsert;
+export type TenantBusinessTypeHistory = typeof tenantBusinessTypeHistory.$inferSelect;
+export type InsertTenantBusinessTypeHistory = typeof tenantBusinessTypeHistory.$inferInsert;
+
+export const insertBusinessTypeVersionSchema = createInsertSchema(businessTypeVersions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertVersionedModuleMapSchema = createInsertSchema(versionedModuleMap).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertVersionedFeatureMapSchema = createInsertSchema(versionedFeatureMap).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Domain verification status enum
