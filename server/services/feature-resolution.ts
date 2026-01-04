@@ -8,7 +8,7 @@ import {
   businessFeatureMap,
   tenantFeatureOverride,
 } from "@shared/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray, sql } from "drizzle-orm";
 import { cacheService } from "./cache";
 
 export interface ResolvedModule {
@@ -154,12 +154,15 @@ class FeatureResolutionService {
       ))
       .orderBy(asc(businessFeatureMap.displayOrder));
 
-    // Get tenant overrides for these features
+    // Get tenant overrides ONLY for features allowed by business (enforces gating hierarchy)
     const featureIds = mappings.map(m => m.feature.id);
     const overrides = featureIds.length > 0 
       ? await db.select()
           .from(tenantFeatureOverride)
-          .where(eq(tenantFeatureOverride.tenantId, tenantId))
+          .where(and(
+            eq(tenantFeatureOverride.tenantId, tenantId),
+            inArray(tenantFeatureOverride.featureId, featureIds)
+          ))
       : [];
 
     const overrideMap = new Map(overrides.map(o => [o.featureId, o]));
@@ -228,12 +231,10 @@ class FeatureResolutionService {
   }
 
   async invalidateBusinessTypeCache(businessTypeCode: string): Promise<void> {
-    // Find all tenants with this business type and invalidate their caches
-    // Note: businessType is an enum, so we use sql to cast the comparison
-    const allTenants = await db.select({ id: tenants.id, businessType: tenants.businessType })
-      .from(tenants);
-    
-    const matchingTenants = allTenants.filter(t => t.businessType === businessTypeCode);
+    // Find only tenants with this business type using SQL cast for enum comparison
+    const matchingTenants = await db.select({ id: tenants.id })
+      .from(tenants)
+      .where(sql`${tenants.businessType}::text = ${businessTypeCode}`);
 
     await Promise.all(
       matchingTenants.map(t => cacheService.invalidateTenantCache(t.id))
