@@ -7,6 +7,7 @@ import {
   addonInstallHistory 
 } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 // Dependency structure
 interface AddonDependency {
@@ -141,16 +142,18 @@ export class AddonLifecycleService {
     };
   }
   
-  // Check if any other addons depend on this one before uninstall
+  // Check if any other addons depend on this one before uninstall/disable
+  // Optimized to avoid N+1 queries by batch-fetching addon and version data
   async checkDependents(
     tenantId: string, 
     addonId: string
   ): Promise<{ hasDependents: boolean; dependents: string[] }> {
     
-    // Get all installed addons for this tenant
+    // Get all installed addons for this tenant with their versions (exclude target)
     const installed = await db
       .select({
         addonId: tenantAddons.addonId,
+        versionId: tenantAddons.versionId,
         status: tenantAddons.status,
       })
       .from(tenantAddons)
@@ -159,22 +162,61 @@ export class AddonLifecycleService {
         inArray(tenantAddons.status, ["active", "disabled"])
       ));
     
+    // Filter out the target addon
+    const otherInstalled = installed.filter(inst => inst.addonId !== addonId);
+    
+    if (otherInstalled.length === 0) {
+      return { hasDependents: false, dependents: [] };
+    }
+    
+    // Batch fetch all addon metadata in one query
+    const addonIds = otherInstalled.map(i => i.addonId);
+    const addonData = await db
+      .select({ id: addons.id, name: addons.name, dependencies: addons.dependencies })
+      .from(addons)
+      .where(inArray(addons.id, addonIds));
+    
+    const addonMap = new Map(addonData.map(a => [a.id, a]));
+    
+    // Batch fetch all version metadata in one query
+    const versionIds = otherInstalled.map(i => i.versionId).filter((v): v is string => !!v);
+    let versionMap = new Map<string, { dependencies: unknown }>();
+    
+    if (versionIds.length > 0) {
+      const versionData = await db
+        .select({ id: addonVersions.id, dependencies: addonVersions.dependencies })
+        .from(addonVersions)
+        .where(inArray(addonVersions.id, versionIds));
+      
+      versionMap = new Map(versionData.map(v => [v.id, v]));
+    }
+    
     const dependents: string[] = [];
     
-    for (const inst of installed) {
-      if (inst.addonId === addonId) continue;
+    // Check dependencies using pre-fetched data
+    for (const inst of otherInstalled) {
+      const addon = addonMap.get(inst.addonId);
+      if (!addon) continue;
       
-      const [addon] = await db
-        .select()
-        .from(addons)
-        .where(eq(addons.id, inst.addonId))
-        .limit(1);
-      
-      if (addon?.dependencies) {
+      // Check addon-level dependencies
+      if (addon.dependencies) {
         const deps = addon.dependencies as AddonDependency[];
         const dependsOnTarget = deps.some(d => d.addonId === addonId && !d.optional);
         if (dependsOnTarget) {
           dependents.push(addon.name);
+          continue; // Already found dependency, skip version check
+        }
+      }
+      
+      // Check version-level dependencies
+      if (inst.versionId) {
+        const version = versionMap.get(inst.versionId);
+        if (version?.dependencies) {
+          const versionDeps = version.dependencies as AddonDependency[];
+          const versionDependsOnTarget = versionDeps.some(d => d.addonId === addonId && !d.optional);
+          if (versionDependsOnTarget) {
+            dependents.push(addon.name);
+          }
         }
       }
     }
@@ -182,7 +224,7 @@ export class AddonLifecycleService {
     return { hasDependents: dependents.length > 0, dependents };
   }
   
-  // Install add-on with dependency checks and rollback
+  // Install add-on with dependency checks - uses transaction for atomicity
   async install(
     tenantId: string,
     addonId: string,
@@ -191,7 +233,7 @@ export class AddonLifecycleService {
     userId: string
   ): Promise<LifecycleResult> {
     
-    // Verify addon exists and is published
+    // Verify addon exists and is published (read-only check, outside transaction)
     const [addon] = await db
       .select()
       .from(addons)
@@ -249,87 +291,87 @@ export class AddonLifecycleService {
       }
     }
     
-    // Begin installation with rollback capability
-    let installationId: string | null = null;
-    let historyId: string | null = null;
-    
     try {
-      // Create installation record
-      const [installation] = await db
-        .insert(tenantAddons)
-        .values({
-          tenantId,
-          addonId,
-          versionId: latestVersion.id,
-          pricingId: selectedPricing?.id,
-          status: "installing",
-          config,
-          installedBy: userId,
-          trialEndsAt: selectedPricing?.trialDays 
-            ? new Date(Date.now() + selectedPricing.trialDays * 24 * 60 * 60 * 1000)
-            : null,
-        })
-        .returning();
-      
-      installationId = installation.id;
-      
-      // Record history
-      const [history] = await db
-        .insert(addonInstallHistory)
-        .values({
-          tenantAddonId: installation.id,
-          tenantId,
-          addonId,
-          action: "install",
-          toVersionId: latestVersion.id,
-          status: "in_progress",
-          performedBy: userId,
-        })
-        .returning();
-      
-      historyId = history.id;
-      
-      // Simulate installation process (in real app, this would run actual install hooks)
-      // If any step fails, we roll back
-      
-      // Mark as active
-      await db
-        .update(tenantAddons)
-        .set({ status: "active" })
-        .where(eq(tenantAddons.id, installation.id));
-      
-      // Update history
-      await db
-        .update(addonInstallHistory)
-        .set({ status: "completed", completedAt: new Date() })
-        .where(eq(addonInstallHistory.id, history.id));
-      
-      // Update install count
-      await db
-        .update(addons)
-        .set({ installCount: sql`${addons.installCount} + 1` })
-        .where(eq(addons.id, addonId));
+      // Use transaction for atomic install
+      const result = await db.transaction(async (tx) => {
+        // Re-check inside transaction to handle concurrent requests
+        // The unique constraint on (tenantId, addonId) will enforce this, 
+        // but we check here to provide a cleaner error message
+        const [existingInTx] = await tx
+          .select()
+          .from(tenantAddons)
+          .where(and(eq(tenantAddons.tenantId, tenantId), eq(tenantAddons.addonId, addonId)))
+          .limit(1);
+        
+        if (existingInTx) {
+          throw new Error("ALREADY_INSTALLED");
+        }
+        
+        // Create installation record
+        const [installation] = await tx
+          .insert(tenantAddons)
+          .values({
+            tenantId,
+            addonId,
+            versionId: latestVersion.id,
+            pricingId: selectedPricing?.id,
+            status: "active",
+            config,
+            installedBy: userId,
+            trialEndsAt: selectedPricing?.trialDays 
+              ? new Date(Date.now() + selectedPricing.trialDays * 24 * 60 * 60 * 1000)
+              : null,
+          })
+          .returning();
+        
+        // Record history
+        await tx
+          .insert(addonInstallHistory)
+          .values({
+            tenantAddonId: installation.id,
+            tenantId,
+            addonId,
+            action: "install",
+            toVersionId: latestVersion.id,
+            status: "completed",
+            performedBy: userId,
+            completedAt: new Date(),
+          });
+        
+        // Update install count
+        await tx
+          .update(addons)
+          .set({ installCount: sql`${addons.installCount} + 1` })
+          .where(eq(addons.id, addonId));
+        
+        return installation;
+      });
       
       return { 
         success: true, 
         data: { 
-          installation,
+          installation: result,
           version: getVersionString(latestVersion.semverMajor, latestVersion.semverMinor, latestVersion.semverPatch)
         } 
       };
       
-    } catch (error) {
-      // Rollback on failure
-      if (installationId) {
-        await db.delete(tenantAddons).where(eq(tenantAddons.id, installationId));
-      }
-      if (historyId) {
-        await db
-          .update(addonInstallHistory)
-          .set({ status: "failed", errorMessage: String(error), completedAt: new Date() })
-          .where(eq(addonInstallHistory.id, historyId));
+    } catch (error: any) {
+      // Handle unique constraint violation (Postgres code 23505) or explicit already installed check
+      const errorMessage = String(error?.message || error);
+      const errorCode = error?.code;
+      
+      if (errorMessage.includes("ALREADY_INSTALLED") || 
+          errorCode === "23505" || // Postgres unique_violation
+          errorMessage.includes("unique constraint") ||
+          errorMessage.includes("duplicate key")) {
+        return { 
+          success: false, 
+          error: "Add-on already installed", 
+          code: "ALREADY_INSTALLED"
+        };
       }
       
+      // Transaction automatically rolls back on error
       return { 
         success: false, 
         error: "Installation failed", 
@@ -339,7 +381,7 @@ export class AddonLifecycleService {
     }
   }
   
-  // Upgrade add-on to new version with rollback
+  // Upgrade add-on to new version - uses transaction for atomicity
   async upgrade(
     tenantId: string,
     addonId: string,
@@ -347,7 +389,7 @@ export class AddonLifecycleService {
     userId: string
   ): Promise<LifecycleResult> {
     
-    // Get current installation
+    // Get current installation (read-only check, outside transaction)
     const [installation] = await db
       .select()
       .from(tenantAddons)
@@ -386,50 +428,35 @@ export class AddonLifecycleService {
     
     const fromVersionId = installation.versionId;
     const previousStatus = installation.status;
-    let historyId: string | null = null;
     
     try {
-      // Record history
-      const [history] = await db
-        .insert(addonInstallHistory)
-        .values({
-          tenantAddonId: installation.id,
-          tenantId,
-          addonId,
-          action: "update",
-          fromVersionId,
-          toVersionId: targetVersionId,
-          status: "in_progress",
-          performedBy: userId,
-        })
-        .returning();
-      
-      historyId = history.id;
-      
-      // Mark as updating
-      await db
-        .update(tenantAddons)
-        .set({ status: "updating", updatedAt: new Date() })
-        .where(eq(tenantAddons.id, installation.id));
-      
-      // Simulate upgrade process
-      // In real implementation, this would run migration scripts, etc.
-      
-      // Update version
-      await db
-        .update(tenantAddons)
-        .set({ 
-          versionId: targetVersionId, 
-          status: previousStatus,
-          updatedAt: new Date() 
-        })
-        .where(eq(tenantAddons.id, installation.id));
-      
-      // Update history
-      await db
-        .update(addonInstallHistory)
-        .set({ status: "completed", completedAt: new Date() })
-        .where(eq(addonInstallHistory.id, history.id));
+      // Use transaction for atomic upgrade
+      await db.transaction(async (tx) => {
+        // Update version
+        await tx
+          .update(tenantAddons)
+          .set({ 
+            versionId: targetVersionId, 
+            status: previousStatus,
+            updatedAt: new Date() 
+          })
+          .where(eq(tenantAddons.id, installation.id));
+        
+        // Record history
+        await tx
+          .insert(addonInstallHistory)
+          .values({
+            tenantAddonId: installation.id,
+            tenantId,
+            addonId,
+            action: "update",
+            fromVersionId,
+            toVersionId: targetVersionId,
+            status: "completed",
+            performedBy: userId,
+            completedAt: new Date(),
+          });
+      });
       
       return { 
         success: true, 
@@ -440,33 +467,17 @@ export class AddonLifecycleService {
       };
       
     } catch (error) {
-      // Rollback to previous version
-      await db
-        .update(tenantAddons)
-        .set({ 
-          versionId: fromVersionId, 
-          status: previousStatus,
-          updatedAt: new Date() 
-        })
-        .where(eq(tenantAddons.id, installation.id));
-      
-      if (historyId) {
-        await db
-          .update(addonInstallHistory)
-          .set({ status: "rolled_back", errorMessage: String(error), completedAt: new Date() })
-          .where(eq(addonInstallHistory.id, historyId));
-      }
-      
+      // Transaction automatically rolls back on error
       return { 
         success: false, 
-        error: "Upgrade failed, rolled back to previous version", 
+        error: "Upgrade failed", 
         code: "UPGRADE_FAILED",
         rollbackPerformed: true
       };
     }
   }
   
-  // Disable add-on (keeps installation but deactivates)
+  // Disable add-on - uses transaction for atomicity
   async disable(
     tenantId: string,
     addonId: string,
@@ -491,7 +502,7 @@ export class AddonLifecycleService {
       return { success: false, error: "Cannot disable add-on in current state", code: "INVALID_STATE" };
     }
     
-    // Check if other addons depend on this one
+    // Check if other addons depend on this one (includes version-level deps)
     const depCheck = await this.checkDependents(tenantId, addonId);
     if (depCheck.hasDependents) {
       return { 
@@ -503,23 +514,25 @@ export class AddonLifecycleService {
     }
     
     try {
-      await db
-        .update(tenantAddons)
-        .set({ status: "disabled", updatedAt: new Date() })
-        .where(eq(tenantAddons.id, installation.id));
-      
-      // Record history
-      await db
-        .insert(addonInstallHistory)
-        .values({
-          tenantAddonId: installation.id,
-          tenantId,
-          addonId,
-          action: "disable",
-          status: "completed",
-          performedBy: userId,
-          completedAt: new Date(),
-        });
+      // Use transaction for atomic disable
+      await db.transaction(async (tx) => {
+        await tx
+          .update(tenantAddons)
+          .set({ status: "disabled", updatedAt: new Date() })
+          .where(eq(tenantAddons.id, installation.id));
+        
+        await tx
+          .insert(addonInstallHistory)
+          .values({
+            tenantAddonId: installation.id,
+            tenantId,
+            addonId,
+            action: "disable",
+            status: "completed",
+            performedBy: userId,
+            completedAt: new Date(),
+          });
+      });
       
       return { success: true, data: { status: "disabled" } };
       
@@ -528,7 +541,7 @@ export class AddonLifecycleService {
     }
   }
   
-  // Enable a disabled add-on
+  // Enable a disabled add-on - uses transaction for atomicity
   async enable(
     tenantId: string,
     addonId: string,
@@ -549,7 +562,7 @@ export class AddonLifecycleService {
       return { success: false, error: "Add-on is not disabled", code: "NOT_DISABLED" };
     }
     
-    // Re-check dependencies before enabling
+    // Re-check dependencies before enabling (includes version-level deps)
     const depCheck = await this.checkDependencies(tenantId, addonId, installation.versionId);
     if (!depCheck.satisfied) {
       return { 
@@ -561,23 +574,25 @@ export class AddonLifecycleService {
     }
     
     try {
-      await db
-        .update(tenantAddons)
-        .set({ status: "active", updatedAt: new Date() })
-        .where(eq(tenantAddons.id, installation.id));
-      
-      // Record history
-      await db
-        .insert(addonInstallHistory)
-        .values({
-          tenantAddonId: installation.id,
-          tenantId,
-          addonId,
-          action: "enable",
-          status: "completed",
-          performedBy: userId,
-          completedAt: new Date(),
-        });
+      // Use transaction for atomic enable
+      await db.transaction(async (tx) => {
+        await tx
+          .update(tenantAddons)
+          .set({ status: "active", updatedAt: new Date() })
+          .where(eq(tenantAddons.id, installation.id));
+        
+        await tx
+          .insert(addonInstallHistory)
+          .values({
+            tenantAddonId: installation.id,
+            tenantId,
+            addonId,
+            action: "enable",
+            status: "completed",
+            performedBy: userId,
+            completedAt: new Date(),
+          });
+      });
       
       return { success: true, data: { status: "active" } };
       
@@ -586,7 +601,7 @@ export class AddonLifecycleService {
     }
   }
   
-  // Uninstall add-on with dependency checks
+  // Uninstall add-on - uses transaction for atomicity
   async uninstall(
     tenantId: string,
     addonId: string,
@@ -603,7 +618,7 @@ export class AddonLifecycleService {
       return { success: false, error: "Installation not found", code: "NOT_INSTALLED" };
     }
     
-    // Check if other addons depend on this one
+    // Check if other addons depend on this one (includes version-level deps)
     const depCheck = await this.checkDependents(tenantId, addonId);
     if (depCheck.hasDependents) {
       return { 
@@ -614,77 +629,42 @@ export class AddonLifecycleService {
       };
     }
     
-    const previousState = { ...installation };
-    let historyId: string | null = null;
-    
     try {
-      // Record history first
-      const [history] = await db
-        .insert(addonInstallHistory)
-        .values({
-          tenantAddonId: installation.id,
-          tenantId,
-          addonId,
-          action: "uninstall",
-          fromVersionId: installation.versionId,
-          status: "in_progress",
-          performedBy: userId,
-        })
-        .returning();
-      
-      historyId = history.id;
-      
-      // Mark as uninstalling
-      await db
-        .update(tenantAddons)
-        .set({ status: "uninstalling", updatedAt: new Date() })
-        .where(eq(tenantAddons.id, installation.id));
-      
-      // Simulate cleanup process
-      // In real implementation, this would cleanup addon data, run uninstall hooks, etc.
-      
-      // Delete installation
-      await db
-        .delete(tenantAddons)
-        .where(eq(tenantAddons.id, installation.id));
-      
-      // Update history
-      await db
-        .update(addonInstallHistory)
-        .set({ status: "completed", completedAt: new Date() })
-        .where(eq(addonInstallHistory.id, history.id));
-      
-      // Decrement install count
-      await db
-        .update(addons)
-        .set({ installCount: sql`GREATEST(${addons.installCount} - 1, 0)` })
-        .where(eq(addons.id, addonId));
+      // Use transaction for atomic uninstall
+      await db.transaction(async (tx) => {
+        // Record history
+        await tx
+          .insert(addonInstallHistory)
+          .values({
+            tenantAddonId: installation.id,
+            tenantId,
+            addonId,
+            action: "uninstall",
+            fromVersionId: installation.versionId,
+            status: "completed",
+            performedBy: userId,
+            completedAt: new Date(),
+          });
+        
+        // Delete installation
+        await tx
+          .delete(tenantAddons)
+          .where(eq(tenantAddons.id, installation.id));
+        
+        // Decrement install count
+        await tx
+          .update(addons)
+          .set({ installCount: sql`GREATEST(${addons.installCount} - 1, 0)` })
+          .where(eq(addons.id, addonId));
+      });
       
       return { success: true, data: { uninstalled: true } };
       
     } catch (error) {
-      // Rollback - restore the installation
-      if (historyId) {
-        // Try to restore the installation
-        try {
-          await db
-            .update(tenantAddons)
-            .set({ status: previousState.status, updatedAt: new Date() })
-            .where(eq(tenantAddons.id, installation.id));
-        } catch {
-          // If update fails, the record was already deleted, re-insert
-          await db.insert(tenantAddons).values(previousState);
-        }
-        
-        await db
-          .update(addonInstallHistory)
-          .set({ status: "rolled_back", errorMessage: String(error), completedAt: new Date() })
-          .where(eq(addonInstallHistory.id, historyId));
-      }
-      
+      // Transaction automatically rolls back on error
       return { 
         success: false, 
-        error: "Uninstall failed, rolled back", 
+        error: "Uninstall failed", 
         code: "UNINSTALL_FAILED",
         rollbackPerformed: true
       };
