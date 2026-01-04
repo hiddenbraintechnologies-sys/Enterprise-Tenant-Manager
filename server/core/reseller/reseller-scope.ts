@@ -139,13 +139,19 @@ export function resellerScopeGuard() {
       return next();
     }
 
-    const targetTenantId = req.params.tenantId || req.params.resellerId || req.body?.tenantId;
+    const targetTenantId = 
+      req.params.tenantId || 
+      req.params.resellerId || 
+      req.body?.tenantId ||
+      req.body?.resellerId ||
+      req.query?.tenantId ||
+      req.query?.resellerId;
     
     if (!targetTenantId) {
       return next();
     }
 
-    const validation = await validateResellerHierarchy(user.tenantId, targetTenantId);
+    const validation = await validateResellerHierarchy(user.tenantId, targetTenantId as string);
     if (!validation.valid) {
       return res.status(403).json({ error: validation.reason || "Access denied" });
     }

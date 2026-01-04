@@ -1,9 +1,50 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { resellerService } from "./reseller-service";
 import { insertResellerProfileSchema, insertResellerRevenueAgreementSchema } from "@shared/schema";
+import { 
+  resellerContextMiddleware, 
+  requireReseller, 
+  resellerScopeGuard, 
+  validateResellerHierarchy 
+} from "./reseller-scope";
 
 const router = Router();
+
+router.use(resellerContextMiddleware());
+router.use(resellerScopeGuard());
+
+const hexColorRegex = /^#[0-9A-Fa-f]{6}$/;
+const safeUrlRegex = /^https?:\/\/[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z0-9][a-zA-Z0-9-]*)+/;
+
+function sanitizeUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  if (!safeUrlRegex.test(url)) return undefined;
+  return url;
+}
+
+function sanitizeColor(color: string | undefined): string | undefined {
+  if (!color) return undefined;
+  if (!hexColorRegex.test(color)) return undefined;
+  return color;
+}
+
+async function validateTargetTenantAccess(
+  req: Request, 
+  targetTenantId: string
+): Promise<{ valid: boolean; error?: string }> {
+  const user = (req as any).user;
+  if (!user) {
+    return { valid: false, error: "Authentication required" };
+  }
+
+  if (["super_admin", "admin"].includes(user.role)) {
+    return { valid: true };
+  }
+
+  const validation = await validateResellerHierarchy(user.tenantId, targetTenantId);
+  return { valid: validation.valid, error: validation.reason };
+}
 
 const createResellerSchema = z.object({
   tenantId: z.string().min(1),
@@ -110,8 +151,9 @@ router.get("/profiles/:tenantId", async (req: Request, res: Response) => {
 
     const { tenantId } = req.params;
 
-    if (user.tenantId !== tenantId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, tenantId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const profile = await resellerService.getResellerProfile(tenantId);
@@ -135,8 +177,9 @@ router.patch("/profiles/:tenantId", async (req: Request, res: Response) => {
 
     const { tenantId } = req.params;
 
-    if (user.tenantId !== tenantId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, tenantId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const parsed = updateBrandingSchema.safeParse(req.body);
@@ -144,7 +187,21 @@ router.patch("/profiles/:tenantId", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.errors });
     }
 
-    const profile = await resellerService.updateResellerProfile(tenantId, parsed.data, user.id);
+    const sanitizedData = {
+      ...parsed.data,
+      logoUrl: sanitizeUrl(parsed.data.logoUrl),
+      logoAltUrl: sanitizeUrl(parsed.data.logoAltUrl),
+      faviconUrl: sanitizeUrl(parsed.data.faviconUrl),
+      termsOfServiceUrl: sanitizeUrl(parsed.data.termsOfServiceUrl),
+      privacyPolicyUrl: sanitizeUrl(parsed.data.privacyPolicyUrl),
+      primaryColor: sanitizeColor(parsed.data.primaryColor),
+      secondaryColor: sanitizeColor(parsed.data.secondaryColor),
+      accentColor: sanitizeColor(parsed.data.accentColor),
+      backgroundColor: sanitizeColor(parsed.data.backgroundColor),
+      foregroundColor: sanitizeColor(parsed.data.foregroundColor),
+    };
+
+    const profile = await resellerService.updateResellerProfile(tenantId, sanitizedData, user.id);
     if (!profile) {
       return res.status(404).json({ error: "Reseller profile not found" });
     }
@@ -245,8 +302,18 @@ router.post("/:resellerId/tenants", async (req: Request, res: Response) => {
 
     const { resellerId } = req.params;
 
-    if (user.tenantId !== resellerId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, resellerId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
+    }
+
+    const profile = await resellerService.getResellerProfile(resellerId);
+    if (!profile) {
+      return res.status(404).json({ error: "Reseller profile not found" });
+    }
+
+    if (profile.status !== "active" && !["super_admin", "admin"].includes(user.role)) {
+      return res.status(403).json({ error: "Reseller account is not active" });
     }
 
     const parsed = createChildTenantSchema.safeParse(req.body);
@@ -275,8 +342,9 @@ router.get("/:resellerId/tenants", async (req: Request, res: Response) => {
 
     const { resellerId } = req.params;
 
-    if (user.tenantId !== resellerId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, resellerId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const childTenants = await resellerService.getChildTenants(resellerId);
@@ -321,8 +389,9 @@ router.get("/:resellerId/revenue-agreements/active", async (req: Request, res: R
 
     const { resellerId } = req.params;
 
-    if (user.tenantId !== resellerId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, resellerId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const agreement = await resellerService.getActiveRevenueAgreement(resellerId);
@@ -374,8 +443,9 @@ router.get("/:resellerId/revenue-records", async (req: Request, res: Response) =
 
     const { resellerId } = req.params;
 
-    if (user.tenantId !== resellerId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, resellerId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const limit = parseInt(req.query.limit as string) || 12;
@@ -396,8 +466,9 @@ router.get("/:resellerId/revenue/calculate", async (req: Request, res: Response)
 
     const { resellerId } = req.params;
 
-    if (user.tenantId !== resellerId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, resellerId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const { periodStart, periodEnd } = req.query;
@@ -427,8 +498,9 @@ router.post("/:resellerId/brand-assets", async (req: Request, res: Response) => 
 
     const { resellerId } = req.params;
 
-    if (user.tenantId !== resellerId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, resellerId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const parsed = addBrandAssetSchema.safeParse(req.body);
@@ -436,7 +508,16 @@ router.post("/:resellerId/brand-assets", async (req: Request, res: Response) => 
       return res.status(400).json({ error: "Invalid input", details: parsed.error.errors });
     }
 
-    const asset = await resellerService.addBrandAsset(resellerId, parsed.data as any, user.id);
+    const sanitizedUrl = sanitizeUrl(parsed.data.assetUrl);
+    if (!sanitizedUrl) {
+      return res.status(400).json({ error: "Invalid asset URL" });
+    }
+
+    const asset = await resellerService.addBrandAsset(
+      resellerId, 
+      { ...parsed.data, assetUrl: sanitizedUrl } as any, 
+      user.id
+    );
     res.status(201).json(asset);
   } catch (error: any) {
     console.error("Add brand asset error:", error);
@@ -453,8 +534,9 @@ router.get("/:resellerId/brand-assets", async (req: Request, res: Response) => {
 
     const { resellerId } = req.params;
 
-    if (user.tenantId !== resellerId && !["super_admin", "admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Access denied" });
+    const access = await validateTargetTenantAccess(req, resellerId);
+    if (!access.valid) {
+      return res.status(403).json({ error: access.error || "Access denied" });
     }
 
     const assetType = req.query.type as string | undefined;

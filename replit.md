@@ -115,6 +115,47 @@ The platform also supports Google Cloud Platform deployment with the following a
 - **RTO**: 45-60 minutes (automated failover)
 - **Documentation**: See `docs/GCP_DEPLOYMENT_ARCHITECTURE.md` for complete details
 
+## White-Label Reseller System
+
+The platform supports a white-label reseller model enabling partners to offer BizFlow under their own branding.
+
+### Tenant Hierarchy
+- **Platform**: Super admin tenants with full platform access
+- **Reseller**: White-label partners who manage child tenants
+- **Direct**: Normal tenants (either standalone or under a reseller)
+
+### Reseller Database Schema
+- `reseller_profiles`: Reseller tenant profiles with status, contact info, settings
+- `reseller_revenue_agreements`: Revenue sharing configuration (percentage, fixed, tiered)
+- `reseller_revenue_records`: Period-based revenue tracking and calculations
+- `reseller_child_invoices`: Billing records for child tenant invoices
+- `reseller_brand_assets`: Logo and branding asset storage
+
+### Revenue Sharing Models
+- **Percentage**: Base percentage of child tenant revenue
+- **Fixed**: Flat monthly fee per child tenant
+- **Tiered**: Revenue brackets with increasing percentages
+
+### Branding Configuration
+- Primary/secondary colors and theme tokens
+- Custom domains with verification workflow
+- Logo storage (light/dark variants, favicon)
+- Email template customization
+- Login page branding
+
+### API Routes (Protected by JWT Auth)
+- `/api/resellers/profile` - Get/update reseller profile
+- `/api/resellers/tenants` - List/create child tenants
+- `/api/resellers/revenue` - Revenue dashboard and records
+- `/api/resellers/branding` - Branding configuration
+- `/api/resellers/admin/*` - Platform admin routes for reseller management
+
+### Important Files
+- `server/core/reseller/reseller-service.ts` - Core reseller business logic
+- `server/core/reseller/reseller-routes.ts` - API route handlers
+- `server/core/reseller/reseller-scope.ts` - Hierarchy validation middleware
+- `shared/schema.ts` - Database tables and types
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: Used for initial user authentication.
 - **PostgreSQL**: The primary database for all application data.

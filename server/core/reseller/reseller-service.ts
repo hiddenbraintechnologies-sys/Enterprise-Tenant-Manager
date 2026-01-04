@@ -337,42 +337,84 @@ class ResellerService {
     return agreement || null;
   }
 
+  private safeParseNumber(value: string | null | undefined, defaultValue: number = 0): number {
+    if (value === null || value === undefined || value === "") {
+      return defaultValue;
+    }
+    const parsed = parseFloat(value);
+    return isNaN(parsed) || !isFinite(parsed) ? defaultValue : parsed;
+  }
+
+  private validateTieredRates(rates: TieredRate[] | null | undefined): TieredRate[] {
+    if (!Array.isArray(rates) || rates.length === 0) {
+      return [];
+    }
+    
+    const validRates = rates
+      .filter((tier): tier is TieredRate => 
+        tier !== null &&
+        typeof tier === "object" &&
+        typeof tier.minRevenue === "number" &&
+        typeof tier.maxRevenue === "number" &&
+        typeof tier.percentage === "number" &&
+        tier.minRevenue >= 0 &&
+        tier.maxRevenue >= tier.minRevenue &&
+        tier.percentage >= 0 &&
+        tier.percentage <= 100
+      )
+      .sort((a, b) => a.minRevenue - b.minRevenue);
+
+    return validRates;
+  }
+
   calculateRevenueShare(
     netRevenue: number,
     agreement: ResellerRevenueAgreement
   ): { resellerShare: number; platformShare: number; appliedPercentage: number } {
+    if (!isFinite(netRevenue) || netRevenue < 0) {
+      return { resellerShare: 0, platformShare: 0, appliedPercentage: 0 };
+    }
+
     let appliedPercentage = 0;
     let resellerShare = 0;
 
     switch (agreement.revenueShareType) {
       case "percentage":
-        appliedPercentage = parseFloat(agreement.baseSharePercentage || "20");
+        appliedPercentage = this.safeParseNumber(agreement.baseSharePercentage, 20);
+        appliedPercentage = Math.min(Math.max(appliedPercentage, 0), 100);
         resellerShare = (netRevenue * appliedPercentage) / 100;
         break;
 
       case "fixed":
-        resellerShare = parseFloat(agreement.fixedAmount || "0");
+        resellerShare = this.safeParseNumber(agreement.fixedAmount, 0);
+        resellerShare = Math.max(0, resellerShare);
+        resellerShare = Math.min(resellerShare, netRevenue);
         appliedPercentage = netRevenue > 0 ? (resellerShare / netRevenue) * 100 : 0;
         break;
 
       case "tiered":
-        const tieredRates = agreement.tieredRates as TieredRate[];
+        const tieredRates = this.validateTieredRates(agreement.tieredRates as TieredRate[]);
         for (const tier of tieredRates) {
           if (netRevenue >= tier.minRevenue && netRevenue <= tier.maxRevenue) {
             appliedPercentage = tier.percentage;
             break;
           }
         }
+        appliedPercentage = Math.min(Math.max(appliedPercentage, 0), 100);
         resellerShare = (netRevenue * appliedPercentage) / 100;
         break;
+
+      default:
+        appliedPercentage = 20;
+        resellerShare = (netRevenue * appliedPercentage) / 100;
     }
 
-    const platformShare = netRevenue - resellerShare;
+    const platformShare = Math.max(0, netRevenue - resellerShare);
 
     return {
       resellerShare: Math.round(resellerShare * 100) / 100,
       platformShare: Math.round(platformShare * 100) / 100,
-      appliedPercentage,
+      appliedPercentage: Math.round(appliedPercentage * 100) / 100,
     };
   }
 
