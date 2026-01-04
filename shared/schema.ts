@@ -3211,3 +3211,443 @@ export type InsertShipment = z.infer<typeof insertShipmentSchema>;
 
 export type MaintenanceLog = typeof maintenanceLogs.$inferSelect;
 export type InsertMaintenanceLog = z.infer<typeof insertMaintenanceLogSchema>;
+
+// ============================================
+// LEGAL & CONSULTING MODULE
+// ============================================
+
+export const legalClientStatusEnum = pgEnum("legal_client_status", ["active", "inactive", "prospect", "archived"]);
+export const legalClientTypeEnum = pgEnum("legal_client_type", ["individual", "corporate", "government", "nonprofit"]);
+export const caseStatusEnum = pgEnum("case_status", ["open", "in_progress", "on_hold", "closed", "won", "lost", "settled"]);
+export const casePriorityEnum = pgEnum("case_priority", ["low", "medium", "high", "urgent"]);
+export const legalAppointmentStatusEnum = pgEnum("legal_appointment_status", ["scheduled", "confirmed", "completed", "cancelled", "no_show"]);
+export const documentConfidentialityEnum = pgEnum("document_confidentiality", ["public", "internal", "confidential", "privileged", "highly_restricted"]);
+export const legalInvoiceStatusEnum = pgEnum("legal_invoice_status", ["draft", "pending", "sent", "partial", "paid", "overdue", "cancelled", "written_off"]);
+
+// Legal Clients Table
+export const legalClients = pgTable("legal_clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Client Type
+  clientType: legalClientTypeEnum("client_type").default("individual"),
+  
+  // Individual Details
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  dateOfBirth: date("date_of_birth"),
+  gender: varchar("gender", { length: 20 }),
+  
+  // Corporate Details
+  companyName: text("company_name"),
+  registrationNumber: varchar("registration_number", { length: 100 }),
+  taxId: varchar("tax_id", { length: 50 }),
+  industry: varchar("industry", { length: 100 }),
+  
+  // Contact Information
+  email: text("email"),
+  phone: varchar("phone", { length: 20 }),
+  alternatePhone: varchar("alternate_phone", { length: 20 }),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 100 }),
+  country: varchar("country", { length: 100 }),
+  postalCode: varchar("postal_code", { length: 20 }),
+  
+  // Primary Contact (for corporate clients)
+  primaryContactName: text("primary_contact_name"),
+  primaryContactEmail: text("primary_contact_email"),
+  primaryContactPhone: varchar("primary_contact_phone", { length: 20 }),
+  primaryContactDesignation: varchar("primary_contact_designation", { length: 100 }),
+  
+  // KYC / Verification (confidentiality-safe: minimal PII storage)
+  isKycVerified: boolean("is_kyc_verified").default(false),
+  kycVerifiedAt: timestamp("kyc_verified_at"),
+  kycVerifiedBy: varchar("kyc_verified_by"),
+  
+  // Conflict Check
+  conflictCheckCompleted: boolean("conflict_check_completed").default(false),
+  conflictCheckDate: date("conflict_check_date"),
+  conflictCheckNotes: text("conflict_check_notes"),
+  
+  // Referral
+  referralSource: varchar("referral_source", { length: 100 }),
+  referredBy: varchar("referred_by", { length: 100 }),
+  
+  status: legalClientStatusEnum("status").default("active"),
+  
+  // Billing
+  defaultBillingRate: decimal("default_billing_rate", { precision: 12, scale: 2 }),
+  billingCurrency: varchar("billing_currency", { length: 10 }).default("INR"),
+  paymentTerms: varchar("payment_terms", { length: 50 }).default("net_30"),
+  
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit Trail
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_legal_clients_tenant").on(table.tenantId),
+  index("idx_legal_clients_tenant_status").on(table.tenantId, table.status),
+  index("idx_legal_clients_type").on(table.clientType),
+  index("idx_legal_clients_email").on(table.email),
+  index("idx_legal_clients_company").on(table.companyName),
+]);
+
+// Cases Table
+export const cases = pgTable("cases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id").notNull().references(() => legalClients.id, { onDelete: "cascade" }),
+  
+  // Case Identification
+  caseNumber: varchar("case_number", { length: 100 }),
+  title: text("title").notNull(),
+  description: text("description"),
+  
+  // Case Classification
+  practiceArea: varchar("practice_area", { length: 100 }),
+  caseType: varchar("case_type", { length: 100 }),
+  subType: varchar("sub_type", { length: 100 }),
+  
+  // Court / Tribunal Details
+  courtName: text("court_name"),
+  courtCaseNumber: varchar("court_case_number", { length: 100 }),
+  jurisdiction: varchar("jurisdiction", { length: 100 }),
+  judge: text("judge"),
+  
+  // Dates
+  filingDate: date("filing_date"),
+  openDate: date("open_date"),
+  closeDate: date("close_date"),
+  nextHearingDate: date("next_hearing_date"),
+  statuteOfLimitations: date("statute_of_limitations"),
+  
+  // Opposing Party (stored securely)
+  opposingPartyName: text("opposing_party_name"),
+  opposingCounsel: text("opposing_counsel"),
+  opposingCounselFirm: text("opposing_counsel_firm"),
+  opposingCounselContact: varchar("opposing_counsel_contact", { length: 100 }),
+  
+  // Team Assignment
+  leadAttorneyId: varchar("lead_attorney_id"),
+  leadAttorneyName: text("lead_attorney_name"),
+  assignedTeam: jsonb("assigned_team").default([]),
+  
+  // Financial
+  estimatedValue: decimal("estimated_value", { precision: 15, scale: 2 }),
+  contingencyPercentage: decimal("contingency_percentage", { precision: 5, scale: 2 }),
+  retainerAmount: decimal("retainer_amount", { precision: 12, scale: 2 }),
+  billingType: varchar("billing_type", { length: 30 }).default("hourly"),
+  hourlyRate: decimal("hourly_rate", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  
+  status: caseStatusEnum("status").default("open"),
+  priority: casePriorityEnum("priority").default("medium"),
+  
+  // Confidentiality
+  confidentialityLevel: documentConfidentialityEnum("confidentiality_level").default("confidential"),
+  isPrivileged: boolean("is_privileged").default(true),
+  
+  // Tags and Categories
+  tags: jsonb("tags").default([]),
+  
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit Trail
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_cases_tenant").on(table.tenantId),
+  index("idx_cases_tenant_status").on(table.tenantId, table.status),
+  index("idx_cases_client").on(table.clientId),
+  index("idx_cases_number").on(table.caseNumber),
+  index("idx_cases_practice_area").on(table.practiceArea),
+  index("idx_cases_lead_attorney").on(table.leadAttorneyId),
+  index("idx_cases_next_hearing").on(table.nextHearingDate),
+]);
+
+// Legal Appointments Table
+export const legalAppointments = pgTable("legal_appointments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id").references(() => legalClients.id, { onDelete: "set null" }),
+  caseId: varchar("case_id").references(() => cases.id, { onDelete: "set null" }),
+  
+  // Appointment Details
+  title: text("title").notNull(),
+  description: text("description"),
+  appointmentType: varchar("appointment_type", { length: 50 }).default("consultation"),
+  
+  // Schedule
+  scheduledDate: date("scheduled_date").notNull(),
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time"),
+  duration: integer("duration"),
+  timezone: varchar("timezone", { length: 50 }).default("Asia/Kolkata"),
+  
+  // Location
+  location: text("location"),
+  isVirtual: boolean("is_virtual").default(false),
+  meetingLink: text("meeting_link"),
+  
+  // Attendees
+  attendeeId: varchar("attendee_id"),
+  attendeeName: text("attendee_name"),
+  attendees: jsonb("attendees").default([]),
+  
+  // Billing
+  isBillable: boolean("is_billable").default(true),
+  billedAmount: decimal("billed_amount", { precision: 12, scale: 2 }),
+  billedHours: decimal("billed_hours", { precision: 8, scale: 2 }),
+  
+  // Reminders
+  reminderSent: boolean("reminder_sent").default(false),
+  reminderSentAt: timestamp("reminder_sent_at"),
+  
+  status: legalAppointmentStatusEnum("status").default("scheduled"),
+  
+  // Confidentiality
+  confidentialityLevel: documentConfidentialityEnum("confidentiality_level").default("confidential"),
+  
+  notes: text("notes"),
+  outcome: text("outcome"),
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit Trail
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_legal_appointments_tenant").on(table.tenantId),
+  index("idx_legal_appointments_tenant_status").on(table.tenantId, table.status),
+  index("idx_legal_appointments_client").on(table.clientId),
+  index("idx_legal_appointments_case").on(table.caseId),
+  index("idx_legal_appointments_date").on(table.scheduledDate),
+  index("idx_legal_appointments_attendee").on(table.attendeeId),
+]);
+
+// Legal Documents Table
+export const legalDocuments = pgTable("legal_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id").references(() => legalClients.id, { onDelete: "set null" }),
+  caseId: varchar("case_id").references(() => cases.id, { onDelete: "set null" }),
+  
+  // Document Details
+  title: text("title").notNull(),
+  description: text("description"),
+  documentType: varchar("document_type", { length: 100 }),
+  documentCategory: varchar("document_category", { length: 100 }),
+  
+  // File Information
+  fileName: text("file_name"),
+  fileUrl: text("file_url"),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  
+  // Version Control
+  version: integer("version").default(1),
+  parentDocumentId: varchar("parent_document_id"),
+  isLatestVersion: boolean("is_latest_version").default(true),
+  
+  // Confidentiality & Security
+  confidentialityLevel: documentConfidentialityEnum("confidentiality_level").default("confidential"),
+  isPrivileged: boolean("is_privileged").default(false),
+  isAttorneyClientPrivilege: boolean("is_attorney_client_privilege").default(false),
+  isWorkProduct: boolean("is_work_product").default(false),
+  
+  // Access Control
+  accessRestrictions: jsonb("access_restrictions").default([]),
+  allowedUsers: jsonb("allowed_users").default([]),
+  
+  // Execution Details
+  isExecuted: boolean("is_executed").default(false),
+  executedDate: date("executed_date"),
+  executedBy: text("executed_by"),
+  witnesses: jsonb("witnesses").default([]),
+  
+  // Expiry / Validity
+  effectiveDate: date("effective_date"),
+  expiryDate: date("expiry_date"),
+  
+  // Court Filing
+  isFiledWithCourt: boolean("is_filed_with_court").default(false),
+  courtFilingDate: date("court_filing_date"),
+  courtFilingNumber: varchar("court_filing_number", { length: 100 }),
+  
+  // Review Status
+  reviewStatus: varchar("review_status", { length: 50 }).default("pending"),
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  
+  tags: jsonb("tags").default([]),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit Trail
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_legal_documents_tenant").on(table.tenantId),
+  index("idx_legal_documents_client").on(table.clientId),
+  index("idx_legal_documents_case").on(table.caseId),
+  index("idx_legal_documents_type").on(table.documentType),
+  index("idx_legal_documents_confidentiality").on(table.confidentialityLevel),
+  index("idx_legal_documents_parent").on(table.parentDocumentId),
+]);
+
+// Legal Invoices Table
+export const legalInvoices = pgTable("legal_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id").notNull().references(() => legalClients.id, { onDelete: "cascade" }),
+  caseId: varchar("case_id").references(() => cases.id, { onDelete: "set null" }),
+  
+  // Invoice Identification
+  invoiceNumber: varchar("invoice_number", { length: 100 }),
+  invoiceDate: date("invoice_date").notNull(),
+  dueDate: date("due_date"),
+  
+  // Billing Period
+  billingPeriodStart: date("billing_period_start"),
+  billingPeriodEnd: date("billing_period_end"),
+  
+  // Amounts
+  subtotal: decimal("subtotal", { precision: 15, scale: 2 }).notNull(),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  paidAmount: decimal("paid_amount", { precision: 15, scale: 2 }).default("0"),
+  balanceAmount: decimal("balance_amount", { precision: 15, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  
+  // Time Entries
+  totalHours: decimal("total_hours", { precision: 10, scale: 2 }),
+  timeEntries: jsonb("time_entries").default([]),
+  
+  // Expenses
+  expenses: jsonb("expenses").default([]),
+  
+  // Trust Account
+  trustAccountApplied: decimal("trust_account_applied", { precision: 15, scale: 2 }).default("0"),
+  
+  // Payment Details
+  paymentTerms: varchar("payment_terms", { length: 50 }),
+  paymentInstructions: text("payment_instructions"),
+  lastPaymentDate: date("last_payment_date"),
+  
+  status: legalInvoiceStatusEnum("status").default("draft"),
+  
+  // Communication
+  sentAt: timestamp("sent_at"),
+  sentTo: text("sent_to"),
+  viewedAt: timestamp("viewed_at"),
+  
+  // Reminders
+  reminderCount: integer("reminder_count").default(0),
+  lastReminderSentAt: timestamp("last_reminder_sent_at"),
+  
+  notes: text("notes"),
+  internalNotes: text("internal_notes"),
+  termsAndConditions: text("terms_and_conditions"),
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit Trail
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+  approvedBy: varchar("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("idx_legal_invoices_tenant").on(table.tenantId),
+  index("idx_legal_invoices_tenant_status").on(table.tenantId, table.status),
+  index("idx_legal_invoices_client").on(table.clientId),
+  index("idx_legal_invoices_case").on(table.caseId),
+  index("idx_legal_invoices_number").on(table.invoiceNumber),
+  index("idx_legal_invoices_date").on(table.invoiceDate),
+  index("idx_legal_invoices_due_date").on(table.dueDate),
+]);
+
+// Case Activity Log (Audit Trail)
+export const caseActivityLog = pgTable("case_activity_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  caseId: varchar("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+  
+  // Activity Details
+  activityType: varchar("activity_type", { length: 50 }).notNull(),
+  activityDescription: text("activity_description"),
+  
+  // Related Entities
+  relatedDocumentId: varchar("related_document_id"),
+  relatedAppointmentId: varchar("related_appointment_id"),
+  relatedInvoiceId: varchar("related_invoice_id"),
+  
+  // Changes (for update activities)
+  previousValue: jsonb("previous_value"),
+  newValue: jsonb("new_value"),
+  changedFields: jsonb("changed_fields").default([]),
+  
+  // User Info
+  performedBy: varchar("performed_by"),
+  performedByName: text("performed_by_name"),
+  performedByRole: varchar("performed_by_role", { length: 50 }),
+  
+  // IP / Access Info
+  ipAddress: varchar("ip_address", { length: 50 }),
+  userAgent: text("user_agent"),
+  
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_case_activity_tenant").on(table.tenantId),
+  index("idx_case_activity_case").on(table.caseId),
+  index("idx_case_activity_type").on(table.activityType),
+  index("idx_case_activity_date").on(table.createdAt),
+  index("idx_case_activity_user").on(table.performedBy),
+]);
+
+// Insert schemas for Legal
+export const insertLegalClientSchema = createInsertSchema(legalClients).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertCaseSchema = createInsertSchema(cases).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertLegalAppointmentSchema = createInsertSchema(legalAppointments).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertLegalDocumentSchema = createInsertSchema(legalDocuments).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertLegalInvoiceSchema = createInsertSchema(legalInvoices).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
+export const insertCaseActivityLogSchema = createInsertSchema(caseActivityLog).omit({ id: true, createdAt: true });
+
+// Legal types
+export type LegalClient = typeof legalClients.$inferSelect;
+export type InsertLegalClient = z.infer<typeof insertLegalClientSchema>;
+
+export type Case = typeof cases.$inferSelect;
+export type InsertCase = z.infer<typeof insertCaseSchema>;
+
+export type LegalAppointment = typeof legalAppointments.$inferSelect;
+export type InsertLegalAppointment = z.infer<typeof insertLegalAppointmentSchema>;
+
+export type LegalDocument = typeof legalDocuments.$inferSelect;
+export type InsertLegalDocument = z.infer<typeof insertLegalDocumentSchema>;
+
+export type LegalInvoice = typeof legalInvoices.$inferSelect;
+export type InsertLegalInvoice = z.infer<typeof insertLegalInvoiceSchema>;
+
+export type CaseActivityLog = typeof caseActivityLog.$inferSelect;
+export type InsertCaseActivityLog = z.infer<typeof insertCaseActivityLogSchema>;
