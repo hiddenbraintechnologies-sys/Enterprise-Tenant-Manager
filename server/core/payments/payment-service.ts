@@ -421,11 +421,16 @@ export class PaymentService {
     monthlyRevenue: number;
     revenueByCountry: Record<string, number>;
     revenueByGateway: Record<string, number>;
+    revenueByBusinessType: Record<string, number>;
+    subscriptionsByBusinessType: Record<string, number>;
     activeSubscriptions: number;
     mrr: number;
+    pendingInvoices: number;
+    revenueChange: number;
   }> {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
     const allTransactions = await db.select()
       .from(transactionLogs)
@@ -438,8 +443,17 @@ export class PaymentService {
       t => t.createdAt && new Date(t.createdAt) >= startOfMonth
     );
 
+    const lastMonthTransactions = allTransactions.filter(
+      t => t.createdAt && new Date(t.createdAt) >= startOfLastMonth && new Date(t.createdAt) < startOfMonth
+    );
+
     const totalRevenue = allTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
     const monthlyRevenue = monthlyTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const lastMonthRevenue = lastMonthTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+    const revenueChange = lastMonthRevenue > 0 
+      ? Math.round(((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : monthlyRevenue > 0 ? 100 : 0;
 
     const revenueByCountry: Record<string, number> = {};
     const revenueByGateway: Record<string, number> = {};
@@ -449,19 +463,46 @@ export class PaymentService {
       revenueByGateway[t.gateway] = (revenueByGateway[t.gateway] || 0) + parseFloat(t.amount);
     }
 
-    const activeSubscriptions = await db.select({ count: sql<number>`count(*)` })
+    const activeSubscriptionsWithTenants = await db.select({
+      tenantId: tenantSubscriptions.tenantId,
+      businessType: tenants.businessType,
+    })
       .from(tenantSubscriptions)
+      .innerJoin(tenants, eq(tenants.id, tenantSubscriptions.tenantId))
       .where(eq(tenantSubscriptions.status, "active"));
 
-    const activeSubs = activeSubscriptions[0]?.count || 0;
+    const revenueByBusinessType: Record<string, number> = {};
+    const subscriptionsByBusinessType: Record<string, number> = {};
+
+    for (const sub of activeSubscriptionsWithTenants) {
+      const type = sub.businessType || "service";
+      subscriptionsByBusinessType[type] = (subscriptionsByBusinessType[type] || 0) + 1;
+    }
+
+    const tenantBusinessTypes = new Map(
+      activeSubscriptionsWithTenants.map(s => [s.tenantId, s.businessType || "service"])
+    );
+
+    for (const t of monthlyTransactions) {
+      const businessType = t.tenantId ? tenantBusinessTypes.get(t.tenantId) || "service" : "service";
+      revenueByBusinessType[businessType] = (revenueByBusinessType[businessType] || 0) + parseFloat(t.amount);
+    }
+
+    const pendingInvoicesCount = await db.select({ count: sql<number>`count(*)` })
+      .from(subscriptionInvoices)
+      .where(eq(subscriptionInvoices.status, "pending"));
 
     return {
       totalRevenue,
       monthlyRevenue,
       revenueByCountry,
       revenueByGateway,
-      activeSubscriptions: activeSubs,
+      revenueByBusinessType,
+      subscriptionsByBusinessType,
+      activeSubscriptions: activeSubscriptionsWithTenants.length,
       mrr: monthlyRevenue,
+      pendingInvoices: pendingInvoicesCount[0]?.count || 0,
+      revenueChange,
     };
   }
 

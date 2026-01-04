@@ -3543,6 +3543,24 @@ export async function registerRoutes(
   });
 
   // ==================== GLOBAL BILLING API (Platform Admin) ====================
+  app.get("/api/platform-admin/billing/stats", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("view_billing"), async (req, res) => {
+    try {
+      const stats = await paymentService.getRevenueStats();
+      res.json({
+        totalRevenue: stats.totalRevenue,
+        monthlyRecurring: stats.mrr,
+        activeSubscriptions: stats.activeSubscriptions,
+        pendingInvoices: stats.pendingInvoices,
+        revenueChange: stats.revenueChange,
+        revenueByBusinessType: stats.revenueByBusinessType,
+        subscriptionsByBusinessType: stats.subscriptionsByBusinessType,
+      });
+    } catch (error) {
+      console.error("Error fetching billing stats:", error);
+      res.status(500).json({ message: "Failed to fetch billing stats" });
+    }
+  });
+
   app.get("/api/platform-admin/billing/revenue", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
     try {
       const stats = await paymentService.getRevenueStats();
