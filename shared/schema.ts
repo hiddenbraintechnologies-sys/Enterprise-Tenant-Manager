@@ -41,6 +41,12 @@ export const membershipStatusEnum = pgEnum("membership_status", ["active", "expi
 export const appointmentTypeEnum = pgEnum("appointment_type", ["walk_in", "online", "phone"]);
 export const patientGenderEnum = pgEnum("patient_gender", ["male", "female", "other"]);
 
+// Reseller/White-label enums
+export const tenantTypeEnum = pgEnum("tenant_type", ["platform", "reseller", "direct"]);
+export const resellerStatusEnum = pgEnum("reseller_status", ["active", "suspended", "pending_approval", "terminated"]);
+export const revenueShareTypeEnum = pgEnum("revenue_share_type", ["percentage", "fixed", "tiered"]);
+export const billingCadenceEnum = pgEnum("billing_cadence", ["monthly", "quarterly", "annually"]);
+
 // ============================================
 // CORE: TENANTS & MULTI-TENANCY
 // ============================================
@@ -71,6 +77,9 @@ export const tenants = pgTable("tenants", {
   statusChangeReason: text("status_change_reason"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
   businessTypeLocked: boolean("business_type_locked").default(false),
+  // Reseller hierarchy fields
+  tenantType: tenantTypeEnum("tenant_type").default("direct"),
+  parentResellerId: varchar("parent_reseller_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -78,6 +87,8 @@ export const tenants = pgTable("tenants", {
   index("idx_tenants_country").on(table.country),
   index("idx_tenants_region").on(table.region),
   index("idx_tenants_status").on(table.status),
+  index("idx_tenants_type").on(table.tenantType),
+  index("idx_tenants_parent_reseller").on(table.parentResellerId),
 ]);
 
 // Onboarding status enum
@@ -4091,3 +4102,295 @@ export type InsertCaseHearing = z.infer<typeof insertCaseHearingSchema>;
 
 export type CaseSummaryJob = typeof caseSummaryJobs.$inferSelect;
 export type InsertCaseSummaryJob = z.infer<typeof insertCaseSummaryJobSchema>;
+
+// ============================================
+// WHITE-LABEL RESELLER SYSTEM
+// ============================================
+
+// Reseller Profiles - Extended branding and config for resellers
+export const resellerProfiles = pgTable("reseller_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  
+  // Status
+  status: resellerStatusEnum("status").default("pending_approval"),
+  
+  // Branding - Visual Identity
+  brandName: text("brand_name").notNull(),
+  brandTagline: text("brand_tagline"),
+  logoUrl: text("logo_url"),
+  logoAltUrl: text("logo_alt_url"), // Alternative logo (dark/light mode)
+  faviconUrl: text("favicon_url"),
+  
+  // Color Palette
+  primaryColor: text("primary_color").default("#3B82F6"),
+  secondaryColor: text("secondary_color").default("#1E40AF"),
+  accentColor: text("accent_color").default("#10B981"),
+  backgroundColor: text("background_color").default("#FFFFFF"),
+  foregroundColor: text("foreground_color").default("#111827"),
+  
+  // Theme Tokens (full customization)
+  themeTokens: jsonb("theme_tokens").default({}),
+  
+  // Domain Configuration
+  customDomain: varchar("custom_domain", { length: 255 }),
+  customDomainVerified: boolean("custom_domain_verified").default(false),
+  customDomainVerifiedAt: timestamp("custom_domain_verified_at"),
+  subdomainPrefix: varchar("subdomain_prefix", { length: 50 }),
+  
+  // Email Branding
+  emailFromName: text("email_from_name"),
+  emailFromAddress: text("email_from_address"),
+  emailReplyTo: text("email_reply_to"),
+  emailSignature: text("email_signature"),
+  
+  // Legal/Compliance
+  termsOfServiceUrl: text("terms_of_service_url"),
+  privacyPolicyUrl: text("privacy_policy_url"),
+  supportEmail: text("support_email"),
+  supportPhone: text("support_phone"),
+  
+  // Feature Controls
+  allowedBusinessTypes: jsonb("allowed_business_types").default([]),
+  maxChildTenants: integer("max_child_tenants").default(100),
+  currentChildTenantCount: integer("current_child_tenant_count").default(0),
+  
+  // Analytics
+  analyticsId: varchar("analytics_id", { length: 100 }),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  approvedAt: timestamp("approved_at"),
+  approvedBy: varchar("approved_by"),
+}, (table) => [
+  index("idx_reseller_profiles_tenant").on(table.tenantId),
+  index("idx_reseller_profiles_status").on(table.status),
+  uniqueIndex("idx_reseller_profiles_domain").on(table.customDomain),
+  uniqueIndex("idx_reseller_profiles_subdomain").on(table.subdomainPrefix),
+]);
+
+// Revenue Sharing Agreements
+export const resellerRevenueAgreements = pgTable("reseller_revenue_agreements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Agreement Details
+  agreementName: text("agreement_name").notNull(),
+  agreementVersion: integer("agreement_version").default(1),
+  isActive: boolean("is_active").default(true),
+  
+  // Revenue Share Configuration
+  revenueShareType: revenueShareTypeEnum("revenue_share_type").default("percentage"),
+  baseSharePercentage: decimal("base_share_percentage", { precision: 5, scale: 2 }).default("20.00"), // Reseller's share
+  
+  // Tiered Revenue (for type="tiered")
+  tieredRates: jsonb("tiered_rates").default([]), // [{minRevenue: 0, maxRevenue: 10000, percentage: 15}, ...]
+  
+  // Fixed Amount (for type="fixed")
+  fixedAmount: decimal("fixed_amount", { precision: 10, scale: 2 }).default("0.00"),
+  fixedCurrency: varchar("fixed_currency", { length: 3 }).default("USD"),
+  
+  // Billing Configuration
+  billingCadence: billingCadenceEnum("billing_cadence").default("monthly"),
+  paymentTermsDays: integer("payment_terms_days").default(30), // Net 30
+  
+  // Payout Preferences
+  payoutMethod: varchar("payout_method", { length: 50 }).default("bank_transfer"), // bank_transfer, paypal, stripe
+  payoutDetails: jsonb("payout_details").default({}), // Encrypted bank account details, etc.
+  minimumPayoutAmount: decimal("minimum_payout_amount", { precision: 10, scale: 2 }).default("100.00"),
+  
+  // Valid Period
+  effectiveFrom: timestamp("effective_from").defaultNow(),
+  effectiveUntil: timestamp("effective_until"),
+  
+  // Approval
+  approvedAt: timestamp("approved_at"),
+  approvedBy: varchar("approved_by"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_revenue_agreements_reseller").on(table.resellerId),
+  index("idx_reseller_revenue_agreements_active").on(table.isActive),
+]);
+
+// Revenue Records - Monthly/periodic revenue tracking
+export const resellerRevenueRecords = pgTable("reseller_revenue_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agreementId: varchar("agreement_id").notNull().references(() => resellerRevenueAgreements.id, { onDelete: "cascade" }),
+  
+  // Period
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  periodLabel: varchar("period_label", { length: 20 }), // "2025-01", "2025-Q1", etc.
+  
+  // Revenue Breakdown
+  grossRevenue: decimal("gross_revenue", { precision: 12, scale: 2 }).default("0.00"),
+  refunds: decimal("refunds", { precision: 12, scale: 2 }).default("0.00"),
+  netRevenue: decimal("net_revenue", { precision: 12, scale: 2 }).default("0.00"),
+  
+  // Child Tenant Stats
+  activeChildTenants: integer("active_child_tenants").default(0),
+  totalTransactions: integer("total_transactions").default(0),
+  
+  // Revenue Share Calculation
+  resellerShareAmount: decimal("reseller_share_amount", { precision: 12, scale: 2 }).default("0.00"),
+  platformShareAmount: decimal("platform_share_amount", { precision: 12, scale: 2 }).default("0.00"),
+  appliedSharePercentage: decimal("applied_share_percentage", { precision: 5, scale: 2 }),
+  
+  // Currency
+  currency: varchar("currency", { length: 3 }).default("USD"),
+  
+  // Status
+  status: varchar("status", { length: 50 }).default("pending"), // pending, calculated, invoiced, paid, disputed
+  
+  // Payout Tracking
+  payoutId: varchar("payout_id"),
+  payoutStatus: varchar("payout_status", { length: 50 }),
+  paidAt: timestamp("paid_at"),
+  
+  // Invoice Reference
+  platformInvoiceId: varchar("platform_invoice_id"),
+  
+  // Metadata
+  calculationDetails: jsonb("calculation_details").default({}),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  finalizedAt: timestamp("finalized_at"),
+}, (table) => [
+  index("idx_reseller_revenue_records_reseller").on(table.resellerId),
+  index("idx_reseller_revenue_records_period").on(table.periodStart, table.periodEnd),
+  index("idx_reseller_revenue_records_status").on(table.status),
+  uniqueIndex("idx_reseller_revenue_records_unique_period").on(table.resellerId, table.periodLabel),
+]);
+
+// Child Tenant Invoices - Track individual child tenant billing
+export const resellerChildInvoices = pgTable("reseller_child_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  childTenantId: varchar("child_tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  revenueRecordId: varchar("revenue_record_id").references(() => resellerRevenueRecords.id),
+  
+  // Invoice Details
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  invoiceDate: timestamp("invoice_date").defaultNow(),
+  dueDate: timestamp("due_date"),
+  
+  // Amounts
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).default("0.00"),
+  discounts: decimal("discounts", { precision: 10, scale: 2 }).default("0.00"),
+  taxes: decimal("taxes", { precision: 10, scale: 2 }).default("0.00"),
+  total: decimal("total", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Currency
+  currency: varchar("currency", { length: 3 }).default("USD"),
+  
+  // Status
+  status: invoiceStatusEnum("status").default("pending"),
+  
+  // Payment
+  paidAt: timestamp("paid_at"),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  paymentReference: varchar("payment_reference", { length: 255 }),
+  
+  // Line Items
+  lineItems: jsonb("line_items").default([]),
+  
+  // Notes
+  notes: text("notes"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_child_invoices_reseller").on(table.resellerId),
+  index("idx_reseller_child_invoices_child").on(table.childTenantId),
+  index("idx_reseller_child_invoices_revenue_record").on(table.revenueRecordId),
+  uniqueIndex("idx_reseller_child_invoices_number").on(table.resellerId, table.invoiceNumber),
+]);
+
+// Brand Assets - Store reseller-specific assets
+export const resellerBrandAssets = pgTable("reseller_brand_assets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Asset Details
+  assetType: varchar("asset_type", { length: 50 }).notNull(), // logo, favicon, banner, email_header, etc.
+  assetName: text("asset_name").notNull(),
+  assetUrl: text("asset_url").notNull(),
+  
+  // Metadata
+  mimeType: varchar("mime_type", { length: 100 }),
+  fileSize: integer("file_size"),
+  dimensions: jsonb("dimensions").default({}), // {width, height}
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_brand_assets_reseller").on(table.resellerId),
+  index("idx_reseller_brand_assets_type").on(table.assetType),
+]);
+
+// Reseller Insert Schemas
+export const insertResellerProfileSchema = createInsertSchema(resellerProfiles).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  approvedAt: true,
+  approvedBy: true,
+  customDomainVerified: true,
+  customDomainVerifiedAt: true,
+  currentChildTenantCount: true,
+});
+
+export const insertResellerRevenueAgreementSchema = createInsertSchema(resellerRevenueAgreements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedAt: true,
+  approvedBy: true,
+});
+
+export const insertResellerRevenueRecordSchema = createInsertSchema(resellerRevenueRecords).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  finalizedAt: true,
+});
+
+export const insertResellerChildInvoiceSchema = createInsertSchema(resellerChildInvoices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertResellerBrandAssetSchema = createInsertSchema(resellerBrandAssets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Reseller Types
+export type ResellerProfile = typeof resellerProfiles.$inferSelect;
+export type InsertResellerProfile = z.infer<typeof insertResellerProfileSchema>;
+
+export type ResellerRevenueAgreement = typeof resellerRevenueAgreements.$inferSelect;
+export type InsertResellerRevenueAgreement = z.infer<typeof insertResellerRevenueAgreementSchema>;
+
+export type ResellerRevenueRecord = typeof resellerRevenueRecords.$inferSelect;
+export type InsertResellerRevenueRecord = z.infer<typeof insertResellerRevenueRecordSchema>;
+
+export type ResellerChildInvoice = typeof resellerChildInvoices.$inferSelect;
+export type InsertResellerChildInvoice = z.infer<typeof insertResellerChildInvoiceSchema>;
+
+export type ResellerBrandAsset = typeof resellerBrandAssets.$inferSelect;
+export type InsertResellerBrandAsset = z.infer<typeof insertResellerBrandAssetSchema>;
