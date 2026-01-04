@@ -64,6 +64,7 @@ import { resellerRoutes, resellerContextMiddleware } from "./core/reseller";
 import { brandingRoutes } from "./core/branding";
 import addonRoutes from "./routes/addons";
 import aiPermissionsRoutes from "./routes/ai-permissions";
+import aiAuditRoutes from "./routes/ai-audit";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -95,6 +96,9 @@ export async function registerRoutes(
   
   // Register AI Permissions routes (role-based AI access control)
   app.use('/api/ai/permissions', aiPermissionsRoutes);
+
+  // Register AI Audit routes (compliance-safe logging)
+  app.use('/api/ai/audit', aiAuditRoutes);
 
   // Module-protected middleware stack (includes tenant context resolution)
   const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal") => [

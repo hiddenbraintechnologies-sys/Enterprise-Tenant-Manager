@@ -1754,6 +1754,67 @@ export const aiUsageCounters = pgTable("ai_usage_counters", {
   index("idx_ai_usage_counters_period").on(table.periodStart, table.periodEnd),
 ]);
 
+// AI audit action enum
+export const aiAuditActionEnum = pgEnum("ai_audit_action", [
+  "invoke",
+  "complete",
+  "error",
+  "denied",
+  "rate_limited"
+]);
+
+// AI audit logs for compliance-safe tracking
+export const aiAuditLogs = pgTable("ai_audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull(),
+  roleId: varchar("role_id"),
+  featureCode: varchar("feature_code", { length: 100 }).notNull(),
+  action: aiAuditActionEnum("action").notNull().default("invoke"),
+  // Input metadata - sanitized, no sensitive data
+  inputMetadata: jsonb("input_metadata").default({}).$type<{
+    inputType?: string;
+    inputLength?: number;
+    inputTokenCount?: number;
+    modelRequested?: string;
+    contextType?: string;
+    hasAttachments?: boolean;
+    requestSource?: string;
+  }>(),
+  // Output reference - pointer only, no actual content
+  outputReference: jsonb("output_reference").default({}).$type<{
+    outputType?: string;
+    outputLength?: number;
+    outputTokenCount?: number;
+    modelUsed?: string;
+    processingTimeMs?: number;
+    cached?: boolean;
+    storageKey?: string;
+  }>(),
+  // Request context for compliance
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  sessionId: varchar("session_id", { length: 255 }),
+  // Error tracking (sanitized)
+  errorCode: varchar("error_code", { length: 100 }),
+  errorCategory: varchar("error_category", { length: 100 }),
+  // Compliance fields
+  consentRecorded: boolean("consent_recorded").default(false),
+  dataRetentionDays: integer("data_retention_days").default(90),
+  complianceFlags: text("compliance_flags").array(),
+  // Timestamps
+  triggeredAt: timestamp("triggered_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_ai_audit_logs_tenant").on(table.tenantId),
+  index("idx_ai_audit_logs_user").on(table.userId),
+  index("idx_ai_audit_logs_feature").on(table.featureCode),
+  index("idx_ai_audit_logs_action").on(table.action),
+  index("idx_ai_audit_logs_triggered").on(table.triggeredAt),
+  index("idx_ai_audit_logs_tenant_time").on(table.tenantId, table.triggeredAt),
+]);
+
 // ============================================
 // INSERT SCHEMAS
 // ============================================
@@ -1833,6 +1894,9 @@ export const insertStudentRiskPredictionSchema = createInsertSchema(studentRiskP
 export const insertAiFeatureSchema = createInsertSchema(aiFeatures).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAiRoleSettingSchema = createInsertSchema(aiRoleSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAiUsageCounterSchema = createInsertSchema(aiUsageCounters).omit({ id: true, createdAt: true, updatedAt: true });
+
+// AI audit log schemas
+export const insertAiAuditLogSchema = createInsertSchema(aiAuditLogs).omit({ id: true, createdAt: true });
 
 // ============================================
 // TYPES
@@ -2033,6 +2097,10 @@ export type AiUsageCounter = typeof aiUsageCounters.$inferSelect;
 export type InsertAiUsageCounter = z.infer<typeof insertAiUsageCounterSchema>;
 
 export type AiUsageResetWindow = typeof aiUsageResetWindowEnum.enumValues[number];
+
+export type AiAuditLog = typeof aiAuditLogs.$inferSelect;
+export type InsertAiAuditLog = z.infer<typeof insertAiAuditLogSchema>;
+export type AiAuditAction = typeof aiAuditActionEnum.enumValues[number];
 
 // ============================================
 // COMPLIANCE & DATA GOVERNANCE
