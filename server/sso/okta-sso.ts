@@ -11,6 +11,7 @@ import { users, userTenants, roles, tenants } from '@shared/schema';
 import {
   ssoProviderConfigs,
   ssoUserIdentities,
+  ssoAuthSessions,
   ssoAuditLog,
   SsoProviderConfig,
 } from '../../shared/models/sso';
@@ -164,7 +165,19 @@ export class OktaSsoService {
 
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await db.insert(ssoProviderConfigs).values;
+    await db.insert(ssoAuthSessions).values({
+      tenantId,
+      providerId,
+      state,
+      nonce,
+      codeVerifier,
+      codeChallenge,
+      codeChallengeMethod: 'S256',
+      redirectUri,
+      returnUrl,
+      status: 'pending',
+      expiresAt,
+    });
 
     const authUrl = new URL(provider.authorizationUrl!);
     const scopes = (provider.scopes as string[]) || ['openid', 'profile', 'email'];
@@ -346,6 +359,74 @@ export class OktaSsoService {
     if (tokens.refreshToken) {
       await revoke(tokens.refreshToken, 'refresh_token');
     }
+  }
+
+  /**
+   * Handle Okta callback - exchange code and get user info
+   */
+  async handleCallback(params: {
+    code: string;
+    state: string;
+    redirectUri: string;
+  }): Promise<{
+    user: OktaUserInfo;
+    tokens: { accessToken: string; refreshToken?: string; idToken?: string };
+    session: any;
+    provider: SsoProviderConfig;
+    groups: string[];
+  }> {
+    const [session] = await db.select()
+      .from(ssoAuthSessions)
+      .where(and(
+        eq(ssoAuthSessions.state, params.state),
+        eq(ssoAuthSessions.status, 'pending')
+      ));
+
+    if (!session) {
+      throw new Error('Invalid or expired Okta session');
+    }
+
+    if (new Date() > session.expiresAt) {
+      await db.update(ssoAuthSessions)
+        .set({ status: 'expired' })
+        .where(eq(ssoAuthSessions.id, session.id));
+      throw new Error('Okta session has expired');
+    }
+
+    const provider = await ssoService.getProviderById(session.providerId!);
+    if (!provider) {
+      throw new Error('Okta provider not found');
+    }
+
+    const tokens = await this.exchangeCode(
+      provider,
+      params.code,
+      params.redirectUri,
+      session.codeVerifier!
+    );
+
+    const userInfo = await this.getUserInfo(provider, tokens.accessToken);
+
+    await db.update(ssoAuthSessions)
+      .set({ status: 'completed', completedAt: new Date() })
+      .where(eq(ssoAuthSessions.id, session.id));
+
+    await db.update(ssoProviderConfigs)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(ssoProviderConfigs.id, provider.id));
+
+    await this.logAuditEvent(session.tenantId!, 'okta.authentication.success', {
+      providerId: provider.id,
+      email: userInfo.email,
+    });
+
+    return {
+      user: userInfo,
+      tokens,
+      session,
+      provider,
+      groups: userInfo.groups || [],
+    };
   }
 
   private async logAuditEvent(

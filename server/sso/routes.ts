@@ -8,6 +8,8 @@ import { Router, Request, Response } from 'express';
 import { ssoService } from './sso-service';
 import { googleSsoService } from './google-sso';
 import { microsoftSsoService } from './microsoft-sso';
+import { oktaSsoService } from './okta-sso';
+import { createSamlHandler } from './saml-handler';
 import { z } from 'zod';
 
 const router = Router();
@@ -685,6 +687,421 @@ router.post('/microsoft/revoke', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error revoking Microsoft access:', error);
     res.status(500).json({ error: 'Failed to revoke Microsoft access' });
+  }
+});
+
+// ==================== OKTA SSO ROUTES ====================
+
+const setupOktaSchema = z.object({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+  oktaDomain: z.string().min(1),
+  authServerId: z.string().optional(),
+  allowedDomains: z.array(z.string()).optional(),
+  autoCreateUsers: z.boolean().optional(),
+  roleMapping: z.object({
+    groupMap: z.record(z.string()).optional(),
+    defaultRole: z.string().optional(),
+  }).optional(),
+  scopes: z.array(z.string()).optional(),
+});
+
+/**
+ * Setup Okta SSO for a tenant
+ */
+router.post('/okta/setup', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Tenant context required' });
+    }
+
+    const hasPermission = req.context?.permissions?.includes('tenant:manage') ||
+                          req.context?.role?.name === 'Admin';
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const parsed = setupOktaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    }
+
+    const isValid = await oktaSsoService.validateDomain(parsed.data.oktaDomain);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid Okta domain' });
+    }
+
+    const provider = await oktaSsoService.setupOktaProvider(tenantId, parsed.data);
+
+    res.json({
+      success: true,
+      providerId: provider.id,
+      status: provider.status,
+    });
+  } catch (error: any) {
+    console.error('Error setting up Okta SSO:', error);
+    res.status(500).json({ error: 'Failed to setup Okta SSO' });
+  }
+});
+
+/**
+ * Initiate Okta login
+ */
+router.get('/okta/login', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string || req.context?.tenant?.id;
+    const providerId = req.query.providerId as string;
+    const returnUrl = req.query.returnUrl as string;
+
+    if (!tenantId || !providerId) {
+      return res.status(400).json({ error: 'Tenant ID and Provider ID required' });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/sso/okta/callback`;
+
+    const authUrl = await oktaSsoService.generateAuthUrl(
+      tenantId,
+      providerId,
+      redirectUri,
+      returnUrl
+    );
+
+    res.redirect(authUrl);
+  } catch (error: any) {
+    console.error('Error initiating Okta login:', error);
+    res.redirect(`/auth/error?error=okta_init_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+/**
+ * Okta OAuth callback
+ */
+router.get('/okta/callback', async (req: Request, res: Response) => {
+  try {
+    const { code, state, error, error_description } = req.query;
+
+    if (error) {
+      console.error('Okta OAuth error:', error, error_description);
+      return res.redirect(`/auth/error?error=${error}&description=${error_description}`);
+    }
+
+    if (!code || !state) {
+      return res.redirect('/auth/error?error=missing_params');
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/sso/okta/callback`;
+
+    const result = await oktaSsoService.handleCallback({
+      code: code as string,
+      state: state as string,
+      redirectUri,
+    });
+
+    let identity = await ssoService.findUserIdentity(
+      result.provider.id,
+      result.user.sub
+    );
+
+    if (identity) {
+      await ssoService.updateIdentityOnLogin(identity.id, {
+        access_token: result.tokens.accessToken,
+        refresh_token: result.tokens.refreshToken,
+        token_type: 'Bearer',
+        expires_in: 3600,
+      });
+
+      if (req.session) {
+        (req.session as any).userId = identity.userId;
+        (req.session as any).tenantId = result.session.tenantId;
+        (req.session as any).ssoProvider = 'okta';
+        (req.session as any).oktaGroups = result.groups;
+      }
+
+      const returnUrl = result.session.returnUrl || '/dashboard';
+      return res.redirect(`${returnUrl}?sso_success=true&user_id=${identity.userId}`);
+    }
+
+    if (result.provider.autoCreateUsers) {
+      const userInfo = encodeURIComponent(JSON.stringify({
+        email: result.user.email,
+        firstName: result.user.given_name,
+        lastName: result.user.family_name,
+        providerId: result.provider.id,
+        providerUserId: result.user.sub,
+        groups: result.groups,
+        tenantId: result.session.tenantId,
+      }));
+      
+      return res.redirect(`/auth/complete-registration?sso_data=${userInfo}`);
+    }
+
+    return res.redirect('/auth/error?error=user_not_found&provider=okta');
+  } catch (error: any) {
+    console.error('Okta OAuth callback error:', error);
+    res.redirect(`/auth/error?error=okta_callback_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+// ==================== SAML 2.0 ROUTES ====================
+
+const setupSamlSchema = z.object({
+  providerName: z.string().min(1).max(100),
+  displayName: z.string().max(200).optional(),
+  metadataUrl: z.string().url().optional(),
+  entityId: z.string().min(1),
+  ssoUrl: z.string().url(),
+  sloUrl: z.string().url().optional(),
+  certificate: z.string().min(1),
+  allowedDomains: z.array(z.string()).optional(),
+  autoCreateUsers: z.boolean().optional(),
+  attributeMappings: z.record(z.string()).optional(),
+});
+
+/**
+ * Setup SAML provider for a tenant
+ */
+router.post('/saml/setup', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Tenant context required' });
+    }
+
+    const hasPermission = req.context?.permissions?.includes('tenant:manage') ||
+                          req.context?.role?.name === 'Admin';
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const parsed = setupSamlSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+    
+    const samlHandler = createSamlHandler(baseUrl);
+    const provider = await samlHandler.setupSamlProvider(tenantId, parsed.data);
+
+    res.json({
+      success: true,
+      providerId: provider.id,
+      status: provider.status,
+    });
+  } catch (error: any) {
+    console.error('Error setting up SAML:', error);
+    res.status(500).json({ error: 'Failed to setup SAML provider' });
+  }
+});
+
+/**
+ * Get SP metadata for SAML configuration
+ */
+router.get('/saml/metadata', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+    
+    const samlHandler = createSamlHandler(baseUrl);
+    const metadata = samlHandler.generateSpMetadata(tenantId);
+
+    res.set('Content-Type', 'application/xml');
+    res.send(metadata);
+  } catch (error: any) {
+    console.error('Error generating SAML metadata:', error);
+    res.status(500).json({ error: 'Failed to generate SAML metadata' });
+  }
+});
+
+/**
+ * Initiate SAML login
+ */
+router.get('/saml/login', async (req: Request, res: Response) => {
+  try {
+    const providerId = req.query.providerId as string;
+    const returnUrl = req.query.returnUrl as string;
+
+    if (!providerId) {
+      return res.status(400).json({ error: 'Provider ID required' });
+    }
+
+    const provider = await ssoService.getProviderById(providerId);
+    if (!provider || provider.providerType !== 'saml') {
+      return res.status(404).json({ error: 'SAML provider not found' });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+    
+    const samlHandler = createSamlHandler(baseUrl);
+    const { url } = await samlHandler.generateAuthnRequest(provider, returnUrl);
+
+    res.redirect(url);
+  } catch (error: any) {
+    console.error('Error initiating SAML login:', error);
+    res.redirect(`/auth/error?error=saml_init_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+/**
+ * SAML Assertion Consumer Service (ACS)
+ */
+router.post('/saml/acs', async (req: Request, res: Response) => {
+  try {
+    const { SAMLResponse, RelayState } = req.body;
+
+    if (!SAMLResponse || !RelayState) {
+      return res.redirect('/auth/error?error=missing_saml_params');
+    }
+
+    const [providerId, state] = (RelayState as string).split(':');
+    if (!providerId || !state) {
+      return res.redirect('/auth/error?error=invalid_relay_state');
+    }
+
+    const provider = await ssoService.getProviderById(providerId);
+    if (!provider || provider.providerType !== 'saml') {
+      return res.redirect('/auth/error?error=provider_not_found');
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+    
+    const samlHandler = createSamlHandler(baseUrl);
+    const result = await samlHandler.parseSamlResponse(provider, SAMLResponse, RelayState);
+
+    let identity = await ssoService.findUserIdentity(provider.id, result.user.email);
+
+    if (identity) {
+      if (req.session) {
+        (req.session as any).userId = identity.userId;
+        (req.session as any).tenantId = provider.tenantId;
+        (req.session as any).ssoProvider = 'saml';
+        (req.session as any).samlSessionIndex = result.sessionIndex;
+      }
+
+      const returnUrl = result.relayState || '/dashboard';
+      return res.redirect(`${returnUrl}?sso_success=true&user_id=${identity.userId}`);
+    }
+
+    if (provider.autoCreateUsers) {
+      const userInfo = encodeURIComponent(JSON.stringify({
+        email: result.user.email,
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+        providerId: provider.id,
+        providerUserId: result.user.email,
+        groups: result.user.groups,
+        tenantId: provider.tenantId,
+        sessionIndex: result.sessionIndex,
+      }));
+      
+      return res.redirect(`/auth/complete-registration?sso_data=${userInfo}`);
+    }
+
+    return res.redirect('/auth/error?error=user_not_found&provider=saml');
+  } catch (error: any) {
+    console.error('SAML ACS error:', error);
+    res.redirect(`/auth/error?error=saml_acs_failed&message=${encodeURIComponent(error.message)}`);
+  }
+});
+
+// ==================== SSO FALLBACK LOGIC ====================
+
+/**
+ * Check if local authentication is allowed for a user
+ * Returns whether to allow local auth or redirect to SSO
+ */
+router.post('/check-auth-method', async (req: Request, res: Response) => {
+  try {
+    const { email, tenantId } = req.body;
+
+    if (!email || !tenantId) {
+      return res.status(400).json({ error: 'Email and tenantId required' });
+    }
+
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (!domain) {
+      return res.json({ allowLocalAuth: true, ssoRequired: false });
+    }
+
+    const provider = await ssoService.findProviderByDomain(tenantId, email);
+    
+    if (!provider) {
+      return res.json({ allowLocalAuth: true, ssoRequired: false });
+    }
+
+    if (provider.status !== 'active') {
+      return res.json({ allowLocalAuth: true, ssoRequired: false });
+    }
+
+    const enforceForDomains = provider.enforceForDomains ?? false;
+
+    if (enforceForDomains) {
+      return res.json({
+        allowLocalAuth: false,
+        ssoRequired: true,
+        provider: {
+          id: provider.id,
+          type: provider.providerType,
+          displayName: provider.displayName,
+        },
+        message: 'SSO authentication is required for your email domain',
+      });
+    }
+
+    return res.json({
+      allowLocalAuth: true,
+      ssoRequired: false,
+      ssoAvailable: true,
+      provider: {
+        id: provider.id,
+        type: provider.providerType,
+        displayName: provider.displayName,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error checking auth method:', error);
+    return res.json({ allowLocalAuth: true, ssoRequired: false });
+  }
+});
+
+/**
+ * Get available SSO providers for tenant login page
+ */
+router.get('/available-providers', async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string || req.context?.tenant?.id;
+    
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const providers = await ssoService.getTenantProviders(tenantId);
+    const activeProviders = providers
+      .filter(p => p.status === 'active')
+      .map(p => ({
+        id: p.id,
+        type: p.providerType,
+        displayName: p.displayName,
+        isDefault: p.isDefault,
+      }));
+
+    res.json({ providers: activeProviders });
+  } catch (error: any) {
+    console.error('Error fetching available providers:', error);
+    res.status(500).json({ error: 'Failed to fetch SSO providers' });
   }
 });
 

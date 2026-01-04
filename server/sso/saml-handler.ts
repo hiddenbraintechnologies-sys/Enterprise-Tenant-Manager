@@ -175,11 +175,12 @@ export class SamlHandler {
    */
   async generateAuthnRequest(
     provider: SsoProviderConfig,
-    relayState?: string
+    returnUrl?: string
   ): Promise<{ url: string; relayState: string }> {
     const requestId = `_${crypto.randomUUID()}`;
     const issueInstant = new Date().toISOString();
-    const state = relayState || generateState();
+    const state = generateState();
+    const relayState = `${provider.id}:${state}`;
 
     const authnRequest = `<?xml version="1.0" encoding="UTF-8"?>
 <samlp:AuthnRequest xmlns:samlp="${SAML_NAMESPACE}:protocol"
@@ -200,7 +201,7 @@ export class SamlHandler {
       state,
       nonce: requestId,
       redirectUri: this.spAcsUrl,
-      returnUrl: relayState,
+      returnUrl,
       status: 'pending',
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
@@ -208,9 +209,9 @@ export class SamlHandler {
     const encodedRequest = Buffer.from(authnRequest).toString('base64');
     const url = new URL(provider.authorizationUrl!);
     url.searchParams.set('SAMLRequest', encodedRequest);
-    url.searchParams.set('RelayState', state);
+    url.searchParams.set('RelayState', relayState);
 
-    return { url: url.toString(), relayState: state };
+    return { url: url.toString(), relayState };
   }
 
   /**
@@ -221,15 +222,26 @@ export class SamlHandler {
     samlResponse: string,
     relayState: string
   ): Promise<SamlAuthResult> {
+    const [providerId, state] = relayState.split(':');
+    
+    if (providerId !== provider.id) {
+      throw new Error('Provider ID mismatch in SAML response');
+    }
+    
     const [session] = await db.select()
       .from(ssoAuthSessions)
       .where(and(
-        eq(ssoAuthSessions.state, relayState),
+        eq(ssoAuthSessions.state, state || relayState),
+        eq(ssoAuthSessions.providerId, provider.id),
         eq(ssoAuthSessions.status, 'pending')
       ));
 
     if (!session) {
       throw new Error('Invalid SAML session');
+    }
+    
+    if (session.providerId !== provider.id) {
+      throw new Error('Session provider mismatch - potential security issue');
     }
 
     if (new Date() > session.expiresAt) {
