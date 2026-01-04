@@ -264,7 +264,6 @@ function ModuleRegistryContent() {
   const openEditDialog = (module: Module) => {
     setEditingModule(module);
     editForm.reset({
-      code: module.code,
       name: module.name,
       description: module.description || "",
       category: module.category,
