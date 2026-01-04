@@ -64,6 +64,30 @@ const TOURISM_USAGE_TYPES: UsageType[] = [
   "travelers",
 ];
 
+const EDUCATION_USAGE_TYPES: UsageType[] = [
+  "whatsapp_messages",
+  "students",
+  "courses",
+  "exams",
+  "api_calls",
+];
+
+const LOGISTICS_USAGE_TYPES: UsageType[] = [
+  "whatsapp_messages",
+  "vehicles",
+  "trips",
+  "shipments",
+  "api_calls",
+];
+
+const LEGAL_USAGE_TYPES: UsageType[] = [
+  "whatsapp_messages",
+  "cases",
+  "clients",
+  "documents",
+  "api_calls",
+];
+
 const DEFAULT_PLAN_LIMITS: Record<string, Record<UsageType, { included: number; overage: number; hardLimit: number | null }>> = {
   free: {
     whatsapp_messages: { included: 100, overage: 0.05, hardLimit: 100 },
@@ -76,6 +100,15 @@ const DEFAULT_PLAN_LIMITS: Record<string, Record<UsageType, { included: number; 
     travelers: { included: 50, overage: 0.10, hardLimit: 50 },
     bookings: { included: 50, overage: 0.10, hardLimit: 50 },
     api_calls: { included: 1000, overage: 0.001, hardLimit: 1000 },
+    students: { included: 25, overage: 0.50, hardLimit: 25 },
+    courses: { included: 5, overage: 1.00, hardLimit: 5 },
+    exams: { included: 10, overage: 0.25, hardLimit: 10 },
+    vehicles: { included: 5, overage: 2.00, hardLimit: 5 },
+    trips: { included: 50, overage: 0.20, hardLimit: 50 },
+    shipments: { included: 100, overage: 0.10, hardLimit: 100 },
+    cases: { included: 10, overage: 2.00, hardLimit: 10 },
+    clients: { included: 20, overage: 0.50, hardLimit: 20 },
+    documents: { included: 50, overage: 0.10, hardLimit: 50 },
   },
   starter: {
     whatsapp_messages: { included: 500, overage: 0.04, hardLimit: null },
@@ -88,6 +121,15 @@ const DEFAULT_PLAN_LIMITS: Record<string, Record<UsageType, { included: number; 
     travelers: { included: 250, overage: 0.08, hardLimit: null },
     bookings: { included: 200, overage: 0.08, hardLimit: null },
     api_calls: { included: 10000, overage: 0.0008, hardLimit: null },
+    students: { included: 100, overage: 0.40, hardLimit: null },
+    courses: { included: 20, overage: 0.80, hardLimit: null },
+    exams: { included: 50, overage: 0.20, hardLimit: null },
+    vehicles: { included: 15, overage: 1.50, hardLimit: null },
+    trips: { included: 200, overage: 0.15, hardLimit: null },
+    shipments: { included: 500, overage: 0.08, hardLimit: null },
+    cases: { included: 50, overage: 1.50, hardLimit: null },
+    clients: { included: 100, overage: 0.40, hardLimit: null },
+    documents: { included: 250, overage: 0.08, hardLimit: null },
   },
   pro: {
     whatsapp_messages: { included: 2000, overage: 0.03, hardLimit: null },
@@ -100,6 +142,15 @@ const DEFAULT_PLAN_LIMITS: Record<string, Record<UsageType, { included: number; 
     travelers: { included: 1000, overage: 0.05, hardLimit: null },
     bookings: { included: 1000, overage: 0.05, hardLimit: null },
     api_calls: { included: 50000, overage: 0.0005, hardLimit: null },
+    students: { included: 500, overage: 0.30, hardLimit: null },
+    courses: { included: 100, overage: 0.60, hardLimit: null },
+    exams: { included: 250, overage: 0.15, hardLimit: null },
+    vehicles: { included: 50, overage: 1.00, hardLimit: null },
+    trips: { included: 1000, overage: 0.10, hardLimit: null },
+    shipments: { included: 2500, overage: 0.05, hardLimit: null },
+    cases: { included: 200, overage: 1.00, hardLimit: null },
+    clients: { included: 500, overage: 0.30, hardLimit: null },
+    documents: { included: 1000, overage: 0.05, hardLimit: null },
   },
   enterprise: {
     whatsapp_messages: { included: 10000, overage: 0.02, hardLimit: null },
@@ -112,6 +163,15 @@ const DEFAULT_PLAN_LIMITS: Record<string, Record<UsageType, { included: number; 
     travelers: { included: 10000, overage: 0.03, hardLimit: null },
     bookings: { included: 10000, overage: 0.03, hardLimit: null },
     api_calls: { included: 500000, overage: 0.0002, hardLimit: null },
+    students: { included: 2500, overage: 0.20, hardLimit: null },
+    courses: { included: 500, overage: 0.40, hardLimit: null },
+    exams: { included: 1000, overage: 0.10, hardLimit: null },
+    vehicles: { included: 200, overage: 0.75, hardLimit: null },
+    trips: { included: 5000, overage: 0.05, hardLimit: null },
+    shipments: { included: 10000, overage: 0.03, hardLimit: null },
+    cases: { included: 1000, overage: 0.50, hardLimit: null },
+    clients: { included: 2500, overage: 0.20, hardLimit: null },
+    documents: { included: 5000, overage: 0.03, hardLimit: null },
   },
 };
 
@@ -343,6 +403,15 @@ class UsageBillingService {
       case "tourism":
         usageTypes = TOURISM_USAGE_TYPES;
         break;
+      case "education":
+        usageTypes = EDUCATION_USAGE_TYPES;
+        break;
+      case "logistics":
+        usageTypes = LOGISTICS_USAGE_TYPES;
+        break;
+      case "legal":
+        usageTypes = LEGAL_USAGE_TYPES;
+        break;
       default:
         usageTypes = ["whatsapp_messages", "bookings", "api_calls"];
     }
@@ -473,5 +542,89 @@ export async function recordTravelerUsage(tenantId: string, travelerId: string):
     usageType: "travelers",
     resourceId: travelerId,
     resourceType: "tourism_traveler",
+  });
+}
+
+// Education billing functions
+export async function recordStudentUsage(tenantId: string, studentId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "students",
+    resourceId: studentId,
+    resourceType: "education_student",
+  });
+}
+
+export async function recordCourseUsage(tenantId: string, courseId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "courses",
+    resourceId: courseId,
+    resourceType: "education_course",
+  });
+}
+
+export async function recordExamUsage(tenantId: string, examId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "exams",
+    resourceId: examId,
+    resourceType: "education_exam",
+  });
+}
+
+// Logistics billing functions
+export async function recordVehicleUsage(tenantId: string, vehicleId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "vehicles",
+    resourceId: vehicleId,
+    resourceType: "logistics_vehicle",
+  });
+}
+
+export async function recordTripUsage(tenantId: string, tripId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "trips",
+    resourceId: tripId,
+    resourceType: "logistics_trip",
+  });
+}
+
+export async function recordShipmentUsage(tenantId: string, shipmentId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "shipments",
+    resourceId: shipmentId,
+    resourceType: "logistics_shipment",
+  });
+}
+
+// Legal billing functions
+export async function recordCaseUsage(tenantId: string, caseId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "cases",
+    resourceId: caseId,
+    resourceType: "legal_case",
+  });
+}
+
+export async function recordClientUsage(tenantId: string, clientId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "clients",
+    resourceId: clientId,
+    resourceType: "legal_client",
+  });
+}
+
+export async function recordDocumentUsage(tenantId: string, documentId: string): Promise<RecordUsageResult> {
+  return usageBillingService.recordUsage({
+    tenantId,
+    usageType: "documents",
+    resourceId: documentId,
+    resourceType: "legal_document",
   });
 }

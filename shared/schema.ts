@@ -1135,7 +1135,16 @@ export const usageTypeEnum = pgEnum("usage_type", [
   "tour_bookings",
   "travelers",
   "site_visits",
-  "api_calls"
+  "api_calls",
+  "students",
+  "courses",
+  "exams",
+  "vehicles",
+  "trips",
+  "shipments",
+  "cases",
+  "clients",
+  "documents"
 ]);
 
 export const planUsageLimits = pgTable("plan_usage_limits", {

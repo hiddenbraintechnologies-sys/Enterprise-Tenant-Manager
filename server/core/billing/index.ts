@@ -8,4 +8,13 @@ export {
   recordTourPackageUsage,
   recordTourBookingUsage,
   recordTravelerUsage,
+  recordStudentUsage,
+  recordCourseUsage,
+  recordExamUsage,
+  recordVehicleUsage,
+  recordTripUsage,
+  recordShipmentUsage,
+  recordCaseUsage,
+  recordClientUsage,
+  recordDocumentUsage,
 } from "./usage-billing-service";
