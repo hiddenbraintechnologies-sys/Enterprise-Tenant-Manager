@@ -39,6 +39,7 @@ import AdminPlatformAdmins from "@/pages/admin/platform-admins";
 import AdminBilling from "@/pages/admin/billing";
 import AdminWhatsApp from "@/pages/admin/whatsapp";
 import AdminAuditLogs from "@/pages/admin/audit-logs";
+import AdminCompliance from "@/pages/admin/compliance";
 import AdminSettings from "@/pages/admin/settings";
 import AdminSso from "@/pages/admin/sso";
 import ResellerDashboard from "@/pages/reseller-dashboard";
@@ -197,6 +198,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/billing" component={AdminBilling} />
         <Route path="/super-admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/super-admin/audit-logs" component={AdminAuditLogs} />
+        <Route path="/super-admin/compliance" component={AdminCompliance} />
         <Route path="/super-admin/sso" component={AdminSso} />
         <Route path="/super-admin/settings" component={AdminSettings} />
         <Route component={NotFound} />
@@ -214,6 +216,7 @@ function PlatformAdminRoutes() {
       <Route path="/admin/billing" component={AdminBilling} />
       <Route path="/admin/whatsapp" component={AdminWhatsApp} />
       <Route path="/admin/audit-logs" component={AdminAuditLogs} />
+      <Route path="/admin/compliance" component={AdminCompliance} />
       <Route path="/admin/sso" component={AdminSso} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route component={NotFound} />

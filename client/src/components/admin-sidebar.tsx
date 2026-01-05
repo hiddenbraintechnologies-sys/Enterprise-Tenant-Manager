@@ -30,6 +30,7 @@ import {
   DollarSign,
   MessageSquare,
   Cog,
+  Scale,
 } from "lucide-react";
 
 interface MenuItem {
@@ -79,6 +80,12 @@ const superAdminMenuItems: MenuItem[] = [
     superAdminOnly: true,
   },
   {
+    title: "Compliance",
+    url: "/super-admin/compliance",
+    icon: Scale,
+    superAdminOnly: true,
+  },
+  {
     title: "System Settings",
     url: "/super-admin/settings",
     icon: Cog,
@@ -121,6 +128,12 @@ const platformAdminMenuItems: MenuItem[] = [
     url: "/admin/audit-logs",
     icon: FileText,
     permission: "view_logs",
+  },
+  {
+    title: "Compliance",
+    url: "/admin/compliance",
+    icon: Scale,
+    permission: "read_tenants",
   },
   {
     title: "System Settings",

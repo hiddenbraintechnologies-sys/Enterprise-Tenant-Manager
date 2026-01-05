@@ -13,7 +13,7 @@ import {
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs,
-  dsarRequests,
+  dsarRequests, gstConfigurations, ukVatConfigurations,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -1511,6 +1511,144 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Change tenant status error:", error);
       res.status(500).json({ message: "Failed to change tenant status" });
+    }
+  });
+
+  // Get tenant GST configuration (India)
+  app.get("/api/platform-admin/tenants/:tenantId/compliance/gst", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+    try {
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, req.params.tenantId));
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      if (tenant.country !== "india") {
+        return res.status(400).json({ message: "GST is only applicable for Indian tenants" });
+      }
+      const [gstConfig] = await db.select().from(gstConfigurations).where(eq(gstConfigurations.tenantId, req.params.tenantId));
+      res.json(gstConfig || null);
+    } catch (error) {
+      console.error("Get GST config error:", error);
+      res.status(500).json({ message: "Failed to get GST configuration" });
+    }
+  });
+
+  // Get tenant VAT configuration (UK)
+  app.get("/api/platform-admin/tenants/:tenantId/compliance/vat", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+    try {
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, req.params.tenantId));
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      if (tenant.country !== "uk") {
+        return res.status(400).json({ message: "UK VAT is only applicable for UK tenants" });
+      }
+      const [vatConfig] = await db.select().from(ukVatConfigurations).where(eq(ukVatConfigurations.tenantId, req.params.tenantId));
+      res.json(vatConfig || null);
+    } catch (error) {
+      console.error("Get VAT config error:", error);
+      res.status(500).json({ message: "Failed to get VAT configuration" });
+    }
+  });
+
+  // Get all tenants with GST configurations (India)
+  app.get("/api/platform-admin/compliance/gst/tenants", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+    try {
+      const rawData = await db.select({
+        id: tenants.id,
+        name: tenants.name,
+        businessType: tenants.businessType,
+        status: tenants.status,
+        subscriptionTier: tenants.subscriptionTier,
+        email: tenants.email,
+        gstin: gstConfigurations.gstin,
+        legalName: gstConfigurations.legalName,
+        stateCode: gstConfigurations.stateCode,
+        gstType: gstConfigurations.gstType,
+        isEInvoiceEnabled: gstConfigurations.isEInvoiceEnabled,
+        gstIsActive: gstConfigurations.isActive,
+      })
+      .from(tenants)
+      .leftJoin(gstConfigurations, eq(tenants.id, gstConfigurations.tenantId))
+      .where(eq(tenants.country, "india"));
+      
+      const formattedTenants = rawData.map(row => ({
+        tenant: {
+          id: row.id,
+          name: row.name,
+          businessType: row.businessType,
+          status: row.status,
+          subscriptionTier: row.subscriptionTier,
+          email: row.email,
+        },
+        gst: row.gstin ? {
+          gstin: row.gstin,
+          legalName: row.legalName,
+          stateCode: row.stateCode,
+          gstType: row.gstType,
+          isEInvoiceEnabled: row.isEInvoiceEnabled,
+          isActive: row.gstIsActive,
+        } : null,
+      }));
+
+      res.json({
+        total: formattedTenants.length,
+        configured: formattedTenants.filter(t => t.gst !== null).length,
+        tenants: formattedTenants,
+      });
+    } catch (error) {
+      console.error("Get GST tenants error:", error);
+      res.status(500).json({ message: "Failed to get GST tenants" });
+    }
+  });
+
+  // Get all tenants with VAT configurations (UK)
+  app.get("/api/platform-admin/compliance/vat/tenants", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+    try {
+      const rawData = await db.select({
+        id: tenants.id,
+        name: tenants.name,
+        businessType: tenants.businessType,
+        status: tenants.status,
+        subscriptionTier: tenants.subscriptionTier,
+        email: tenants.email,
+        vatNumber: ukVatConfigurations.vatNumber,
+        businessName: ukVatConfigurations.businessName,
+        postcode: ukVatConfigurations.postcode,
+        vatScheme: ukVatConfigurations.vatScheme,
+        mtdEnabled: ukVatConfigurations.mtdEnabled,
+        vatIsActive: ukVatConfigurations.isActive,
+      })
+      .from(tenants)
+      .leftJoin(ukVatConfigurations, eq(tenants.id, ukVatConfigurations.tenantId))
+      .where(eq(tenants.country, "uk"));
+      
+      const formattedTenants = rawData.map(row => ({
+        tenant: {
+          id: row.id,
+          name: row.name,
+          businessType: row.businessType,
+          status: row.status,
+          subscriptionTier: row.subscriptionTier,
+          email: row.email,
+        },
+        vat: row.vatNumber ? {
+          vatNumber: row.vatNumber,
+          businessName: row.businessName,
+          postcode: row.postcode,
+          vatScheme: row.vatScheme,
+          mtdEnabled: row.mtdEnabled,
+          isActive: row.vatIsActive,
+        } : null,
+      }));
+
+      res.json({
+        total: formattedTenants.length,
+        configured: formattedTenants.filter(t => t.vat !== null).length,
+        tenants: formattedTenants,
+      });
+    } catch (error) {
+      console.error("Get VAT tenants error:", error);
+      res.status(500).json({ message: "Failed to get VAT tenants" });
     }
   });
 
