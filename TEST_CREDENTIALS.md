@@ -28,6 +28,15 @@ This document contains all test login credentials for development and testing pu
 
 ---
 
+## Platform Admin Roles Explained
+
+| Role | Display Name | Description |
+|------|--------------|-------------|
+| **SUPER_ADMIN** | Super Admin | Full platform access - can manage all tenants, admins, settings |
+| **PLATFORM_ADMIN** | Platform Admin | Limited access - can view tenants, support operations |
+
+---
+
 ## Tenant User Roles
 
 Users within each tenant are assigned one of these roles:
