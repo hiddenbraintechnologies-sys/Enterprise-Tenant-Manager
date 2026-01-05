@@ -88,9 +88,21 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  await featureService.seedFeatureFlags();
-  await tenantService.getOrCreateDefaultTenant();
-  await initializeWhatsappProviders();
+  // Run seeding in background - don't block server startup
+  // This prevents deployment provisioning timeout
+  setImmediate(async () => {
+    try {
+      console.log("[bootstrap] Starting background initialization...");
+      await featureService.seedFeatureFlags();
+      console.log("[bootstrap] Feature flags seeded");
+      await tenantService.getOrCreateDefaultTenant();
+      console.log("[bootstrap] Default tenant ready");
+      await initializeWhatsappProviders();
+      console.log("[bootstrap] WhatsApp providers initialized");
+    } catch (error) {
+      console.error("[bootstrap] Background initialization error:", error);
+    }
+  });
 
   // Register SSO routes
   app.use('/api/sso', ssoRoutes);
@@ -151,8 +163,15 @@ export async function registerRoutes(
   // Admin endpoints (CRUD, status, features, logs) require platform admin auth
   app.use('/api/platform/regions', regionLockRoutes);
   
-  // Seed default region configurations
-  await regionLockService.seedDefaultRegions();
+  // Seed default region configurations in background
+  setImmediate(async () => {
+    try {
+      await regionLockService.seedDefaultRegions();
+      console.log("[bootstrap] Region configs seeded");
+    } catch (error) {
+      console.error("[bootstrap] Region seeding error:", error);
+    }
+  });
 
   // Register Compliance routes
   app.use('/api/compliance', isAuthenticated, complianceRoutes);
@@ -164,8 +183,15 @@ export async function registerRoutes(
   app.use('/api/uae-compliance', uaeComplianceRoutes);
   app.use('/api/uk-compliance', ukComplianceRoutes);
 
-  // Seed onboarding flows
-  await onboardingService.seedDefaultFlows();
+  // Seed onboarding flows in background
+  setImmediate(async () => {
+    try {
+      await onboardingService.seedDefaultFlows();
+      console.log("[bootstrap] Onboarding flows seeded");
+    } catch (error) {
+      console.error("[bootstrap] Onboarding seeding error:", error);
+    }
+  });
 
   // ==================== ONBOARDING ROUTES ====================
 
