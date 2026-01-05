@@ -14,6 +14,7 @@ import {
   tenants, userTenants, users, roles,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs,
   dsarRequests, gstConfigurations, ukVatConfigurations,
+  adminAccountLockouts, adminLoginAttempts,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -93,6 +94,16 @@ export async function registerRoutes(
   setImmediate(async () => {
     try {
       console.log("[bootstrap] Starting background initialization...");
+      
+      // Clear any lockouts for superadmin on startup (for dev/testing)
+      try {
+        await db.delete(adminAccountLockouts).where(eq(adminAccountLockouts.email, "superadmin@bizflow.app"));
+        await db.delete(adminLoginAttempts).where(eq(adminLoginAttempts.email, "superadmin@bizflow.app"));
+        console.log("[bootstrap] Cleared superadmin lockouts");
+      } catch (err) {
+        console.log("[bootstrap] Lockout cleanup skipped");
+      }
+      
       await featureService.seedFeatureFlags();
       console.log("[bootstrap] Feature flags seeded");
       await tenantService.getOrCreateDefaultTenant();
