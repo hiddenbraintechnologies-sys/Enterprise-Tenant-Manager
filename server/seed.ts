@@ -267,6 +267,65 @@ export async function seedSecurityConfig(): Promise<number> {
   return seededCount;
 }
 
+// Test Platform Admins - can be disabled later in production
+interface TestAdminDefinition {
+  name: string;
+  email: string;
+  password: string;
+  role: "SUPER_ADMIN" | "PLATFORM_ADMIN";
+}
+
+const TEST_PLATFORM_ADMINS: TestAdminDefinition[] = [
+  {
+    name: "John Smith",
+    email: "john.smith@bizflow.app",
+    password: "Test@123!",
+    role: "PLATFORM_ADMIN",
+  },
+  {
+    name: "Sarah Johnson",
+    email: "sarah.johnson@bizflow.app",
+    password: "Test@123!",
+    role: "PLATFORM_ADMIN",
+  },
+  {
+    name: "Mike Chen",
+    email: "mike.chen@bizflow.app",
+    password: "Test@123!",
+    role: "SUPER_ADMIN",
+  },
+];
+
+export async function seedTestPlatformAdmins(): Promise<number> {
+  let seededCount = 0;
+
+  for (const admin of TEST_PLATFORM_ADMINS) {
+    const [existing] = await db
+      .select()
+      .from(platformAdmins)
+      .where(eq(platformAdmins.email, admin.email));
+
+    if (!existing) {
+      const passwordHash = await bcrypt.hash(admin.password, SALT_ROUNDS);
+      await db.insert(platformAdmins).values({
+        name: admin.name,
+        email: admin.email,
+        passwordHash,
+        role: admin.role,
+        isActive: true,
+        forcePasswordReset: false,
+      });
+      seededCount++;
+      console.log(`  Created test admin: ${admin.name} (${admin.role})`);
+    } else {
+      console.log(`  Test admin exists: ${admin.name}`);
+    }
+  }
+
+  console.log(`Seeded ${seededCount} new test admins (${TEST_PLATFORM_ADMINS.length} total defined)`);
+  return seededCount;
+}
+
 interface SampleTenantDefinition {
   name: string;
   slug: string;
@@ -472,8 +531,11 @@ export async function runAllSeeds(options?: { skipMigrations?: boolean; skipSamp
   console.log("\n3. Seeding Super Admin...");
   const adminResult = await seedSuperAdmin();
 
+  console.log("\n4. Seeding Test Platform Admins...");
+  await seedTestPlatformAdmins();
+
   if (!options?.skipSampleData) {
-    console.log("\n4. Seeding Sample Tenants (Real Estate & Tourism)...");
+    console.log("\n5. Seeding Sample Tenants (Real Estate & Tourism)...");
     await seedSampleTenants();
   }
 
