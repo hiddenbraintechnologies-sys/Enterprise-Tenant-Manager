@@ -44,6 +44,7 @@ import AdminSso from "@/pages/admin/sso";
 import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
 import AiPermissions from "@/pages/ai-permissions";
+import AdminLogin from "@/pages/admin-login";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -236,6 +237,11 @@ function AppRouter() {
   const [location] = useLocation();
 
   const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin");
+  const isAdminLoginPath = location === "/admin-login";
+
+  if (isAdminLoginPath) {
+    return <AdminLogin />;
+  }
 
   if (isLoading) {
     return (
