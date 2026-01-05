@@ -14,7 +14,7 @@ import {
   tenants, userTenants, users, roles,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs,
   dsarRequests, gstConfigurations, ukVatConfigurations,
-  adminAccountLockouts, adminLoginAttempts,
+  adminAccountLockouts, adminLoginAttempts, platformAdmins,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -102,6 +102,35 @@ export async function registerRoutes(
         console.log("[bootstrap] Cleared superadmin lockouts");
       } catch (err) {
         console.log("[bootstrap] Lockout cleanup skipped");
+      }
+      
+      // Ensure superadmin has correct password on startup
+      try {
+        const superadminEmail = "superadmin@bizflow.app";
+        const superadminPassword = "Admin@123!";
+        const [existingAdmin] = await db.select().from(platformAdmins).where(eq(platformAdmins.email, superadminEmail));
+        
+        if (!existingAdmin) {
+          const passwordHash = await bcrypt.hash(superadminPassword, 12);
+          await db.insert(platformAdmins).values({
+            id: "pa_super_001",
+            name: "Super Administrator",
+            email: superadminEmail,
+            passwordHash,
+            role: "SUPER_ADMIN",
+            isActive: true,
+            forcePasswordReset: false,
+          });
+          console.log("[bootstrap] Created superadmin account");
+        } else {
+          const passwordHash = await bcrypt.hash(superadminPassword, 12);
+          await db.update(platformAdmins)
+            .set({ passwordHash, forcePasswordReset: false })
+            .where(eq(platformAdmins.email, superadminEmail));
+          console.log("[bootstrap] Reset superadmin password");
+        }
+      } catch (err) {
+        console.log("[bootstrap] Superadmin setup skipped:", err);
       }
       
       await featureService.seedFeatureFlags();
