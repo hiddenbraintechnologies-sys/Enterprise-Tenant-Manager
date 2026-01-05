@@ -64,22 +64,10 @@ async function buildAll() {
     logLevel: "info",
   });
 
-  // Sync database schema during build (before server starts)
-  if (process.env.DATABASE_URL) {
-    console.log("syncing database schema...");
-    try {
-      execSync("npx drizzle-kit push --force", { 
-        stdio: "inherit",
-        timeout: 120000 
-      });
-      console.log("database schema synced successfully");
-    } catch (error) {
-      console.error("database schema sync failed (may already be synced):", error);
-      // Don't fail the build - schema may already be up to date
-    }
-  } else {
-    console.log("skipping database sync (no DATABASE_URL)");
-  }
+  // NOTE: Database schema sync removed from build phase
+  // drizzle-kit push requires interactive confirmation which blocks cloud builds
+  // Sync schema manually before deployment: npx drizzle-kit push --force
+  console.log("build complete - sync database schema manually if needed: npx drizzle-kit push --force");
 }
 
 buildAll().catch((err) => {
