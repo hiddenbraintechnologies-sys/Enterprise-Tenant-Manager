@@ -33,6 +33,14 @@ export default function AdminLogin() {
         throw new Error(data.message || "Login failed");
       }
 
+      // Store the JWT token for authenticated requests
+      if (data.accessToken) {
+        localStorage.setItem("bizflow_admin_token", data.accessToken);
+      }
+      if (data.refreshToken) {
+        localStorage.setItem("bizflow_refresh_token", data.refreshToken);
+      }
+
       toast({
         title: "Login successful",
         description: "Redirecting to admin dashboard...",
@@ -46,7 +54,7 @@ export default function AdminLogin() {
         });
       }
 
-      const redirectPath = data.platformAdmin?.role === "SUPER_ADMIN" 
+      const redirectPath = data.admin?.role === "SUPER_ADMIN" 
         ? "/super-admin" 
         : "/admin";
       
