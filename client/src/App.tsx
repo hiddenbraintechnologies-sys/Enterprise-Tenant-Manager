@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { TenantProvider, DashboardGuard, ModuleGuard, useTenant } from "@/contexts/tenant-context";
+import { TourProvider } from "@/contexts/tour-context";
+import { TourOverlay } from "@/components/tour/tour-overlay";
 
 import Landing from "@/pages/landing";
 import Register from "@/pages/register";
@@ -283,8 +285,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="bizflow-theme">
         <TooltipProvider>
-          <Toaster />
-          <AppRouter />
+          <TourProvider>
+            <Toaster />
+            <AppRouter />
+            <TourOverlay />
+          </TourProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

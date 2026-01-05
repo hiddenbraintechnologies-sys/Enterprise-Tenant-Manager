@@ -37,6 +37,7 @@ interface NavItem {
   title: string;
   url: string;
   icon: React.ElementType;
+  tourId?: string;
 }
 
 const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
@@ -134,9 +135,9 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
 };
 
 const systemItems: NavItem[] = [
-  { title: "Marketplace", url: "/marketplace", icon: Package },
+  { title: "Marketplace", url: "/marketplace", icon: Package, tourId: "sidebar-marketplace" },
   { title: "AI Permissions", url: "/ai-permissions", icon: Bot },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];
 
 export function AppSidebar({ businessType }: { businessType?: string } = {}) {
@@ -180,7 +181,11 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                     asChild
                     isActive={location === item.url || location.startsWith(item.url + "/")}
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                    <Link 
+                      href={item.url} 
+                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -203,7 +208,11 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                     asChild
                     isActive={location === item.url}
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase()}`}>
+                    <Link 
+                      href={item.url} 
+                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      data-tour={item.tourId || `sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>

@@ -2,6 +2,10 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { HelpCircle } from "lucide-react";
+import { useTour } from "@/contexts/tour-context";
+import { dashboardTour } from "@/lib/tours";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,6 +14,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -18,6 +27,9 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, title, breadcrumbs = [] }: DashboardLayoutProps) {
+  const { startTour, completedTours } = useTour();
+  const hasCompletedDashboardTour = completedTours.includes(dashboardTour.id);
+  
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -50,7 +62,24 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
                 ))}
               </BreadcrumbList>
             </Breadcrumb>
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => startTour(dashboardTour)}
+                    data-testid="button-start-tour"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {hasCompletedDashboardTour ? "Replay tour" : "Take a tour"}
+                </TooltipContent>
+              </Tooltip>
+              <ThemeToggle />
+            </div>
           </header>
           <main className="flex-1 overflow-auto p-6">
             <div className="mx-auto max-w-7xl">
