@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useAdmin, SuperAdminGuard } from "@/contexts/admin-context";
 import { useState } from "react";
 import {
@@ -18,7 +20,17 @@ import {
   CheckCircle,
   XCircle,
   Key,
+  Eye,
+  EyeOff,
+  Loader2,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +66,201 @@ interface PlatformAdmin {
   lastLoginAt: string | null;
   createdAt: string;
   permissions?: string[];
+}
+
+interface CreateAdminFormProps {
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState<"SUPER_ADMIN" | "PLATFORM_ADMIN">("PLATFORM_ADMIN");
+  const [forcePasswordReset, setForcePasswordReset] = useState(true);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const createMutation = useMutation({
+    mutationFn: async (data: {
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      forcePasswordReset: boolean;
+    }) => {
+      return apiRequest("POST", "/api/platform-admin/admins", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/admins"] });
+      toast({ title: "Admin created successfully" });
+      onSuccess();
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to create admin", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!name.trim()) {
+      newErrors.name = "Name is required";
+    }
+    
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Invalid email format";
+    }
+    
+    if (!password) {
+      newErrors.password = "Password is required";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
+    } else if (!/[A-Z]/.test(password)) {
+      newErrors.password = "Password must contain an uppercase letter";
+    } else if (!/[a-z]/.test(password)) {
+      newErrors.password = "Password must contain a lowercase letter";
+    } else if (!/[0-9]/.test(password)) {
+      newErrors.password = "Password must contain a number";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    
+    createMutation.mutate({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      role,
+      forcePasswordReset,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="admin-name">Name</Label>
+        <Input
+          id="admin-name"
+          placeholder="Enter admin name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={createMutation.isPending}
+          data-testid="input-admin-name"
+        />
+        {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="admin-email">Email</Label>
+        <Input
+          id="admin-email"
+          type="email"
+          placeholder="admin@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={createMutation.isPending}
+          data-testid="input-admin-email-create"
+        />
+        {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="admin-password">Password</Label>
+        <div className="relative">
+          <Input
+            id="admin-password"
+            type={showPassword ? "text" : "password"}
+            placeholder="Enter password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={createMutation.isPending}
+            className="pr-10"
+            data-testid="input-admin-password-create"
+          />
+          <button
+            type="button"
+            className="absolute right-0 top-0 h-full px-3 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowPassword(!showPassword)}
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+        {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+        <p className="text-xs text-muted-foreground">
+          Must be 8+ characters with uppercase, lowercase, and number
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="admin-role">Role</Label>
+        <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+          <SelectTrigger data-testid="select-admin-role">
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="space-y-0.5">
+          <Label htmlFor="force-reset">Force Password Reset</Label>
+          <p className="text-xs text-muted-foreground">
+            Require password change on first login
+          </p>
+        </div>
+        <Switch
+          id="force-reset"
+          checked={forcePasswordReset}
+          onCheckedChange={setForcePasswordReset}
+          data-testid="switch-force-password-reset"
+        />
+      </div>
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={createMutation.isPending}
+          data-testid="button-cancel-create"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={createMutation.isPending}
+          data-testid="button-submit-create-admin"
+        >
+          {createMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            "Create Admin"
+          )}
+        </Button>
+      </div>
+    </form>
+  );
 }
 
 function PlatformAdminsContent() {
@@ -129,16 +336,17 @@ function PlatformAdminsContent() {
               Add Admin
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Create Platform Admin</DialogTitle>
               <DialogDescription>
                 Add a new administrator to the platform
               </DialogDescription>
             </DialogHeader>
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Admin creation form coming soon</p>
-            </div>
+            <CreateAdminForm 
+              onSuccess={() => setIsCreateDialogOpen(false)}
+              onCancel={() => setIsCreateDialogOpen(false)}
+            />
           </DialogContent>
         </Dialog>
       </div>
