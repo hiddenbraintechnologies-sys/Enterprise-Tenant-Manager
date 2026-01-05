@@ -138,7 +138,14 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      toast({
+        title: "Please fix the form errors",
+        description: "Check the highlighted fields above",
+        variant: "destructive",
+      });
+      return;
+    }
     
     createMutation.mutate({
       name: name.trim(),
