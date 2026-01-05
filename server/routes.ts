@@ -1102,7 +1102,7 @@ export async function registerRoutes(
         userAgent: req.headers["user-agent"],
       });
 
-      res.json(admins.map(admin => ({
+      const mappedAdmins = admins.map(admin => ({
         id: admin.id,
         name: admin.name,
         email: admin.email,
@@ -1111,7 +1111,8 @@ export async function registerRoutes(
         forcePasswordReset: admin.forcePasswordReset,
         lastLoginAt: admin.lastLoginAt,
         createdAt: admin.createdAt,
-      })));
+      }));
+      res.json({ admins: mappedAdmins, total: mappedAdmins.length });
     } catch (error) {
       console.error("Get platform admins error:", error);
       res.status(500).json({ message: "Failed to get admins" });
