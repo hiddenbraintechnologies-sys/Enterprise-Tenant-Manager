@@ -28,6 +28,22 @@ This document contains all test login credentials for development and testing pu
 
 ---
 
+## Tenant User Roles
+
+Users within each tenant are assigned one of these roles:
+
+| Role | Description | Permissions |
+|------|-------------|-------------|
+| **super_admin** | Tenant owner with full access | All features, user management, billing, settings |
+| **admin** | Tenant administrator | Most features, limited billing access |
+| **manager** | Department/team manager | Team management, reports, operations |
+| **staff** | Regular employee | Day-to-day operations, limited access |
+| **customer** | End customer/client | Customer portal access only |
+
+**Note**: Tenant users authenticate via Replit Auth (SSO) - no password credentials are needed. When a user logs in with their Replit account, they are automatically associated with their tenant and assigned role.
+
+---
+
 ## Sample Tenants (India - GST)
 
 | Tenant Name | Business Type | Email | Subscription |
