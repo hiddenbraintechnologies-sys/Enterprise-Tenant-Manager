@@ -940,7 +940,7 @@ export async function registerRoutes(
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
       res.json({
-        admin: req.platformAdminContext?.platformAdmin,
+        platformAdmin: req.platformAdminContext?.platformAdmin,
         permissions: req.platformAdminContext?.permissions,
       });
     } catch (error) {
