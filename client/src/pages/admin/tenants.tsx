@@ -130,6 +130,14 @@ function TenantsContent() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [newStatus, setNewStatus] = useState<"active" | "suspended" | "cancelled">("active");
   const [statusReason, setStatusReason] = useState("");
+  
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editSubscriptionTier, setEditSubscriptionTier] = useState("");
+  const [editMaxUsers, setEditMaxUsers] = useState("");
 
   const buildQueryUrl = () => {
     const params = new URLSearchParams();
@@ -189,6 +197,56 @@ function TenantsContent() {
       tenantId: selectedTenant.id,
       status: newStatus,
       reason: statusReason,
+    });
+  };
+
+  const updateTenantMutation = useMutation({
+    mutationFn: async ({ tenantId, data }: { tenantId: string; data: Record<string, unknown> }) => {
+      const response = await apiRequest("PATCH", `/api/platform-admin/tenants/${tenantId}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.startsWith('/api/platform-admin/tenants');
+      }});
+      toast({
+        title: "Tenant Updated",
+        description: "Tenant details have been saved successfully.",
+      });
+      setEditDialogOpen(false);
+      setEditingTenant(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update tenant",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditTenant = (tenant: Tenant) => {
+    setEditingTenant(tenant);
+    setEditName(tenant.name);
+    setEditEmail(tenant.email || "");
+    setEditPhone(tenant.phone || "");
+    setEditSubscriptionTier(tenant.subscriptionTier);
+    setEditMaxUsers(String(tenant.maxUsers));
+    setEditDialogOpen(true);
+  };
+
+  const confirmEditTenant = () => {
+    if (!editingTenant || !editName.trim()) return;
+    updateTenantMutation.mutate({
+      tenantId: editingTenant.id,
+      data: {
+        name: editName,
+        email: editEmail || null,
+        phone: editPhone || null,
+        subscriptionTier: editSubscriptionTier,
+        maxUsers: parseInt(editMaxUsers) || 5,
+      },
     });
   };
 
@@ -416,7 +474,7 @@ function TenantsContent() {
                           </DropdownMenuItem>
                           {isSuperAdmin && (
                             <>
-                              <DropdownMenuItem>Edit Tenant</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditTenant(tenant)}>Edit Tenant</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {tenant.status !== "active" && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(tenant, "active")}>
@@ -500,6 +558,88 @@ function TenantsContent() {
               data-testid="button-confirm-status-change"
             >
               {changeStatusMutation.isPending ? "Updating..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Tenant</DialogTitle>
+            <DialogDescription>
+              Update tenant information for {editingTenant?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Business Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Enter business name"
+                data-testid="input-edit-tenant-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="Enter email address"
+                data-testid="input-edit-tenant-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input
+                id="edit-phone"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="Enter phone number"
+                data-testid="input-edit-tenant-phone"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-tier">Subscription Tier</Label>
+                <Select value={editSubscriptionTier} onValueChange={setEditSubscriptionTier}>
+                  <SelectTrigger id="edit-tier" data-testid="select-edit-tenant-tier">
+                    <SelectValue placeholder="Select tier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="pro">Pro</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-max-users">Max Users</Label>
+                <Input
+                  id="edit-max-users"
+                  type="number"
+                  min="1"
+                  value={editMaxUsers}
+                  onChange={(e) => setEditMaxUsers(e.target.value)}
+                  data-testid="input-edit-tenant-max-users"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmEditTenant}
+              disabled={!editName.trim() || updateTenantMutation.isPending}
+              data-testid="button-confirm-edit-tenant"
+            >
+              {updateTenantMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
