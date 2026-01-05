@@ -179,51 +179,59 @@ function GstComplianceTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTenants.map((item) => (
-                <TableRow key={item.tenant.id} data-testid={`row-gst-${item.tenant.id}`}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{item.tenant.name}</div>
-                      <div className="text-sm text-muted-foreground">{item.tenant.businessType}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {item.gst ? (
-                      <code className="text-sm bg-muted px-2 py-1 rounded">{item.gst.gstin}</code>
-                    ) : (
-                      <span className="text-muted-foreground">Not configured</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.gst ? (
-                      <span>{INDIAN_STATES[item.gst.stateCode] || item.gst.stateCode}</span>
-                    ) : "-"}
-                  </TableCell>
-                  <TableCell>
-                    {item.gst ? (
-                      <Badge variant="secondary">{item.gst.gstType}</Badge>
-                    ) : "-"}
-                  </TableCell>
-                  <TableCell>
-                    {item.gst?.isEInvoiceEnabled ? (
-                      <Badge variant="default" className="gap-1">
-                        <CheckCircle className="h-3 w-3" /> Enabled
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Disabled</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.gst?.isActive ? (
-                      <Badge variant="default" className="gap-1">
-                        <CheckCircle className="h-3 w-3" /> Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Inactive</Badge>
-                    )}
+              {filteredTenants.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    {searchQuery ? `No tenants found matching "${searchQuery}"` : "No GST registrations found"}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredTenants.map((item) => (
+                  <TableRow key={item.tenant.id} data-testid={`row-gst-${item.tenant.id}`}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{item.tenant.name}</div>
+                        <div className="text-sm text-muted-foreground">{item.tenant.businessType}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {item.gst ? (
+                        <code className="text-sm bg-muted px-2 py-1 rounded">{item.gst.gstin}</code>
+                      ) : (
+                        <span className="text-muted-foreground">Not configured</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.gst ? (
+                        <span>{INDIAN_STATES[item.gst.stateCode] || item.gst.stateCode}</span>
+                      ) : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {item.gst ? (
+                        <Badge variant="secondary">{item.gst.gstType}</Badge>
+                      ) : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {item.gst?.isEInvoiceEnabled ? (
+                        <Badge variant="default" className="gap-1">
+                          <CheckCircle className="h-3 w-3" /> Enabled
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Disabled</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.gst?.isActive ? (
+                        <Badge variant="default" className="gap-1">
+                          <CheckCircle className="h-3 w-3" /> Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Inactive</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -313,49 +321,57 @@ function VatComplianceTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTenants.map((item) => (
-                <TableRow key={item.tenant.id} data-testid={`row-vat-${item.tenant.id}`}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{item.tenant.name}</div>
-                      <div className="text-sm text-muted-foreground">{item.tenant.businessType}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {item.vat ? (
-                      <code className="text-sm bg-muted px-2 py-1 rounded">{item.vat.vatNumber}</code>
-                    ) : (
-                      <span className="text-muted-foreground">Not configured</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.vat?.postcode || "-"}
-                  </TableCell>
-                  <TableCell>
-                    {item.vat ? (
-                      <Badge variant="secondary">{item.vat.vatScheme}</Badge>
-                    ) : "-"}
-                  </TableCell>
-                  <TableCell>
-                    {item.vat?.mtdEnabled ? (
-                      <Badge variant="default" className="gap-1">
-                        <CheckCircle className="h-3 w-3" /> Enabled
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Disabled</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.vat?.isActive ? (
-                      <Badge variant="default" className="gap-1">
-                        <CheckCircle className="h-3 w-3" /> Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Inactive</Badge>
-                    )}
+              {filteredTenants.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    {searchQuery ? `No tenants found matching "${searchQuery}"` : "No VAT registrations found"}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredTenants.map((item) => (
+                  <TableRow key={item.tenant.id} data-testid={`row-vat-${item.tenant.id}`}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{item.tenant.name}</div>
+                        <div className="text-sm text-muted-foreground">{item.tenant.businessType}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {item.vat ? (
+                        <code className="text-sm bg-muted px-2 py-1 rounded">{item.vat.vatNumber}</code>
+                      ) : (
+                        <span className="text-muted-foreground">Not configured</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.vat?.postcode || "-"}
+                    </TableCell>
+                    <TableCell>
+                      {item.vat ? (
+                        <Badge variant="secondary">{item.vat.vatScheme}</Badge>
+                      ) : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {item.vat?.mtdEnabled ? (
+                        <Badge variant="default" className="gap-1">
+                          <CheckCircle className="h-3 w-3" /> Enabled
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Disabled</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.vat?.isActive ? (
+                        <Badge variant="default" className="gap-1">
+                          <CheckCircle className="h-3 w-3" /> Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Inactive</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
