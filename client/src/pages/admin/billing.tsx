@@ -724,6 +724,21 @@ support@bizflow.app` : "";
             />
           </div>
 
+          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300 mb-2">
+              <Download className="h-4 w-4" />
+              <span className="font-medium">Attachment</span>
+            </div>
+            <div className="flex items-center gap-3 bg-white dark:bg-blue-900/30 rounded-md p-2 border border-blue-100 dark:border-blue-800">
+              <div className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">PDF</div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Invoice_{invoice.invoiceNumber || invoice.id.slice(0, 8)}.pdf</p>
+                <p className="text-xs text-muted-foreground">Invoice document will be attached automatically</p>
+              </div>
+              <Receipt className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+
           <div className="bg-muted/30 rounded-lg p-3 border">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
               <Receipt className="h-4 w-4" />
