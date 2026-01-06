@@ -26,6 +26,9 @@ import {
   XCircle,
   Download,
   MessageCircle,
+  Mail,
+  Copy,
+  Users,
 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import {
@@ -520,6 +523,247 @@ function InvoiceDetailDialog({
   );
 }
 
+interface EmailData {
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  message: string;
+}
+
+function SendEmailDialog({
+  invoice,
+  open,
+  onOpenChange,
+  onSend,
+  isSending,
+}: {
+  invoice: Invoice | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSend: (emailData: EmailData) => void;
+  isSending: boolean;
+}) {
+  const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
+  
+  const formatCurrency = (amount: string | number | undefined | null, currencyCode?: string) => {
+    if (amount === undefined || amount === null || amount === "") return "-";
+    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+    if (isNaN(numAmount)) return "-";
+    const code = currencyCode || "USD";
+    return new Intl.NumberFormat(code === "INR" ? "en-IN" : "en-US", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+    }).format(numAmount);
+  };
+
+  const defaultSubject = invoice 
+    ? `Invoice ${invoice.invoiceNumber || invoice.id} from BizFlow - ${formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)} Due`
+    : "Invoice from BizFlow";
+
+  const defaultMessage = invoice ? `Dear ${invoice.tenantName},
+
+Please find attached your invoice details:
+
+Invoice Number: ${invoice.invoiceNumber || invoice.id}
+Amount Due: ${formatCurrency(invoice.amountDue || invoice.totalAmount || invoice.amount, invoice.currency)}
+Due Date: ${new Date(invoice.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+
+Invoice Breakdown:
+- Subtotal: ${formatCurrency(invoice.subtotal, invoice.currency)}
+- ${invoice.taxName || "Tax"} (${invoice.taxRate || 0}%): ${formatCurrency(invoice.taxAmount, invoice.currency)}
+- Total: ${formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)}
+
+Please ensure payment is made by the due date to avoid any service interruption.
+
+Payment Methods:
+- Bank Transfer
+- Credit/Debit Card
+- UPI (for India)
+
+If you have any questions regarding this invoice, please don't hesitate to contact us.
+
+Thank you for your business!
+
+Best regards,
+BizFlow Team
+support@bizflow.app` : "";
+
+  const [emailData, setEmailData] = useState<EmailData>({
+    to: invoice?.tenantEmail || "",
+    cc: "",
+    bcc: "",
+    subject: defaultSubject,
+    message: defaultMessage,
+  });
+
+  const handleSend = () => {
+    onSend(emailData);
+  };
+
+  if (!invoice) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-primary" />
+            Compose Invoice Email
+          </DialogTitle>
+          <DialogDescription>
+            Send invoice {invoice.invoiceNumber || invoice.id} to {invoice.tenantName}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Label className="w-16 text-right text-sm font-medium">To:</Label>
+              <div className="flex-1 flex gap-2">
+                <Input
+                  value={emailData.to}
+                  onChange={(e) => setEmailData({ ...emailData, to: e.target.value })}
+                  placeholder="recipient@example.com"
+                  className="flex-1"
+                  data-testid="input-email-to"
+                />
+                <div className="flex gap-1">
+                  {!showCc && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowCc(true)}
+                      className="text-xs text-muted-foreground"
+                    >
+                      Cc
+                    </Button>
+                  )}
+                  {!showBcc && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowBcc(true)}
+                      className="text-xs text-muted-foreground"
+                    >
+                      Bcc
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {showCc && (
+              <div className="flex items-center gap-2">
+                <Label className="w-16 text-right text-sm font-medium">Cc:</Label>
+                <div className="flex-1 flex gap-2">
+                  <Input
+                    value={emailData.cc}
+                    onChange={(e) => setEmailData({ ...emailData, cc: e.target.value })}
+                    placeholder="cc@example.com (comma-separated for multiple)"
+                    className="flex-1"
+                    data-testid="input-email-cc"
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => { setShowCc(false); setEmailData({ ...emailData, cc: "" }); }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {showBcc && (
+              <div className="flex items-center gap-2">
+                <Label className="w-16 text-right text-sm font-medium">Bcc:</Label>
+                <div className="flex-1 flex gap-2">
+                  <Input
+                    value={emailData.bcc}
+                    onChange={(e) => setEmailData({ ...emailData, bcc: e.target.value })}
+                    placeholder="bcc@example.com (comma-separated for multiple)"
+                    className="flex-1"
+                    data-testid="input-email-bcc"
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => { setShowBcc(false); setEmailData({ ...emailData, bcc: "" }); }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Label className="w-16 text-right text-sm font-medium">Subject:</Label>
+              <Input
+                value={emailData.subject}
+                onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
+                placeholder="Email subject"
+                className="flex-1"
+                data-testid="input-email-subject"
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <Label className="text-sm font-medium mb-2 block">Message:</Label>
+            <Textarea
+              value={emailData.message}
+              onChange={(e) => setEmailData({ ...emailData, message: e.target.value })}
+              placeholder="Email message..."
+              className="min-h-[280px] font-mono text-sm"
+              data-testid="textarea-email-message"
+            />
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-3 border">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+              <Receipt className="h-4 w-4" />
+              <span className="font-medium">Invoice Summary</span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Invoice:</span>
+                <p className="font-mono">{invoice.invoiceNumber || invoice.id.slice(0, 8)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Amount:</span>
+                <p className="font-semibold">{formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Due:</span>
+                <p>{new Date(invoice.dueDate).toLocaleDateString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-email">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSend} 
+            disabled={isSending || !emailData.to.trim()}
+            data-testid="button-send-email"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            {isSending ? "Sending..." : "Send Email"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BillingContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
   const { toast } = useToast();
@@ -530,17 +774,19 @@ function BillingContent() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
 
   const sendInvoiceMutation = useMutation({
-    mutationFn: async (invoiceId: string) => {
-      return apiRequest("POST", `/api/platform-admin/billing/invoices/${invoiceId}/send`);
+    mutationFn: async ({ invoiceId, emailData }: { invoiceId: string; emailData: EmailData }) => {
+      return apiRequest("POST", `/api/platform-admin/billing/invoices/${invoiceId}/send`, emailData);
     },
     onSuccess: () => {
-      toast({ title: "Invoice sent successfully" });
+      toast({ title: "Invoice email sent successfully" });
+      setShowEmailDialog(false);
       setShowDetailDialog(false);
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to send invoice", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to send invoice email", description: error.message, variant: "destructive" });
     },
   });
 
@@ -563,9 +809,13 @@ function BillingContent() {
     setShowDetailDialog(true);
   };
 
-  const handleSendInvoice = () => {
+  const handleOpenEmailDialog = () => {
+    setShowEmailDialog(true);
+  };
+
+  const handleSendEmail = (emailData: EmailData) => {
     if (selectedInvoice) {
-      sendInvoiceMutation.mutate(selectedInvoice.id);
+      sendInvoiceMutation.mutate({ invoiceId: selectedInvoice.id, emailData });
     }
   };
 
@@ -877,11 +1127,11 @@ function BillingContent() {
                               <DropdownMenuItem 
                                 onClick={() => {
                                   setSelectedInvoice(invoice);
-                                  sendInvoiceMutation.mutate(invoice.id);
+                                  setShowEmailDialog(true);
                                 }}
                                 data-testid={`menu-send-invoice-${invoice.id}`}
                               >
-                                <Send className="h-4 w-4 mr-2" />
+                                <Mail className="h-4 w-4 mr-2" />
                                 Send Invoice
                               </DropdownMenuItem>
                               <DropdownMenuItem 
@@ -909,9 +1159,16 @@ function BillingContent() {
         invoice={selectedInvoice} 
         open={showDetailDialog} 
         onOpenChange={setShowDetailDialog}
-        onSend={handleSendInvoice}
+        onSend={handleOpenEmailDialog}
         isSending={sendInvoiceMutation.isPending}
         isSuperAdmin={isSuperAdmin}
+      />
+      <SendEmailDialog
+        invoice={selectedInvoice}
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+        onSend={handleSendEmail}
+        isSending={sendInvoiceMutation.isPending}
       />
     </div>
   );
