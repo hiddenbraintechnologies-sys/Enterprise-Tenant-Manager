@@ -238,7 +238,7 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
 
   // Fetch available regions
   const { data: regionsData } = useQuery<{ id: string; countryCode: string; countryName: string }[]>({
-    queryKey: ["/api/region-configs"],
+    queryKey: ["/api/region-configs/active"],
   });
 
   // Reset form when admin changes
@@ -473,7 +473,7 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
 
   // Fetch available regions
   const { data: regionsData } = useQuery<{ id: string; countryCode: string; countryName: string }[]>({
-    queryKey: ["/api/region-configs"],
+    queryKey: ["/api/region-configs/active"],
   });
 
   const createMutation = useMutation({
