@@ -477,6 +477,56 @@ Configurable framework for country-specific compliance requirements:
 - Invoice currency support
 - Payment currency support
 
+### Invoice Management (`/invoices`)
+
+Full multi-currency invoice system with:
+
+| Feature | Description |
+|---------|-------------|
+| **Currency Selection** | Choose from 15 supported currencies per invoice |
+| **Exchange Rate Lookup** | Automatic rate retrieval from exchange rates table |
+| **Base Amount Conversion** | All invoices converted to USD base amount for reporting |
+| **Line Item Management** | Add multiple items with quantity, unit price, and total calculation |
+| **Status Tracking** | Draft, Sent, Partial, Paid, Overdue, Cancelled |
+| **Formatted Display** | Currency-aware formatting with proper symbols and decimals |
+
+#### Invoice Fields
+
+| Field | Description |
+|-------|-------------|
+| Invoice Number | Auto-generated or custom |
+| Customer | Linked customer reference |
+| Currency | Selected transaction currency |
+| Base Currency | USD for reporting |
+| Exchange Rate | Rate at time of creation |
+| Subtotal | Sum of line items |
+| Tax Amount | Calculated tax |
+| Discount Amount | Applied discounts |
+| Total Amount | Final invoice total |
+| Base Amount | Total converted to USD |
+| Paid Amount | Payments received |
+| Due Date | Payment due date |
+
+### Payment Recording
+
+Cross-currency payment support:
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-Currency Payments** | Accept payments in any supported currency |
+| **Automatic Conversion** | Convert payment to invoice currency when different |
+| **Invoice Update** | Automatically update paid amount and status |
+| **Status Transitions** | Draft → Partial → Paid based on payment coverage |
+| **Exchange Rate Tracking** | Store rate used for each payment conversion |
+
+#### Payment Workflow
+
+1. Customer makes payment in their preferred currency
+2. System looks up exchange rate to invoice currency
+3. Payment amount converted if currencies differ
+4. Invoice `paidAmount` updated with converted value
+5. Invoice status updated: `partial` if partially paid, `paid` if fully covered
+
 ---
 
 ## White-Label & Reseller System
@@ -689,6 +739,6 @@ BizFlow provides specialized dashboards for different business types:
 
 ---
 
-*Document Version: 1.0*
-*Last Updated: January 2026*
+*Document Version: 1.1*
+*Last Updated: January 6, 2026*
 *Platform: BizFlow Enterprise SaaS*
