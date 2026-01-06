@@ -1005,7 +1005,7 @@ export async function registerRoutes(
       .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
-    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"]).optional(),
+    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "TECH_SUPPORT_MANAGER", "MANAGER", "SUPPORT_TEAM"]).optional(),
     forcePasswordReset: z.boolean().optional().default(true),
     permissions: z.array(z.string()).optional(),
     countryAssignments: z.array(z.string()).optional(),
@@ -1180,7 +1180,7 @@ export async function registerRoutes(
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number")
       .optional(),
-    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"]).optional(),
+    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "TECH_SUPPORT_MANAGER", "MANAGER", "SUPPORT_TEAM"]).optional(),
     isActive: z.boolean().optional(),
     forcePasswordReset: z.boolean().optional(),
     countryAssignments: z.array(z.string()).optional(),
