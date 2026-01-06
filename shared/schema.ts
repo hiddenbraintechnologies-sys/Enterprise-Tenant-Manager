@@ -1570,6 +1570,69 @@ export const subscriptionInvoices = pgTable("subscription_invoices", {
   index("idx_subscription_invoices_country").on(table.country),
 ]);
 
+// Invoice Templates for customizable invoice design
+export const invoiceTemplates = pgTable("invoice_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  
+  // Company/Header Settings
+  companyName: varchar("company_name", { length: 200 }).default("BizFlow"),
+  companyTagline: varchar("company_tagline", { length: 200 }),
+  companyAddress: text("company_address"),
+  companyPhone: varchar("company_phone", { length: 50 }),
+  companyEmail: varchar("company_email", { length: 100 }),
+  companyWebsite: varchar("company_website", { length: 200 }),
+  logoUrl: text("logo_url"),
+  logoPosition: varchar("logo_position", { length: 20 }).default("left"), // left, center, right
+  
+  // Color Theme
+  primaryColor: varchar("primary_color", { length: 20 }).default("#3B82F6"),
+  secondaryColor: varchar("secondary_color", { length: 20 }).default("#1E293B"),
+  accentColor: varchar("accent_color", { length: 20 }).default("#10B981"),
+  headerBgColor: varchar("header_bg_color", { length: 20 }).default("#F8FAFC"),
+  tableBgColor: varchar("table_bg_color", { length: 20 }).default("#FFFFFF"),
+  tableHeaderBgColor: varchar("table_header_bg_color", { length: 20 }).default("#F1F5F9"),
+  
+  // Typography
+  fontFamily: varchar("font_family", { length: 100 }).default("Arial, sans-serif"),
+  headerFontSize: varchar("header_font_size", { length: 10 }).default("24px"),
+  bodyFontSize: varchar("body_font_size", { length: 10 }).default("14px"),
+  
+  // Section Visibility
+  showLogo: boolean("show_logo").default(true),
+  showCompanyAddress: boolean("show_company_address").default(true),
+  showCompanyPhone: boolean("show_company_phone").default(true),
+  showBillingPeriod: boolean("show_billing_period").default(true),
+  showPaymentInfo: boolean("show_payment_info").default(true),
+  showNotes: boolean("show_notes").default(true),
+  showFooter: boolean("show_footer").default(true),
+  showTaxBreakdown: boolean("show_tax_breakdown").default(true),
+  
+  // Custom Content
+  headerText: text("header_text"),
+  footerText: text("footer_text").default("Thank you for your business!"),
+  paymentTerms: text("payment_terms"),
+  bankDetails: text("bank_details"),
+  termsAndConditions: text("terms_and_conditions"),
+  
+  // Invoice Number Format
+  invoicePrefix: varchar("invoice_prefix", { length: 20 }).default("INV"),
+  invoiceNumberFormat: varchar("invoice_number_format", { length: 50 }).default("{PREFIX}-{YEAR}{MONTH}-{NUMBER}"),
+  
+  // Custom CSS (for advanced customization)
+  customCss: text("custom_css"),
+  
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_invoice_templates_default").on(table.isDefault),
+  index("idx_invoice_templates_active").on(table.isActive),
+]);
+
 // Transaction logs for all payment gateway transactions
 export const transactionLogs = pgTable("transaction_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -2182,6 +2245,7 @@ export const insertCountryPricingConfigSchema = createInsertSchema(countryPricin
 export const insertPlanLocalPriceSchema = createInsertSchema(planLocalPrices).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTenantSubscriptionSchema = createInsertSchema(tenantSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSubscriptionInvoiceSchema = createInsertSchema(subscriptionInvoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertInvoiceTemplateSchema = createInsertSchema(invoiceTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTransactionLogSchema = createInsertSchema(transactionLogs).omit({ id: true, createdAt: true });
 export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, createdAt: true });
 export const insertPaymentAttemptSchema = createInsertSchema(paymentAttempts).omit({ id: true, createdAt: true });
@@ -2347,6 +2411,9 @@ export type InsertTenantSubscription = z.infer<typeof insertTenantSubscriptionSc
 
 export type SubscriptionInvoice = typeof subscriptionInvoices.$inferSelect;
 export type InsertSubscriptionInvoice = z.infer<typeof insertSubscriptionInvoiceSchema>;
+
+export type InvoiceTemplate = typeof invoiceTemplates.$inferSelect;
+export type InsertInvoiceTemplate = z.infer<typeof insertInvoiceTemplateSchema>;
 
 export type TransactionLog = typeof transactionLogs.$inferSelect;
 export type InsertTransactionLog = z.infer<typeof insertTransactionLogSchema>;
