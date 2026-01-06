@@ -4947,33 +4947,32 @@ export async function registerRoutes(
       
       const defaultRules = [
         // India GST rules
-        { country: "india" as const, businessType: "pg_hostel" as const, taxName: "GST", taxCode: "9963", taxRate: "18.00", description: "GST for accommodation services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "pg" as const, taxName: "GST", taxCode: "9963", taxRate: "18.00", description: "GST for accommodation services", effectiveFrom: new Date("2017-07-01") },
         { country: "india" as const, businessType: "salon" as const, taxName: "GST", taxCode: "9972", taxRate: "18.00", description: "GST for beauty services", effectiveFrom: new Date("2017-07-01") },
-        { country: "india" as const, businessType: "gym" as const, taxName: "GST", taxCode: "9996", taxRate: "18.00", description: "GST for fitness services", effectiveFrom: new Date("2017-07-01") },
-        { country: "india" as const, businessType: "coaching" as const, taxName: "GST", taxCode: "9992", taxRate: "18.00", description: "GST for education services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "coworking" as const, taxName: "GST", taxCode: "9996", taxRate: "18.00", description: "GST for coworking/fitness services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "education" as const, taxName: "GST", taxCode: "9992", taxRate: "18.00", description: "GST for education services", effectiveFrom: new Date("2017-07-01") },
         { country: "india" as const, businessType: "clinic" as const, taxName: "GST", taxCode: "9993", taxRate: "0.00", taxCategory: "exempt" as const, description: "Healthcare services exempt", effectiveFrom: new Date("2017-07-01") },
-        { country: "india" as const, businessType: "diagnostics" as const, taxName: "GST", taxCode: "9993", taxRate: "0.00", taxCategory: "exempt" as const, description: "Diagnostic services exempt", effectiveFrom: new Date("2017-07-01") },
-        { country: "india" as const, businessType: "general" as const, taxName: "GST", taxCode: "9997", taxRate: "18.00", description: "GST for general services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "service" as const, taxName: "GST", taxCode: "9997", taxRate: "18.00", description: "GST for general services", effectiveFrom: new Date("2017-07-01") },
         
         // UK VAT rules
-        { country: "uk" as const, businessType: "pg_hostel" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "pg" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
         { country: "uk" as const, businessType: "salon" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
-        { country: "uk" as const, businessType: "gym" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
-        { country: "uk" as const, businessType: "coaching" as const, taxName: "VAT", taxCode: "EXEMPT", taxRate: "0.00", taxCategory: "exempt" as const, description: "Education services exempt", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "coworking" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "education" as const, taxName: "VAT", taxCode: "EXEMPT", taxRate: "0.00", taxCategory: "exempt" as const, description: "Education services exempt", effectiveFrom: new Date("2011-01-04") },
         { country: "uk" as const, businessType: "clinic" as const, taxName: "VAT", taxCode: "EXEMPT", taxRate: "0.00", taxCategory: "exempt" as const, description: "Healthcare exempt", effectiveFrom: new Date("2011-01-04") },
-        { country: "uk" as const, businessType: "general" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "service" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
         
         // UAE VAT rules
-        { country: "uae" as const, businessType: "general" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
-        { country: "uae" as const, businessType: "pg_hostel" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
+        { country: "uae" as const, businessType: "service" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
+        { country: "uae" as const, businessType: "pg" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
         { country: "uae" as const, businessType: "salon" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
         { country: "uae" as const, businessType: "clinic" as const, taxName: "VAT", taxCode: "ZERO", taxRate: "0.00", taxCategory: "zero" as const, description: "Healthcare zero-rated", effectiveFrom: new Date("2018-01-01") },
         
         // Malaysia SST rules  
-        { country: "malaysia" as const, businessType: "general" as const, taxName: "SST", taxCode: "SERVICE", taxRate: "6.00", description: "Malaysia Service Tax", effectiveFrom: new Date("2018-09-01") },
+        { country: "malaysia" as const, businessType: "service" as const, taxName: "SST", taxCode: "SERVICE", taxRate: "6.00", description: "Malaysia Service Tax", effectiveFrom: new Date("2018-09-01") },
         
         // Singapore GST rules
-        { country: "singapore" as const, businessType: "general" as const, taxName: "GST", taxCode: "SR", taxRate: "9.00", description: "Singapore GST (2024 rate)", effectiveFrom: new Date("2024-01-01") },
+        { country: "singapore" as const, businessType: "service" as const, taxName: "GST", taxCode: "SR", taxRate: "9.00", description: "Singapore GST (2024 rate)", effectiveFrom: new Date("2024-01-01") },
       ];
       
       await db.insert(taxRules).values(defaultRules);

@@ -31,6 +31,7 @@ import {
   MessageSquare,
   Cog,
   Scale,
+  Calculator,
 } from "lucide-react";
 
 interface MenuItem {
@@ -65,6 +66,12 @@ const superAdminMenuItems: MenuItem[] = [
     title: "Billing",
     url: "/super-admin/billing",
     icon: DollarSign,
+    superAdminOnly: true,
+  },
+  {
+    title: "Tax Management",
+    url: "/super-admin/tax",
+    icon: Calculator,
     superAdminOnly: true,
   },
   {
@@ -116,6 +123,12 @@ const platformAdminMenuItems: MenuItem[] = [
     url: "/admin/billing",
     icon: DollarSign,
     permission: "view_billing",
+  },
+  {
+    title: "Tax Management",
+    url: "/admin/tax",
+    icon: Calculator,
+    permission: "manage_billing",
   },
   {
     title: "WhatsApp",
