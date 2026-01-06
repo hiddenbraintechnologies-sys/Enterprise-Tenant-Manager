@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAdmin, SuperAdminGuard } from "@/contexts/admin-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   UserCog,
   Search,
@@ -71,6 +71,195 @@ interface PlatformAdmin {
 interface CreateAdminFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+}
+
+interface EditAdminDialogProps {
+  admin: PlatformAdmin | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
+  const { toast } = useToast();
+  const [name, setName] = useState(admin?.name || "");
+  const [role, setRole] = useState<"SUPER_ADMIN" | "PLATFORM_ADMIN">(admin?.role || "PLATFORM_ADMIN");
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isActive, setIsActive] = useState(admin?.isActive ?? true);
+
+  // Reset form when admin changes
+  useEffect(() => {
+    if (admin) {
+      setName(admin.name);
+      setRole(admin.role);
+      setIsActive(admin.isActive);
+      setNewPassword("");
+    }
+  }, [admin]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { name?: string; role?: string; password?: string; isActive?: boolean }) => {
+      return apiRequest("PATCH", `/api/platform-admin/admins/${admin?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/admins"] });
+      toast({ title: "Admin updated successfully" });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to update admin", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const updates: { name?: string; role?: string; password?: string; isActive?: boolean } = {};
+    
+    if (name !== admin?.name) updates.name = name;
+    if (role !== admin?.role) updates.role = role;
+    if (isActive !== admin?.isActive) updates.isActive = isActive;
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        toast({ title: "Password must be at least 8 characters", variant: "destructive" });
+        return;
+      }
+      if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+        toast({ title: "Password must contain uppercase, lowercase, and number", variant: "destructive" });
+        return;
+      }
+      updates.password = newPassword;
+    }
+    
+    if (Object.keys(updates).length === 0) {
+      toast({ title: "No changes to save" });
+      return;
+    }
+    
+    updateMutation.mutate(updates);
+  };
+
+  if (!admin) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Admin</DialogTitle>
+          <DialogDescription>
+            Update {admin.name}'s account settings
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-name">Name</Label>
+            <Input
+              id="edit-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={updateMutation.isPending}
+              data-testid="input-edit-admin-name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-email">Email</Label>
+            <Input
+              id="edit-email"
+              value={admin.email}
+              disabled
+              className="bg-muted"
+            />
+            <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-role">Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+              <SelectTrigger data-testid="select-edit-admin-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+                <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-password">New Password (optional)</Label>
+            <div className="relative">
+              <Input
+                id="edit-password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Leave blank to keep current"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                disabled={updateMutation.isPending}
+                className="pr-10"
+                data-testid="input-edit-admin-password"
+              />
+              <button
+                type="button"
+                className="absolute right-0 top-0 h-full px-3 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Must be 8+ characters with uppercase, lowercase, and number
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <Label htmlFor="edit-active">Active Status</Label>
+              <p className="text-xs text-muted-foreground">
+                {isActive ? "Admin can log in" : "Admin is blocked from logging in"}
+              </p>
+            </div>
+            <Switch
+              id="edit-active"
+              checked={isActive}
+              onCheckedChange={setIsActive}
+              data-testid="switch-edit-admin-active"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={updateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={updateMutation.isPending}
+              data-testid="button-submit-edit-admin"
+            >
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
@@ -275,6 +464,8 @@ function PlatformAdminsContent() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingAdmin, setEditingAdmin] = useState<PlatformAdmin | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const { data, isLoading } = useQuery<{ admins: PlatformAdmin[]; total: number }>({
     queryKey: ["/api/platform-admin/admins"],
@@ -460,7 +651,13 @@ function PlatformAdminsContent() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingAdmin(admin);
+                              setIsEditDialogOpen(true);
+                            }}
+                            data-testid={`button-edit-admin-${admin.id}`}
+                          >
                             <UserCog className="h-4 w-4 mr-2" />
                             Edit Admin
                           </DropdownMenuItem>
@@ -497,6 +694,15 @@ function PlatformAdminsContent() {
           )}
         </CardContent>
       </Card>
+
+      <EditAdminDialog
+        admin={editingAdmin}
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setEditingAdmin(null);
+        }}
+      />
     </div>
   );
 }
