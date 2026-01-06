@@ -88,6 +88,8 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - 15 supported currencies: INR, AED, GBP, MYR, SGD, USD, EUR, AUD, CAD, JPY, CNY, SAR, ZAR, NGN, BRL
   - Client-side currency service with formatting, symbols, and decimal precision
   - Super Admin API endpoints for exchange rate management
+  - **Invoice Management** (`/invoices`): Full CRUD with multi-currency selection, automatic exchange rate lookup, base amount conversion (to USD), line item management, and formatted currency display
+  - **Payment Recording**: Cross-currency payment support with automatic conversion when payment currency differs from invoice currency, invoice status updates (draft/sent/partial/paid/overdue/cancelled)
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: Initial user authentication.
