@@ -942,11 +942,15 @@ export const invoices = pgTable("invoices", {
   customerId: varchar("customer_id").notNull().references(() => customers.id),
   invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
   status: invoiceStatusEnum("status").default("draft"),
+  currency: varchar("currency", { length: 5 }).default("INR").notNull(),
   subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
   taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
   discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0"),
   totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
   paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
+  baseCurrency: varchar("base_currency", { length: 5 }).default("USD"),
+  exchangeRate: decimal("exchange_rate", { precision: 12, scale: 6 }).default("1.000000"),
+  baseAmount: decimal("base_amount", { precision: 12, scale: 2 }),
   dueDate: date("due_date"),
   paidAt: timestamp("paid_at"),
   notes: text("notes"),
@@ -959,6 +963,7 @@ export const invoices = pgTable("invoices", {
   index("idx_invoices_tenant").on(table.tenantId),
   index("idx_invoices_customer").on(table.customerId),
   index("idx_invoices_status").on(table.tenantId, table.status),
+  index("idx_invoices_currency").on(table.tenantId, table.currency),
   uniqueIndex("idx_invoices_number").on(table.tenantId, table.invoiceNumber),
 ]);
 
@@ -981,7 +986,11 @@ export const payments = pgTable("payments", {
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   invoiceId: varchar("invoice_id").references(() => invoices.id),
   customerId: varchar("customer_id").notNull().references(() => customers.id),
+  currency: varchar("currency", { length: 5 }).default("INR").notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  baseCurrency: varchar("base_currency", { length: 5 }).default("USD"),
+  exchangeRate: decimal("exchange_rate", { precision: 12, scale: 6 }).default("1.000000"),
+  baseAmount: decimal("base_amount", { precision: 12, scale: 2 }),
   method: paymentMethodEnum("method").notNull(),
   status: paymentStatusEnum("status").default("pending"),
   transactionId: varchar("transaction_id", { length: 255 }),
@@ -998,6 +1007,7 @@ export const payments = pgTable("payments", {
   index("idx_payments_invoice").on(table.invoiceId),
   index("idx_payments_customer").on(table.customerId),
   index("idx_payments_status").on(table.status),
+  index("idx_payments_currency").on(table.tenantId, table.currency),
 ]);
 
 // ============================================
@@ -1457,7 +1467,7 @@ export const usageMetrics = pgTable("usage_metrics", {
 export const paymentGatewayEnum = pgEnum("payment_gateway", ["stripe", "razorpay", "paytabs", "billplz"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "suspended", "cancelled", "trialing"]);
 export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "yearly"]);
-export const currencyEnum = pgEnum("currency_code", ["INR", "AED", "GBP", "MYR", "SGD", "USD"]);
+export const currencyEnum = pgEnum("currency_code", ["INR", "AED", "GBP", "MYR", "SGD", "USD", "EUR", "AUD", "CAD", "JPY", "CNY", "SAR", "ZAR", "NGN", "BRL"]);
 
 // Global pricing plans (platform-level)
 export const globalPricingPlans = pgTable("global_pricing_plans", {
@@ -1497,6 +1507,25 @@ export const countryPricingConfigs = pgTable("country_pricing_configs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   uniqueIndex("idx_country_pricing_country").on(table.country),
+]);
+
+// Exchange rates for multi-currency support
+export const exchangeRates = pgTable("exchange_rates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromCurrency: varchar("from_currency", { length: 5 }).notNull(),
+  toCurrency: varchar("to_currency", { length: 5 }).notNull(),
+  rate: decimal("rate", { precision: 18, scale: 8 }).notNull(),
+  inverseRate: decimal("inverse_rate", { precision: 18, scale: 8 }).notNull(),
+  source: varchar("source", { length: 50 }).default("manual"),
+  isActive: boolean("is_active").default(true).notNull(),
+  validFrom: timestamp("valid_from").defaultNow().notNull(),
+  validTo: timestamp("valid_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_exchange_rates_pair").on(table.fromCurrency, table.toCurrency),
+  index("idx_exchange_rates_active").on(table.isActive, table.validFrom),
+  uniqueIndex("idx_exchange_rates_active_pair").on(table.fromCurrency, table.toCurrency, table.isActive),
 ]);
 
 // Plan prices per country (local currency)
@@ -2242,6 +2271,7 @@ export const insertUsageMetricSchema = createInsertSchema(usageMetrics).omit({ i
 // Global billing insert schemas
 export const insertGlobalPricingPlanSchema = createInsertSchema(globalPricingPlans).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCountryPricingConfigSchema = createInsertSchema(countryPricingConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPlanLocalPriceSchema = createInsertSchema(planLocalPrices).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTenantSubscriptionSchema = createInsertSchema(tenantSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSubscriptionInvoiceSchema = createInsertSchema(subscriptionInvoices).omit({ id: true, createdAt: true, updatedAt: true });
@@ -2402,6 +2432,9 @@ export type InsertGlobalPricingPlan = z.infer<typeof insertGlobalPricingPlanSche
 
 export type CountryPricingConfig = typeof countryPricingConfigs.$inferSelect;
 export type InsertCountryPricingConfig = z.infer<typeof insertCountryPricingConfigSchema>;
+
+export type ExchangeRate = typeof exchangeRates.$inferSelect;
+export type InsertExchangeRate = z.infer<typeof insertExchangeRateSchema>;
 
 export type PlanLocalPrice = typeof planLocalPrices.$inferSelect;
 export type InsertPlanLocalPrice = z.infer<typeof insertPlanLocalPriceSchema>;
