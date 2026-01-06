@@ -277,16 +277,7 @@ function BillingContent() {
     : `/api/platform-admin/billing/invoices?status=${statusFilter}`;
   
   const { data: invoicesData, isLoading: invoicesLoading } = useQuery<{ invoices: Invoice[]; total: number }>({
-    queryKey: ["/api/platform-admin/billing/invoices", statusFilter],
-    queryFn: async () => {
-      const token = localStorage.getItem("adminToken");
-      const res = await fetch(invoicesQueryUrl, { 
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to fetch invoices");
-      return res.json();
-    },
+    queryKey: [invoicesQueryUrl],
     staleTime: 30 * 1000,
   });
 
