@@ -1455,6 +1455,185 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== EXCHANGE RATES ====================
+
+  // List all exchange rates (admin)
+  app.get("/api/platform-admin/exchange-rates", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const rates = await storage.getExchangeRates();
+      res.json(rates);
+    } catch (error) {
+      console.error("Get exchange rates error:", error);
+      res.status(500).json({ message: "Failed to fetch exchange rates" });
+    }
+  });
+
+  // List active exchange rates (public)
+  app.get("/api/exchange-rates/active", async (_req, res) => {
+    try {
+      const rates = await storage.getActiveExchangeRates();
+      res.json(rates);
+    } catch (error) {
+      console.error("Get active exchange rates error:", error);
+      res.status(500).json({ message: "Failed to fetch exchange rates" });
+    }
+  });
+
+  // Get specific exchange rate
+  app.get("/api/exchange-rates/:from/:to", async (req, res) => {
+    try {
+      const { from, to } = req.params;
+      const rate = await storage.getExchangeRate(from.toUpperCase(), to.toUpperCase());
+      
+      if (!rate) {
+        return res.status(404).json({ message: `Exchange rate not found for ${from} to ${to}` });
+      }
+      
+      res.json(rate);
+    } catch (error) {
+      console.error("Get exchange rate error:", error);
+      res.status(500).json({ message: "Failed to fetch exchange rate" });
+    }
+  });
+
+  // Convert currency
+  app.post("/api/exchange-rates/convert", async (req, res) => {
+    try {
+      const { amount, fromCurrency, toCurrency } = req.body;
+      
+      if (!amount || !fromCurrency || !toCurrency) {
+        return res.status(400).json({ message: "Amount, fromCurrency, and toCurrency are required" });
+      }
+      
+      const result = await storage.convertCurrency(
+        parseFloat(amount),
+        fromCurrency.toUpperCase(),
+        toCurrency.toUpperCase()
+      );
+      
+      res.json({
+        originalAmount: parseFloat(amount),
+        fromCurrency: fromCurrency.toUpperCase(),
+        toCurrency: toCurrency.toUpperCase(),
+        ...result,
+      });
+    } catch (error: any) {
+      console.error("Currency conversion error:", error);
+      res.status(400).json({ message: error.message || "Failed to convert currency" });
+    }
+  });
+
+  // Create exchange rate (Super Admin only)
+  app.post("/api/platform-admin/exchange-rates", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { fromCurrency, toCurrency, rate, source } = req.body;
+      
+      if (!fromCurrency || !toCurrency || !rate) {
+        return res.status(400).json({ message: "fromCurrency, toCurrency, and rate are required" });
+      }
+      
+      const rateValue = parseFloat(rate);
+      if (isNaN(rateValue) || rateValue <= 0) {
+        return res.status(400).json({ message: "Rate must be a positive number" });
+      }
+      
+      const inverseRate = (1 / rateValue).toFixed(8);
+      
+      const created = await storage.createExchangeRate({
+        fromCurrency: fromCurrency.toUpperCase(),
+        toCurrency: toCurrency.toUpperCase(),
+        rate: rateValue.toFixed(8),
+        inverseRate,
+        source: source || "manual",
+        isActive: true,
+        validFrom: new Date(),
+      });
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "exchange_rate",
+        resourceId: created.id,
+        metadata: { fromCurrency: created.fromCurrency, toCurrency: created.toCurrency, rate: created.rate },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
+      res.status(201).json(created);
+    } catch (error) {
+      console.error("Create exchange rate error:", error);
+      res.status(500).json({ message: "Failed to create exchange rate" });
+    }
+  });
+
+  // Update exchange rate (Super Admin only)
+  app.patch("/api/platform-admin/exchange-rates/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { rate, source } = req.body;
+      
+      const updateData: any = {};
+      
+      if (rate !== undefined) {
+        const rateValue = parseFloat(rate);
+        if (isNaN(rateValue) || rateValue <= 0) {
+          return res.status(400).json({ message: "Rate must be a positive number" });
+        }
+        updateData.rate = rateValue.toFixed(8);
+        updateData.inverseRate = (1 / rateValue).toFixed(8);
+      }
+      
+      if (source !== undefined) {
+        updateData.source = source;
+      }
+      
+      const updated = await storage.updateExchangeRate(req.params.id, updateData);
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Exchange rate not found" });
+      }
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "exchange_rate",
+        resourceId: req.params.id,
+        metadata: { updates: updateData },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Update exchange rate error:", error);
+      res.status(500).json({ message: "Failed to update exchange rate" });
+    }
+  });
+
+  // Deactivate exchange rate (Super Admin only)
+  app.delete("/api/platform-admin/exchange-rates/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      await storage.deactivateExchangeRate(req.params.id);
+      
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "delete",
+        resource: "exchange_rate",
+        resourceId: req.params.id,
+        metadata: { action: "deactivate" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
+      res.json({ message: "Exchange rate deactivated successfully" });
+    } catch (error) {
+      console.error("Deactivate exchange rate error:", error);
+      res.status(500).json({ message: "Failed to deactivate exchange rate" });
+    }
+  });
+
   // ==================== GLOBAL TENANT REGISTRY ====================
 
   // List all tenants with filtering
