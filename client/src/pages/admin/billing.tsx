@@ -77,8 +77,10 @@ interface Invoice {
   id: string;
   tenantId: string;
   tenantName: string;
+  tenantEmail?: string;
   invoiceNumber?: string;
   businessType?: string;
+  planName?: string;
   amount?: number;
   subtotal?: number;
   taxName?: string;
@@ -353,26 +355,57 @@ function InvoiceDetailDialog({
 
   if (!invoice) return null;
 
+  const businessTypeLabels: Record<string, string> = {
+    clinic: "Healthcare / Clinic",
+    salon: "Salon & Beauty",
+    pg: "PG / Hostel",
+    coworking: "Coworking / Gym",
+    service: "General Services",
+    real_estate: "Real Estate",
+    tourism: "Tourism & Travel",
+    education: "Education / Coaching",
+    logistics: "Logistics",
+    legal: "Legal Services"
+  };
+
+  const countryLabels: Record<string, string> = {
+    india: "India", uk: "United Kingdom", uae: "UAE", 
+    malaysia: "Malaysia", singapore: "Singapore", other: "Other"
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[650px]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" />
-            Invoice Details
-          </DialogTitle>
-          <DialogDescription>
-            {invoice.invoiceNumber || invoice.id}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-muted-foreground text-xs">Tenant</Label>
-              <p className="font-medium">{invoice.tenantName}</p>
+          <DialogTitle className="flex items-center gap-3">
+            <div className="flex items-center">
+              <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="logoGradDialog" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style={{stopColor: "#3B82F6", stopOpacity: 1}} />
+                    <stop offset="100%" style={{stopColor: "#1D4ED8", stopOpacity: 1}} />
+                  </linearGradient>
+                </defs>
+                <rect x="0" y="1" width="32" height="30" rx="6" fill="url(#logoGradDialog)"/>
+                <path d="M8 11h16M8 16h12M8 21h14" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
             </div>
             <div>
-              <Label className="text-muted-foreground text-xs">Status</Label>
+              <span className="text-lg">Invoice Details</span>
+              <p className="text-sm font-normal text-muted-foreground">{invoice.invoiceNumber || invoice.id}</p>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground text-xs uppercase tracking-wide">Bill To</Label>
+              <p className="font-semibold text-base">{invoice.tenantName}</p>
+              {invoice.tenantEmail && <p className="text-sm text-muted-foreground">{invoice.tenantEmail}</p>}
+            </div>
+            <div className="text-right">
+              <Label className="text-muted-foreground text-xs uppercase tracking-wide">Status</Label>
               <div className="mt-1">
                 <Badge variant={invoice.status === "paid" ? "default" : invoice.status === "overdue" ? "destructive" : "secondary"}>
                   {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
@@ -381,69 +414,83 @@ function InvoiceDetailDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
-              <Label className="text-muted-foreground text-xs">Country</Label>
-              <p className="font-medium">{invoice.country || "-"}</p>
+              <Label className="text-muted-foreground text-xs uppercase tracking-wide">Country</Label>
+              <p className="font-medium">{countryLabels[invoice.country || ""] || invoice.country || "-"}</p>
             </div>
             <div>
-              <Label className="text-muted-foreground text-xs">Currency</Label>
+              <Label className="text-muted-foreground text-xs uppercase tracking-wide">Currency</Label>
               <p className="font-medium">{invoice.currency || "USD"}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs uppercase tracking-wide">Business Type</Label>
+              <p className="font-medium">{businessTypeLabels[invoice.businessType || ""] || invoice.businessType || "Service"}</p>
             </div>
           </div>
 
           <div className="border-t pt-4">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatCurrency(invoice.subtotal, invoice.currency)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  {invoice.taxName || "Tax"} ({invoice.taxRate || 0}%)
-                </span>
-                <span>{formatCurrency(invoice.taxAmount, invoice.currency)}</span>
-              </div>
-              <div className="flex justify-between font-bold text-lg border-t pt-2">
-                <span>Total</span>
-                <span>{formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)}</span>
+            <Label className="text-primary text-xs uppercase tracking-wide font-semibold mb-2 block">Services Availed</Label>
+            <div className="bg-muted/30 rounded-lg p-3 mb-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium">{invoice.planName || "Pro"} Plan Subscription</p>
+                  <p className="text-xs text-muted-foreground">{businessTypeLabels[invoice.businessType || ""] || "Business Services"}</p>
+                </div>
+                <span className="font-mono">{formatCurrency(invoice.subtotal, invoice.currency)}</span>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 border-t pt-4">
-            <div>
-              <Label className="text-muted-foreground text-xs">Amount Paid</Label>
-              <p className="font-medium text-green-600">{formatCurrency(invoice.amountPaid, invoice.currency)}</p>
+          <div className="bg-muted/20 rounded-lg p-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="font-mono">{formatCurrency(invoice.subtotal, invoice.currency)}</span>
             </div>
-            <div>
-              <Label className="text-muted-foreground text-xs">Amount Due</Label>
-              <p className="font-medium text-red-600">{formatCurrency(invoice.amountDue, invoice.currency)}</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">
+                {invoice.taxName || "Tax"} ({invoice.taxRate || 0}%)
+              </span>
+              <span className="font-mono">{formatCurrency(invoice.taxAmount, invoice.currency)}</span>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-muted-foreground text-xs">Due Date</Label>
-              <p className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground text-xs">Created</Label>
-              <p className="font-medium">{new Date(invoice.createdAt).toLocaleDateString()}</p>
+            <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
+              <span>Total</span>
+              <span className="font-mono">{formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)}</span>
             </div>
           </div>
 
-          {invoice.paidAt && (
+          <div className="grid grid-cols-3 gap-4 bg-muted/10 rounded-lg p-4 text-sm">
             <div>
-              <Label className="text-muted-foreground text-xs">Paid At</Label>
-              <p className="font-medium text-green-600">{new Date(invoice.paidAt).toLocaleDateString()}</p>
+              <Label className="text-muted-foreground text-xs uppercase">Amount Paid</Label>
+              <p className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(invoice.amountPaid, invoice.currency)}</p>
             </div>
-          )}
+            <div>
+              <Label className="text-muted-foreground text-xs uppercase">Amount Due</Label>
+              <p className="font-semibold text-red-600 dark:text-red-400">{formatCurrency(invoice.amountDue, invoice.currency)}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs uppercase">Due Date</Label>
+              <p className="font-medium">{new Date(invoice.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <Label className="text-muted-foreground text-xs uppercase">Created</Label>
+              <p className="font-medium">{new Date(invoice.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+            </div>
+            {invoice.paidAt && (
+              <div>
+                <Label className="text-muted-foreground text-xs uppercase">Paid On</Label>
+                <p className="font-medium text-green-600 dark:text-green-400">{new Date(invoice.paidAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+              </div>
+            )}
+          </div>
 
           {invoice.notes && (
-            <div>
-              <Label className="text-muted-foreground text-xs">Notes</Label>
-              <p className="text-sm">{invoice.notes}</p>
+            <div className="bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-400 p-3 rounded-r-lg">
+              <Label className="text-amber-700 dark:text-amber-400 text-xs uppercase font-semibold">Notes</Label>
+              <p className="text-sm text-amber-800 dark:text-amber-300 mt-1">{invoice.notes}</p>
             </div>
           )}
         </div>

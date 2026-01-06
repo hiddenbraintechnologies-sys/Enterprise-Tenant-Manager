@@ -4203,6 +4203,9 @@ export async function registerRoutes(
         tenantId: subscriptionInvoices.tenantId,
         tenantName: tenants.name,
         tenantEmail: tenants.email,
+        tenantPhone: tenants.phone,
+        tenantBusinessType: tenants.businessType,
+        tenantAddress: tenants.address,
         invoiceNumber: subscriptionInvoices.invoiceNumber,
         status: subscriptionInvoices.status,
         country: subscriptionInvoices.country,
@@ -4216,6 +4219,10 @@ export async function registerRoutes(
         amountDue: subscriptionInvoices.amountDue,
         dueDate: subscriptionInvoices.dueDate,
         paidAt: subscriptionInvoices.paidAt,
+        periodStart: subscriptionInvoices.periodStart,
+        periodEnd: subscriptionInvoices.periodEnd,
+        lineItems: subscriptionInvoices.lineItems,
+        billingDetails: subscriptionInvoices.billingDetails,
         notes: subscriptionInvoices.notes,
         createdAt: subscriptionInvoices.createdAt,
       })
@@ -4236,8 +4243,63 @@ export async function registerRoutes(
         if (!amount) return `${symbol}0.00`;
         return `${symbol}${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       };
+
+      const formatDate = (date: Date | string | null) => {
+        if (!date) return "-";
+        return new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      };
+
+      const businessTypeLabels: Record<string, string> = {
+        clinic: "Healthcare / Clinic",
+        salon: "Salon & Beauty",
+        pg: "PG / Hostel",
+        coworking: "Coworking / Gym",
+        service: "General Services",
+        real_estate: "Real Estate",
+        tourism: "Tourism & Travel",
+        education: "Education / Coaching",
+        logistics: "Logistics",
+        legal: "Legal Services"
+      };
+
+      const businessLabel = businessTypeLabels[invoice.tenantBusinessType || "service"] || "Business Services";
       
-      // Generate simple HTML invoice that can be printed as PDF
+      const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems as { description: string; quantity?: number; unitPrice?: string; amount: string }[] : [];
+      const billingDetails = invoice.billingDetails as { planName?: string; billingCycle?: string; features?: string[] } || {};
+      
+      const defaultLineItems = lineItems.length > 0 ? lineItems : [
+        { description: `${billingDetails.planName || "Pro"} Plan Subscription - ${businessLabel}`, quantity: 1, unitPrice: invoice.subtotal, amount: invoice.subtotal || "0" },
+      ];
+
+      const lineItemsHtml = defaultLineItems.map((item, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${item.description}</td>
+          <td class="center">${item.quantity || 1}</td>
+          <td class="amount">${formatAmount(item.unitPrice || item.amount)}</td>
+          <td class="amount">${formatAmount(item.amount)}</td>
+        </tr>
+      `).join("");
+
+      const countryNames: Record<string, string> = {
+        india: "India", uk: "United Kingdom", uae: "United Arab Emirates", 
+        malaysia: "Malaysia", singapore: "Singapore", other: "Other"
+      };
+      
+      // BizFlow SVG Logo
+      const logoSvg = `<svg width="140" height="40" viewBox="0 0 140 40" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#1D4ED8;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="5" width="32" height="30" rx="6" fill="url(#logoGrad)"/>
+        <path d="M8 15h16M8 20h12M8 25h14" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+        <text x="40" y="28" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#1E293B">Biz<tspan fill="#3B82F6">Flow</tspan></text>
+      </svg>`;
+      
+      // Generate comprehensive HTML invoice
       const html = `
 <!DOCTYPE html>
 <html>
@@ -4245,93 +4307,191 @@ export async function registerRoutes(
   <meta charset="utf-8">
   <title>Invoice ${invoice.invoiceNumber}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-    .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
-    .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
-    .invoice-title { font-size: 32px; color: #666; }
-    .info-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
-    .info-block { }
-    .info-block h3 { margin: 0 0 10px 0; color: #666; font-size: 12px; text-transform: uppercase; }
-    .info-block p { margin: 5px 0; }
-    .table { width: 100%; border-collapse: collapse; margin: 30px 0; }
-    .table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; }
-    .table td { padding: 12px; border-bottom: 1px solid #dee2e6; }
-    .table .amount { text-align: right; }
-    .totals { width: 300px; margin-left: auto; }
-    .totals .row { display: flex; justify-content: space-between; padding: 8px 0; }
-    .totals .total { font-size: 18px; font-weight: bold; border-top: 2px solid #333; padding-top: 12px; }
-    .status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-    .status.pending { background: #fef3c7; color: #92400e; }
-    .status.paid { background: #d1fae5; color: #065f46; }
-    .status.overdue { background: #fee2e2; color: #991b1b; }
-    .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 12px; color: #666; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 40px; color: #1e293b; background: #fff; line-height: 1.5; }
+    .invoice-container { max-width: 800px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #3B82F6; }
+    .logo-section { }
+    .invoice-title-section { text-align: right; }
+    .invoice-title { font-size: 36px; font-weight: bold; color: #3B82F6; margin: 0; }
+    .invoice-number { font-size: 14px; color: #64748b; margin-top: 5px; }
+    
+    .info-row { display: flex; justify-content: space-between; margin-bottom: 30px; gap: 40px; }
+    .info-block { flex: 1; }
+    .info-block.right { text-align: right; }
+    .info-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .info-value { font-size: 14px; color: #1e293b; margin: 4px 0; }
+    .info-value strong { font-weight: 600; }
+    .info-value.highlight { font-size: 16px; font-weight: 600; color: #1e293b; }
+    
+    .status-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .status-badge.pending { background: #fef3c7; color: #92400e; }
+    .status-badge.paid { background: #d1fae5; color: #065f46; }
+    .status-badge.overdue { background: #fee2e2; color: #991b1b; }
+    .status-badge.draft { background: #e2e8f0; color: #475569; }
+    
+    .section-title { font-size: 14px; font-weight: 600; color: #3B82F6; margin: 30px 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .services-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .services-table th { background: #f1f5f9; padding: 14px 12px; text-align: left; font-size: 12px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
+    .services-table td { padding: 14px 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    .services-table .center { text-align: center; }
+    .services-table .amount { text-align: right; font-family: 'Courier New', monospace; }
+    .services-table tbody tr:hover { background: #f8fafc; }
+    
+    .totals-section { display: flex; justify-content: flex-end; margin-top: 20px; }
+    .totals-box { width: 320px; background: #f8fafc; border-radius: 8px; padding: 20px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; }
+    .totals-row.subtotal { border-bottom: 1px solid #e2e8f0; }
+    .totals-row.tax { color: #64748b; }
+    .totals-row.total { font-size: 18px; font-weight: 700; border-top: 2px solid #3B82F6; padding-top: 15px; margin-top: 10px; color: #1e293b; }
+    .totals-row .label { }
+    .totals-row .value { font-family: 'Courier New', monospace; }
+    .totals-row.paid .value { color: #059669; }
+    .totals-row.due .value { color: #dc2626; font-weight: 600; }
+    
+    .billing-period { background: #eff6ff; border-left: 4px solid #3B82F6; padding: 15px 20px; margin: 25px 0; border-radius: 0 8px 8px 0; }
+    .billing-period-title { font-size: 12px; font-weight: 600; color: #3B82F6; text-transform: uppercase; margin-bottom: 5px; }
+    .billing-period-dates { font-size: 14px; color: #1e40af; }
+    
+    .payment-info { display: flex; gap: 40px; margin: 30px 0; padding: 20px; background: #f8fafc; border-radius: 8px; }
+    .payment-block { flex: 1; }
+    .payment-block .label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-bottom: 5px; }
+    .payment-block .value { font-size: 16px; font-weight: 600; }
+    .payment-block .value.paid { color: #059669; }
+    .payment-block .value.due { color: #dc2626; }
+    
+    .notes-section { margin: 30px 0; padding: 20px; background: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b; }
+    .notes-title { font-size: 12px; font-weight: 600; color: #92400e; text-transform: uppercase; margin-bottom: 8px; }
+    .notes-text { font-size: 14px; color: #78350f; }
+    
+    .footer { margin-top: 50px; padding-top: 25px; border-top: 1px solid #e2e8f0; }
+    .footer-content { display: flex; justify-content: space-between; align-items: flex-start; }
+    .footer-left { }
+    .footer-right { text-align: right; }
+    .footer-text { font-size: 12px; color: #64748b; margin: 3px 0; }
+    .footer-thanks { font-size: 16px; font-weight: 600; color: #1e293b; margin-bottom: 10px; }
+    
+    @media print {
+      body { padding: 20px; }
+      .invoice-container { max-width: 100%; }
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="logo">BizFlow</div>
-    <div class="invoice-title">INVOICE</div>
-  </div>
-  
-  <div class="info-section">
-    <div class="info-block">
-      <h3>Bill To</h3>
-      <p><strong>${invoice.tenantName}</strong></p>
-      <p>${invoice.tenantEmail || ""}</p>
-      <p>${(invoice.country || "").toUpperCase()}</p>
+  <div class="invoice-container">
+    <div class="header">
+      <div class="logo-section">
+        ${logoSvg}
+      </div>
+      <div class="invoice-title-section">
+        <h1 class="invoice-title">INVOICE</h1>
+        <p class="invoice-number">${invoice.invoiceNumber}</p>
+      </div>
     </div>
-    <div class="info-block" style="text-align: right;">
-      <h3>Invoice Details</h3>
-      <p><strong>Invoice #:</strong> ${invoice.invoiceNumber}</p>
-      <p><strong>Date:</strong> ${new Date(invoice.createdAt!).toLocaleDateString()}</p>
-      <p><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
-      <p><span class="status ${invoice.status}">${(invoice.status || "pending").toUpperCase()}</span></p>
+    
+    <div class="info-row">
+      <div class="info-block">
+        <div class="info-label">Bill To</div>
+        <p class="info-value highlight">${invoice.tenantName}</p>
+        ${invoice.tenantEmail ? `<p class="info-value">${invoice.tenantEmail}</p>` : ""}
+        ${invoice.tenantPhone ? `<p class="info-value">${invoice.tenantPhone}</p>` : ""}
+        ${invoice.tenantAddress ? `<p class="info-value">${invoice.tenantAddress}</p>` : ""}
+        <p class="info-value">${countryNames[invoice.country || "other"] || invoice.country}</p>
+      </div>
+      <div class="info-block right">
+        <div class="info-label">Invoice Details</div>
+        <p class="info-value"><strong>Date:</strong> ${formatDate(invoice.createdAt)}</p>
+        <p class="info-value"><strong>Due Date:</strong> ${formatDate(invoice.dueDate)}</p>
+        <p class="info-value"><strong>Currency:</strong> ${invoice.currency}</p>
+        <p class="info-value" style="margin-top: 10px;">
+          <span class="status-badge ${invoice.status}">${(invoice.status || "pending").toUpperCase()}</span>
+        </p>
+      </div>
     </div>
-  </div>
-  
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th class="amount">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Subscription Services</td>
-        <td class="amount">${formatAmount(invoice.subtotal)}</td>
-      </tr>
-    </tbody>
-  </table>
-  
-  <div class="totals">
-    <div class="row">
-      <span>Subtotal</span>
-      <span>${formatAmount(invoice.subtotal)}</span>
+
+    ${invoice.periodStart && invoice.periodEnd ? `
+    <div class="billing-period">
+      <div class="billing-period-title">Billing Period</div>
+      <div class="billing-period-dates">${formatDate(invoice.periodStart)} - ${formatDate(invoice.periodEnd)}</div>
     </div>
-    <div class="row">
-      <span>${invoice.taxName || "Tax"} (${invoice.taxRate || 0}%)</span>
-      <span>${formatAmount(invoice.taxAmount)}</span>
+    ` : ""}
+
+    <div class="section-title">Services Availed</div>
+    <table class="services-table">
+      <thead>
+        <tr>
+          <th style="width: 40px;">#</th>
+          <th>Description</th>
+          <th style="width: 80px;" class="center">Qty</th>
+          <th style="width: 120px;" class="amount">Unit Price</th>
+          <th style="width: 120px;" class="amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lineItemsHtml}
+      </tbody>
+    </table>
+    
+    <div class="totals-section">
+      <div class="totals-box">
+        <div class="totals-row subtotal">
+          <span class="label">Subtotal</span>
+          <span class="value">${formatAmount(invoice.subtotal)}</span>
+        </div>
+        <div class="totals-row tax">
+          <span class="label">${invoice.taxName || "Tax"} (${invoice.taxRate || 0}%)</span>
+          <span class="value">${formatAmount(invoice.taxAmount)}</span>
+        </div>
+        <div class="totals-row total">
+          <span class="label">Total</span>
+          <span class="value">${formatAmount(invoice.totalAmount)}</span>
+        </div>
+      </div>
     </div>
-    <div class="row total">
-      <span>Total</span>
-      <span>${formatAmount(invoice.totalAmount)}</span>
+
+    <div class="payment-info">
+      <div class="payment-block">
+        <div class="label">Amount Paid</div>
+        <div class="value paid">${formatAmount(invoice.amountPaid)}</div>
+      </div>
+      <div class="payment-block">
+        <div class="label">Amount Due</div>
+        <div class="value due">${formatAmount(invoice.amountDue)}</div>
+      </div>
+      <div class="payment-block">
+        <div class="label">Due Date</div>
+        <div class="value">${formatDate(invoice.dueDate)}</div>
+      </div>
+      ${invoice.paidAt ? `
+      <div class="payment-block">
+        <div class="label">Paid On</div>
+        <div class="value paid">${formatDate(invoice.paidAt)}</div>
+      </div>
+      ` : ""}
     </div>
-    <div class="row">
-      <span>Amount Paid</span>
-      <span style="color: #059669;">${formatAmount(invoice.amountPaid)}</span>
+    
+    ${invoice.notes ? `
+    <div class="notes-section">
+      <div class="notes-title">Notes</div>
+      <div class="notes-text">${invoice.notes}</div>
     </div>
-    <div class="row" style="font-weight: bold;">
-      <span>Amount Due</span>
-      <span style="color: #dc2626;">${formatAmount(invoice.amountDue)}</span>
+    ` : ""}
+    
+    <div class="footer">
+      <div class="footer-content">
+        <div class="footer-left">
+          <p class="footer-thanks">Thank you for your business!</p>
+          <p class="footer-text">For questions about this invoice, please contact:</p>
+          <p class="footer-text"><strong>support@bizflow.app</strong></p>
+        </div>
+        <div class="footer-right">
+          <p class="footer-text">BizFlow Technologies</p>
+          <p class="footer-text">Enterprise Business Management</p>
+          <p class="footer-text">www.bizflow.app</p>
+        </div>
+      </div>
     </div>
-  </div>
-  
-  ${invoice.notes ? `<div class="footer"><strong>Notes:</strong> ${invoice.notes}</div>` : ""}
-  
-  <div class="footer">
-    <p>Thank you for your business!</p>
-    <p>For questions about this invoice, please contact support@bizflow.app</p>
   </div>
 </body>
 </html>`;
