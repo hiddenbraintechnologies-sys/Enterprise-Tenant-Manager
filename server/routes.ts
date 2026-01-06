@@ -1869,7 +1869,7 @@ export async function registerRoutes(
 
   // Bulk assign permissions to an admin
   const bulkAssignPermissionsSchema = z.object({
-    permissionCodes: z.array(z.string()).min(1),
+    permissionCodes: z.array(z.string()),
   });
 
   app.post("/api/platform-admin/admins/:id/permissions/bulk", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {

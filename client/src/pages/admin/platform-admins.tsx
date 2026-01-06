@@ -116,7 +116,7 @@ function ManagePermissionsDialog({ admin, open, onOpenChange }: ManagePermission
 
   const updatePermissionsMutation = useMutation({
     mutationFn: async (permissions: string[]) => {
-      return apiRequest("POST", `/api/platform-admin/admins/${admin?.id}/permissions/bulk`, { permissions });
+      return apiRequest("POST", `/api/platform-admin/admins/${admin?.id}/permissions/bulk`, { permissionCodes: permissions });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/admins", admin?.id, "permissions"] });
