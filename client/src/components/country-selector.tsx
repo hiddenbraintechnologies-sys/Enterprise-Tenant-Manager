@@ -1,5 +1,5 @@
 import { useCountry } from "@/contexts/country-context";
-import { Globe } from "lucide-react";
+import { Globe, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,11 +21,11 @@ export function CountrySelector() {
           <Globe className="h-4 w-4" />
           <span className="hidden sm:inline">{country.name}</span>
           <Badge variant="secondary" className="text-xs">
-            {country.currency.symbol}
+            {country.currency.code}
           </Badge>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel className="flex items-center gap-2">
           <Globe className="h-4 w-4" />
           Select Region
@@ -35,16 +35,21 @@ export function CountrySelector() {
           <DropdownMenuItem
             key={c.code}
             onClick={() => setCountry(c.code)}
-            className={`flex items-center justify-between gap-2 ${country.code === c.code ? "bg-accent" : ""}`}
+            className="flex items-center justify-between gap-2"
             data-testid={`menu-item-country-${c.code.toLowerCase()}`}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-base">{c.flag}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded border bg-muted text-xs font-medium">
+                {c.flag}
+              </div>
               <span>{c.name}</span>
             </div>
-            <span className="text-muted-foreground text-sm">
-              {c.currency.symbol} {c.currency.code}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-sm">
+                {c.currency.symbol} {c.currency.code}
+              </span>
+              {country.code === c.code && <Check className="h-4 w-4 text-primary" />}
+            </div>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

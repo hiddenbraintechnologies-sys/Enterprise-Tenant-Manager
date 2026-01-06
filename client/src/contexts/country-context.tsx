@@ -28,7 +28,7 @@ export const SUPPORTED_COUNTRIES: CountryConfig[] = [
     dateFormat: "dd/MM/yyyy",
     taxName: "GST",
     taxRate: 18,
-    flag: "🇮🇳",
+    flag: "IN",
   },
   {
     code: "GB",
@@ -42,21 +42,21 @@ export const SUPPORTED_COUNTRIES: CountryConfig[] = [
     dateFormat: "dd/MM/yyyy",
     taxName: "VAT",
     taxRate: 20,
-    flag: "🇬🇧",
+    flag: "GB",
   },
   {
     code: "AE",
     name: "United Arab Emirates",
     currency: {
       code: "AED",
-      symbol: "د.إ",
-      locale: "ar-AE",
+      symbol: "AED",
+      locale: "en-AE",
       position: "after",
     },
     dateFormat: "dd/MM/yyyy",
     taxName: "VAT",
     taxRate: 5,
-    flag: "🇦🇪",
+    flag: "AE",
   },
   {
     code: "US",
@@ -70,7 +70,7 @@ export const SUPPORTED_COUNTRIES: CountryConfig[] = [
     dateFormat: "MM/dd/yyyy",
     taxName: "Tax",
     taxRate: 0,
-    flag: "🇺🇸",
+    flag: "US",
   },
   {
     code: "EU",
@@ -84,7 +84,7 @@ export const SUPPORTED_COUNTRIES: CountryConfig[] = [
     dateFormat: "dd.MM.yyyy",
     taxName: "VAT",
     taxRate: 20,
-    flag: "🇪🇺",
+    flag: "EU",
   },
   {
     code: "AU",
@@ -98,7 +98,7 @@ export const SUPPORTED_COUNTRIES: CountryConfig[] = [
     dateFormat: "dd/MM/yyyy",
     taxName: "GST",
     taxRate: 10,
-    flag: "🇦🇺",
+    flag: "AU",
   },
   {
     code: "SG",
@@ -112,7 +112,7 @@ export const SUPPORTED_COUNTRIES: CountryConfig[] = [
     dateFormat: "dd/MM/yyyy",
     taxName: "GST",
     taxRate: 9,
-    flag: "🇸🇬",
+    flag: "SG",
   },
 ];
 
@@ -122,6 +122,7 @@ interface CountryContextType {
   country: CountryConfig;
   setCountry: (countryCode: string) => void;
   formatCurrency: (amount: number, options?: { showSymbol?: boolean; decimals?: number }) => string;
+  formatCompactCurrency: (amount: number) => string;
   formatDate: (date: Date | string) => string;
   supportedCountries: CountryConfig[];
 }
@@ -157,27 +158,43 @@ export function CountryProvider({ children }: { children: ReactNode }) {
   ): string => {
     const { showSymbol = true, decimals = 2 } = options;
     
-    try {
-      const formatter = new Intl.NumberFormat(country.currency.locale, {
-        style: showSymbol ? "currency" : "decimal",
-        currency: country.currency.code,
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      });
-      
-      return formatter.format(amount);
-    } catch {
-      const formatted = amount.toLocaleString(country.currency.locale, {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      });
-      
-      if (!showSymbol) return formatted;
-      
-      return country.currency.position === "before"
-        ? `${country.currency.symbol}${formatted}`
-        : `${formatted} ${country.currency.symbol}`;
+    const numericFormatter = new Intl.NumberFormat(country.currency.locale, {
+      style: "decimal",
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    
+    const formatted = numericFormatter.format(amount);
+    
+    if (!showSymbol) return formatted;
+    
+    return country.currency.position === "before"
+      ? `${country.currency.symbol}${formatted}`
+      : `${formatted} ${country.currency.symbol}`;
+  };
+
+  const formatCompactCurrency = (amount: number): string => {
+    const absAmount = Math.abs(amount);
+    let compactValue: string;
+    let suffix: string;
+    
+    if (absAmount >= 1_000_000) {
+      const val = amount / 1_000_000;
+      compactValue = val % 1 === 0 ? val.toFixed(0) : val.toFixed(1);
+      suffix = "M";
+    } else if (absAmount >= 1_000) {
+      const val = amount / 1_000;
+      compactValue = val % 1 === 0 ? val.toFixed(0) : val.toFixed(1);
+      suffix = "k";
+    } else {
+      compactValue = amount.toFixed(0);
+      suffix = "";
     }
+    
+    const symbol = country.currency.symbol;
+    return country.currency.position === "before"
+      ? `${symbol}${compactValue}${suffix}`
+      : `${compactValue}${suffix} ${symbol}`;
   };
 
   const formatDate = (date: Date | string): string => {
@@ -191,6 +208,7 @@ export function CountryProvider({ children }: { children: ReactNode }) {
         country,
         setCountry,
         formatCurrency,
+        formatCompactCurrency,
         formatDate,
         supportedCountries: SUPPORTED_COUNTRIES,
       }}

@@ -18,6 +18,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Link } from "wouter";
+import { useCountry } from "@/contexts/country-context";
 
 interface DashboardStats {
   totalStudents: number;
@@ -99,6 +100,7 @@ function getStatusVariant(status: string) {
 }
 
 export default function EducationDashboard() {
+  const { formatCurrency } = useCountry();
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/education/dashboard/stats"],
   });
@@ -136,7 +138,7 @@ export default function EducationDashboard() {
         />
         <StatsCard
           title="Pending Fees"
-          value={stats?.pendingFees ? `₹${stats.pendingFees.toLocaleString()}` : "₹0"}
+          value={formatCurrency(stats?.pendingFees ?? 0)}
           icon={DollarSign}
           loading={statsLoading}
         />

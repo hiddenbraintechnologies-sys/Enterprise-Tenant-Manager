@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCountry } from "@/contexts/country-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -224,7 +225,7 @@ function BookingDialog({
                     <SelectContent>
                       {services?.filter((s) => s.isActive).map((service) => (
                         <SelectItem key={service.id} value={service.id}>
-                          {service.name} - ₹{Number(service.price).toLocaleString()}
+                          {service.name} - {formatCurrency(Number(service.price))}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -329,6 +330,7 @@ export default function Bookings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
+  const { formatCurrency } = useCountry();
 
   const { data: bookings, isLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/bookings"],
@@ -452,7 +454,7 @@ export default function Bookings() {
                       </TableCell>
                       <TableCell>{booking.customer?.name || "-"}</TableCell>
                       <TableCell>{booking.service?.name || "-"}</TableCell>
-                      <TableCell>₹{Number(booking.amount || 0).toLocaleString()}</TableCell>
+                      <TableCell>{formatCurrency(Number(booking.amount || 0))}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(booking.status || "pending")}>
                           {booking.status}

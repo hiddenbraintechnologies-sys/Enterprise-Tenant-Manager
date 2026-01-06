@@ -19,6 +19,7 @@ import {
   Shield,
 } from "lucide-react";
 import { Link } from "wouter";
+import { useCountry } from "@/contexts/country-context";
 
 interface DashboardStats {
   totalClients: number;
@@ -116,6 +117,7 @@ function getConfidentialityBadge(level: string) {
 }
 
 export default function LegalDashboard() {
+  const { formatCurrency } = useCountry();
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/legal/dashboard/stats"],
   });
@@ -159,7 +161,7 @@ export default function LegalDashboard() {
         />
         <StatsCard
           title="Monthly Revenue"
-          value={stats?.monthlyRevenue ? `₹${stats.monthlyRevenue.toLocaleString()}` : "₹0"}
+          value={formatCurrency(stats?.monthlyRevenue ?? 0)}
           icon={DollarSign}
           loading={statsLoading}
           trend={{ value: 15, label: "vs last month" }}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCountry } from "@/contexts/country-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Clock, IndianRupee, Edit, Trash2, Package } from "lucide-react";
+import { Plus, Search, Clock, Coins, Edit, Trash2, Package } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -174,7 +175,7 @@ function ServiceDialog({
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (₹)</FormLabel>
+                    <FormLabel>Price ({country.currency.symbol})</FormLabel>
                     <FormControl>
                       <Input type="number" min={0} step="0.01" {...field} data-testid="input-service-price" />
                     </FormControl>
@@ -274,8 +275,7 @@ function ServiceCard({
                 {service.duration} min
               </span>
               <span className="flex items-center gap-1 font-medium">
-                <IndianRupee className="h-4 w-4" />
-                {Number(service.price).toLocaleString()}
+                {formatCurrency(Number(service.price))}
               </span>
               {service.category && (
                 <Badge variant="outline">{service.category}</Badge>
@@ -311,6 +311,7 @@ export default function Services() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | undefined>();
   const { toast } = useToast();
+  const { formatCurrency, country } = useCountry();
 
   const { data: services, isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],

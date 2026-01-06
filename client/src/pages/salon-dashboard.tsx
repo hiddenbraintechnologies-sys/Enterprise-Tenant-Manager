@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Link } from "wouter";
+import { useCountry } from "@/contexts/country-context";
 
 function StatsCard({
   title,
@@ -59,6 +60,7 @@ function StatsCard({
 }
 
 export default function SalonDashboard() {
+  const { formatCurrency } = useCountry();
   const { data: stats, isLoading } = useQuery<{
     totalClients: number;
     todayAppointments: number;
@@ -92,7 +94,7 @@ export default function SalonDashboard() {
         />
         <StatsCard
           title="Monthly Revenue"
-          value={`₹${stats?.monthlyRevenue ?? 0}`}
+          value={formatCurrency(stats?.monthlyRevenue ?? 0)}
           icon={DollarSign}
           loading={isLoading}
         />

@@ -30,6 +30,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { useCountry } from "@/contexts/country-context";
 
 interface AnalyticsData {
   totalRevenue: number;
@@ -97,6 +98,7 @@ function StatCard({
 }
 
 export default function Analytics() {
+  const { formatCurrency, formatCompactCurrency } = useCountry();
   const { data: analytics, isLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/analytics"],
   });
@@ -118,7 +120,7 @@ export default function Analytics() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue"
-          value={analytics ? `₹${analytics.totalRevenue.toLocaleString()}` : "₹0"}
+          value={formatCurrency(analytics?.totalRevenue ?? 0)}
           icon={DollarSign}
           loading={isLoading}
         />
@@ -137,7 +139,7 @@ export default function Analytics() {
         />
         <StatCard
           title="Avg Booking Value"
-          value={analytics ? `₹${Math.round(analytics.averageBookingValue).toLocaleString()}` : "₹0"}
+          value={formatCurrency(Math.round(analytics?.averageBookingValue ?? 0))}
           icon={TrendingUp}
           loading={isLoading}
         />
@@ -167,7 +169,7 @@ export default function Analytics() {
                       tickLine={false}
                       axisLine={false}
                       tick={{ fontSize: 12 }}
-                      tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => formatCompactCurrency(value)}
                     />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar
@@ -267,7 +269,7 @@ export default function Analytics() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">₹{service.revenue.toLocaleString()}</p>
+                    <p className="font-medium">{formatCurrency(service.revenue)}</p>
                     <p className="text-sm text-muted-foreground">revenue</p>
                   </div>
                 </div>
@@ -313,7 +315,7 @@ export default function Analytics() {
                     tickLine={false}
                     axisLine={false}
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={(value) => formatCompactCurrency(value)}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend />

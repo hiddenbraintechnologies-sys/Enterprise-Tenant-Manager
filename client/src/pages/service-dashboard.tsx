@@ -17,6 +17,7 @@ import {
 import { Link } from "wouter";
 import type { BookingWithDetails } from "@shared/schema";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
+import { useCountry } from "@/contexts/country-context";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -100,6 +101,7 @@ function formatBookingDate(dateStr: string) {
 }
 
 export default function ServiceDashboard() {
+  const { formatCurrency } = useCountry();
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
@@ -132,7 +134,7 @@ export default function ServiceDashboard() {
         />
         <StatsCard
           title="Monthly Revenue"
-          value={`₹${(stats?.monthlyRevenue ?? 0).toLocaleString()}`}
+          value={formatCurrency(stats?.monthlyRevenue ?? 0)}
           icon={DollarSign}
           trend={
             stats?.revenueGrowth
