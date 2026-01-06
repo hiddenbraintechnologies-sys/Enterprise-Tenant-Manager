@@ -47,6 +47,7 @@ import AdminAuditLogs from "@/pages/admin/audit-logs";
 import AdminCompliance from "@/pages/admin/compliance";
 import AdminSettings from "@/pages/admin/settings";
 import AdminSso from "@/pages/admin/sso";
+import AdminRegions from "@/pages/admin/regions";
 import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
 import AiPermissions from "@/pages/ai-permissions";
@@ -208,6 +209,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/compliance" component={AdminCompliance} />
         <Route path="/super-admin/sso" component={AdminSso} />
         <Route path="/super-admin/settings" component={AdminSettings} />
+        <Route path="/super-admin/regions" component={AdminRegions} />
         <Route component={NotFound} />
       </Switch>
     </SuperAdminRouteGuard>
@@ -228,6 +230,7 @@ function PlatformAdminRoutes() {
       <Route path="/admin/compliance" component={AdminCompliance} />
       <Route path="/admin/sso" component={AdminSso} />
       <Route path="/admin/settings" component={AdminSettings} />
+      <Route path="/admin/regions" component={AdminRegions} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -33,6 +33,7 @@ import {
   Scale,
   Calculator,
   FileEdit,
+  Globe,
 } from "lucide-react";
 
 interface MenuItem {
@@ -103,6 +104,12 @@ const superAdminMenuItems: MenuItem[] = [
     title: "System Settings",
     url: "/super-admin/settings",
     icon: Cog,
+    superAdminOnly: true,
+  },
+  {
+    title: "Regions",
+    url: "/super-admin/regions",
+    icon: Globe,
     superAdminOnly: true,
   },
 ];
