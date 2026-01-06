@@ -3971,12 +3971,61 @@ export async function registerRoutes(
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
       const { items, ...invoiceData } = req.body;
-      const parsed = insertInvoiceSchema.safeParse({ ...invoiceData, tenantId, createdBy: getUserId(req) });
+      
+      const currency = invoiceData.currency || "INR";
+      const baseCurrency = invoiceData.baseCurrency || "USD";
+      let exchangeRate = "1.000000";
+      
+      const subtotal = parseFloat(invoiceData.subtotal || "0");
+      const taxAmount = parseFloat(invoiceData.taxAmount || "0");
+      const discountAmount = parseFloat(invoiceData.discountAmount || "0");
+      const totalAmount = parseFloat(invoiceData.totalAmount || "0");
+      let baseAmount = totalAmount;
+      
+      if (currency !== baseCurrency) {
+        try {
+          const rateData = await storage.getExchangeRate(currency, baseCurrency);
+          if (rateData && rateData.rate) {
+            const rateNum = parseFloat(rateData.rate);
+            if (rateNum > 0) {
+              exchangeRate = rateData.rate;
+              baseAmount = totalAmount * rateNum;
+            }
+          }
+        } catch (rateError) {
+          console.warn(`Exchange rate not found for ${currency} to ${baseCurrency}, using 1:1`);
+        }
+      }
+      
+      const invoiceNumber = invoiceData.invoiceNumber || `INV-${Date.now()}`;
+      
+      const parsed = insertInvoiceSchema.safeParse({ 
+        ...invoiceData, 
+        tenantId, 
+        createdBy: getUserId(req),
+        invoiceNumber,
+        currency,
+        baseCurrency,
+        exchangeRate: exchangeRate,
+        subtotal: subtotal.toFixed(2),
+        taxAmount: taxAmount.toFixed(2),
+        discountAmount: discountAmount.toFixed(2),
+        totalAmount: totalAmount.toFixed(2),
+        baseAmount: baseAmount.toFixed(2),
+        paidAmount: "0.00",
+      });
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
       const invoice = await storage.createInvoice(parsed.data);
       if (items && Array.isArray(items)) {
         for (const item of items) {
-          await storage.createInvoiceItem({ ...item, invoiceId: invoice.id });
+          const itemTotalPrice = parseFloat(item.totalPrice || "0");
+          const itemUnitPrice = parseFloat(item.unitPrice || "0");
+          await storage.createInvoiceItem({ 
+            ...item, 
+            invoiceId: invoice.id,
+            unitPrice: itemUnitPrice.toFixed(2),
+            totalPrice: itemTotalPrice.toFixed(2),
+          });
         }
       }
       res.status(201).json(invoice);
@@ -4035,19 +4084,68 @@ export async function registerRoutes(
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
-      const parsed = insertPaymentSchema.safeParse({ ...req.body, tenantId, createdBy: getUserId(req) });
+      
+      const paymentData = req.body;
+      const currency = paymentData.currency || "INR";
+      const baseCurrency = paymentData.baseCurrency || "USD";
+      let exchangeRate = "1.000000";
+      const amountNum = parseFloat(paymentData.amount || "0");
+      let baseAmount = amountNum;
+      
+      if (currency !== baseCurrency) {
+        try {
+          const rateData = await storage.getExchangeRate(currency, baseCurrency);
+          if (rateData && rateData.rate) {
+            const rateNum = parseFloat(rateData.rate);
+            if (rateNum > 0) {
+              exchangeRate = rateData.rate;
+              baseAmount = amountNum * rateNum;
+            }
+          }
+        } catch (rateError) {
+          console.warn(`Exchange rate not found for ${currency} to ${baseCurrency}, using 1:1`);
+        }
+      }
+      
+      const parsed = insertPaymentSchema.safeParse({ 
+        ...paymentData, 
+        tenantId, 
+        createdBy: getUserId(req),
+        currency,
+        baseCurrency,
+        exchangeRate: exchangeRate,
+        amount: amountNum.toFixed(2),
+        baseAmount: baseAmount.toFixed(2),
+      });
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
       const payment = await storage.createPayment(parsed.data);
+      
       if (payment.invoiceId) {
         const invoice = await storage.getInvoice(payment.invoiceId, tenantId);
         if (invoice) {
+          let paymentAmountInInvoiceCurrency = parseFloat(payment.amount) || 0;
+          
+          if (payment.currency !== invoice.currency) {
+            try {
+              const conversionRate = await storage.getExchangeRate(payment.currency, invoice.currency);
+              if (conversionRate && conversionRate.rate) {
+                const rateNum = parseFloat(conversionRate.rate);
+                if (rateNum > 0) {
+                  paymentAmountInInvoiceCurrency = paymentAmountInInvoiceCurrency * rateNum;
+                }
+              }
+            } catch (convError) {
+              console.warn(`Could not convert payment from ${payment.currency} to ${invoice.currency}, using original amount`);
+            }
+          }
+          
           const currentPaid = parseFloat(invoice.paidAmount || "0") || 0;
-          const paymentAmount = parseFloat(payment.amount) || 0;
           const totalAmount = parseFloat(invoice.totalAmount) || 0;
-          const newPaidAmount = Math.max(0, currentPaid + paymentAmount);
+          const newPaidAmount = Math.max(0, currentPaid + paymentAmountInInvoiceCurrency);
           await storage.updateInvoice(payment.invoiceId, tenantId, { 
             paidAmount: newPaidAmount.toFixed(2),
-            status: newPaidAmount >= totalAmount ? "paid" : "partial"
+            status: newPaidAmount >= totalAmount ? "paid" : newPaidAmount > 0 ? "partial" : invoice.status,
+            paidAt: newPaidAmount >= totalAmount ? new Date() : invoice.paidAt,
           });
         }
       }

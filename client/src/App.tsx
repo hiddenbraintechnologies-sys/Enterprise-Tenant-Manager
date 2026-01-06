@@ -25,6 +25,7 @@ import LegalDashboard from "@/pages/legal-dashboard";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
+import Invoices from "@/pages/invoices";
 import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
 import Onboarding from "@/pages/onboarding";
@@ -184,6 +185,7 @@ function AuthenticatedRoutes() {
           <Bookings />
         </ModuleGuard>
       </Route>
+      <Route path="/invoices" component={Invoices} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/ai-permissions" component={AiPermissions} />
