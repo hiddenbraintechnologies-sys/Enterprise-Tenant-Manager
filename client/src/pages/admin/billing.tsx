@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdmin, AdminGuard, PermissionGuard } from "@/contexts/admin-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DollarSign,
   Search,
@@ -592,12 +592,26 @@ BizFlow Team
 support@bizflow.app` : "";
 
   const [emailData, setEmailData] = useState<EmailData>({
-    to: invoice?.tenantEmail || "",
+    to: "",
     cc: "",
     bcc: "",
-    subject: defaultSubject,
-    message: defaultMessage,
+    subject: "",
+    message: "",
   });
+
+  useEffect(() => {
+    if (open && invoice) {
+      setEmailData({
+        to: invoice.tenantEmail || "",
+        cc: "",
+        bcc: "",
+        subject: defaultSubject,
+        message: defaultMessage,
+      });
+      setShowCc(false);
+      setShowBcc(false);
+    }
+  }, [open, invoice]);
 
   const handleSend = () => {
     onSend(emailData);
