@@ -34,9 +34,10 @@ export type User = typeof users.$inferSelect;
 // Platform Admin roles enum
 // SUPER_ADMIN: Full access to everything
 // PLATFORM_ADMIN: Full access to assigned countries
+// TECH_SUPPORT_MANAGER: Full technical monitoring, API management, system health
 // MANAGER: View and manage operations for assigned countries
 // SUPPORT_TEAM: View and handle support tickets for assigned countries
-export const platformAdminRoleEnum = pgEnum("platform_admin_role", ["SUPER_ADMIN", "PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"]);
+export const platformAdminRoleEnum = pgEnum("platform_admin_role", ["SUPER_ADMIN", "PLATFORM_ADMIN", "TECH_SUPPORT_MANAGER", "MANAGER", "SUPPORT_TEAM"]);
 
 // Platform Admin table - NOT tied to any tenant
 export const platformAdmins = pgTable("platform_admins", {
@@ -69,7 +70,7 @@ export const insertPlatformAdminSchema = createInsertSchema(platformAdmins).omit
 
 export type InsertPlatformAdmin = z.infer<typeof insertPlatformAdminSchema>;
 export type PlatformAdmin = typeof platformAdmins.$inferSelect;
-export type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
+export type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "TECH_SUPPORT_MANAGER" | "MANAGER" | "SUPPORT_TEAM";
 
 // Platform Admin Permissions - defines available permissions
 export const platformAdminPermissions = pgTable("platform_admin_permissions", {
@@ -130,6 +131,13 @@ export const PLATFORM_ADMIN_PERMISSIONS = {
   MANAGE_FEATURES: "manage_features",
   VIEW_BILLING: "view_billing",
   MANAGE_BILLING: "manage_billing",
+  // Technical Support Manager permissions
+  VIEW_SYSTEM_HEALTH: "view_system_health",
+  VIEW_API_METRICS: "view_api_metrics",
+  MANAGE_APIS: "manage_apis",
+  VIEW_ERROR_LOGS: "view_error_logs",
+  MANAGE_ALERTS: "manage_alerts",
+  VIEW_PERFORMANCE: "view_performance",
 } as const;
 
 export type PlatformAdminPermissionCode = typeof PLATFORM_ADMIN_PERMISSIONS[keyof typeof PLATFORM_ADMIN_PERMISSIONS];

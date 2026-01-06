@@ -31,7 +31,7 @@ import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
 import { AdminLayout } from "@/components/admin-layout";
-import { SuperAdminRouteGuard } from "@/contexts/admin-context";
+import { SuperAdminRouteGuard, TechSupportRouteGuard } from "@/contexts/admin-context";
 import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import SuperAdminBusinessRegistry from "@/pages/super-admin-business-registry";
 import SuperAdminModuleRegistry from "@/pages/super-admin-module-registry";
@@ -55,6 +55,7 @@ import AiPermissions from "@/pages/ai-permissions";
 import AdminLogin from "@/pages/admin-login";
 import ManagerDashboard from "@/pages/manager/dashboard";
 import SupportDashboard from "@/pages/support/dashboard";
+import TechSupportDashboard from "@/pages/admin/tech-support";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -263,14 +264,32 @@ function SupportTeamRoutes() {
   );
 }
 
+function TechSupportRoutes() {
+  return (
+    <TechSupportRouteGuard>
+      <Switch>
+        <Route path="/tech-support" component={TechSupportDashboard} />
+        <Route path="/tech-support/health" component={TechSupportDashboard} />
+        <Route path="/tech-support/apis" component={TechSupportDashboard} />
+        <Route path="/tech-support/errors" component={TechSupportDashboard} />
+        <Route path="/tech-support/performance" component={TechSupportDashboard} />
+        <Route path="/tech-support/audit-logs" component={AdminAuditLogs} />
+        <Route component={NotFound} />
+      </Switch>
+    </TechSupportRouteGuard>
+  );
+}
+
 function AdminRoutes() {
   const [location] = useLocation();
   const isSuperAdminPath = location.startsWith("/super-admin");
   const isManagerPath = location.startsWith("/manager");
   const isSupportPath = location.startsWith("/support");
+  const isTechSupportPath = location.startsWith("/tech-support");
 
   const getRoutes = () => {
     if (isSuperAdminPath) return <SuperAdminRoutes />;
+    if (isTechSupportPath) return <TechSupportRoutes />;
     if (isManagerPath) return <ManagerRoutes />;
     if (isSupportPath) return <SupportTeamRoutes />;
     return <PlatformAdminRoutes />;
@@ -287,7 +306,7 @@ function AppRouter() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin") || location.startsWith("/manager") || location.startsWith("/support");
+  const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin") || location.startsWith("/manager") || location.startsWith("/support") || location.startsWith("/tech-support");
   const isAdminLoginPath = location === "/admin-login";
 
   if (isAdminLoginPath) {

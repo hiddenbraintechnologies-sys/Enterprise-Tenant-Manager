@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 
-type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
+type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "TECH_SUPPORT_MANAGER" | "MANAGER" | "SUPPORT_TEAM";
 
 interface PlatformAdmin {
   id: string;
@@ -20,6 +20,7 @@ interface AdminContextType {
   isLoading: boolean;
   isSuperAdmin: boolean;
   isPlatformAdmin: boolean;
+  isTechSupportManager: boolean;
   isManager: boolean;
   isSupportTeam: boolean;
   hasPermission: (permission: string) => boolean;
@@ -55,6 +56,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const countryAssignments = data?.countryAssignments || [];
   const isSuperAdmin = admin?.role === "SUPER_ADMIN";
   const isPlatformAdmin = admin?.role === "PLATFORM_ADMIN";
+  const isTechSupportManager = admin?.role === "TECH_SUPPORT_MANAGER";
   const isManager = admin?.role === "MANAGER";
   const isSupportTeam = admin?.role === "SUPPORT_TEAM";
 
@@ -69,8 +71,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   };
 
   const hasCountryAccess = (countryCode: string): boolean => {
-    // Super Admin and Platform Admin have access to all countries
-    if (isSuperAdmin || isPlatformAdmin) return true;
+    // Super Admin, Platform Admin, and Tech Support Manager have access to all countries
+    if (isSuperAdmin || isPlatformAdmin || isTechSupportManager) return true;
     // Manager and Support Team need country assignments
     return countryAssignments.includes(countryCode);
   };
@@ -90,6 +92,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isSuperAdmin,
         isPlatformAdmin,
+        isTechSupportManager,
         isManager,
         isSupportTeam,
         hasPermission,
@@ -237,4 +240,39 @@ export function PermissionGuard({
       {children}
     </AdminGuard>
   );
+}
+
+export function TechSupportRouteGuard({ children }: { children: React.ReactNode }) {
+  const { admin, isLoading, isSuperAdmin, isTechSupportManager } = useAdmin();
+  const [, setLocation] = useLocation();
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && admin && !isSuperAdmin && !isTechSupportManager) {
+      setShouldRedirect(true);
+    }
+  }, [isLoading, admin, isSuperAdmin, isTechSupportManager]);
+
+  useEffect(() => {
+    if (shouldRedirect) {
+      setLocation("/admin");
+    }
+  }, [shouldRedirect, setLocation]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!admin || shouldRedirect || (!isSuperAdmin && !isTechSupportManager)) {
+    return null;
+  }
+
+  return <>{children}</>;
 }

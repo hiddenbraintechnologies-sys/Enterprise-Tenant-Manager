@@ -61,7 +61,7 @@ interface PlatformAdmin {
   id: string;
   name: string;
   email: string;
-  role: "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
+  role: "SUPER_ADMIN" | "PLATFORM_ADMIN" | "TECH_SUPPORT_MANAGER" | "MANAGER" | "SUPPORT_TEAM";
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -225,7 +225,7 @@ function ManagePermissionsDialog({ admin, open, onOpenChange }: ManagePermission
   );
 }
 
-type AdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
+type AdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "TECH_SUPPORT_MANAGER" | "MANAGER" | "SUPPORT_TEAM";
 
 function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
   const { toast } = useToast();
@@ -346,6 +346,7 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
               <SelectContent>
                 <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                 <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+                <SelectItem value="TECH_SUPPORT_MANAGER">Tech Support Manager</SelectItem>
                 <SelectItem value="MANAGER">Manager</SelectItem>
                 <SelectItem value="SUPPORT_TEAM">Support Team</SelectItem>
               </SelectContent>
@@ -353,6 +354,7 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
             <p className="text-xs text-muted-foreground">
               {role === "SUPER_ADMIN" && "Full access to all features"}
               {role === "PLATFORM_ADMIN" && "Access based on assigned permissions"}
+              {role === "TECH_SUPPORT_MANAGER" && "Technical monitoring, API management, system health"}
               {role === "MANAGER" && "Operations access for assigned regions"}
               {role === "SUPPORT_TEAM" && "Support tickets for assigned regions"}
             </p>
@@ -628,6 +630,7 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
           <SelectContent>
             <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
             <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+            <SelectItem value="TECH_SUPPORT_MANAGER">Tech Support Manager</SelectItem>
             <SelectItem value="MANAGER">Manager</SelectItem>
             <SelectItem value="SUPPORT_TEAM">Support Team</SelectItem>
           </SelectContent>
@@ -635,6 +638,7 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
         <p className="text-xs text-muted-foreground">
           {role === "SUPER_ADMIN" && "Full access to all features"}
           {role === "PLATFORM_ADMIN" && "Access based on assigned permissions"}
+          {role === "TECH_SUPPORT_MANAGER" && "Technical monitoring, API management, system health"}
           {role === "MANAGER" && "Operations access for assigned regions"}
           {role === "SUPPORT_TEAM" && "Support tickets for assigned regions"}
         </p>
@@ -863,6 +867,7 @@ function PlatformAdminsContent() {
                       <Badge variant={admin.role === "SUPER_ADMIN" ? "default" : admin.role === "PLATFORM_ADMIN" ? "secondary" : "outline"}>
                         {admin.role === "SUPER_ADMIN" && "Super Admin"}
                         {admin.role === "PLATFORM_ADMIN" && "Platform Admin"}
+                        {admin.role === "TECH_SUPPORT_MANAGER" && "Tech Support Manager"}
                         {admin.role === "MANAGER" && "Manager"}
                         {admin.role === "SUPPORT_TEAM" && "Support Team"}
                       </Badge>

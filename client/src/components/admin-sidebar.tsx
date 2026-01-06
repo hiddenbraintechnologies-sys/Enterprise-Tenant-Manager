@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAdmin } from "@/contexts/admin-context";
 import {
+  Activity,
   LayoutDashboard,
   Building2,
   Users,
@@ -37,6 +38,7 @@ import {
   Headphones,
   ClipboardList,
   ArrowRightLeft,
+  Wrench,
 } from "lucide-react";
 
 interface MenuItem {
@@ -226,13 +228,47 @@ const supportTeamMenuItems: MenuItem[] = [
   },
 ];
 
+const techSupportManagerMenuItems: MenuItem[] = [
+  {
+    title: "Dashboard",
+    url: "/tech-support",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "System Health",
+    url: "/tech-support/health",
+    icon: Activity,
+  },
+  {
+    title: "API Management",
+    url: "/tech-support/apis",
+    icon: Globe,
+  },
+  {
+    title: "Error Logs",
+    url: "/tech-support/errors",
+    icon: AlertTriangle,
+  },
+  {
+    title: "Performance",
+    url: "/tech-support/performance",
+    icon: BarChart3,
+  },
+  {
+    title: "Audit Logs",
+    url: "/tech-support/audit-logs",
+    icon: FileText,
+  },
+];
+
 export function AdminSidebar() {
   const [location] = useLocation();
-  const { admin, isSuperAdmin, isPlatformAdmin, isManager, isSupportTeam, hasPermission, countryAssignments } = useAdmin();
+  const { admin, isSuperAdmin, isPlatformAdmin, isTechSupportManager, isManager, isSupportTeam, hasPermission, countryAssignments } = useAdmin();
 
   const getMenuItems = () => {
     if (isSuperAdmin) return superAdminMenuItems;
     if (isPlatformAdmin) return platformAdminMenuItems;
+    if (isTechSupportManager) return techSupportManagerMenuItems;
     if (isManager) return managerMenuItems;
     if (isSupportTeam) return supportTeamMenuItems;
     return platformAdminMenuItems;
@@ -243,6 +279,7 @@ export function AdminSidebar() {
   const getRoleLabel = () => {
     if (isSuperAdmin) return "Super Admin";
     if (isPlatformAdmin) return "Platform Admin";
+    if (isTechSupportManager) return "Tech Support Manager";
     if (isManager) return "Manager";
     if (isSupportTeam) return "Support Team";
     return "Admin";
@@ -251,6 +288,7 @@ export function AdminSidebar() {
   const getRoleBadgeVariant = () => {
     if (isSuperAdmin) return "default";
     if (isPlatformAdmin) return "secondary";
+    if (isTechSupportManager) return "secondary";
     return "outline";
   };
 
@@ -282,6 +320,8 @@ export function AdminSidebar() {
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary">
             {isSuperAdmin ? (
               <Crown className="h-5 w-5 text-primary-foreground" />
+            ) : isTechSupportManager ? (
+              <Wrench className="h-5 w-5 text-primary-foreground" />
             ) : isManager ? (
               <ClipboardList className="h-5 w-5 text-primary-foreground" />
             ) : isSupportTeam ? (

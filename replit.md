@@ -19,7 +19,14 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
 - **Multi-Tenancy**: Core design principle with tenant isolation via JWT claims, `X-Tenant-ID` headers, subdomains, and user defaults, ensuring data scoping with `tenant_id`.
 - **Feature Flags**: Granular system for enabling/disabling features per tenant, often tied to subscription tiers (Free, Pro, Enterprise).
 - **Role-Based Access Control (RBAC)**: Defines roles (Super Admin, Admin, Manager, Staff, Customer) and a `resource:action` permission matrix.
-- **Platform Admin Permission System**: Two-tier hierarchy (SUPER_ADMIN, PLATFORM_ADMIN) with granular permissions managed in `platform_admin_permissions` and `platform_admin_permission_assignments` tables.
+- **Platform Admin Permission System**: Five-tier hierarchy with granular permissions:
+  - **SUPER_ADMIN**: Full access to everything, can create all other admin types
+  - **PLATFORM_ADMIN**: Full access to assigned countries with permission-based capabilities
+  - **TECH_SUPPORT_MANAGER**: Global platform technical monitoring, API management, system health, error logs, performance metrics (not country-scoped)
+  - **MANAGER**: Operations access for assigned countries/regions
+  - **SUPPORT_TEAM**: Support ticket handling for assigned countries/regions
+  
+  Technical permissions include: VIEW_SYSTEM_HEALTH, VIEW_API_METRICS, MANAGE_APIS, VIEW_ERROR_LOGS, MANAGE_ALERTS, VIEW_PERFORMANCE
 - **Audit Logging**: Tracks critical actions (create, update, delete, login, logout, access) for compliance and security.
 - **Compliance & Data Protection (HIPAA/DPDP Style)**: Includes PHI access logging, role-based data masking, consent management, unusual access detection, and secure configuration.
 - **Admin System**: Production-ready with security features like login rate limiting, account lockout, IP whitelist/blacklist, session management, and 2FA readiness.

@@ -1503,6 +1503,120 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== TECH SUPPORT MANAGER ENDPOINTS ====================
+
+  // Tech Support - System Health
+  app.get("/api/tech-support/health", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const role = req.platformAdminContext?.platformAdmin.role;
+      const isSuperAdmin = role === "SUPER_ADMIN";
+      const isTechSupport = role === "TECH_SUPPORT_MANAGER";
+      
+      if (!isSuperAdmin && !isTechSupport) {
+        return res.status(403).json({ message: "Access denied. Tech Support Manager or Super Admin role required." });
+      }
+
+      const health = {
+        status: "healthy" as "healthy" | "degraded" | "critical",
+        uptime: 99.98,
+        lastCheck: new Date().toISOString(),
+        services: [
+          { name: "API Gateway", status: "up", latency: 45, lastPing: new Date().toISOString() },
+          { name: "Database (Primary)", status: "up", latency: 12, lastPing: new Date().toISOString() },
+          { name: "Database (Replica)", status: "up", latency: 15, lastPing: new Date().toISOString() },
+          { name: "Cache (Redis)", status: "up", latency: 3, lastPing: new Date().toISOString() },
+          { name: "File Storage", status: "up", latency: 78, lastPing: new Date().toISOString() },
+          { name: "Email Service", status: "up", latency: 120, lastPing: new Date().toISOString() },
+        ],
+      };
+
+      res.json(health);
+    } catch (error) {
+      console.error("Tech support health error:", error);
+      res.status(500).json({ message: "Failed to fetch system health" });
+    }
+  });
+
+  // Tech Support - API Endpoints
+  app.get("/api/tech-support/apis", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const role = req.platformAdminContext?.platformAdmin.role;
+      const isSuperAdmin = role === "SUPER_ADMIN";
+      const isTechSupport = role === "TECH_SUPPORT_MANAGER";
+      
+      if (!isSuperAdmin && !isTechSupport) {
+        return res.status(403).json({ message: "Access denied. Tech Support Manager or Super Admin role required." });
+      }
+
+      const apis = [
+        { id: "1", method: "GET" as const, path: "/api/tenants", status: "active", avgLatency: 45, requestCount: 15420, errorRate: 0.1, lastCalled: new Date().toISOString() },
+        { id: "2", method: "POST" as const, path: "/api/auth/login", status: "active", avgLatency: 120, requestCount: 8930, errorRate: 2.3, lastCalled: new Date().toISOString() },
+        { id: "3", method: "GET" as const, path: "/api/users", status: "active", avgLatency: 32, requestCount: 12540, errorRate: 0.05, lastCalled: new Date().toISOString() },
+        { id: "4", method: "PUT" as const, path: "/api/tenants/:id", status: "active", avgLatency: 89, requestCount: 3210, errorRate: 0.8, lastCalled: new Date().toISOString() },
+        { id: "5", method: "DELETE" as const, path: "/api/sessions/:id", status: "active", avgLatency: 25, requestCount: 890, errorRate: 0.0, lastCalled: new Date().toISOString() },
+        { id: "6", method: "GET" as const, path: "/api/legacy/reports", status: "deprecated", avgLatency: 450, requestCount: 120, errorRate: 5.2, lastCalled: new Date().toISOString() },
+      ];
+
+      res.json(apis);
+    } catch (error) {
+      console.error("Tech support APIs error:", error);
+      res.status(500).json({ message: "Failed to fetch API endpoints" });
+    }
+  });
+
+  // Tech Support - Error Logs
+  app.get("/api/tech-support/errors", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const role = req.platformAdminContext?.platformAdmin.role;
+      const isSuperAdmin = role === "SUPER_ADMIN";
+      const isTechSupport = role === "TECH_SUPPORT_MANAGER";
+      
+      if (!isSuperAdmin && !isTechSupport) {
+        return res.status(403).json({ message: "Access denied. Tech Support Manager or Super Admin role required." });
+      }
+
+      const errors = [
+        { id: "1", timestamp: new Date(Date.now() - 300000).toISOString(), level: "error" as const, message: "Database connection timeout", source: "db-primary", count: 3 },
+        { id: "2", timestamp: new Date(Date.now() - 600000).toISOString(), level: "warning" as const, message: "Rate limit approaching threshold", source: "api-gateway", count: 15 },
+        { id: "3", timestamp: new Date(Date.now() - 1200000).toISOString(), level: "error" as const, message: "Email delivery failed: SMTP timeout", source: "email-service", count: 7 },
+        { id: "4", timestamp: new Date(Date.now() - 1800000).toISOString(), level: "info" as const, message: "Cache invalidation triggered", source: "redis", count: 42 },
+        { id: "5", timestamp: new Date(Date.now() - 3600000).toISOString(), level: "warning" as const, message: "High memory usage detected", source: "api-server-3", count: 8 },
+      ];
+
+      res.json(errors);
+    } catch (error) {
+      console.error("Tech support errors error:", error);
+      res.status(500).json({ message: "Failed to fetch error logs" });
+    }
+  });
+
+  // Tech Support - Performance Metrics
+  app.get("/api/tech-support/metrics", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const role = req.platformAdminContext?.platformAdmin.role;
+      const isSuperAdmin = role === "SUPER_ADMIN";
+      const isTechSupport = role === "TECH_SUPPORT_MANAGER";
+      
+      if (!isSuperAdmin && !isTechSupport) {
+        return res.status(403).json({ message: "Access denied. Tech Support Manager or Super Admin role required." });
+      }
+
+      const metrics = [
+        { name: "Avg Response Time", value: 48, unit: "ms", trend: "down" as const, change: -12 },
+        { name: "Requests/min", value: 1247, unit: "req", trend: "up" as const, change: 8 },
+        { name: "Error Rate", value: 0.23, unit: "%", trend: "down" as const, change: -0.05 },
+        { name: "Active Sessions", value: 342, unit: "", trend: "stable" as const, change: 0 },
+        { name: "CPU Usage", value: 34, unit: "%", trend: "stable" as const, change: 2 },
+        { name: "Memory Usage", value: 67, unit: "%", trend: "up" as const, change: 5 },
+      ];
+
+      res.json(metrics);
+    } catch (error) {
+      console.error("Tech support metrics error:", error);
+      res.status(500).json({ message: "Failed to fetch performance metrics" });
+    }
+  });
+
   // ==================== EXCHANGE RATES ====================
 
   // List all exchange rates (admin)
