@@ -498,8 +498,10 @@ export async function registerRoutes(
       }
 
       const tokens = await jwtAuthService.generateTokenPair(
-        { id: newUser.id, email: newUser.email, firstName: newUser.firstName, lastName: newUser.lastName },
+        newUser.id,
         newTenant.id,
+        adminRole.id,
+        [],
         {
           userAgent: req.headers["user-agent"],
           ipAddress: req.ip || undefined,
