@@ -7,7 +7,7 @@ import {
   spaces, desks, deskBookings,
   patients, doctors, appointments, medicalRecords,
   platformAdmins, platformAdminPermissions, platformAdminPermissionAssignments,
-  platformRegionConfigs,
+  platformRegionConfigs, exchangeRates,
   supportTickets, supportTicketMessages, errorLogs, usageMetrics,
   auditLogs, userTenants,
   type Tenant, type InsertTenant,
@@ -36,6 +36,7 @@ import {
   type PlatformAdmin, type PlatformAdminRole,
   type PlatformAdminPermission, type PlatformAdminPermissionAssignment,
   type PlatformRegionConfig, type InsertPlatformRegionConfig,
+  type ExchangeRate, type InsertExchangeRate,
   type SupportTicket, type InsertSupportTicket,
   type SupportTicketMessage, type InsertSupportTicketMessage,
   type ErrorLog, type InsertErrorLog,
@@ -266,6 +267,15 @@ export interface IStorage {
 
   // Platform Dashboard - Audit Logs (read-only)
   getAuditLogs(options?: { tenantId?: string; userId?: string; action?: string; limit?: number; offset?: number }): Promise<AuditLog[]>;
+
+  // Exchange Rates
+  getExchangeRates(): Promise<ExchangeRate[]>;
+  getActiveExchangeRates(): Promise<ExchangeRate[]>;
+  getExchangeRate(fromCurrency: string, toCurrency: string): Promise<ExchangeRate | undefined>;
+  createExchangeRate(rate: InsertExchangeRate): Promise<ExchangeRate>;
+  updateExchangeRate(id: string, rate: Partial<InsertExchangeRate>): Promise<ExchangeRate | undefined>;
+  deactivateExchangeRate(id: string): Promise<void>;
+  convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<{ convertedAmount: number; rate: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1376,6 +1386,113 @@ export class DatabaseStorage implements IStorage {
     }
     
     return query;
+  }
+
+  // Exchange Rates
+  async getExchangeRates(): Promise<ExchangeRate[]> {
+    return db.select().from(exchangeRates).orderBy(desc(exchangeRates.createdAt));
+  }
+
+  async getActiveExchangeRates(): Promise<ExchangeRate[]> {
+    return db.select().from(exchangeRates)
+      .where(eq(exchangeRates.isActive, true))
+      .orderBy(exchangeRates.fromCurrency, exchangeRates.toCurrency);
+  }
+
+  async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<ExchangeRate | undefined> {
+    // If same currency, return 1:1 rate
+    if (fromCurrency === toCurrency) {
+      return {
+        id: "same-currency",
+        fromCurrency,
+        toCurrency,
+        rate: "1.00000000",
+        inverseRate: "1.00000000",
+        source: "identity",
+        isActive: true,
+        validFrom: new Date(),
+        validTo: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+
+    // Try direct rate first
+    const [directRate] = await db.select().from(exchangeRates)
+      .where(and(
+        eq(exchangeRates.fromCurrency, fromCurrency),
+        eq(exchangeRates.toCurrency, toCurrency),
+        eq(exchangeRates.isActive, true)
+      ))
+      .limit(1);
+
+    if (directRate) return directRate;
+
+    // Try inverse rate
+    const [inverseRate] = await db.select().from(exchangeRates)
+      .where(and(
+        eq(exchangeRates.fromCurrency, toCurrency),
+        eq(exchangeRates.toCurrency, fromCurrency),
+        eq(exchangeRates.isActive, true)
+      ))
+      .limit(1);
+
+    if (inverseRate) {
+      // Return inverse rate as direct
+      return {
+        ...inverseRate,
+        fromCurrency,
+        toCurrency,
+        rate: inverseRate.inverseRate,
+        inverseRate: inverseRate.rate,
+      };
+    }
+
+    return undefined;
+  }
+
+  async createExchangeRate(rate: InsertExchangeRate): Promise<ExchangeRate> {
+    // Deactivate any existing active rate for the same currency pair
+    await db.update(exchangeRates)
+      .set({ isActive: false, validTo: new Date() })
+      .where(and(
+        eq(exchangeRates.fromCurrency, rate.fromCurrency),
+        eq(exchangeRates.toCurrency, rate.toCurrency),
+        eq(exchangeRates.isActive, true)
+      ));
+
+    const [created] = await db.insert(exchangeRates).values(rate).returning();
+    return created;
+  }
+
+  async updateExchangeRate(id: string, rate: Partial<InsertExchangeRate>): Promise<ExchangeRate | undefined> {
+    const [updated] = await db.update(exchangeRates)
+      .set({ ...rate, updatedAt: new Date() })
+      .where(eq(exchangeRates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deactivateExchangeRate(id: string): Promise<void> {
+    await db.update(exchangeRates)
+      .set({ isActive: false, validTo: new Date(), updatedAt: new Date() })
+      .where(eq(exchangeRates.id, id));
+  }
+
+  async convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<{ convertedAmount: number; rate: number }> {
+    const exchangeRate = await this.getExchangeRate(fromCurrency, toCurrency);
+    
+    if (!exchangeRate) {
+      throw new Error(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
+    }
+
+    const rate = parseFloat(exchangeRate.rate);
+    const convertedAmount = amount * rate;
+    
+    return {
+      convertedAmount: Math.round(convertedAmount * 100) / 100, // Round to 2 decimal places
+      rate,
+    };
   }
 }
 
