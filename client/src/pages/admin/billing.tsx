@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Filter,
+  Plus,
+  X,
 } from "lucide-react";
 import {
   Table,
@@ -33,6 +35,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface BillingStats {
   totalRevenue: number;
@@ -49,11 +63,28 @@ interface Invoice {
   tenantId: string;
   tenantName: string;
   businessType?: string;
-  amount: number;
+  amount?: number;
+  totalAmount?: number;
+  currency?: string;
   status: "paid" | "pending" | "overdue" | "cancelled";
   dueDate: string;
   createdAt: string;
 }
+
+interface Tenant {
+  id: string;
+  name: string;
+  country?: string;
+}
+
+const CURRENCIES = [
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "INR", symbol: "₹", name: "Indian Rupee" },
+  { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "AED", symbol: "د.إ", name: "UAE Dirham" },
+  { code: "MYR", symbol: "RM", name: "Malaysian Ringgit" },
+  { code: "SGD", symbol: "S$", name: "Singapore Dollar" },
+];
 
 const BUSINESS_TYPES = [
   { value: "clinic", label: "Clinic" },
@@ -72,11 +103,169 @@ const getBusinessTypeLabel = (type: string) => {
   return BUSINESS_TYPES.find((t) => t.value === type)?.label || type;
 };
 
+function CreateInvoiceDialog({ 
+  open, 
+  onOpenChange 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const [tenantId, setTenantId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
+
+  const { data: tenantsData } = useQuery<{ tenants: Tenant[] }>({
+    queryKey: ["/api/platform-admin/tenants"],
+    enabled: open,
+  });
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: async (data: { 
+      tenantId: string; 
+      amount: number; 
+      currency: string; 
+      description: string; 
+      dueDate: string;
+    }) => {
+      return apiRequest("POST", "/api/platform-admin/billing/invoices", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/billing/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/billing/stats"] });
+      toast({ title: "Invoice created successfully" });
+      onOpenChange(false);
+      setTenantId("");
+      setAmount("");
+      setCurrency("USD");
+      setDescription("");
+      setDueDate("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create invoice", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!tenantId || !amount || !dueDate) {
+      toast({ title: "Please fill all required fields", variant: "destructive" });
+      return;
+    }
+    createInvoiceMutation.mutate({
+      tenantId,
+      amount: parseFloat(amount),
+      currency,
+      description,
+      dueDate,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Create Invoice</DialogTitle>
+          <DialogDescription>
+            Create a new invoice for a tenant
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="tenant">Tenant *</Label>
+            <Select value={tenantId} onValueChange={setTenantId}>
+              <SelectTrigger data-testid="select-invoice-tenant">
+                <SelectValue placeholder="Select tenant" />
+              </SelectTrigger>
+              <SelectContent>
+                {tenantsData?.tenants?.map((tenant) => (
+                  <SelectItem key={tenant.id} value={tenant.id}>
+                    {tenant.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount *</Label>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                data-testid="input-invoice-amount"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger data-testid="select-invoice-currency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map((curr) => (
+                    <SelectItem key={curr.code} value={curr.code}>
+                      {curr.symbol} {curr.code} - {curr.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dueDate">Due Date *</Label>
+            <Input
+              id="dueDate"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              data-testid="input-invoice-due-date"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              placeholder="Invoice description or notes..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              data-testid="input-invoice-description"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-invoice">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={createInvoiceMutation.isPending}
+            data-testid="button-submit-invoice"
+          >
+            {createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BillingContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [businessTypeFilter, setBusinessTypeFilter] = useState<string>("all");
+  const [displayCurrency, setDisplayCurrency] = useState<string>("USD");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery<BillingStats>({
     queryKey: ["/api/platform-admin/billing/stats"],
@@ -101,10 +290,13 @@ function BillingContent() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+  const formatCurrency = (amount: number, currencyCode?: string) => {
+    const code = currencyCode || displayCurrency;
+    const currency = CURRENCIES.find(c => c.code === code);
+    return new Intl.NumberFormat(code === "INR" ? "en-IN" : "en-US", {
       style: "currency",
-      currency: "USD",
+      currency: code,
+      minimumFractionDigits: 2,
     }).format(amount);
   };
 
@@ -139,12 +331,27 @@ function BillingContent() {
             Manage subscriptions, invoices, and revenue
           </p>
         </div>
-        {(isSuperAdmin || hasPermission("manage_billing")) && (
-          <Button data-testid="button-create-invoice">
-            <Receipt className="h-4 w-4 mr-2" />
-            Create Invoice
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          <Select value={displayCurrency} onValueChange={setDisplayCurrency}>
+            <SelectTrigger className="w-[140px]" data-testid="select-display-currency">
+              <DollarSign className="h-4 w-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CURRENCIES.map((curr) => (
+                <SelectItem key={curr.code} value={curr.code}>
+                  {curr.symbol} {curr.code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {(isSuperAdmin || hasPermission("manage_billing")) && (
+            <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-invoice">
+              <Receipt className="h-4 w-4 mr-2" />
+              Create Invoice
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -317,7 +524,7 @@ function BillingContent() {
                   ?.filter(invoice => businessTypeFilter === "all" || invoice.businessType === businessTypeFilter)
                   .map((invoice) => (
                   <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
-                    <TableCell className="font-mono text-sm">{invoice.id}</TableCell>
+                    <TableCell className="font-mono text-sm">{invoice.id.slice(0, 8)}...</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -329,7 +536,9 @@ function BillingContent() {
                         {getBusinessTypeLabel(invoice.businessType || "service")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium">{formatCurrency(invoice.amount)}</TableCell>
+                    <TableCell className="font-medium">
+                      {formatCurrency(invoice.totalAmount || invoice.amount || 0, invoice.currency)}
+                    </TableCell>
                     <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 text-muted-foreground">
@@ -350,6 +559,8 @@ function BillingContent() {
           )}
         </CardContent>
       </Card>
+
+      <CreateInvoiceDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
     </div>
   );
 }

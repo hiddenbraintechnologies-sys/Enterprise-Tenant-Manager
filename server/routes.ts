@@ -4128,6 +4128,64 @@ export async function registerRoutes(
     }
   });
 
+  // Create invoice for tenant
+  app.post("/api/platform-admin/billing/invoices", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId, amount, currency, description, dueDate } = req.body;
+      
+      if (!tenantId || !amount || !dueDate) {
+        return res.status(400).json({ message: "Missing required fields: tenantId, amount, dueDate" });
+      }
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      
+      const currencyCode = currency || "USD";
+      const country = tenant.country || "IN";
+      
+      // Get tax configuration for the country
+      const countryConfig = await db.select().from(countryPricingConfigs).where(eq(countryPricingConfigs.country, country as any)).limit(1);
+      const taxRate = countryConfig[0]?.taxRate ? parseFloat(countryConfig[0].taxRate) : 0;
+      const taxName = countryConfig[0]?.taxName || "TAX";
+      
+      const subtotal = parseFloat(amount);
+      const taxAmount = subtotal * (taxRate / 100);
+      const totalAmount = subtotal + taxAmount;
+      
+      // Generate invoice number
+      const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      
+      const [newInvoice] = await db.insert(subscriptionInvoices).values({
+        tenantId,
+        invoiceNumber,
+        status: "pending",
+        country: country as any,
+        currency: currencyCode as any,
+        subtotal: subtotal.toFixed(2),
+        taxName,
+        taxRate: taxRate.toFixed(2),
+        taxAmount: taxAmount.toFixed(2),
+        totalAmount: totalAmount.toFixed(2),
+        amountDue: totalAmount.toFixed(2),
+        dueDate: new Date(dueDate),
+        notes: description || null,
+      }).returning();
+      
+      res.status(201).json({ 
+        message: "Invoice created successfully", 
+        invoice: {
+          ...newInvoice,
+          tenantName: tenant.name,
+        }
+      });
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      res.status(500).json({ message: "Failed to create invoice" });
+    }
+  });
+
   app.get("/api/platform-admin/billing/country-configs", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
       const configs = await db.select().from(countryPricingConfigs).orderBy(countryPricingConfigs.country);
