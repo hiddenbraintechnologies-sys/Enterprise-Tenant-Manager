@@ -40,6 +40,7 @@ import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import AdminPlatformAdmins from "@/pages/admin/platform-admins";
 import AdminBilling from "@/pages/admin/billing";
+import AdminExchangeRates from "@/pages/admin/exchange-rates";
 import TaxManagement from "@/pages/admin/tax-management";
 import InvoiceTemplates from "@/pages/admin/invoice-templates";
 import AdminWhatsApp from "@/pages/admin/whatsapp";
@@ -206,6 +207,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/billing" component={AdminBilling} />
         <Route path="/super-admin/invoice-templates" component={InvoiceTemplates} />
         <Route path="/super-admin/tax" component={TaxManagement} />
+        <Route path="/super-admin/exchange-rates" component={AdminExchangeRates} />
         <Route path="/super-admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/super-admin/audit-logs" component={AdminAuditLogs} />
         <Route path="/super-admin/compliance" component={AdminCompliance} />

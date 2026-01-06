@@ -36,6 +36,7 @@ import {
   Globe,
   Headphones,
   ClipboardList,
+  ArrowRightLeft,
 } from "lucide-react";
 
 interface MenuItem {
@@ -82,6 +83,12 @@ const superAdminMenuItems: MenuItem[] = [
     title: "Tax Management",
     url: "/super-admin/tax",
     icon: Calculator,
+    superAdminOnly: true,
+  },
+  {
+    title: "Exchange Rates",
+    url: "/super-admin/exchange-rates",
+    icon: ArrowRightLeft,
     superAdminOnly: true,
   },
   {
