@@ -12,7 +12,8 @@ import {
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles,
-  tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs,
+  tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates,
+  insertInvoiceTemplateSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
   adminAccountLockouts, adminLoginAttempts, platformAdmins,
   taxRules, taxCalculationLogs, taxReports, insertTaxRuleSchema,
@@ -4605,6 +4606,227 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating country config:", error);
       res.status(500).json({ message: "Failed to update country config" });
+    }
+  });
+
+  // ==================== INVOICE TEMPLATES ====================
+
+  // Get all invoice templates
+  app.get("/api/platform-admin/billing/invoice-templates", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const templates = await db.select()
+        .from(invoiceTemplates)
+        .where(eq(invoiceTemplates.isActive, true))
+        .orderBy(desc(invoiceTemplates.isDefault), desc(invoiceTemplates.createdAt));
+      
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching invoice templates:", error);
+      res.status(500).json({ message: "Failed to fetch invoice templates" });
+    }
+  });
+
+  // Get single invoice template
+  app.get("/api/platform-admin/billing/invoice-templates/:id", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [template] = await db.select()
+        .from(invoiceTemplates)
+        .where(eq(invoiceTemplates.id, id));
+      
+      if (!template) {
+        return res.status(404).json({ message: "Invoice template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching invoice template:", error);
+      res.status(500).json({ message: "Failed to fetch invoice template" });
+    }
+  });
+
+  // Get default invoice template
+  app.get("/api/platform-admin/billing/invoice-templates/default", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const [template] = await db.select()
+        .from(invoiceTemplates)
+        .where(and(eq(invoiceTemplates.isDefault, true), eq(invoiceTemplates.isActive, true)))
+        .limit(1);
+      
+      if (!template) {
+        // Return default values if no template exists
+        return res.json({
+          name: "Default Template",
+          companyName: "BizFlow",
+          primaryColor: "#3B82F6",
+          secondaryColor: "#1E293B",
+          accentColor: "#10B981",
+          fontFamily: "Arial, sans-serif",
+          headerFontSize: "24px",
+          bodyFontSize: "14px",
+          footerText: "Thank you for your business!",
+          invoicePrefix: "INV",
+          invoiceNumberFormat: "{PREFIX}-{YEAR}{MONTH}-{NUMBER}",
+        });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching default invoice template:", error);
+      res.status(500).json({ message: "Failed to fetch default invoice template" });
+    }
+  });
+
+  // Create invoice template
+  app.post("/api/platform-admin/billing/invoice-templates", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const data = insertInvoiceTemplateSchema.parse(req.body);
+      
+      // If this is set as default, unset other defaults
+      if (data.isDefault) {
+        await db.update(invoiceTemplates)
+          .set({ isDefault: false, updatedAt: new Date() })
+          .where(eq(invoiceTemplates.isDefault, true));
+      }
+      
+      const [template] = await db.insert(invoiceTemplates).values(data).returning();
+      
+      res.status(201).json({ 
+        message: "Invoice template created successfully",
+        template 
+      });
+    } catch (error) {
+      console.error("Error creating invoice template:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create invoice template" });
+    }
+  });
+
+  // Update invoice template
+  app.patch("/api/platform-admin/billing/invoice-templates/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // If this is being set as default, unset other defaults
+      if (updates.isDefault === true) {
+        await db.update(invoiceTemplates)
+          .set({ isDefault: false, updatedAt: new Date() })
+          .where(and(eq(invoiceTemplates.isDefault, true), sql`${invoiceTemplates.id} != ${id}`));
+      }
+      
+      const [template] = await db.update(invoiceTemplates)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(invoiceTemplates.id, id))
+        .returning();
+      
+      if (!template) {
+        return res.status(404).json({ message: "Invoice template not found" });
+      }
+      
+      res.json({ 
+        message: "Invoice template updated successfully",
+        template 
+      });
+    } catch (error) {
+      console.error("Error updating invoice template:", error);
+      res.status(500).json({ message: "Failed to update invoice template" });
+    }
+  });
+
+  // Delete invoice template (soft delete)
+  app.delete("/api/platform-admin/billing/invoice-templates/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if template exists and is not the default
+      const [existingTemplate] = await db.select()
+        .from(invoiceTemplates)
+        .where(eq(invoiceTemplates.id, id));
+      
+      if (!existingTemplate) {
+        return res.status(404).json({ message: "Invoice template not found" });
+      }
+      
+      if (existingTemplate.isDefault) {
+        return res.status(400).json({ message: "Cannot delete the default template. Set another template as default first." });
+      }
+      
+      // Soft delete by setting isActive to false
+      await db.update(invoiceTemplates)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(invoiceTemplates.id, id));
+      
+      res.json({ message: "Invoice template deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting invoice template:", error);
+      res.status(500).json({ message: "Failed to delete invoice template" });
+    }
+  });
+
+  // Set template as default
+  app.post("/api/platform-admin/billing/invoice-templates/:id/set-default", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Unset all other defaults
+      await db.update(invoiceTemplates)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(eq(invoiceTemplates.isDefault, true));
+      
+      // Set this one as default
+      const [template] = await db.update(invoiceTemplates)
+        .set({ isDefault: true, updatedAt: new Date() })
+        .where(eq(invoiceTemplates.id, id))
+        .returning();
+      
+      if (!template) {
+        return res.status(404).json({ message: "Invoice template not found" });
+      }
+      
+      res.json({ 
+        message: "Template set as default successfully",
+        template 
+      });
+    } catch (error) {
+      console.error("Error setting default template:", error);
+      res.status(500).json({ message: "Failed to set default template" });
+    }
+  });
+
+  // Duplicate invoice template
+  app.post("/api/platform-admin/billing/invoice-templates/:id/duplicate", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      
+      const [sourceTemplate] = await db.select()
+        .from(invoiceTemplates)
+        .where(eq(invoiceTemplates.id, id));
+      
+      if (!sourceTemplate) {
+        return res.status(404).json({ message: "Source template not found" });
+      }
+      
+      // Create a copy with a new name
+      const { id: _, createdAt: __, updatedAt: ___, ...templateData } = sourceTemplate;
+      
+      const [newTemplate] = await db.insert(invoiceTemplates).values({
+        ...templateData,
+        name: name || `${sourceTemplate.name} (Copy)`,
+        isDefault: false,
+      }).returning();
+      
+      res.status(201).json({ 
+        message: "Template duplicated successfully",
+        template: newTemplate 
+      });
+    } catch (error) {
+      console.error("Error duplicating invoice template:", error);
+      res.status(500).json({ message: "Failed to duplicate invoice template" });
     }
   });
 
