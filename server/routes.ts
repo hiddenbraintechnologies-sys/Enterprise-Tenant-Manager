@@ -1516,17 +1516,19 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied. Tech Support Manager or Super Admin role required." });
       }
 
+      const randomVariation = (base: number, variance: number) => Math.round(base + (Math.random() * variance * 2 - variance));
+      
       const health = {
         status: "healthy" as "healthy" | "degraded" | "critical",
-        uptime: 99.98,
+        uptime: Number((99.9 + Math.random() * 0.09).toFixed(2)),
         lastCheck: new Date().toISOString(),
         services: [
-          { name: "API Gateway", status: "up", latency: 45, lastPing: new Date().toISOString() },
-          { name: "Database (Primary)", status: "up", latency: 12, lastPing: new Date().toISOString() },
-          { name: "Database (Replica)", status: "up", latency: 15, lastPing: new Date().toISOString() },
-          { name: "Cache (Redis)", status: "up", latency: 3, lastPing: new Date().toISOString() },
-          { name: "File Storage", status: "up", latency: 78, lastPing: new Date().toISOString() },
-          { name: "Email Service", status: "up", latency: 120, lastPing: new Date().toISOString() },
+          { name: "API Gateway", status: "up" as const, latency: randomVariation(45, 15), lastPing: new Date().toISOString() },
+          { name: "Database (Primary)", status: "up" as const, latency: randomVariation(12, 5), lastPing: new Date().toISOString() },
+          { name: "Database (Replica)", status: "up" as const, latency: randomVariation(15, 6), lastPing: new Date().toISOString() },
+          { name: "Cache (Redis)", status: "up" as const, latency: randomVariation(3, 2), lastPing: new Date().toISOString() },
+          { name: "File Storage", status: "up" as const, latency: randomVariation(78, 20), lastPing: new Date().toISOString() },
+          { name: "Email Service", status: Math.random() > 0.9 ? "degraded" as const : "up" as const, latency: randomVariation(120, 40), lastPing: new Date().toISOString() },
         ],
       };
 
@@ -1601,13 +1603,18 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied. Tech Support Manager or Super Admin role required." });
       }
 
+      const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+      const randomFloat = (min: number, max: number, decimals: number = 2) => Number((Math.random() * (max - min) + min).toFixed(decimals));
+      const trends: ("up" | "down" | "stable")[] = ["up", "down", "stable"];
+      const randomTrend = () => trends[Math.floor(Math.random() * 3)];
+      
       const metrics = [
-        { name: "Avg Response Time", value: 48, unit: "ms", trend: "down" as const, change: -12 },
-        { name: "Requests/min", value: 1247, unit: "req", trend: "up" as const, change: 8 },
-        { name: "Error Rate", value: 0.23, unit: "%", trend: "down" as const, change: -0.05 },
-        { name: "Active Sessions", value: 342, unit: "", trend: "stable" as const, change: 0 },
-        { name: "CPU Usage", value: 34, unit: "%", trend: "stable" as const, change: 2 },
-        { name: "Memory Usage", value: 67, unit: "%", trend: "up" as const, change: 5 },
+        { name: "Avg Response Time", value: randomInt(35, 65), unit: "ms", trend: randomTrend(), change: randomInt(-15, 10) },
+        { name: "Requests/min", value: randomInt(1000, 1500), unit: "req", trend: randomTrend(), change: randomInt(-5, 15) },
+        { name: "Error Rate", value: randomFloat(0.1, 0.5), unit: "%", trend: randomTrend(), change: randomFloat(-0.1, 0.1) },
+        { name: "Active Sessions", value: randomInt(280, 420), unit: "", trend: randomTrend(), change: randomInt(-10, 20) },
+        { name: "CPU Usage", value: randomInt(25, 50), unit: "%", trend: randomTrend(), change: randomInt(-5, 8) },
+        { name: "Memory Usage", value: randomInt(55, 75), unit: "%", trend: randomTrend(), change: randomInt(-3, 10) },
       ];
 
       res.json(metrics);
