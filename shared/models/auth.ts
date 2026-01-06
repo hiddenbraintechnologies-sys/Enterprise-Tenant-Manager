@@ -32,7 +32,11 @@ export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
 // Platform Admin roles enum
-export const platformAdminRoleEnum = pgEnum("platform_admin_role", ["SUPER_ADMIN", "PLATFORM_ADMIN"]);
+// SUPER_ADMIN: Full access to everything
+// PLATFORM_ADMIN: Full access to assigned countries
+// MANAGER: View and manage operations for assigned countries
+// SUPPORT_TEAM: View and handle support tickets for assigned countries
+export const platformAdminRoleEnum = pgEnum("platform_admin_role", ["SUPER_ADMIN", "PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"]);
 
 // Platform Admin table - NOT tied to any tenant
 export const platformAdmins = pgTable("platform_admins", {
@@ -65,7 +69,7 @@ export const insertPlatformAdminSchema = createInsertSchema(platformAdmins).omit
 
 export type InsertPlatformAdmin = z.infer<typeof insertPlatformAdminSchema>;
 export type PlatformAdmin = typeof platformAdmins.$inferSelect;
-export type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN";
+export type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
 
 // Platform Admin Permissions - defines available permissions
 export const platformAdminPermissions = pgTable("platform_admin_permissions", {
@@ -90,6 +94,26 @@ export const platformAdminPermissionAssignments = pgTable("platform_admin_permis
 
 export type PlatformAdminPermission = typeof platformAdminPermissions.$inferSelect;
 export type PlatformAdminPermissionAssignment = typeof platformAdminPermissionAssignments.$inferSelect;
+
+// Platform Admin Country Assignments - restricts data access by country
+export const platformAdminCountryAssignments = pgTable("platform_admin_country_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").notNull().references(() => platformAdmins.id, { onDelete: "cascade" }),
+  countryCode: varchar("country_code", { length: 5 }).notNull(),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: varchar("assigned_by"),
+}, (table) => [
+  index("idx_platform_admin_country_admin").on(table.adminId),
+  index("idx_platform_admin_country_code").on(table.countryCode),
+]);
+
+export const insertPlatformAdminCountryAssignmentSchema = createInsertSchema(platformAdminCountryAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export type PlatformAdminCountryAssignment = typeof platformAdminCountryAssignments.$inferSelect;
+export type InsertPlatformAdminCountryAssignment = z.infer<typeof insertPlatformAdminCountryAssignmentSchema>;
 
 // Default platform admin permissions
 export const PLATFORM_ADMIN_PERMISSIONS = {

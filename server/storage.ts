@@ -7,6 +7,7 @@ import {
   spaces, desks, deskBookings,
   patients, doctors, appointments, medicalRecords,
   platformAdmins, platformAdminPermissions, platformAdminPermissionAssignments,
+  platformAdminCountryAssignments,
   platformRegionConfigs, exchangeRates,
   supportTickets, supportTicketMessages, errorLogs, usageMetrics,
   auditLogs, userTenants,
@@ -35,6 +36,7 @@ import {
   type MedicalRecord, type InsertMedicalRecord,
   type PlatformAdmin, type PlatformAdminRole,
   type PlatformAdminPermission, type PlatformAdminPermissionAssignment,
+  type PlatformAdminCountryAssignment, type InsertPlatformAdminCountryAssignment,
   type PlatformRegionConfig, type InsertPlatformRegionConfig,
   type ExchangeRate, type InsertExchangeRate,
   type SupportTicket, type InsertSupportTicket,
@@ -267,6 +269,12 @@ export interface IStorage {
 
   // Platform Dashboard - Audit Logs (read-only)
   getAuditLogs(options?: { tenantId?: string; userId?: string; action?: string; limit?: number; offset?: number }): Promise<AuditLog[]>;
+
+  // Platform Admin Country Assignments
+  getAdminCountryAssignments(adminId: string): Promise<PlatformAdminCountryAssignment[]>;
+  assignCountryToAdmin(assignment: InsertPlatformAdminCountryAssignment): Promise<PlatformAdminCountryAssignment>;
+  removeCountryFromAdmin(adminId: string, countryCode: string): Promise<void>;
+  setAdminCountries(adminId: string, countryCodes: string[], assignedBy?: string): Promise<PlatformAdminCountryAssignment[]>;
 
   // Exchange Rates
   getExchangeRates(): Promise<ExchangeRate[]>;
@@ -1507,6 +1515,45 @@ export class DatabaseStorage implements IStorage {
       rate,
       decimalPlaces,
     };
+  }
+
+  // Platform Admin Country Assignments
+  async getAdminCountryAssignments(adminId: string): Promise<PlatformAdminCountryAssignment[]> {
+    return db.select().from(platformAdminCountryAssignments)
+      .where(eq(platformAdminCountryAssignments.adminId, adminId))
+      .orderBy(platformAdminCountryAssignments.countryCode);
+  }
+
+  async assignCountryToAdmin(assignment: InsertPlatformAdminCountryAssignment): Promise<PlatformAdminCountryAssignment> {
+    const [created] = await db.insert(platformAdminCountryAssignments).values(assignment).returning();
+    return created;
+  }
+
+  async removeCountryFromAdmin(adminId: string, countryCode: string): Promise<void> {
+    await db.delete(platformAdminCountryAssignments)
+      .where(and(
+        eq(platformAdminCountryAssignments.adminId, adminId),
+        eq(platformAdminCountryAssignments.countryCode, countryCode)
+      ));
+  }
+
+  async setAdminCountries(adminId: string, countryCodes: string[], assignedBy?: string): Promise<PlatformAdminCountryAssignment[]> {
+    // Delete all existing assignments
+    await db.delete(platformAdminCountryAssignments)
+      .where(eq(platformAdminCountryAssignments.adminId, adminId));
+    
+    if (countryCodes.length === 0) {
+      return [];
+    }
+
+    // Insert new assignments
+    const assignments = countryCodes.map(code => ({
+      adminId,
+      countryCode: code,
+      assignedBy,
+    }));
+    
+    return db.insert(platformAdminCountryAssignments).values(assignments).returning();
   }
 }
 
