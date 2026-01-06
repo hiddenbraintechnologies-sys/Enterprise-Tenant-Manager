@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { TenantProvider, DashboardGuard, ModuleGuard, useTenant } from "@/contexts/tenant-context";
 import { TourProvider } from "@/contexts/tour-context";
 import { TourOverlay } from "@/components/tour/tour-overlay";
+import { CountryProvider } from "@/contexts/country-context";
 
 import Landing from "@/pages/landing";
 import Register from "@/pages/register";
@@ -290,13 +291,15 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="bizflow-theme">
-        <TooltipProvider>
-          <TourProvider>
-            <Toaster />
-            <AppRouter />
-            <TourOverlay />
-          </TourProvider>
-        </TooltipProvider>
+        <CountryProvider>
+          <TooltipProvider>
+            <TourProvider>
+              <Toaster />
+              <AppRouter />
+              <TourOverlay />
+            </TourProvider>
+          </TooltipProvider>
+        </CountryProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

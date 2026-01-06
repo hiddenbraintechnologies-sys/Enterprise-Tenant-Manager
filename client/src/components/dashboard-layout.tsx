@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CountrySelector } from "@/components/country-selector";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { HelpCircle } from "lucide-react";
@@ -62,7 +63,8 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
                 ))}
               </BreadcrumbList>
             </Breadcrumb>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <CountrySelector />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
