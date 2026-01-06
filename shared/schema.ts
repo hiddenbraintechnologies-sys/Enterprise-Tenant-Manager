@@ -6089,3 +6089,110 @@ export type InsertPlatformRegionConfig = z.infer<typeof insertPlatformRegionConf
 
 export type RegionAccessLog = typeof regionAccessLogs.$inferSelect;
 export type InsertRegionAccessLog = z.infer<typeof insertRegionAccessLogSchema>;
+
+// ============================================
+// TAX CALCULATION AND REPORTING MODULE
+// ============================================
+
+// Business-type specific tax rules
+export const taxCategoryEnum = pgEnum("tax_category", [
+  "standard",      // Standard rate
+  "reduced",       // Reduced rate (essential services)
+  "zero",          // Zero-rated
+  "exempt",        // Exempt from tax
+  "reverse_charge" // Reverse charge (B2B cross-border)
+]);
+
+// Tax rules per country and business type
+export const taxRules = pgTable("tax_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  country: tenantCountryEnum("country").notNull(),
+  businessType: businessTypeEnum("business_type").notNull(),
+  taxCategory: taxCategoryEnum("tax_category").default("standard"),
+  taxName: varchar("tax_name", { length: 50 }).notNull(), // GST, VAT, Service Tax
+  taxCode: varchar("tax_code", { length: 20 }), // HSN/SAC code for India, VAT code for UK
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).notNull(),
+  description: text("description"),
+  effectiveFrom: timestamp("effective_from").notNull(),
+  effectiveTo: timestamp("effective_to"), // null = currently active
+  isActive: boolean("is_active").default(true),
+  metadata: jsonb("metadata").default({}), // Extra country-specific data
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tax_rules_country").on(table.country),
+  index("idx_tax_rules_business_type").on(table.businessType),
+  index("idx_tax_rules_active").on(table.isActive),
+]);
+
+// Tax calculation logs for audit trail
+export const taxCalculationLogs = pgTable("tax_calculation_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  invoiceId: varchar("invoice_id"),
+  country: tenantCountryEnum("country").notNull(),
+  businessType: businessTypeEnum("business_type").notNull(),
+  taxRuleId: varchar("tax_rule_id").references(() => taxRules.id),
+  baseAmount: decimal("base_amount", { precision: 15, scale: 2 }).notNull(),
+  taxName: varchar("tax_name", { length: 50 }).notNull(),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 15, scale: 2 }).notNull(),
+  currency: currencyEnum("currency").notNull(),
+  calculationDetails: jsonb("calculation_details").default({}), // Breakdown (CGST/SGST for India, etc.)
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+  calculatedBy: varchar("calculated_by"), // admin ID if manual override
+}, (table) => [
+  index("idx_tax_calc_logs_tenant").on(table.tenantId),
+  index("idx_tax_calc_logs_country").on(table.country),
+  index("idx_tax_calc_logs_date").on(table.calculatedAt),
+]);
+
+// Periodic tax reports
+export const taxReports = pgTable("tax_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reportType: varchar("report_type", { length: 50 }).notNull(), // monthly, quarterly, annual
+  country: tenantCountryEnum("country"),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  totalInvoices: integer("total_invoices").default(0),
+  totalBaseAmount: decimal("total_base_amount", { precision: 15, scale: 2 }).default("0"),
+  totalTaxCollected: decimal("total_tax_collected", { precision: 15, scale: 2 }).default("0"),
+  currency: currencyEnum("currency").notNull(),
+  breakdown: jsonb("breakdown").default({}), // By tax type, business type, etc.
+  status: varchar("status", { length: 20 }).default("draft"), // draft, finalized, filed
+  generatedBy: varchar("generated_by"),
+  generatedAt: timestamp("generated_at").defaultNow(),
+  filedAt: timestamp("filed_at"),
+  notes: text("notes"),
+}, (table) => [
+  index("idx_tax_reports_country").on(table.country),
+  index("idx_tax_reports_period").on(table.periodStart, table.periodEnd),
+  index("idx_tax_reports_status").on(table.status),
+]);
+
+// Insert schemas
+export const insertTaxRuleSchema = createInsertSchema(taxRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTaxCalculationLogSchema = createInsertSchema(taxCalculationLogs).omit({
+  id: true,
+  calculatedAt: true,
+});
+
+export const insertTaxReportSchema = createInsertSchema(taxReports).omit({
+  id: true,
+  generatedAt: true,
+});
+
+// Types
+export type TaxRule = typeof taxRules.$inferSelect;
+export type InsertTaxRule = z.infer<typeof insertTaxRuleSchema>;
+
+export type TaxCalculationLog = typeof taxCalculationLogs.$inferSelect;
+export type InsertTaxCalculationLog = z.infer<typeof insertTaxCalculationLogSchema>;
+
+export type TaxReport = typeof taxReports.$inferSelect;
+export type InsertTaxReport = z.infer<typeof insertTaxReportSchema>;
