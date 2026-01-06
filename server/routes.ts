@@ -541,6 +541,75 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/auth/login", authRateLimit, async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+      
+      if (!existingUser || !existingUser.passwordHash) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, existingUser.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const [userTenantRecord] = await db.select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, existingUser.id),
+          eq(userTenants.isDefault, true)
+        ));
+
+      if (!userTenantRecord) {
+        return res.status(401).json({ message: "No tenant associated with this account" });
+      }
+
+      const tokens = await jwtAuthService.generateTokenPair(
+        existingUser.id,
+        userTenantRecord.tenantId,
+        userTenantRecord.roleId,
+        [],
+        {
+          userAgent: req.headers["user-agent"],
+          ipAddress: req.ip || undefined,
+        }
+      );
+
+      auditService.logAsync({
+        tenantId: userTenantRecord.tenantId,
+        userId: existingUser.id,
+        action: "login",
+        resource: "auth",
+        metadata: { method: "password" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          firstName: existingUser.firstName,
+          lastName: existingUser.lastName,
+        },
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
   app.post("/api/auth/session/exchange", isAuthenticated, authRateLimit, async (req, res) => {
     try {
       const user = req.user as any;

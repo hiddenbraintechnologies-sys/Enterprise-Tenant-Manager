@@ -54,6 +54,7 @@ import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
 import AiPermissions from "@/pages/ai-permissions";
 import AdminLogin from "@/pages/admin-login";
+import Login from "@/pages/login";
 import ManagerDashboard from "@/pages/manager/dashboard";
 import SupportDashboard from "@/pages/support/dashboard";
 import TechSupportDashboard from "@/pages/admin/tech-support";
@@ -333,6 +334,7 @@ function AppRouter() {
   if (!user) {
     return (
       <Switch>
+        <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
         <Route path="/onboarding" component={Onboarding} />
         <Route component={Landing} />

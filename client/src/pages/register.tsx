@@ -315,9 +315,11 @@ export default function Register() {
 
                 <p className="text-center text-sm text-muted-foreground">
                   Already have an account?{" "}
-                  <a href="/api/login" className="text-primary hover:underline" data-testid="link-login">
-                    Sign in
-                  </a>
+                  <Link href="/login">
+                    <span className="text-primary hover:underline cursor-pointer" data-testid="link-login">
+                      Sign in
+                    </span>
+                  </Link>
                 </p>
               </form>
             </Form>
