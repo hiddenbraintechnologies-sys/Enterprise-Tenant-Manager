@@ -7,6 +7,7 @@ import {
   spaces, desks, deskBookings,
   patients, doctors, appointments, medicalRecords,
   platformAdmins, platformAdminPermissions, platformAdminPermissionAssignments,
+  platformRegionConfigs,
   supportTickets, supportTicketMessages, errorLogs, usageMetrics,
   auditLogs, userTenants,
   type Tenant, type InsertTenant,
@@ -34,6 +35,7 @@ import {
   type MedicalRecord, type InsertMedicalRecord,
   type PlatformAdmin, type PlatformAdminRole,
   type PlatformAdminPermission, type PlatformAdminPermissionAssignment,
+  type PlatformRegionConfig, type InsertPlatformRegionConfig,
   type SupportTicket, type InsertSupportTicket,
   type SupportTicketMessage, type InsertSupportTicketMessage,
   type ErrorLog, type InsertErrorLog,
@@ -200,6 +202,16 @@ export interface IStorage {
   updatePlatformAdmin(id: string, admin: Partial<{ name: string; email: string; passwordHash: string; role: PlatformAdminRole; isActive: boolean; forcePasswordReset: boolean }>): Promise<PlatformAdmin | undefined>;
   deletePlatformAdmin(id: string): Promise<void>;
   updatePlatformAdminLastLogin(id: string): Promise<void>;
+
+  // Platform Region Configs
+  getRegionConfigs(): Promise<PlatformRegionConfig[]>;
+  getActiveRegionConfigs(): Promise<PlatformRegionConfig[]>;
+  getRegionConfig(id: string): Promise<PlatformRegionConfig | undefined>;
+  getRegionConfigByCode(countryCode: string): Promise<PlatformRegionConfig | undefined>;
+  createRegionConfig(config: InsertPlatformRegionConfig): Promise<PlatformRegionConfig>;
+  updateRegionConfig(id: string, config: Partial<InsertPlatformRegionConfig>): Promise<PlatformRegionConfig | undefined>;
+  deleteRegionConfig(id: string): Promise<void>;
+  toggleRegionStatus(id: string, status: "enabled" | "disabled"): Promise<PlatformRegionConfig | undefined>;
 
   // Platform Dashboard - Tenant Overview (read-only)
   getAllTenants(): Promise<Tenant[]>;
@@ -931,6 +943,51 @@ export class DatabaseStorage implements IStorage {
 
   async updatePlatformAdminLastLogin(id: string): Promise<void> {
     await db.update(platformAdmins).set({ lastLoginAt: new Date() }).where(eq(platformAdmins.id, id));
+  }
+
+  // Platform Region Configs
+  async getRegionConfigs(): Promise<PlatformRegionConfig[]> {
+    return db.select().from(platformRegionConfigs).orderBy(desc(platformRegionConfigs.createdAt));
+  }
+
+  async getActiveRegionConfigs(): Promise<PlatformRegionConfig[]> {
+    return db.select().from(platformRegionConfigs).where(eq(platformRegionConfigs.status, "enabled")).orderBy(platformRegionConfigs.countryName);
+  }
+
+  async getRegionConfig(id: string): Promise<PlatformRegionConfig | undefined> {
+    const [config] = await db.select().from(platformRegionConfigs).where(eq(platformRegionConfigs.id, id));
+    return config;
+  }
+
+  async getRegionConfigByCode(countryCode: string): Promise<PlatformRegionConfig | undefined> {
+    const [config] = await db.select().from(platformRegionConfigs).where(eq(platformRegionConfigs.countryCode, countryCode.toUpperCase()));
+    return config;
+  }
+
+  async createRegionConfig(config: InsertPlatformRegionConfig): Promise<PlatformRegionConfig> {
+    const [created] = await db.insert(platformRegionConfigs).values({
+      ...config,
+      countryCode: config.countryCode.toUpperCase(),
+    }).returning();
+    return created;
+  }
+
+  async updateRegionConfig(id: string, config: Partial<InsertPlatformRegionConfig>): Promise<PlatformRegionConfig | undefined> {
+    const updateData: any = { ...config, updatedAt: new Date() };
+    if (config.countryCode) {
+      updateData.countryCode = config.countryCode.toUpperCase();
+    }
+    const [updated] = await db.update(platformRegionConfigs).set(updateData).where(eq(platformRegionConfigs.id, id)).returning();
+    return updated;
+  }
+
+  async deleteRegionConfig(id: string): Promise<void> {
+    await db.delete(platformRegionConfigs).where(eq(platformRegionConfigs.id, id));
+  }
+
+  async toggleRegionStatus(id: string, status: "enabled" | "disabled"): Promise<PlatformRegionConfig | undefined> {
+    const [updated] = await db.update(platformRegionConfigs).set({ status, updatedAt: new Date() }).where(eq(platformRegionConfigs.id, id)).returning();
+    return updated;
   }
 
   // Platform Admin Permissions

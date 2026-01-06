@@ -1254,6 +1254,207 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== PLATFORM REGION CONFIGS ====================
+
+  // List all region configs
+  app.get("/api/platform-admin/region-configs", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const configs = await storage.getRegionConfigs();
+      res.json(configs);
+    } catch (error) {
+      console.error("Get region configs error:", error);
+      res.status(500).json({ message: "Failed to get region configs" });
+    }
+  });
+
+  // Get active region configs (public endpoint for country selector)
+  app.get("/api/region-configs/active", async (_req, res) => {
+    try {
+      const configs = await storage.getActiveRegionConfigs();
+      res.json(configs);
+    } catch (error) {
+      console.error("Get active region configs error:", error);
+      res.status(500).json({ message: "Failed to get active region configs" });
+    }
+  });
+
+  // Get single region config
+  app.get("/api/platform-admin/region-configs/:id", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const config = await storage.getRegionConfig(req.params.id);
+      if (!config) {
+        return res.status(404).json({ message: "Region config not found" });
+      }
+      res.json(config);
+    } catch (error) {
+      console.error("Get region config error:", error);
+      res.status(500).json({ message: "Failed to get region config" });
+    }
+  });
+
+  const createRegionConfigSchema = z.object({
+    countryCode: z.string().min(2).max(5),
+    countryName: z.string().min(1).max(100),
+    region: z.enum(["asia_pacific", "middle_east", "europe", "americas", "africa"]),
+    status: z.enum(["enabled", "disabled"]).optional(),
+    registrationEnabled: z.boolean().optional(),
+    billingEnabled: z.boolean().optional(),
+    compliancePacksEnabled: z.boolean().optional(),
+    allowedBusinessTypes: z.array(z.string()).optional(),
+    allowedSubscriptionTiers: z.array(z.string()).optional(),
+    defaultCurrency: z.string().min(3).max(5),
+    defaultTimezone: z.string().min(1).max(50),
+    requiredCompliancePacks: z.array(z.string()).optional(),
+    dataResidencyRequired: z.boolean().optional(),
+    dataResidencyRegion: z.string().optional(),
+    taxType: z.string().optional(),
+    taxRate: z.string().optional(),
+    taxInclusive: z.boolean().optional(),
+    smsEnabled: z.boolean().optional(),
+    whatsappEnabled: z.boolean().optional(),
+    emailEnabled: z.boolean().optional(),
+  });
+
+  // Create region config
+  app.post("/api/platform-admin/region-configs", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = createRegionConfigSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const existing = await storage.getRegionConfigByCode(parsed.data.countryCode);
+      if (existing) {
+        return res.status(409).json({ message: "Region with this country code already exists" });
+      }
+
+      const config = await storage.createRegionConfig(parsed.data as any);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "region_config",
+        resourceId: config.id,
+        metadata: { countryCode: config.countryCode, countryName: config.countryName },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.status(201).json(config);
+    } catch (error) {
+      console.error("Create region config error:", error);
+      res.status(500).json({ message: "Failed to create region config" });
+    }
+  });
+
+  // Update region config
+  app.patch("/api/platform-admin/region-configs/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const parsed = createRegionConfigSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const existing = await storage.getRegionConfig(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Region config not found" });
+      }
+
+      if (parsed.data.countryCode && parsed.data.countryCode !== existing.countryCode) {
+        const existingWithCode = await storage.getRegionConfigByCode(parsed.data.countryCode);
+        if (existingWithCode) {
+          return res.status(409).json({ message: "Region with this country code already exists" });
+        }
+      }
+
+      const config = await storage.updateRegionConfig(req.params.id, parsed.data as any);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "region_config",
+        resourceId: req.params.id,
+        metadata: { updatedFields: Object.keys(parsed.data) },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(config);
+    } catch (error) {
+      console.error("Update region config error:", error);
+      res.status(500).json({ message: "Failed to update region config" });
+    }
+  });
+
+  // Toggle region status
+  app.patch("/api/platform-admin/region-configs/:id/status", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!["enabled", "disabled"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status. Must be 'enabled' or 'disabled'" });
+      }
+
+      const existing = await storage.getRegionConfig(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Region config not found" });
+      }
+
+      const config = await storage.toggleRegionStatus(req.params.id, status);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "region_config",
+        resourceId: req.params.id,
+        metadata: { action: "status_toggle", newStatus: status, countryCode: existing.countryCode },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json(config);
+    } catch (error) {
+      console.error("Toggle region status error:", error);
+      res.status(500).json({ message: "Failed to toggle region status" });
+    }
+  });
+
+  // Delete region config
+  app.delete("/api/platform-admin/region-configs/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const existing = await storage.getRegionConfig(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Region config not found" });
+      }
+
+      await storage.deleteRegionConfig(req.params.id);
+
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "delete",
+        resource: "region_config",
+        resourceId: req.params.id,
+        metadata: { countryCode: existing.countryCode, countryName: existing.countryName },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ message: "Region config deleted successfully" });
+    } catch (error) {
+      console.error("Delete region config error:", error);
+      res.status(500).json({ message: "Failed to delete region config" });
+    }
+  });
+
   // ==================== GLOBAL TENANT REGISTRY ====================
 
   // List all tenants with filtering
