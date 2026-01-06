@@ -52,6 +52,8 @@ import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
 import AiPermissions from "@/pages/ai-permissions";
 import AdminLogin from "@/pages/admin-login";
+import ManagerDashboard from "@/pages/manager/dashboard";
+import SupportDashboard from "@/pages/support/dashboard";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -236,13 +238,45 @@ function PlatformAdminRoutes() {
   );
 }
 
+function ManagerRoutes() {
+  return (
+    <Switch>
+      <Route path="/manager" component={ManagerDashboard} />
+      <Route path="/manager/tenants" component={AdminTenants} />
+      <Route path="/manager/operations" component={ManagerDashboard} />
+      <Route path="/manager/reports" component={ManagerDashboard} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function SupportTeamRoutes() {
+  return (
+    <Switch>
+      <Route path="/support" component={SupportDashboard} />
+      <Route path="/support/tickets" component={SupportDashboard} />
+      <Route path="/support/issues" component={SupportDashboard} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
 function AdminRoutes() {
   const [location] = useLocation();
   const isSuperAdminPath = location.startsWith("/super-admin");
+  const isManagerPath = location.startsWith("/manager");
+  const isSupportPath = location.startsWith("/support");
+
+  const getRoutes = () => {
+    if (isSuperAdminPath) return <SuperAdminRoutes />;
+    if (isManagerPath) return <ManagerRoutes />;
+    if (isSupportPath) return <SupportTeamRoutes />;
+    return <PlatformAdminRoutes />;
+  };
 
   return (
     <AdminLayout>
-      {isSuperAdminPath ? <SuperAdminRoutes /> : <PlatformAdminRoutes />}
+      {getRoutes()}
     </AdminLayout>
   );
 }
@@ -251,7 +285,7 @@ function AppRouter() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin");
+  const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin") || location.startsWith("/manager") || location.startsWith("/support");
   const isAdminLoginPath = location === "/admin-login";
 
   if (isAdminLoginPath) {

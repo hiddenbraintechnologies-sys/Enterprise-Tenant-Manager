@@ -61,11 +61,12 @@ interface PlatformAdmin {
   id: string;
   name: string;
   email: string;
-  role: "SUPER_ADMIN" | "PLATFORM_ADMIN";
+  role: "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   permissions?: string[];
+  countryAssignments?: string[];
 }
 
 interface CreateAdminFormProps {
@@ -224,26 +225,35 @@ function ManagePermissionsDialog({ admin, open, onOpenChange }: ManagePermission
   );
 }
 
+type AdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
+
 function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
   const { toast } = useToast();
   const [name, setName] = useState(admin?.name || "");
-  const [role, setRole] = useState<"SUPER_ADMIN" | "PLATFORM_ADMIN">(admin?.role || "PLATFORM_ADMIN");
+  const [role, setRole] = useState<AdminRole>(admin?.role || "PLATFORM_ADMIN");
+  const [countryAssignments, setCountryAssignments] = useState<string[]>(admin?.countryAssignments || []);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isActive, setIsActive] = useState(admin?.isActive ?? true);
+
+  // Fetch available regions
+  const { data: regionsData } = useQuery<{ id: string; countryCode: string; countryName: string }[]>({
+    queryKey: ["/api/region-configs"],
+  });
 
   // Reset form when admin changes
   useEffect(() => {
     if (admin) {
       setName(admin.name);
       setRole(admin.role);
+      setCountryAssignments(admin.countryAssignments || []);
       setIsActive(admin.isActive);
       setNewPassword("");
     }
   }, [admin]);
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { name?: string; role?: string; password?: string; isActive?: boolean }) => {
+    mutationFn: async (data: { name?: string; role?: string; password?: string; isActive?: boolean; countryAssignments?: string[] }) => {
       return apiRequest("PATCH", `/api/platform-admin/admins/${admin?.id}`, data);
     },
     onSuccess: () => {
@@ -263,11 +273,16 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const updates: { name?: string; role?: string; password?: string; isActive?: boolean } = {};
+    const updates: { name?: string; role?: string; password?: string; isActive?: boolean; countryAssignments?: string[] } = {};
     
     if (name !== admin?.name) updates.name = name;
     if (role !== admin?.role) updates.role = role;
     if (isActive !== admin?.isActive) updates.isActive = isActive;
+    
+    // Include country assignments for MANAGER and SUPPORT_TEAM roles
+    if (role === "MANAGER" || role === "SUPPORT_TEAM") {
+      updates.countryAssignments = countryAssignments;
+    }
     if (newPassword) {
       if (newPassword.length < 8) {
         toast({ title: "Password must be at least 8 characters", variant: "destructive" });
@@ -324,16 +339,52 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
 
           <div className="space-y-2">
             <Label htmlFor="edit-role">Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+            <Select value={role} onValueChange={(v) => setRole(v as AdminRole)}>
               <SelectTrigger data-testid="select-edit-admin-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
                 <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+                <SelectItem value="MANAGER">Manager</SelectItem>
+                <SelectItem value="SUPPORT_TEAM">Support Team</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {role === "SUPER_ADMIN" && "Full access to all features"}
+              {role === "PLATFORM_ADMIN" && "Access based on assigned permissions"}
+              {role === "MANAGER" && "Operations access for assigned regions"}
+              {role === "SUPPORT_TEAM" && "Support tickets for assigned regions"}
+            </p>
           </div>
+
+          {(role === "MANAGER" || role === "SUPPORT_TEAM") && (
+            <div className="space-y-2">
+              <Label>Assigned Regions</Label>
+              <div className="flex flex-wrap gap-2 min-h-9 p-2 border rounded-md">
+                {regionsData?.map((region) => (
+                  <Badge
+                    key={region.countryCode}
+                    variant={countryAssignments.includes(region.countryCode) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      if (countryAssignments.includes(region.countryCode)) {
+                        setCountryAssignments(countryAssignments.filter(c => c !== region.countryCode));
+                      } else {
+                        setCountryAssignments([...countryAssignments, region.countryCode]);
+                      }
+                    }}
+                    data-testid={`badge-region-${region.countryCode}`}
+                  >
+                    {region.countryCode}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Click to toggle region access. {countryAssignments.length} region{countryAssignments.length !== 1 ? "s" : ""} selected.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="edit-password">New Password (optional)</Label>
@@ -413,9 +464,15 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<"SUPER_ADMIN" | "PLATFORM_ADMIN">("PLATFORM_ADMIN");
+  const [role, setRole] = useState<AdminRole>("PLATFORM_ADMIN");
+  const [countryAssignments, setCountryAssignments] = useState<string[]>([]);
   const [forcePasswordReset, setForcePasswordReset] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Fetch available regions
+  const { data: regionsData } = useQuery<{ id: string; countryCode: string; countryName: string }[]>({
+    queryKey: ["/api/region-configs"],
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data: {
@@ -424,6 +481,7 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
       password: string;
       role: string;
       forcePasswordReset: boolean;
+      countryAssignments?: string[];
     }) => {
       return apiRequest("POST", "/api/platform-admin/admins", data);
     },
@@ -481,13 +539,27 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
       return;
     }
     
-    createMutation.mutate({
+    const data: {
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      forcePasswordReset: boolean;
+      countryAssignments?: string[];
+    } = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password,
       role,
       forcePasswordReset,
-    });
+    };
+    
+    // Include country assignments for MANAGER and SUPPORT_TEAM roles
+    if (role === "MANAGER" || role === "SUPPORT_TEAM") {
+      data.countryAssignments = countryAssignments;
+    }
+    
+    createMutation.mutate(data);
   };
 
   return (
@@ -549,16 +621,52 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="admin-role">Role</Label>
-        <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+        <Select value={role} onValueChange={(v) => setRole(v as AdminRole)}>
           <SelectTrigger data-testid="select-admin-role">
             <SelectValue placeholder="Select role" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
             <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+            <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+            <SelectItem value="MANAGER">Manager</SelectItem>
+            <SelectItem value="SUPPORT_TEAM">Support Team</SelectItem>
           </SelectContent>
         </Select>
+        <p className="text-xs text-muted-foreground">
+          {role === "SUPER_ADMIN" && "Full access to all features"}
+          {role === "PLATFORM_ADMIN" && "Access based on assigned permissions"}
+          {role === "MANAGER" && "Operations access for assigned regions"}
+          {role === "SUPPORT_TEAM" && "Support tickets for assigned regions"}
+        </p>
       </div>
+
+      {(role === "MANAGER" || role === "SUPPORT_TEAM") && (
+        <div className="space-y-2">
+          <Label>Assigned Regions</Label>
+          <div className="flex flex-wrap gap-2 min-h-9 p-2 border rounded-md">
+            {regionsData?.map((region) => (
+              <Badge
+                key={region.countryCode}
+                variant={countryAssignments.includes(region.countryCode) ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => {
+                  if (countryAssignments.includes(region.countryCode)) {
+                    setCountryAssignments(countryAssignments.filter(c => c !== region.countryCode));
+                  } else {
+                    setCountryAssignments([...countryAssignments, region.countryCode]);
+                  }
+                }}
+                data-testid={`badge-create-region-${region.countryCode}`}
+              >
+                {region.countryCode}
+              </Badge>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Click to toggle region access. {countryAssignments.length} region{countryAssignments.length !== 1 ? "s" : ""} selected.
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-2">
         <div className="space-y-0.5">
@@ -752,9 +860,17 @@ function PlatformAdminsContent() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={admin.role === "SUPER_ADMIN" ? "default" : "secondary"}>
-                        {admin.role === "SUPER_ADMIN" ? "Super Admin" : "Platform Admin"}
+                      <Badge variant={admin.role === "SUPER_ADMIN" ? "default" : admin.role === "PLATFORM_ADMIN" ? "secondary" : "outline"}>
+                        {admin.role === "SUPER_ADMIN" && "Super Admin"}
+                        {admin.role === "PLATFORM_ADMIN" && "Platform Admin"}
+                        {admin.role === "MANAGER" && "Manager"}
+                        {admin.role === "SUPPORT_TEAM" && "Support Team"}
                       </Badge>
+                      {(admin.role === "MANAGER" || admin.role === "SUPPORT_TEAM") && admin.countryAssignments && admin.countryAssignments.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {admin.countryAssignments.length} region{admin.countryAssignments.length !== 1 ? "s" : ""}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell>
                       {admin.isActive ? (

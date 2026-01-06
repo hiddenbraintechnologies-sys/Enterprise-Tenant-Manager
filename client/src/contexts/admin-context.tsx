@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 
-type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN";
+type PlatformAdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "MANAGER" | "SUPPORT_TEAM";
 
 interface PlatformAdmin {
   id: string;
@@ -16,11 +16,15 @@ interface PlatformAdmin {
 interface AdminContextType {
   admin: PlatformAdmin | null;
   permissions: string[];
+  countryAssignments: string[];
   isLoading: boolean;
   isSuperAdmin: boolean;
   isPlatformAdmin: boolean;
+  isManager: boolean;
+  isSupportTeam: boolean;
   hasPermission: (permission: string) => boolean;
   hasAnyPermission: (permissions: string[]) => boolean;
+  hasCountryAccess: (countryCode: string) => boolean;
 }
 
 const AdminContext = createContext<AdminContextType | null>(null);
@@ -39,6 +43,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const { data, isLoading, error } = useQuery<{
     platformAdmin: PlatformAdmin;
     permissions: string[];
+    countryAssignments: string[];
   }>({
     queryKey: ["/api/platform-admin/me"],
     retry: false,
@@ -47,8 +52,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   const admin = data?.platformAdmin || null;
   const permissions = data?.permissions || [];
+  const countryAssignments = data?.countryAssignments || [];
   const isSuperAdmin = admin?.role === "SUPER_ADMIN";
   const isPlatformAdmin = admin?.role === "PLATFORM_ADMIN";
+  const isManager = admin?.role === "MANAGER";
+  const isSupportTeam = admin?.role === "SUPPORT_TEAM";
 
   const hasPermission = (permission: string): boolean => {
     if (isSuperAdmin) return true;
@@ -58,6 +66,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const hasAnyPermission = (perms: string[]): boolean => {
     if (isSuperAdmin) return true;
     return perms.some(p => permissions.includes(p));
+  };
+
+  const hasCountryAccess = (countryCode: string): boolean => {
+    // Super Admin and Platform Admin have access to all countries
+    if (isSuperAdmin || isPlatformAdmin) return true;
+    // Manager and Support Team need country assignments
+    return countryAssignments.includes(countryCode);
   };
 
   useEffect(() => {
@@ -71,11 +86,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       value={{
         admin,
         permissions,
+        countryAssignments,
         isLoading,
         isSuperAdmin,
         isPlatformAdmin,
+        isManager,
+        isSupportTeam,
         hasPermission,
         hasAnyPermission,
+        hasCountryAccess,
       }}
     >
       {children}

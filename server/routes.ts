@@ -981,9 +981,15 @@ export async function registerRoutes(
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      const countryAssignments = adminId 
+        ? await storage.getAdminCountryAssignments(adminId) 
+        : [];
+      
       res.json({
         platformAdmin: req.platformAdminContext?.platformAdmin,
         permissions: req.platformAdminContext?.permissions,
+        countryAssignments: countryAssignments.map(a => a.countryCode),
       });
     } catch (error) {
       console.error("Get platform admin me error:", error);
@@ -999,9 +1005,10 @@ export async function registerRoutes(
       .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
-    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN"]).optional(),
+    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"]).optional(),
     forcePasswordReset: z.boolean().optional().default(true),
     permissions: z.array(z.string()).optional(),
+    countryAssignments: z.array(z.string()).optional(),
   });
 
   app.post("/api/platform-admin/admins", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
@@ -1014,7 +1021,7 @@ export async function registerRoutes(
         });
       }
 
-      const { name, email, password, role, forcePasswordReset, permissions } = parsed.data;
+      const { name, email, password, role, forcePasswordReset, permissions, countryAssignments } = parsed.data;
 
       const existingAdmin = await storage.getPlatformAdminByEmail(email);
       if (existingAdmin) {
@@ -1058,6 +1065,18 @@ export async function registerRoutes(
         }
       }
 
+      // Assign country restrictions for MANAGER and SUPPORT_TEAM roles
+      let assignedCountries: string[] = [];
+      if (countryAssignments && countryAssignments.length > 0 && 
+          ["MANAGER", "SUPPORT_TEAM"].includes(role || "PLATFORM_ADMIN")) {
+        const assignments = await storage.setAdminCountries(
+          admin.id, 
+          countryAssignments, 
+          req.platformAdminContext?.platformAdmin.id
+        );
+        assignedCountries = assignments.map(a => a.countryCode);
+      }
+
       auditService.logAsync({
         tenantId: undefined,
         userId: req.platformAdminContext?.platformAdmin.id,
@@ -1069,6 +1088,7 @@ export async function registerRoutes(
           role: admin.role,
           forcePasswordReset: admin.forcePasswordReset,
           assignedPermissions,
+          assignedCountries,
         },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
@@ -1082,6 +1102,7 @@ export async function registerRoutes(
         isActive: admin.isActive,
         forcePasswordReset: admin.forcePasswordReset,
         permissions: assignedPermissions,
+        countryAssignments: assignedCountries,
         createdAt: admin.createdAt,
       });
     } catch (error) {
@@ -1129,6 +1150,7 @@ export async function registerRoutes(
       }
 
       const permissions = await storage.getAdminPermissions(admin.id);
+      const countryAssignments = await storage.getAdminCountryAssignments(admin.id);
 
       res.json({
         id: admin.id,
@@ -1138,6 +1160,7 @@ export async function registerRoutes(
         isActive: admin.isActive,
         forcePasswordReset: admin.forcePasswordReset,
         permissions,
+        countryAssignments: countryAssignments.map(a => a.countryCode),
         lastLoginAt: admin.lastLoginAt,
         createdAt: admin.createdAt,
         createdBy: admin.createdBy,
@@ -1157,9 +1180,10 @@ export async function registerRoutes(
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number")
       .optional(),
-    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN"]).optional(),
+    role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"]).optional(),
     isActive: z.boolean().optional(),
     forcePasswordReset: z.boolean().optional(),
+    countryAssignments: z.array(z.string()).optional(),
   });
 
   app.patch("/api/platform-admin/admins/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
@@ -1177,7 +1201,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Admin not found" });
       }
 
-      const { name, email, password, role, isActive, forcePasswordReset } = parsed.data;
+      const { name, email, password, role, isActive, forcePasswordReset, countryAssignments } = parsed.data;
 
       if (email && email !== existingAdmin.email) {
         const existingWithEmail = await storage.getPlatformAdminByEmail(email);
@@ -1196,16 +1220,39 @@ export async function registerRoutes(
 
       const admin = await storage.updatePlatformAdmin(req.params.id, updateData);
 
+      // Update country assignments if provided
+      let updatedCountries: string[] = [];
+      if (countryAssignments !== undefined) {
+        const finalRole = role || existingAdmin.role;
+        if (["MANAGER", "SUPPORT_TEAM"].includes(finalRole)) {
+          const assignments = await storage.setAdminCountries(
+            req.params.id,
+            countryAssignments,
+            req.platformAdminContext?.platformAdmin.id
+          );
+          updatedCountries = assignments.map(a => a.countryCode);
+        } else if (finalRole === "SUPER_ADMIN" || finalRole === "PLATFORM_ADMIN") {
+          // Clear country assignments for SUPER_ADMIN and PLATFORM_ADMIN (they have full access)
+          await storage.setAdminCountries(req.params.id, [], req.platformAdminContext?.platformAdmin.id);
+        }
+      }
+
       auditService.logAsync({
         tenantId: undefined,
         userId: req.platformAdminContext?.platformAdmin.id,
         action: "update",
         resource: "platform_admin",
         resourceId: req.params.id,
-        metadata: { updatedFields: Object.keys(updateData) },
+        metadata: { 
+          updatedFields: Object.keys(updateData),
+          countryAssignments: countryAssignments !== undefined ? updatedCountries : undefined,
+        },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       });
+
+      // Get current country assignments for response
+      const currentAssignments = await storage.getAdminCountryAssignments(req.params.id);
 
       res.json({
         id: admin?.id,
@@ -1214,6 +1261,7 @@ export async function registerRoutes(
         role: admin?.role,
         isActive: admin?.isActive,
         forcePasswordReset: admin?.forcePasswordReset,
+        countryAssignments: currentAssignments.map(a => a.countryCode),
       });
     } catch (error) {
       console.error("Update platform admin error:", error);
@@ -2646,21 +2694,32 @@ export async function registerRoutes(
     try {
       const permissions = req.platformAdminContext?.permissions || [];
       const isSuperAdmin = req.platformAdminContext?.platformAdmin.role === "SUPER_ADMIN";
+      const role = req.platformAdminContext?.platformAdmin.role;
+      
+      // Get country assignments for MANAGER and SUPPORT_TEAM roles
+      let countryFilter: string[] | undefined;
+      if (role === "MANAGER" || role === "SUPPORT_TEAM") {
+        const adminId = req.platformAdminContext?.platformAdmin.id;
+        if (adminId) {
+          const assignments = await storage.getAdminCountryAssignments(adminId);
+          countryFilter = assignments.map(a => a.countryCode);
+        }
+      }
       
       const overview: any = {};
       
       if (isSuperAdmin || permissions.includes("read_tenants")) {
-        overview.tenantStats = await storage.getTenantStats();
+        overview.tenantStats = await storage.getTenantStats(countryFilter);
       }
       if (isSuperAdmin || permissions.includes("read_users")) {
-        overview.userStats = await storage.getUserStats();
+        overview.userStats = await storage.getUserStats(countryFilter);
       }
       if (isSuperAdmin || permissions.includes("view_logs")) {
-        overview.errorStats = await storage.getErrorLogStats();
-        overview.ticketStats = await storage.getSupportTicketStats();
+        overview.errorStats = await storage.getErrorLogStats(countryFilter);
+        overview.ticketStats = await storage.getSupportTicketStats(countryFilter);
       }
       if (isSuperAdmin || permissions.includes("view_analytics")) {
-        overview.usageStats = await storage.getAggregatedUsageMetrics();
+        overview.usageStats = await storage.getAggregatedUsageMetrics(countryFilter);
       }
 
       auditService.logAsync({
@@ -2668,7 +2727,7 @@ export async function registerRoutes(
         userId: req.platformAdminContext?.platformAdmin.id,
         action: "access",
         resource: "platform_dashboard",
-        metadata: { section: "overview" },
+        metadata: { section: "overview", countryFilter },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       });
@@ -2677,6 +2736,62 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get dashboard overview error:", error);
       res.status(500).json({ message: "Failed to get dashboard overview" });
+    }
+  });
+
+  // Manager Dashboard - Operations focused, country-scoped
+  app.get("/api/platform-admin/manager/dashboard", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const role = req.platformAdminContext?.platformAdmin.role;
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      
+      // Get country assignments
+      let assignedCountries: string[] = [];
+      if (adminId && (role === "MANAGER" || role === "SUPPORT_TEAM")) {
+        const assignments = await storage.getAdminCountryAssignments(adminId);
+        assignedCountries = assignments.map(a => a.countryCode);
+      }
+      
+      // Get country-filtered stats
+      const tenantStats = await storage.getTenantStats(assignedCountries.length > 0 ? assignedCountries : undefined);
+      const ticketStats = await storage.getSupportTicketStats(assignedCountries.length > 0 ? assignedCountries : undefined);
+      
+      res.json({
+        assignedCountries,
+        tenantStats,
+        ticketStats,
+        role,
+      });
+    } catch (error) {
+      console.error("Get manager dashboard error:", error);
+      res.status(500).json({ message: "Failed to get manager dashboard" });
+    }
+  });
+
+  // Support Team Dashboard - Tickets focused, country-scoped
+  app.get("/api/platform-admin/support/dashboard", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const role = req.platformAdminContext?.platformAdmin.role;
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      
+      // Get country assignments
+      let assignedCountries: string[] = [];
+      if (adminId && (role === "MANAGER" || role === "SUPPORT_TEAM")) {
+        const assignments = await storage.getAdminCountryAssignments(adminId);
+        assignedCountries = assignments.map(a => a.countryCode);
+      }
+      
+      // Get country-filtered ticket stats
+      const ticketStats = await storage.getSupportTicketStats(assignedCountries.length > 0 ? assignedCountries : undefined);
+      
+      res.json({
+        assignedCountries,
+        ticketStats,
+        role,
+      });
+    } catch (error) {
+      console.error("Get support dashboard error:", error);
+      res.status(500).json({ message: "Failed to get support dashboard" });
     }
   });
 

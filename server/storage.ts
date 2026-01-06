@@ -218,7 +218,7 @@ export interface IStorage {
 
   // Platform Dashboard - Tenant Overview (read-only)
   getAllTenants(): Promise<Tenant[]>;
-  getTenantStats(): Promise<{
+  getTenantStats(countryFilter?: string[]): Promise<{
     totalTenants: number;
     activeTenants: number;
     tenantsByBusinessType: { type: string; count: number }[];
@@ -226,7 +226,7 @@ export interface IStorage {
   }>;
 
   // Platform Dashboard - User Statistics
-  getUserStats(): Promise<{
+  getUserStats(countryFilter?: string[]): Promise<{
     totalUsers: number;
     activeUsers: number;
     usersByTenant: { tenantId: string; tenantName: string; count: number }[];
@@ -234,7 +234,7 @@ export interface IStorage {
 
   // Platform Dashboard - Error Logs
   getErrorLogs(options?: { tenantId?: string; severity?: string; limit?: number; offset?: number }): Promise<ErrorLog[]>;
-  getErrorLogStats(): Promise<{
+  getErrorLogStats(countryFilter?: string[]): Promise<{
     totalErrors: number;
     unresolvedErrors: number;
     errorsBySeverity: { severity: string; count: number }[];
@@ -246,7 +246,7 @@ export interface IStorage {
   // Platform Dashboard - Support Tickets
   getSupportTickets(options?: { tenantId?: string; status?: string; limit?: number; offset?: number }): Promise<SupportTicket[]>;
   getSupportTicket(id: string): Promise<SupportTicket | undefined>;
-  getSupportTicketStats(): Promise<{
+  getSupportTicketStats(countryFilter?: string[]): Promise<{
     totalTickets: number;
     openTickets: number;
     ticketsByStatus: { status: string; count: number }[];
@@ -259,7 +259,7 @@ export interface IStorage {
 
   // Platform Dashboard - Usage Metrics
   getUsageMetrics(tenantId: string, metricType?: string, startDate?: Date, endDate?: Date): Promise<UsageMetric[]>;
-  getAggregatedUsageMetrics(): Promise<{
+  getAggregatedUsageMetrics(countryFilter?: string[]): Promise<{
     totalApiCalls: number;
     totalStorageUsed: number;
     totalActiveUsers: number;
@@ -1077,13 +1077,19 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(tenants).orderBy(desc(tenants.createdAt));
   }
 
-  async getTenantStats(): Promise<{
+  async getTenantStats(countryFilter?: string[]): Promise<{
     totalTenants: number;
     activeTenants: number;
     tenantsByBusinessType: { type: string; count: number }[];
     tenantsByTier: { tier: string; count: number }[];
   }> {
-    const allTenants = await db.select().from(tenants);
+    let allTenants = await db.select().from(tenants);
+    
+    // Filter by country if specified
+    if (countryFilter && countryFilter.length > 0) {
+      allTenants = allTenants.filter(t => t.countryCode && countryFilter.includes(t.countryCode));
+    }
+    
     const totalTenants = allTenants.length;
     const activeTenants = allTenants.filter(t => t.isActive).length;
 
@@ -1107,18 +1113,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Platform Dashboard - User Statistics
-  async getUserStats(): Promise<{
+  async getUserStats(countryFilter?: string[]): Promise<{
     totalUsers: number;
     activeUsers: number;
     usersByTenant: { tenantId: string; tenantName: string; count: number }[];
   }> {
-    const allUserTenants = await db.select({
+    let allUserTenants = await db.select({
       tenantId: userTenants.tenantId,
       tenantName: tenants.name,
+      countryCode: tenants.countryCode,
       isActive: userTenants.isActive,
     })
       .from(userTenants)
       .leftJoin(tenants, eq(userTenants.tenantId, tenants.id));
+
+    // Filter by country if specified
+    if (countryFilter && countryFilter.length > 0) {
+      allUserTenants = allUserTenants.filter(ut => ut.countryCode && countryFilter.includes(ut.countryCode));
+    }
 
     const totalUsers = allUserTenants.length;
     const activeUsers = allUserTenants.filter(ut => ut.isActive).length;
@@ -1174,13 +1186,28 @@ export class DatabaseStorage implements IStorage {
     return query;
   }
 
-  async getErrorLogStats(): Promise<{
+  async getErrorLogStats(countryFilter?: string[]): Promise<{
     totalErrors: number;
     unresolvedErrors: number;
     errorsBySeverity: { severity: string; count: number }[];
     errorsBySource: { source: string; count: number }[];
   }> {
-    const allErrors = await db.select().from(errorLogs);
+    let allErrors = await db.select({
+      id: errorLogs.id,
+      severity: errorLogs.severity,
+      source: errorLogs.source,
+      isResolved: errorLogs.isResolved,
+      tenantId: errorLogs.tenantId,
+      countryCode: tenants.countryCode,
+    })
+      .from(errorLogs)
+      .leftJoin(tenants, eq(errorLogs.tenantId, tenants.id));
+
+    // Filter by country if specified
+    if (countryFilter && countryFilter.length > 0) {
+      allErrors = allErrors.filter(e => e.countryCode && countryFilter.includes(e.countryCode));
+    }
+
     const totalErrors = allErrors.length;
     const unresolvedErrors = allErrors.filter(e => !e.isResolved).length;
 
@@ -1249,13 +1276,27 @@ export class DatabaseStorage implements IStorage {
     return ticket;
   }
 
-  async getSupportTicketStats(): Promise<{
+  async getSupportTicketStats(countryFilter?: string[]): Promise<{
     totalTickets: number;
     openTickets: number;
     ticketsByStatus: { status: string; count: number }[];
     ticketsByPriority: { priority: string; count: number }[];
   }> {
-    const allTickets = await db.select().from(supportTickets);
+    let allTickets = await db.select({
+      id: supportTickets.id,
+      status: supportTickets.status,
+      priority: supportTickets.priority,
+      tenantId: supportTickets.tenantId,
+      countryCode: tenants.countryCode,
+    })
+      .from(supportTickets)
+      .leftJoin(tenants, eq(supportTickets.tenantId, tenants.id));
+
+    // Filter by country if specified
+    if (countryFilter && countryFilter.length > 0) {
+      allTickets = allTickets.filter(t => t.countryCode && countryFilter.includes(t.countryCode));
+    }
+
     const totalTickets = allTickets.length;
     const openTickets = allTickets.filter(t => t.status === "open" || t.status === "in_progress").length;
 
@@ -1323,13 +1364,25 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(usageMetrics.periodStart));
   }
 
-  async getAggregatedUsageMetrics(): Promise<{
+  async getAggregatedUsageMetrics(countryFilter?: string[]): Promise<{
     totalApiCalls: number;
     totalStorageUsed: number;
     totalActiveUsers: number;
     metricsByType: { type: string; total: number }[];
   }> {
-    const allMetrics = await db.select().from(usageMetrics);
+    let allMetrics = await db.select({
+      metricType: usageMetrics.metricType,
+      metricValue: usageMetrics.metricValue,
+      tenantId: usageMetrics.tenantId,
+      countryCode: tenants.countryCode,
+    })
+      .from(usageMetrics)
+      .leftJoin(tenants, eq(usageMetrics.tenantId, tenants.id));
+
+    // Filter by country if specified
+    if (countryFilter && countryFilter.length > 0) {
+      allMetrics = allMetrics.filter(m => m.countryCode && countryFilter.includes(m.countryCode));
+    }
     
     let totalApiCalls = 0;
     let totalStorageUsed = 0;

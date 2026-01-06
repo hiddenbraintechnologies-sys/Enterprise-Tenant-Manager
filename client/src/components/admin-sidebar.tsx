@@ -34,6 +34,8 @@ import {
   Calculator,
   FileEdit,
   Globe,
+  Headphones,
+  ClipboardList,
 } from "lucide-react";
 
 interface MenuItem {
@@ -176,11 +178,74 @@ const platformAdminMenuItems: MenuItem[] = [
   },
 ];
 
+const managerMenuItems: MenuItem[] = [
+  {
+    title: "Dashboard",
+    url: "/manager",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Tenants",
+    url: "/manager/tenants",
+    icon: Building2,
+  },
+  {
+    title: "Operations",
+    url: "/manager/operations",
+    icon: ClipboardList,
+  },
+  {
+    title: "Reports",
+    url: "/manager/reports",
+    icon: BarChart3,
+  },
+];
+
+const supportTeamMenuItems: MenuItem[] = [
+  {
+    title: "Dashboard",
+    url: "/support",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Tickets",
+    url: "/support/tickets",
+    icon: Ticket,
+  },
+  {
+    title: "User Issues",
+    url: "/support/issues",
+    icon: Headphones,
+  },
+];
+
 export function AdminSidebar() {
   const [location] = useLocation();
-  const { admin, isSuperAdmin, hasPermission } = useAdmin();
+  const { admin, isSuperAdmin, isPlatformAdmin, isManager, isSupportTeam, hasPermission, countryAssignments } = useAdmin();
 
-  const menuItems = isSuperAdmin ? superAdminMenuItems : platformAdminMenuItems;
+  const getMenuItems = () => {
+    if (isSuperAdmin) return superAdminMenuItems;
+    if (isPlatformAdmin) return platformAdminMenuItems;
+    if (isManager) return managerMenuItems;
+    if (isSupportTeam) return supportTeamMenuItems;
+    return platformAdminMenuItems;
+  };
+
+  const menuItems = getMenuItems();
+
+  const getRoleLabel = () => {
+    if (isSuperAdmin) return "Super Admin";
+    if (isPlatformAdmin) return "Platform Admin";
+    if (isManager) return "Manager";
+    if (isSupportTeam) return "Support Team";
+    return "Admin";
+  };
+
+  const getRoleBadgeVariant = () => {
+    if (isSuperAdmin) return "default";
+    if (isPlatformAdmin) return "secondary";
+    return "outline";
+  };
 
   const hasAnyPermission = (perms: string[]): boolean => {
     if (isSuperAdmin) return true;
@@ -210,23 +275,32 @@ export function AdminSidebar() {
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary">
             {isSuperAdmin ? (
               <Crown className="h-5 w-5 text-primary-foreground" />
+            ) : isManager ? (
+              <ClipboardList className="h-5 w-5 text-primary-foreground" />
+            ) : isSupportTeam ? (
+              <Headphones className="h-5 w-5 text-primary-foreground" />
             ) : (
               <Shield className="h-5 w-5 text-primary-foreground" />
             )}
           </div>
           <div className="flex flex-col">
             <span className="font-semibold text-foreground">BizFlow Admin</span>
-            <Badge variant={isSuperAdmin ? "default" : "secondary"} className="text-xs w-fit">
-              {isSuperAdmin ? "Super Admin" : "Platform Admin"}
+            <Badge variant={getRoleBadgeVariant() as "default" | "secondary" | "outline"} className="text-xs w-fit">
+              {getRoleLabel()}
             </Badge>
           </div>
         </div>
+        {(isManager || isSupportTeam) && countryAssignments.length > 0 && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            {countryAssignments.length} region{countryAssignments.length > 1 ? "s" : ""} assigned
+          </div>
+        )}
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>
-            {isSuperAdmin ? "Super Admin" : "Platform Admin"}
+            {getRoleLabel()}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
