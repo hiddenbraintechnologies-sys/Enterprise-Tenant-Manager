@@ -15,6 +15,7 @@ import {
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs,
   dsarRequests, gstConfigurations, ukVatConfigurations,
   adminAccountLockouts, adminLoginAttempts, platformAdmins,
+  taxRules, taxCalculationLogs, taxReports, insertTaxRuleSchema,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -74,7 +75,7 @@ import businessVersionRoutes from "./routes/business-version";
 import regionLockRoutes from "./routes/region-lock";
 import { regionLockService } from "./services/region-lock";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, gte, lte } from "drizzle-orm";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -4444,6 +4445,543 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating country config:", error);
       res.status(500).json({ message: "Failed to update country config" });
+    }
+  });
+
+  // ==================== TAX CALCULATION AND REPORTING ====================
+
+  // Get all tax rules
+  app.get("/api/platform-admin/tax/rules", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { country, businessType, activeOnly } = req.query;
+      
+      let query = db.select().from(taxRules).orderBy(taxRules.country, taxRules.businessType);
+      let rules = await query;
+      
+      if (country) rules = rules.filter(r => r.country === country);
+      if (businessType) rules = rules.filter(r => r.businessType === businessType);
+      if (activeOnly === "true") rules = rules.filter(r => r.isActive);
+      
+      res.json(rules);
+    } catch (error) {
+      console.error("Error fetching tax rules:", error);
+      res.status(500).json({ message: "Failed to fetch tax rules" });
+    }
+  });
+
+  // Create tax rule
+  app.post("/api/platform-admin/tax/rules", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const data = insertTaxRuleSchema.parse(req.body);
+      
+      const [rule] = await db.insert(taxRules).values(data).returning();
+      res.status(201).json(rule);
+    } catch (error) {
+      console.error("Error creating tax rule:", error);
+      res.status(500).json({ message: "Failed to create tax rule" });
+    }
+  });
+
+  // Update tax rule
+  app.patch("/api/platform-admin/tax/rules/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const [updated] = await db.update(taxRules)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(taxRules.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Tax rule not found" });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating tax rule:", error);
+      res.status(500).json({ message: "Failed to update tax rule" });
+    }
+  });
+
+  // Calculate tax for an amount
+  app.post("/api/platform-admin/tax/calculate", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const { country, businessType, amount, tenantId, invoiceId } = req.body;
+      
+      if (!country || !amount) {
+        return res.status(400).json({ message: "Country and amount are required" });
+      }
+      
+      const baseAmount = parseFloat(amount);
+      if (isNaN(baseAmount)) {
+        return res.status(400).json({ message: "Invalid amount" });
+      }
+      
+      // Find applicable tax rule
+      const now = new Date();
+      const applicableRules = await db.select()
+        .from(taxRules)
+        .where(and(
+          eq(taxRules.country, country),
+          eq(taxRules.isActive, true),
+          lte(taxRules.effectiveFrom, now),
+        ));
+      
+      let rule = applicableRules.find(r => 
+        r.businessType === businessType && 
+        (!r.effectiveTo || new Date(r.effectiveTo) >= now)
+      );
+      
+      // Fallback to country default if no business-specific rule
+      if (!rule) {
+        const [countryConfig] = await db.select().from(countryPricingConfigs).where(eq(countryPricingConfigs.country, country));
+        if (countryConfig) {
+          // Create calculation based on country config
+          const taxRate = parseFloat(countryConfig.taxRate || "0");
+          const taxAmount = baseAmount * (taxRate / 100);
+          const totalAmount = baseAmount + taxAmount;
+          
+          // Log the calculation
+          if (tenantId) {
+            await db.insert(taxCalculationLogs).values({
+              tenantId,
+              invoiceId,
+              country,
+              businessType: businessType || "general",
+              baseAmount: baseAmount.toString(),
+              taxName: countryConfig.taxName || "TAX",
+              taxRate: taxRate.toString(),
+              taxAmount: taxAmount.toString(),
+              currency: countryConfig.currency,
+              calculationDetails: {
+                source: "country_config",
+                configId: countryConfig.id,
+              },
+            });
+          }
+          
+          return res.json({
+            baseAmount,
+            taxName: countryConfig.taxName || "TAX",
+            taxRate,
+            taxAmount: Math.round(taxAmount * 100) / 100,
+            totalAmount: Math.round(totalAmount * 100) / 100,
+            currency: countryConfig.currency,
+            source: "country_config",
+          });
+        }
+      }
+      
+      if (rule) {
+        const taxRate = parseFloat(rule.taxRate || "0");
+        const taxAmount = baseAmount * (taxRate / 100);
+        const totalAmount = baseAmount + taxAmount;
+        
+        // Get currency from country config
+        const [countryConfig] = await db.select().from(countryPricingConfigs).where(eq(countryPricingConfigs.country, country));
+        const currency = countryConfig?.currency || "USD";
+        
+        // Log the calculation
+        if (tenantId) {
+          await db.insert(taxCalculationLogs).values({
+            tenantId,
+            invoiceId,
+            country,
+            businessType: rule.businessType,
+            taxRuleId: rule.id,
+            baseAmount: baseAmount.toString(),
+            taxName: rule.taxName,
+            taxRate: taxRate.toString(),
+            taxAmount: taxAmount.toString(),
+            currency,
+            calculationDetails: {
+              source: "tax_rule",
+              ruleId: rule.id,
+              taxCode: rule.taxCode,
+              taxCategory: rule.taxCategory,
+            },
+          });
+        }
+        
+        return res.json({
+          baseAmount,
+          taxName: rule.taxName,
+          taxRate,
+          taxAmount: Math.round(taxAmount * 100) / 100,
+          totalAmount: Math.round(totalAmount * 100) / 100,
+          currency,
+          taxCode: rule.taxCode,
+          taxCategory: rule.taxCategory,
+          source: "tax_rule",
+          ruleId: rule.id,
+        });
+      }
+      
+      // No rule found, return 0 tax
+      res.json({
+        baseAmount,
+        taxName: "N/A",
+        taxRate: 0,
+        taxAmount: 0,
+        totalAmount: baseAmount,
+        currency: "USD",
+        source: "none",
+      });
+    } catch (error) {
+      console.error("Error calculating tax:", error);
+      res.status(500).json({ message: "Failed to calculate tax" });
+    }
+  });
+
+  // Get tax calculation logs
+  app.get("/api/platform-admin/tax/calculation-logs", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { country, startDate, endDate, limit = "100" } = req.query;
+      
+      let logs = await db.select()
+        .from(taxCalculationLogs)
+        .orderBy(desc(taxCalculationLogs.calculatedAt))
+        .limit(parseInt(limit as string));
+      
+      if (country) logs = logs.filter(l => l.country === country);
+      if (startDate) logs = logs.filter(l => new Date(l.calculatedAt!) >= new Date(startDate as string));
+      if (endDate) logs = logs.filter(l => new Date(l.calculatedAt!) <= new Date(endDate as string));
+      
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching tax calculation logs:", error);
+      res.status(500).json({ message: "Failed to fetch tax calculation logs" });
+    }
+  });
+
+  // Generate tax report
+  app.post("/api/platform-admin/tax/reports/generate", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { reportType, country, periodStart, periodEnd } = req.body;
+      const admin = (req as any).admin;
+      
+      if (!reportType || !periodStart || !periodEnd) {
+        return res.status(400).json({ message: "Report type and period are required" });
+      }
+      
+      const start = new Date(periodStart);
+      const end = new Date(periodEnd);
+      
+      // Aggregate invoice data for the period
+      let invoices = await db.select()
+        .from(subscriptionInvoices)
+        .where(and(
+          gte(subscriptionInvoices.createdAt, start),
+          lte(subscriptionInvoices.createdAt, end),
+        ));
+      
+      if (country) {
+        invoices = invoices.filter(i => i.country === country);
+      }
+      
+      // Calculate totals
+      let totalBaseAmount = 0;
+      let totalTaxCollected = 0;
+      const breakdownByCountry: Record<string, { invoices: number; base: number; tax: number }> = {};
+      const breakdownByTaxType: Record<string, { invoices: number; base: number; tax: number }> = {};
+      
+      for (const inv of invoices) {
+        const subtotal = parseFloat(inv.subtotal || "0");
+        const taxAmount = parseFloat(inv.taxAmount || "0");
+        totalBaseAmount += subtotal;
+        totalTaxCollected += taxAmount;
+        
+        // By country
+        if (!breakdownByCountry[inv.country]) {
+          breakdownByCountry[inv.country] = { invoices: 0, base: 0, tax: 0 };
+        }
+        breakdownByCountry[inv.country].invoices++;
+        breakdownByCountry[inv.country].base += subtotal;
+        breakdownByCountry[inv.country].tax += taxAmount;
+        
+        // By tax type
+        const taxName = inv.taxName || "Unknown";
+        if (!breakdownByTaxType[taxName]) {
+          breakdownByTaxType[taxName] = { invoices: 0, base: 0, tax: 0 };
+        }
+        breakdownByTaxType[taxName].invoices++;
+        breakdownByTaxType[taxName].base += subtotal;
+        breakdownByTaxType[taxName].tax += taxAmount;
+      }
+      
+      // Determine currency (use country config if single country, else USD)
+      let currency: any = "USD";
+      if (country) {
+        const [countryConfig] = await db.select().from(countryPricingConfigs).where(eq(countryPricingConfigs.country, country as any));
+        currency = countryConfig?.currency || "USD";
+      }
+      
+      // Create report
+      const [report] = await db.insert(taxReports).values({
+        reportType,
+        country: country as any,
+        periodStart: start,
+        periodEnd: end,
+        totalInvoices: invoices.length,
+        totalBaseAmount: totalBaseAmount.toString(),
+        totalTaxCollected: totalTaxCollected.toString(),
+        currency,
+        breakdown: {
+          byCountry: breakdownByCountry,
+          byTaxType: breakdownByTaxType,
+        },
+        status: "draft",
+        generatedBy: admin?.id,
+      }).returning();
+      
+      res.status(201).json(report);
+    } catch (error) {
+      console.error("Error generating tax report:", error);
+      res.status(500).json({ message: "Failed to generate tax report" });
+    }
+  });
+
+  // Get tax reports
+  app.get("/api/platform-admin/tax/reports", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { status, country, limit = "50" } = req.query;
+      
+      let reports = await db.select()
+        .from(taxReports)
+        .orderBy(desc(taxReports.generatedAt))
+        .limit(parseInt(limit as string));
+      
+      if (status) reports = reports.filter(r => r.status === status);
+      if (country) reports = reports.filter(r => r.country === country);
+      
+      res.json(reports);
+    } catch (error) {
+      console.error("Error fetching tax reports:", error);
+      res.status(500).json({ message: "Failed to fetch tax reports" });
+    }
+  });
+
+  // Get single tax report
+  app.get("/api/platform-admin/tax/reports/:id", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [report] = await db.select().from(taxReports).where(eq(taxReports.id, id));
+      
+      if (!report) {
+        return res.status(404).json({ message: "Tax report not found" });
+      }
+      
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching tax report:", error);
+      res.status(500).json({ message: "Failed to fetch tax report" });
+    }
+  });
+
+  // Update tax report status (finalize/file)
+  app.patch("/api/platform-admin/tax/reports/:id", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, notes } = req.body;
+      
+      const updateData: any = {};
+      if (status) updateData.status = status;
+      if (notes !== undefined) updateData.notes = notes;
+      if (status === "filed") updateData.filedAt = new Date();
+      
+      const [updated] = await db.update(taxReports)
+        .set(updateData)
+        .where(eq(taxReports.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Tax report not found" });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating tax report:", error);
+      res.status(500).json({ message: "Failed to update tax report" });
+    }
+  });
+
+  // Tax summary statistics
+  app.get("/api/platform-admin/tax/summary", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { period = "month" } = req.query;
+      
+      // Calculate period dates
+      const now = new Date();
+      let periodStart: Date;
+      
+      switch (period) {
+        case "week":
+          periodStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "quarter":
+          periodStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+          break;
+        case "year":
+          periodStart = new Date(now.getFullYear(), 0, 1);
+          break;
+        case "month":
+        default:
+          periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      }
+      
+      // Get invoices for the period
+      const invoices = await db.select()
+        .from(subscriptionInvoices)
+        .where(gte(subscriptionInvoices.createdAt, periodStart));
+      
+      // Calculate summary
+      const summary = {
+        period,
+        periodStart: periodStart.toISOString(),
+        periodEnd: now.toISOString(),
+        totalInvoices: invoices.length,
+        totalBaseAmount: 0,
+        totalTaxCollected: 0,
+        byCountry: {} as Record<string, { invoices: number; base: number; tax: number; currency: string }>,
+        byTaxType: {} as Record<string, { invoices: number; amount: number }>,
+      };
+      
+      for (const inv of invoices) {
+        const subtotal = parseFloat(inv.subtotal || "0");
+        const taxAmount = parseFloat(inv.taxAmount || "0");
+        summary.totalBaseAmount += subtotal;
+        summary.totalTaxCollected += taxAmount;
+        
+        // By country
+        if (!summary.byCountry[inv.country]) {
+          summary.byCountry[inv.country] = { invoices: 0, base: 0, tax: 0, currency: inv.currency };
+        }
+        summary.byCountry[inv.country].invoices++;
+        summary.byCountry[inv.country].base += subtotal;
+        summary.byCountry[inv.country].tax += taxAmount;
+        
+        // By tax type
+        const taxName = inv.taxName || "Unknown";
+        if (!summary.byTaxType[taxName]) {
+          summary.byTaxType[taxName] = { invoices: 0, amount: 0 };
+        }
+        summary.byTaxType[taxName].invoices++;
+        summary.byTaxType[taxName].amount += taxAmount;
+      }
+      
+      // Get active tax rules count
+      const activeRules = await db.select().from(taxRules).where(eq(taxRules.isActive, true));
+      (summary as any).activeTaxRules = activeRules.length;
+      
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching tax summary:", error);
+      res.status(500).json({ message: "Failed to fetch tax summary" });
+    }
+  });
+
+  // Export tax report as CSV
+  app.get("/api/platform-admin/tax/reports/:id/export", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("manage_billing"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { format = "csv" } = req.query;
+      
+      const [report] = await db.select().from(taxReports).where(eq(taxReports.id, id));
+      if (!report) {
+        return res.status(404).json({ message: "Tax report not found" });
+      }
+      
+      const breakdown = report.breakdown as any || {};
+      const currencySymbols: Record<string, string> = {
+        USD: "$", INR: "₹", GBP: "£", AED: "د.إ", MYR: "RM", SGD: "S$"
+      };
+      const symbol = currencySymbols[report.currency] || "$";
+      
+      if (format === "csv") {
+        let csv = "Tax Report\n";
+        csv += `Report Type,${report.reportType}\n`;
+        csv += `Period,${new Date(report.periodStart).toLocaleDateString()} - ${new Date(report.periodEnd).toLocaleDateString()}\n`;
+        csv += `Country,${report.country || "All"}\n`;
+        csv += `Total Invoices,${report.totalInvoices}\n`;
+        csv += `Total Base Amount,${symbol}${report.totalBaseAmount}\n`;
+        csv += `Total Tax Collected,${symbol}${report.totalTaxCollected}\n`;
+        csv += `Status,${report.status}\n\n`;
+        
+        if (breakdown.byCountry && Object.keys(breakdown.byCountry).length > 0) {
+          csv += "Breakdown by Country\n";
+          csv += "Country,Invoices,Base Amount,Tax Amount\n";
+          for (const [country, data] of Object.entries(breakdown.byCountry as Record<string, any>)) {
+            csv += `${country},${data.invoices},${data.base.toFixed(2)},${data.tax.toFixed(2)}\n`;
+          }
+          csv += "\n";
+        }
+        
+        if (breakdown.byTaxType && Object.keys(breakdown.byTaxType).length > 0) {
+          csv += "Breakdown by Tax Type\n";
+          csv += "Tax Type,Invoices,Base Amount,Tax Amount\n";
+          for (const [taxType, data] of Object.entries(breakdown.byTaxType as Record<string, any>)) {
+            csv += `${taxType},${data.invoices},${data.base.toFixed(2)},${data.tax.toFixed(2)}\n`;
+          }
+        }
+        
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename="tax-report-${report.id}.csv"`);
+        return res.send(csv);
+      }
+      
+      res.status(400).json({ message: "Unsupported format" });
+    } catch (error) {
+      console.error("Error exporting tax report:", error);
+      res.status(500).json({ message: "Failed to export tax report" });
+    }
+  });
+
+  // Seed default tax rules if none exist
+  app.post("/api/platform-admin/tax/seed-defaults", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const existingRules = await db.select().from(taxRules).limit(1);
+      if (existingRules.length > 0) {
+        return res.status(400).json({ message: "Tax rules already exist" });
+      }
+      
+      const defaultRules = [
+        // India GST rules
+        { country: "india" as const, businessType: "pg_hostel" as const, taxName: "GST", taxCode: "9963", taxRate: "18.00", description: "GST for accommodation services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "salon" as const, taxName: "GST", taxCode: "9972", taxRate: "18.00", description: "GST for beauty services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "gym" as const, taxName: "GST", taxCode: "9996", taxRate: "18.00", description: "GST for fitness services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "coaching" as const, taxName: "GST", taxCode: "9992", taxRate: "18.00", description: "GST for education services", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "clinic" as const, taxName: "GST", taxCode: "9993", taxRate: "0.00", taxCategory: "exempt" as const, description: "Healthcare services exempt", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "diagnostics" as const, taxName: "GST", taxCode: "9993", taxRate: "0.00", taxCategory: "exempt" as const, description: "Diagnostic services exempt", effectiveFrom: new Date("2017-07-01") },
+        { country: "india" as const, businessType: "general" as const, taxName: "GST", taxCode: "9997", taxRate: "18.00", description: "GST for general services", effectiveFrom: new Date("2017-07-01") },
+        
+        // UK VAT rules
+        { country: "uk" as const, businessType: "pg_hostel" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "salon" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "gym" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "coaching" as const, taxName: "VAT", taxCode: "EXEMPT", taxRate: "0.00", taxCategory: "exempt" as const, description: "Education services exempt", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "clinic" as const, taxName: "VAT", taxCode: "EXEMPT", taxRate: "0.00", taxCategory: "exempt" as const, description: "Healthcare exempt", effectiveFrom: new Date("2011-01-04") },
+        { country: "uk" as const, businessType: "general" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "20.00", description: "Standard VAT rate", effectiveFrom: new Date("2011-01-04") },
+        
+        // UAE VAT rules
+        { country: "uae" as const, businessType: "general" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
+        { country: "uae" as const, businessType: "pg_hostel" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
+        { country: "uae" as const, businessType: "salon" as const, taxName: "VAT", taxCode: "STANDARD", taxRate: "5.00", description: "UAE Standard VAT rate", effectiveFrom: new Date("2018-01-01") },
+        { country: "uae" as const, businessType: "clinic" as const, taxName: "VAT", taxCode: "ZERO", taxRate: "0.00", taxCategory: "zero" as const, description: "Healthcare zero-rated", effectiveFrom: new Date("2018-01-01") },
+        
+        // Malaysia SST rules  
+        { country: "malaysia" as const, businessType: "general" as const, taxName: "SST", taxCode: "SERVICE", taxRate: "6.00", description: "Malaysia Service Tax", effectiveFrom: new Date("2018-09-01") },
+        
+        // Singapore GST rules
+        { country: "singapore" as const, businessType: "general" as const, taxName: "GST", taxCode: "SR", taxRate: "9.00", description: "Singapore GST (2024 rate)", effectiveFrom: new Date("2024-01-01") },
+      ];
+      
+      await db.insert(taxRules).values(defaultRules);
+      
+      res.json({ message: "Default tax rules seeded successfully", count: defaultRules.length });
+    } catch (error) {
+      console.error("Error seeding tax rules:", error);
+      res.status(500).json({ message: "Failed to seed tax rules" });
     }
   });
 
