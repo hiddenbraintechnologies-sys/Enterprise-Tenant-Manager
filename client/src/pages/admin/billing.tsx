@@ -24,7 +24,10 @@ import {
   MoreHorizontal,
   CheckCircle,
   XCircle,
+  Download,
+  MessageCircle,
 } from "lucide-react";
+import { SiWhatsapp } from "react-icons/si";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -296,14 +299,56 @@ function InvoiceDetailDialog({
   isSending: boolean;
   isSuperAdmin: boolean;
 }) {
-  const formatCurrency = (amount: number | undefined, currencyCode?: string) => {
-    if (amount === undefined) return "-";
+  const { toast } = useToast();
+  
+  const formatCurrency = (amount: string | number | undefined | null, currencyCode?: string) => {
+    if (amount === undefined || amount === null || amount === "") return "-";
+    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+    if (isNaN(numAmount)) return "-";
     const code = currencyCode || "USD";
     return new Intl.NumberFormat(code === "INR" ? "en-IN" : "en-US", {
       style: "currency",
       currency: code,
       minimumFractionDigits: 2,
-    }).format(amount);
+    }).format(numAmount);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!invoice) return;
+    try {
+      const token = localStorage.getItem("bizflow_admin_token");
+      const response = await fetch(`/api/platform-admin/billing/invoices/${invoice.id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error("Failed to generate PDF");
+      
+      const html = await response.text();
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        // Add print button and auto-trigger print
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      }
+      toast({ title: "Invoice opened. Use browser print (Ctrl+P) to save as PDF." });
+    } catch (error) {
+      toast({ title: "Failed to download PDF", variant: "destructive" });
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!invoice) return;
+    const amount = formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency);
+    const dueDate = new Date(invoice.dueDate).toLocaleDateString();
+    const message = encodeURIComponent(
+      `Invoice: ${invoice.invoiceNumber || invoice.id}\n` +
+      `Amount: ${amount}\n` +
+      `Due Date: ${dueDate}\n` +
+      `Status: ${invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}`
+    );
+    window.open(`https://wa.me/?text=${message}`, "_blank");
   };
 
   if (!invoice) return null;
@@ -351,17 +396,17 @@ function InvoiceDetailDialog({
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatCurrency(Number(invoice.subtotal), invoice.currency)}</span>
+                <span>{formatCurrency(invoice.subtotal, invoice.currency)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   {invoice.taxName || "Tax"} ({invoice.taxRate || 0}%)
                 </span>
-                <span>{formatCurrency(Number(invoice.taxAmount), invoice.currency)}</span>
+                <span>{formatCurrency(invoice.taxAmount, invoice.currency)}</span>
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total</span>
-                <span>{formatCurrency(Number(invoice.totalAmount) || Number(invoice.amount), invoice.currency)}</span>
+                <span>{formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)}</span>
               </div>
             </div>
           </div>
@@ -369,11 +414,11 @@ function InvoiceDetailDialog({
           <div className="grid grid-cols-2 gap-4 border-t pt-4">
             <div>
               <Label className="text-muted-foreground text-xs">Amount Paid</Label>
-              <p className="font-medium text-green-600">{formatCurrency(Number(invoice.amountPaid), invoice.currency)}</p>
+              <p className="font-medium text-green-600">{formatCurrency(invoice.amountPaid, invoice.currency)}</p>
             </div>
             <div>
               <Label className="text-muted-foreground text-xs">Amount Due</Label>
-              <p className="font-medium text-red-600">{formatCurrency(Number(invoice.amountDue), invoice.currency)}</p>
+              <p className="font-medium text-red-600">{formatCurrency(invoice.amountDue, invoice.currency)}</p>
             </div>
           </div>
 
@@ -402,16 +447,26 @@ function InvoiceDetailDialog({
             </div>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-close-invoice-detail">
-            Close
-          </Button>
-          {isSuperAdmin && invoice.status === "pending" && (
-            <Button onClick={onSend} disabled={isSending} data-testid="button-send-invoice">
-              <Send className="h-4 w-4 mr-2" />
-              {isSending ? "Sending..." : "Send Invoice"}
+        <DialogFooter className="flex-wrap gap-2">
+          <div className="flex gap-2 flex-1">
+            <Button variant="outline" size="icon" onClick={handleDownloadPdf} data-testid="button-download-pdf">
+              <Download className="h-4 w-4" />
             </Button>
-          )}
+            <Button variant="outline" size="icon" onClick={handleShareWhatsApp} data-testid="button-share-whatsapp">
+              <SiWhatsapp className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-close-invoice-detail">
+              Close
+            </Button>
+            {isSuperAdmin && invoice.status === "pending" && (
+              <Button onClick={onSend} disabled={isSending} data-testid="button-send-invoice">
+                <Send className="h-4 w-4 mr-2" />
+                {isSending ? "Sending..." : "Send Invoice"}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

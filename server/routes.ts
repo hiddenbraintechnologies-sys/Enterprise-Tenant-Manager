@@ -4101,16 +4101,22 @@ export async function registerRoutes(
         id: subscriptionInvoices.id,
         tenantId: subscriptionInvoices.tenantId,
         tenantName: tenants.name,
+        tenantEmail: tenants.email,
         invoiceNumber: subscriptionInvoices.invoiceNumber,
         status: subscriptionInvoices.status,
         country: subscriptionInvoices.country,
         currency: subscriptionInvoices.currency,
+        subtotal: subscriptionInvoices.subtotal,
+        taxName: subscriptionInvoices.taxName,
+        taxRate: subscriptionInvoices.taxRate,
+        taxAmount: subscriptionInvoices.taxAmount,
         totalAmount: subscriptionInvoices.totalAmount,
         amountPaid: subscriptionInvoices.amountPaid,
         amountDue: subscriptionInvoices.amountDue,
         dueDate: subscriptionInvoices.dueDate,
         paidAt: subscriptionInvoices.paidAt,
         gateway: subscriptionInvoices.gateway,
+        notes: subscriptionInvoices.notes,
         createdAt: subscriptionInvoices.createdAt,
       })
         .from(subscriptionInvoices)
@@ -4183,6 +4189,159 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating invoice:", error);
       res.status(500).json({ message: "Failed to create invoice" });
+    }
+  });
+
+  // Generate PDF for invoice
+  app.get("/api/platform-admin/billing/invoices/:id/pdf", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [invoice] = await db.select({
+        id: subscriptionInvoices.id,
+        tenantId: subscriptionInvoices.tenantId,
+        tenantName: tenants.name,
+        tenantEmail: tenants.email,
+        invoiceNumber: subscriptionInvoices.invoiceNumber,
+        status: subscriptionInvoices.status,
+        country: subscriptionInvoices.country,
+        currency: subscriptionInvoices.currency,
+        subtotal: subscriptionInvoices.subtotal,
+        taxName: subscriptionInvoices.taxName,
+        taxRate: subscriptionInvoices.taxRate,
+        taxAmount: subscriptionInvoices.taxAmount,
+        totalAmount: subscriptionInvoices.totalAmount,
+        amountPaid: subscriptionInvoices.amountPaid,
+        amountDue: subscriptionInvoices.amountDue,
+        dueDate: subscriptionInvoices.dueDate,
+        paidAt: subscriptionInvoices.paidAt,
+        notes: subscriptionInvoices.notes,
+        createdAt: subscriptionInvoices.createdAt,
+      })
+        .from(subscriptionInvoices)
+        .innerJoin(tenants, eq(tenants.id, subscriptionInvoices.tenantId))
+        .where(eq(subscriptionInvoices.id, id));
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      const currencySymbols: Record<string, string> = {
+        USD: "$", INR: "₹", GBP: "£", AED: "د.إ", MYR: "RM", SGD: "S$"
+      };
+      const symbol = currencySymbols[invoice.currency || "USD"] || "$";
+      
+      const formatAmount = (amount: string | null) => {
+        if (!amount) return `${symbol}0.00`;
+        return `${symbol}${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      };
+      
+      // Generate simple HTML invoice that can be printed as PDF
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice ${invoice.invoiceNumber}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+    .logo { font-size: 24px; font-weight: bold; color: #2563eb; }
+    .invoice-title { font-size: 32px; color: #666; }
+    .info-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+    .info-block { }
+    .info-block h3 { margin: 0 0 10px 0; color: #666; font-size: 12px; text-transform: uppercase; }
+    .info-block p { margin: 5px 0; }
+    .table { width: 100%; border-collapse: collapse; margin: 30px 0; }
+    .table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; }
+    .table td { padding: 12px; border-bottom: 1px solid #dee2e6; }
+    .table .amount { text-align: right; }
+    .totals { width: 300px; margin-left: auto; }
+    .totals .row { display: flex; justify-content: space-between; padding: 8px 0; }
+    .totals .total { font-size: 18px; font-weight: bold; border-top: 2px solid #333; padding-top: 12px; }
+    .status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    .status.pending { background: #fef3c7; color: #92400e; }
+    .status.paid { background: #d1fae5; color: #065f46; }
+    .status.overdue { background: #fee2e2; color: #991b1b; }
+    .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">BizFlow</div>
+    <div class="invoice-title">INVOICE</div>
+  </div>
+  
+  <div class="info-section">
+    <div class="info-block">
+      <h3>Bill To</h3>
+      <p><strong>${invoice.tenantName}</strong></p>
+      <p>${invoice.tenantEmail || ""}</p>
+      <p>${(invoice.country || "").toUpperCase()}</p>
+    </div>
+    <div class="info-block" style="text-align: right;">
+      <h3>Invoice Details</h3>
+      <p><strong>Invoice #:</strong> ${invoice.invoiceNumber}</p>
+      <p><strong>Date:</strong> ${new Date(invoice.createdAt!).toLocaleDateString()}</p>
+      <p><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
+      <p><span class="status ${invoice.status}">${(invoice.status || "pending").toUpperCase()}</span></p>
+    </div>
+  </div>
+  
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="amount">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Subscription Services</td>
+        <td class="amount">${formatAmount(invoice.subtotal)}</td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <div class="totals">
+    <div class="row">
+      <span>Subtotal</span>
+      <span>${formatAmount(invoice.subtotal)}</span>
+    </div>
+    <div class="row">
+      <span>${invoice.taxName || "Tax"} (${invoice.taxRate || 0}%)</span>
+      <span>${formatAmount(invoice.taxAmount)}</span>
+    </div>
+    <div class="row total">
+      <span>Total</span>
+      <span>${formatAmount(invoice.totalAmount)}</span>
+    </div>
+    <div class="row">
+      <span>Amount Paid</span>
+      <span style="color: #059669;">${formatAmount(invoice.amountPaid)}</span>
+    </div>
+    <div class="row" style="font-weight: bold;">
+      <span>Amount Due</span>
+      <span style="color: #dc2626;">${formatAmount(invoice.amountDue)}</span>
+    </div>
+  </div>
+  
+  ${invoice.notes ? `<div class="footer"><strong>Notes:</strong> ${invoice.notes}</div>` : ""}
+  
+  <div class="footer">
+    <p>Thank you for your business!</p>
+    <p>For questions about this invoice, please contact support@bizflow.app</p>
+  </div>
+</body>
+</html>`;
+      
+      // Return HTML that can be printed as PDF by the browser
+      res.setHeader("Content-Type", "text/html");
+      res.setHeader("Content-Disposition", `inline; filename="${invoice.invoiceNumber}.html"`);
+      res.send(html);
+    } catch (error) {
+      console.error("Error generating invoice PDF:", error);
+      res.status(500).json({ message: "Failed to generate invoice PDF" });
     }
   });
 
