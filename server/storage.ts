@@ -275,7 +275,7 @@ export interface IStorage {
   createExchangeRate(rate: InsertExchangeRate): Promise<ExchangeRate>;
   updateExchangeRate(id: string, rate: Partial<InsertExchangeRate>): Promise<ExchangeRate | undefined>;
   deactivateExchangeRate(id: string): Promise<void>;
-  convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<{ convertedAmount: number; rate: number }>;
+  convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<{ convertedAmount: number; rate: number; decimalPlaces: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1479,19 +1479,33 @@ export class DatabaseStorage implements IStorage {
       .where(eq(exchangeRates.id, id));
   }
 
-  async convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<{ convertedAmount: number; rate: number }> {
+  async convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<{ convertedAmount: number; rate: number; decimalPlaces: number }> {
     const exchangeRate = await this.getExchangeRate(fromCurrency, toCurrency);
     
     if (!exchangeRate) {
       throw new Error(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
     }
 
-    const rate = parseFloat(exchangeRate.rate);
-    const convertedAmount = amount * rate;
+    // Get decimal places for the target currency
+    const currencyDecimalPlaces: Record<string, number> = {
+      JPY: 0, KRW: 0, VND: 0, // Zero decimal currencies
+      BHD: 3, KWD: 3, OMR: 3, // Three decimal currencies
+      // Default is 2 for most currencies
+    };
+    const decimalPlaces = currencyDecimalPlaces[toCurrency.toUpperCase()] ?? 2;
+    
+    // Use string-based math to avoid floating point precision issues
+    const rateStr = exchangeRate.rate;
+    const rate = parseFloat(rateStr);
+    
+    // Calculate with high precision then round to target currency's decimal places
+    const multiplier = Math.pow(10, decimalPlaces);
+    const convertedAmount = Math.round(amount * rate * multiplier) / multiplier;
     
     return {
-      convertedAmount: Math.round(convertedAmount * 100) / 100, // Round to 2 decimal places
+      convertedAmount,
       rate,
+      decimalPlaces,
     };
   }
 }

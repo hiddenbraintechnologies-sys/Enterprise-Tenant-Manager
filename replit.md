@@ -74,6 +74,13 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - Reviews and ratings system
   - Auto-update settings (stable/prerelease channels)
   - Install/update/uninstall audit history
+- **Multi-Currency Support**: Comprehensive currency management system:
+  - Exchange rates table with historical tracking and activation/deactivation
+  - Invoice and payment currency fields with base currency tracking
+  - Currency conversion with precision based on target currency (JPY/0, BHD/3, etc.)
+  - 15 supported currencies: INR, AED, GBP, MYR, SGD, USD, EUR, AUD, CAD, JPY, CNY, SAR, ZAR, NGN, BRL
+  - Client-side currency service with formatting, symbols, and decimal precision
+  - Super Admin API endpoints for exchange rate management
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: Initial user authentication.
