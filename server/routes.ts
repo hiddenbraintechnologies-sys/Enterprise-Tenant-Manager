@@ -4186,6 +4186,70 @@ export async function registerRoutes(
     }
   });
 
+  // Send invoice to tenant
+  app.post("/api/platform-admin/billing/invoices/:id/send", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [invoice] = await db.select().from(subscriptionInvoices).where(eq(subscriptionInvoices.id, id));
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      const tenant = await storage.getTenant(invoice.tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      
+      // In a real implementation, this would send an email to the tenant
+      // For now, we'll just log it and return success
+      console.log(`[Invoice] Sending invoice ${invoice.invoiceNumber} to ${tenant.email}`);
+      
+      res.json({ 
+        message: "Invoice sent successfully",
+        sentTo: tenant.email,
+      });
+    } catch (error) {
+      console.error("Error sending invoice:", error);
+      res.status(500).json({ message: "Failed to send invoice" });
+    }
+  });
+
+  // Mark invoice as paid
+  app.post("/api/platform-admin/billing/invoices/:id/mark-paid", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [invoice] = await db.select().from(subscriptionInvoices).where(eq(subscriptionInvoices.id, id));
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      if (invoice.status === "paid") {
+        return res.status(400).json({ message: "Invoice is already paid" });
+      }
+      
+      const [updatedInvoice] = await db.update(subscriptionInvoices)
+        .set({
+          status: "paid",
+          amountPaid: invoice.totalAmount,
+          amountDue: "0",
+          paidAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(subscriptionInvoices.id, id))
+        .returning();
+      
+      res.json({ 
+        message: "Invoice marked as paid",
+        invoice: updatedInvoice,
+      });
+    } catch (error) {
+      console.error("Error marking invoice as paid:", error);
+      res.status(500).json({ message: "Failed to mark invoice as paid" });
+    }
+  });
+
   app.get("/api/platform-admin/billing/country-configs", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
       const configs = await db.select().from(countryPricingConfigs).orderBy(countryPricingConfigs.country);

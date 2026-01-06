@@ -19,7 +19,19 @@ import {
   Filter,
   Plus,
   X,
+  Eye,
+  Send,
+  MoreHorizontal,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -62,12 +74,22 @@ interface Invoice {
   id: string;
   tenantId: string;
   tenantName: string;
+  invoiceNumber?: string;
   businessType?: string;
   amount?: number;
+  subtotal?: number;
+  taxName?: string;
+  taxRate?: number;
+  taxAmount?: number;
   totalAmount?: number;
+  amountPaid?: number;
+  amountDue?: number;
   currency?: string;
+  country?: string;
+  notes?: string;
   status: "paid" | "pending" | "overdue" | "cancelled";
   dueDate: string;
+  paidAt?: string;
   createdAt: string;
 }
 
@@ -259,13 +281,191 @@ function CreateInvoiceDialog({
   );
 }
 
+function InvoiceDetailDialog({ 
+  invoice, 
+  open, 
+  onOpenChange,
+  onSend,
+  isSending,
+  isSuperAdmin,
+}: { 
+  invoice: Invoice | null;
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+  onSend: () => void;
+  isSending: boolean;
+  isSuperAdmin: boolean;
+}) {
+  const formatCurrency = (amount: number | undefined, currencyCode?: string) => {
+    if (amount === undefined) return "-";
+    const code = currencyCode || "USD";
+    return new Intl.NumberFormat(code === "INR" ? "en-IN" : "en-US", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  if (!invoice) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Receipt className="h-5 w-5" />
+            Invoice Details
+          </DialogTitle>
+          <DialogDescription>
+            {invoice.invoiceNumber || invoice.id}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground text-xs">Tenant</Label>
+              <p className="font-medium">{invoice.tenantName}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">Status</Label>
+              <div className="mt-1">
+                <Badge variant={invoice.status === "paid" ? "default" : invoice.status === "overdue" ? "destructive" : "secondary"}>
+                  {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground text-xs">Country</Label>
+              <p className="font-medium">{invoice.country || "-"}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">Currency</Label>
+              <p className="font-medium">{invoice.currency || "USD"}</p>
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(Number(invoice.subtotal), invoice.currency)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  {invoice.taxName || "Tax"} ({invoice.taxRate || 0}%)
+                </span>
+                <span>{formatCurrency(Number(invoice.taxAmount), invoice.currency)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-lg border-t pt-2">
+                <span>Total</span>
+                <span>{formatCurrency(Number(invoice.totalAmount) || Number(invoice.amount), invoice.currency)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 border-t pt-4">
+            <div>
+              <Label className="text-muted-foreground text-xs">Amount Paid</Label>
+              <p className="font-medium text-green-600">{formatCurrency(Number(invoice.amountPaid), invoice.currency)}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">Amount Due</Label>
+              <p className="font-medium text-red-600">{formatCurrency(Number(invoice.amountDue), invoice.currency)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground text-xs">Due Date</Label>
+              <p className="font-medium">{new Date(invoice.dueDate).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">Created</Label>
+              <p className="font-medium">{new Date(invoice.createdAt).toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          {invoice.paidAt && (
+            <div>
+              <Label className="text-muted-foreground text-xs">Paid At</Label>
+              <p className="font-medium text-green-600">{new Date(invoice.paidAt).toLocaleDateString()}</p>
+            </div>
+          )}
+
+          {invoice.notes && (
+            <div>
+              <Label className="text-muted-foreground text-xs">Notes</Label>
+              <p className="text-sm">{invoice.notes}</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-close-invoice-detail">
+            Close
+          </Button>
+          {isSuperAdmin && invoice.status === "pending" && (
+            <Button onClick={onSend} disabled={isSending} data-testid="button-send-invoice">
+              <Send className="h-4 w-4 mr-2" />
+              {isSending ? "Sending..." : "Send Invoice"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BillingContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [businessTypeFilter, setBusinessTypeFilter] = useState<string>("all");
   const [displayCurrency, setDisplayCurrency] = useState<string>("USD");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+
+  const sendInvoiceMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      return apiRequest("POST", `/api/platform-admin/billing/invoices/${invoiceId}/send`);
+    },
+    onSuccess: () => {
+      toast({ title: "Invoice sent successfully" });
+      setShowDetailDialog(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to send invoice", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      return apiRequest("POST", `/api/platform-admin/billing/invoices/${invoiceId}/mark-paid`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/billing/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/billing/stats"] });
+      toast({ title: "Invoice marked as paid" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to mark invoice as paid", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleViewInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setShowDetailDialog(true);
+  };
+
+  const handleSendInvoice = () => {
+    if (selectedInvoice) {
+      sendInvoiceMutation.mutate(selectedInvoice.id);
+    }
+  };
 
   const { data: stats, isLoading: statsLoading } = useQuery<BillingStats>({
     queryKey: ["/api/platform-admin/billing/stats"],
@@ -521,6 +721,7 @@ function BillingContent() {
                   <TableHead>Status</TableHead>
                   <TableHead>Due Date</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -556,6 +757,43 @@ function BillingContent() {
                         {new Date(invoice.createdAt).toLocaleDateString()}
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`button-invoice-actions-${invoice.id}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewInvoice(invoice)} data-testid={`menu-view-invoice-${invoice.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </DropdownMenuItem>
+                          {isSuperAdmin && invoice.status === "pending" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setSelectedInvoice(invoice);
+                                  sendInvoiceMutation.mutate(invoice.id);
+                                }}
+                                data-testid={`menu-send-invoice-${invoice.id}`}
+                              >
+                                <Send className="h-4 w-4 mr-2" />
+                                Send Invoice
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => markPaidMutation.mutate(invoice.id)}
+                                data-testid={`menu-mark-paid-${invoice.id}`}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Mark as Paid
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -565,6 +803,14 @@ function BillingContent() {
       </Card>
 
       <CreateInvoiceDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
+      <InvoiceDetailDialog 
+        invoice={selectedInvoice} 
+        open={showDetailDialog} 
+        onOpenChange={setShowDetailDialog}
+        onSend={handleSendInvoice}
+        isSending={sendInvoiceMutation.isPending}
+        isSuperAdmin={isSuperAdmin}
+      />
     </div>
   );
 }
