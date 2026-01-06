@@ -79,6 +79,151 @@ interface EditAdminDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface ManagePermissionsDialogProps {
+  admin: PlatformAdmin | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const AVAILABLE_PERMISSIONS = [
+  { code: "tenants:read", label: "View Tenants", description: "Can view tenant list and details" },
+  { code: "tenants:write", label: "Manage Tenants", description: "Can create, update, delete tenants" },
+  { code: "users:read", label: "View Users", description: "Can view user list and details" },
+  { code: "users:write", label: "Manage Users", description: "Can create, update, delete users" },
+  { code: "billing:read", label: "View Billing", description: "Can view billing and invoices" },
+  { code: "billing:write", label: "Manage Billing", description: "Can update billing settings" },
+  { code: "support:read", label: "View Support Tickets", description: "Can view support tickets" },
+  { code: "support:write", label: "Manage Support", description: "Can respond to support tickets" },
+  { code: "audit:read", label: "View Audit Logs", description: "Can access audit logs" },
+  { code: "settings:read", label: "View Settings", description: "Can view system settings" },
+  { code: "settings:write", label: "Manage Settings", description: "Can modify system settings" },
+];
+
+function ManagePermissionsDialog({ admin, open, onOpenChange }: ManagePermissionsDialogProps) {
+  const { toast } = useToast();
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+
+  const { data: permissionsData, isLoading } = useQuery<{ permissions: string[] }>({
+    queryKey: ["/api/platform-admin/admins", admin?.id, "permissions"],
+    enabled: !!admin?.id && open,
+  });
+
+  useEffect(() => {
+    if (permissionsData?.permissions) {
+      setSelectedPermissions(permissionsData.permissions);
+    }
+  }, [permissionsData]);
+
+  const updatePermissionsMutation = useMutation({
+    mutationFn: async (permissions: string[]) => {
+      return apiRequest("POST", `/api/platform-admin/admins/${admin?.id}/permissions/bulk`, { permissions });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/admins", admin?.id, "permissions"] });
+      toast({ title: "Permissions updated successfully" });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to update permissions", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const handleTogglePermission = (code: string) => {
+    setSelectedPermissions(prev => 
+      prev.includes(code) 
+        ? prev.filter(p => p !== code)
+        : [...prev, code]
+    );
+  };
+
+  const handleSave = () => {
+    updatePermissionsMutation.mutate(selectedPermissions);
+  };
+
+  if (!admin) return null;
+
+  const isSuperAdmin = admin.role === "SUPER_ADMIN";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Manage Permissions</DialogTitle>
+          <DialogDescription>
+            Configure permissions for {admin.name}
+          </DialogDescription>
+        </DialogHeader>
+        
+        {isSuperAdmin ? (
+          <div className="py-6 text-center">
+            <Crown className="h-12 w-12 mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">
+              Super Admins have full access to all platform features.
+              No additional permissions need to be configured.
+            </p>
+          </div>
+        ) : isLoading ? (
+          <div className="py-6 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-[400px] overflow-y-auto py-2">
+            {AVAILABLE_PERMISSIONS.map((perm) => (
+              <div
+                key={perm.code}
+                className="flex items-center justify-between gap-4 p-3 rounded-md border"
+              >
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{perm.label}</p>
+                  <p className="text-xs text-muted-foreground">{perm.description}</p>
+                </div>
+                <Switch
+                  checked={selectedPermissions.includes(perm.code)}
+                  onCheckedChange={() => handleTogglePermission(perm.code)}
+                  data-testid={`switch-permission-${perm.code}`}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={updatePermissionsMutation.isPending}
+          >
+            Cancel
+          </Button>
+          {!isSuperAdmin && (
+            <Button
+              onClick={handleSave}
+              disabled={updatePermissionsMutation.isPending || isLoading}
+              data-testid="button-save-permissions"
+            >
+              {updatePermissionsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Permissions"
+              )}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
   const { toast } = useToast();
   const [name, setName] = useState(admin?.name || "");
@@ -466,6 +611,8 @@ function PlatformAdminsContent() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<PlatformAdmin | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [permissionsAdmin, setPermissionsAdmin] = useState<PlatformAdmin | null>(null);
+  const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
 
   const { data, isLoading } = useQuery<{ admins: PlatformAdmin[]; total: number }>({
     queryKey: ["/api/platform-admin/admins"],
@@ -661,7 +808,13 @@ function PlatformAdminsContent() {
                             <UserCog className="h-4 w-4 mr-2" />
                             Edit Admin
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setPermissionsAdmin(admin);
+                              setIsPermissionsDialogOpen(true);
+                            }}
+                            data-testid={`button-manage-permissions-${admin.id}`}
+                          >
                             <Key className="h-4 w-4 mr-2" />
                             Manage Permissions
                           </DropdownMenuItem>
@@ -701,6 +854,15 @@ function PlatformAdminsContent() {
         onOpenChange={(open) => {
           setIsEditDialogOpen(open);
           if (!open) setEditingAdmin(null);
+        }}
+      />
+
+      <ManagePermissionsDialog
+        admin={permissionsAdmin}
+        open={isPermissionsDialogOpen}
+        onOpenChange={(open) => {
+          setIsPermissionsDialogOpen(open);
+          if (!open) setPermissionsAdmin(null);
         }}
       />
     </div>
