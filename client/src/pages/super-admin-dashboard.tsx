@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdmin, SuperAdminGuard } from "@/contexts/admin-context";
 import { Link } from "wouter";
 import {
@@ -16,7 +18,10 @@ import {
   Crown,
   ArrowRight,
   Activity,
+  Globe,
+  X,
 } from "lucide-react";
+import type { PlatformRegionConfig } from "@shared/schema";
 
 interface DashboardStats {
   tenantStats?: {
@@ -94,9 +99,19 @@ function StatCard({
 
 function DashboardContent() {
   const { admin } = useAdmin();
+  const [selectedCountry, setSelectedCountry] = useState<string>("");
+
+  const { data: regions } = useQuery<PlatformRegionConfig[]>({
+    queryKey: ["/api/region-configs"],
+    staleTime: 60 * 1000,
+  });
+
+  const queryKey = selectedCountry && selectedCountry !== "all"
+    ? ["/api/platform-admin/dashboard/overview", { countries: selectedCountry }]
+    : ["/api/platform-admin/dashboard/overview"];
 
   const { data: stats, isLoading } = useQuery<DashboardStats>({
-    queryKey: ["/api/platform-admin/dashboard/overview"],
+    queryKey,
     staleTime: 30 * 1000,
   });
 
@@ -104,6 +119,8 @@ function DashboardContent() {
     queryKey: ["/api/platform-admin/admins"],
     staleTime: 60 * 1000,
   });
+
+  const enabledRegions = regions?.filter(r => r.status === "enabled") || [];
 
   if (isLoading) {
     return (
@@ -127,7 +144,7 @@ function DashboardContent() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground" data-testid="text-super-admin-title">
             Super Admin Dashboard
@@ -136,11 +153,48 @@ function DashboardContent() {
             Welcome back, {admin?.firstName}. You have full platform access.
           </p>
         </div>
-        <Badge className="gap-1">
-          <Crown className="h-3 w-3" />
-          Super Admin
-        </Badge>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <Select value={selectedCountry || "all"} onValueChange={(val) => setSelectedCountry(val === "all" ? "" : val)}>
+              <SelectTrigger className="w-[180px]" data-testid="select-country-filter">
+                <SelectValue placeholder="All Countries" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Countries</SelectItem>
+                {enabledRegions.map((region) => (
+                  <SelectItem key={region.countryCode} value={region.countryCode}>
+                    {region.countryName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedCountry && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSelectedCountry("")}
+                data-testid="button-clear-country-filter"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <Badge className="gap-1">
+            <Crown className="h-3 w-3" />
+            Super Admin
+          </Badge>
+        </div>
       </div>
+
+      {selectedCountry && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filtering by:</span>
+          <Badge variant="secondary" data-testid="badge-active-filter">
+            {enabledRegions.find(r => r.countryCode === selectedCountry)?.countryName || selectedCountry}
+          </Badge>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard

@@ -2706,6 +2706,15 @@ export async function registerRoutes(
         }
       }
       
+      // Allow Super Admins and Platform Admins to filter by country via query parameter
+      if ((isSuperAdmin || role === "PLATFORM_ADMIN") && req.query.countries) {
+        const countriesParam = req.query.countries as string;
+        const requestedCountries = countriesParam.split(",").filter(c => c.trim());
+        if (requestedCountries.length > 0) {
+          countryFilter = requestedCountries;
+        }
+      }
+      
       const overview: any = {};
       
       if (isSuperAdmin || permissions.includes("read_tenants")) {
