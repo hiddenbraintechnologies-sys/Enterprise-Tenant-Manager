@@ -103,7 +103,7 @@ export default function Register() {
       
       toast({
         title: "Registration successful",
-        description: `Welcome to BizFlow, ${data.user.firstName}!`,
+        description: `Welcome to MyBizStream, ${data.user.firstName}!`,
       });
 
       const dashboardRoute = data.tenant.businessType === "coworking" 
@@ -132,7 +132,7 @@ export default function Register() {
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Building2 className="h-5 w-5" />
             </div>
-            <span className="text-xl font-semibold" data-testid="text-logo">BizFlow</span>
+            <span className="text-xl font-semibold" data-testid="text-logo">MyBizStream</span>
           </Link>
           <ThemeToggle />
         </div>

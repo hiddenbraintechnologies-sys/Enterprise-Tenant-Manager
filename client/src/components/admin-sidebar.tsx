@@ -331,7 +331,7 @@ export function AdminSidebar() {
             )}
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-foreground">BizFlow Admin</span>
+            <span className="font-semibold text-foreground">MyBizStream Admin</span>
             <Badge variant={getRoleBadgeVariant() as "default" | "secondary" | "outline"} className="text-xs w-fit">
               {getRoleLabel()}
             </Badge>

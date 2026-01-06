@@ -127,7 +127,7 @@ function convertRegionToCountryConfig(region: RegionConfigResponse): CountryConf
   };
 }
 
-const STORAGE_KEY = "bizflow_country_preference";
+const STORAGE_KEY = "mybizstream_country_preference";
 
 interface CountryContextType {
   country: CountryConfig;

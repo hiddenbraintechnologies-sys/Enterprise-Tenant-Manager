@@ -110,7 +110,7 @@ export default function Settings() {
               <Palette className="h-5 w-5" />
               <CardTitle className="text-lg font-medium">Appearance</CardTitle>
             </div>
-            <CardDescription>Customize how BizFlow looks</CardDescription>
+            <CardDescription>Customize how MyBizStream looks</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">

@@ -350,7 +350,7 @@ function AppRouter() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="system" storageKey="bizflow-theme">
+      <ThemeProvider defaultTheme="system" storageKey="mybizstream-theme">
         <CountryProvider>
           <TooltipProvider>
             <TourProvider>

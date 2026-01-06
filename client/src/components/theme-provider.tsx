@@ -18,7 +18,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  storageKey = "bizflow-theme",
+  storageKey = "mybizstream-theme",
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme

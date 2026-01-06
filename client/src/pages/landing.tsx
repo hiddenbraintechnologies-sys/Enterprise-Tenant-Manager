@@ -64,7 +64,7 @@ export default function Landing() {
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Building2 className="h-5 w-5" />
             </div>
-            <span className="text-xl font-semibold" data-testid="text-logo">BizFlow</span>
+            <span className="text-xl font-semibold" data-testid="text-logo">MyBizStream</span>
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -159,7 +159,7 @@ export default function Landing() {
             Ready to Transform Your Business?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-            Join thousands of businesses already using BizFlow to streamline their operations.
+            Join thousands of businesses already using MyBizStream to streamline their operations.
           </p>
           <Button size="lg" className="mt-8" asChild data-testid="button-cta-signup">
             <a href="/api/login">
@@ -175,7 +175,7 @@ export default function Landing() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            <span>BizFlow</span>
+            <span>MyBizStream</span>
           </div>
           <p>Built for small & medium businesses</p>
         </div>

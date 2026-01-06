@@ -478,7 +478,7 @@ function TaxManagementContent() {
 
   const handleExportReport = async (reportId: string) => {
     try {
-      const token = localStorage.getItem("bizflow_admin_token");
+      const token = localStorage.getItem("mybizstream_admin_token");
       const response = await fetch(`/api/platform-admin/tax/reports/${reportId}/export?format=csv`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

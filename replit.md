@@ -1,7 +1,7 @@
-# BizFlow - Multi-Tenant SaaS Business Management Platform
+# MyBizStream - Multi-Tenant SaaS Business Management Platform
 
 ## Overview
-BizFlow is an enterprise-grade, multi-tenant SaaS platform for small and medium businesses across various sectors like PGs/Hostels, Salons, Gyms, Coaching Institutes, Clinics, Diagnostics, and general service businesses. It aims to streamline operations, manage customer relationships, handle bookings, and provide analytics, offering a scalable and secure solution with a vision for diverse business needs.
+MyBizStream is an enterprise-grade, multi-tenant SaaS platform for small and medium businesses across various sectors like PGs/Hostels, Salons, Gyms, Coaching Institutes, Clinics, Diagnostics, and general service businesses. It aims to streamline operations, manage customer relationships, handle bookings, and provide analytics, offering a scalable and secure solution with a vision for diverse business needs.
 
 ## User Preferences
 No specific user preferences were provided in the original `replit.md` file.

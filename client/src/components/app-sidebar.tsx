@@ -162,7 +162,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
             <Building2 className="h-5 w-5" />
           </div>
           <div className="flex flex-col">
-            <span className="text-base font-semibold" data-testid="text-app-name">BizFlow</span>
+            <span className="text-base font-semibold" data-testid="text-app-name">MyBizStream</span>
             <span className="text-xs text-muted-foreground">Business Manager</span>
           </div>
         </Link>

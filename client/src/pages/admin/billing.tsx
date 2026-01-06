@@ -321,7 +321,7 @@ function InvoiceDetailDialog({
   const handleDownloadPdf = async () => {
     if (!invoice) return;
     try {
-      const token = localStorage.getItem("bizflow_admin_token");
+      const token = localStorage.getItem("mybizstream_admin_token");
       const response = await fetch(`/api/platform-admin/billing/invoices/${invoice.id}/pdf`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -560,8 +560,8 @@ function SendEmailDialog({
   };
 
   const defaultSubject = invoice 
-    ? `Invoice ${invoice.invoiceNumber || invoice.id} from BizFlow - ${formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)} Due`
-    : "Invoice from BizFlow";
+    ? `Invoice ${invoice.invoiceNumber || invoice.id} from MyBizStream - ${formatCurrency(invoice.totalAmount || invoice.amount, invoice.currency)} Due`
+    : "Invoice from MyBizStream";
 
   const defaultMessage = invoice ? `Dear ${invoice.tenantName},
 
@@ -588,8 +588,8 @@ If you have any questions regarding this invoice, please don't hesitate to conta
 Thank you for your business!
 
 Best regards,
-BizFlow Team
-support@bizflow.app` : "";
+MyBizStream Team
+support@mybizstream.app` : "";
 
   const [emailData, setEmailData] = useState<EmailData>({
     to: "",

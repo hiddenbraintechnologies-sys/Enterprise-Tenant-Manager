@@ -224,7 +224,7 @@ export default function OnboardingPage() {
             <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
               <Building2 className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle data-testid="text-welcome-title">Welcome to BizFlow</CardTitle>
+            <CardTitle data-testid="text-welcome-title">Welcome to MyBizStream</CardTitle>
             <CardDescription>
               Let's set up your business in just a few steps
             </CardDescription>

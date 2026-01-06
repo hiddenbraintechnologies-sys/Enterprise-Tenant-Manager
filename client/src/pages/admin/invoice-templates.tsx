@@ -55,12 +55,12 @@ import type { InvoiceTemplate } from "@shared/schema";
 const DEFAULT_TEMPLATE: Partial<InvoiceTemplate> = {
   name: "New Template",
   description: "",
-  companyName: "BizFlow",
+  companyName: "MyBizStream",
   companyTagline: "Enterprise Business Management",
   companyAddress: "123 Business Park, Tech City",
   companyPhone: "+1 (555) 123-4567",
-  companyEmail: "billing@bizflow.app",
-  companyWebsite: "www.bizflow.app",
+  companyEmail: "billing@mybizstream.app",
+  companyWebsite: "www.mybizstream.app",
   logoUrl: "",
   logoPosition: "left",
   primaryColor: "#3B82F6",
@@ -166,7 +166,7 @@ function InvoicePreview({ template }: { template: Partial<InvoiceTemplate> }) {
                   B
                 </div>
                 <span className="text-xl font-bold" style={{ color: secondaryColor }}>
-                  {template.companyName || "BizFlow"}
+                  {template.companyName || "MyBizStream"}
                 </span>
               </div>
             ) : null}

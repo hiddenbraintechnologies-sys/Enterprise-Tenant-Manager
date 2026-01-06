@@ -8,7 +8,7 @@ async function throwIfResNotOk(res: Response) {
 }
 
 function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("bizflow_admin_token");
+  const token = localStorage.getItem("mybizstream_admin_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

@@ -34,7 +34,7 @@ interface TourContextValue {
 
 const TourContext = createContext<TourContextValue | null>(null);
 
-const STORAGE_KEY = "bizflow_completed_tours";
+const STORAGE_KEY = "mybizstream_completed_tours";
 
 export function TourProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TourState>({

@@ -35,10 +35,10 @@ export default function AdminLogin() {
 
       // Store the JWT token for authenticated requests
       if (data.accessToken) {
-        localStorage.setItem("bizflow_admin_token", data.accessToken);
+        localStorage.setItem("mybizstream_admin_token", data.accessToken);
       }
       if (data.refreshToken) {
-        localStorage.setItem("bizflow_refresh_token", data.refreshToken);
+        localStorage.setItem("mybizstream_refresh_token", data.refreshToken);
       }
 
       toast({
@@ -79,7 +79,7 @@ export default function AdminLogin() {
           </div>
           <CardTitle className="text-2xl">Admin Login</CardTitle>
           <CardDescription>
-            Sign in to access the BizFlow admin panel
+            Sign in to access the MyBizStream admin panel
           </CardDescription>
         </CardHeader>
         <CardContent>

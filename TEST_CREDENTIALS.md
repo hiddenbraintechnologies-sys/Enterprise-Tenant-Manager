@@ -1,4 +1,4 @@
-# BizFlow Test Credentials
+# MyBizStream Test Credentials
 
 This document contains all test login credentials for development and testing purposes.
 

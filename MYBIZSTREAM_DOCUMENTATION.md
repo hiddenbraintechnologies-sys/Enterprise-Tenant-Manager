@@ -1,4 +1,4 @@
-# BizFlow Platform Documentation
+# MyBizStream Platform Documentation
 
 ## Complete Feature & Role Reference Guide
 
@@ -25,7 +25,7 @@
 
 ## Platform Overview
 
-BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small and medium businesses across various sectors:
+MyBizStream is an enterprise-grade, multi-tenant SaaS platform designed for small and medium businesses across various sectors:
 
 - PGs/Hostels
 - Salons & Spas
@@ -55,7 +55,7 @@ BizFlow is an enterprise-grade, multi-tenant SaaS platform designed for small an
 
 ## Role Hierarchy & Access Control
 
-BizFlow implements a five-tier role hierarchy for platform administration:
+MyBizStream implements a five-tier role hierarchy for platform administration:
 
 ```
 SUPER_ADMIN (Level 1 - Highest)
@@ -371,7 +371,7 @@ For assigned countries only:
 
 ## Multi-Tenancy System
 
-BizFlow implements comprehensive multi-tenancy with complete data isolation:
+MyBizStream implements comprehensive multi-tenancy with complete data isolation:
 
 ### Tenant Isolation Mechanisms
 
@@ -533,9 +533,9 @@ Cross-currency payment support:
 
 ### Tenant Hierarchy
 
-1. **Platform**: BizFlow core platform
+1. **Platform**: MyBizStream core platform
 2. **Reseller**: White-label partners
-3. **Direct**: Direct BizFlow tenants
+3. **Direct**: Direct MyBizStream tenants
 
 ### Reseller Features
 
@@ -609,7 +609,7 @@ Cross-currency payment support:
 
 ## Business Vertical Dashboards
 
-BizFlow provides specialized dashboards for different business types:
+MyBizStream provides specialized dashboards for different business types:
 
 | Dashboard | Route | Target Business |
 |-----------|-------|-----------------|
@@ -672,7 +672,7 @@ BizFlow provides specialized dashboards for different business types:
 
 | Field | Value |
 |-------|-------|
-| Email | superadmin@bizflow.app |
+| Email | superadmin@mybizstream.app |
 | Password | Admin@123! |
 | Role | SUPER_ADMIN |
 
@@ -741,4 +741,4 @@ BizFlow provides specialized dashboards for different business types:
 
 *Document Version: 1.1*
 *Last Updated: January 6, 2026*
-*Platform: BizFlow Enterprise SaaS*
+*Platform: MyBizStream Enterprise SaaS*
