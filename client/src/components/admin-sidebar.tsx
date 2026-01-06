@@ -32,6 +32,7 @@ import {
   Cog,
   Scale,
   Calculator,
+  FileEdit,
 } from "lucide-react";
 
 interface MenuItem {
@@ -66,6 +67,12 @@ const superAdminMenuItems: MenuItem[] = [
     title: "Billing",
     url: "/super-admin/billing",
     icon: DollarSign,
+    superAdminOnly: true,
+  },
+  {
+    title: "Invoice Templates",
+    url: "/super-admin/invoice-templates",
+    icon: FileEdit,
     superAdminOnly: true,
   },
   {
@@ -128,6 +135,12 @@ const platformAdminMenuItems: MenuItem[] = [
     title: "Tax Management",
     url: "/admin/tax",
     icon: Calculator,
+    permission: "manage_billing",
+  },
+  {
+    title: "Invoice Templates",
+    url: "/admin/invoice-templates",
+    icon: FileEdit,
     permission: "manage_billing",
   },
   {

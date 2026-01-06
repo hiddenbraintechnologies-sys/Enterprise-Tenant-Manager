@@ -40,6 +40,7 @@ import AdminTenants from "@/pages/admin/tenants";
 import AdminPlatformAdmins from "@/pages/admin/platform-admins";
 import AdminBilling from "@/pages/admin/billing";
 import TaxManagement from "@/pages/admin/tax-management";
+import InvoiceTemplates from "@/pages/admin/invoice-templates";
 import AdminWhatsApp from "@/pages/admin/whatsapp";
 import AdminAuditLogs from "@/pages/admin/audit-logs";
 import AdminCompliance from "@/pages/admin/compliance";
@@ -199,6 +200,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/module-registry" component={SuperAdminModuleRegistry} />
         <Route path="/super-admin/feature-registry" component={SuperAdminFeatureRegistry} />
         <Route path="/super-admin/billing" component={AdminBilling} />
+        <Route path="/super-admin/invoice-templates" component={InvoiceTemplates} />
         <Route path="/super-admin/tax" component={TaxManagement} />
         <Route path="/super-admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/super-admin/audit-logs" component={AdminAuditLogs} />
@@ -218,6 +220,7 @@ function PlatformAdminRoutes() {
       <Route path="/admin/tenants" component={AdminTenants} />
       <Route path="/admin/admins" component={AdminPlatformAdmins} />
       <Route path="/admin/billing" component={AdminBilling} />
+      <Route path="/admin/invoice-templates" component={InvoiceTemplates} />
       <Route path="/admin/tax" component={TaxManagement} />
       <Route path="/admin/whatsapp" component={AdminWhatsApp} />
       <Route path="/admin/audit-logs" component={AdminAuditLogs} />
