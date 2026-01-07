@@ -93,7 +93,8 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
 
 ## Documentation
 - **MYBIZSTREAM_DOCUMENTATION.md**: Comprehensive platform documentation
-- **TESTING_WORKFLOW.md**: Complete testing strategy, scenarios, and CI/CD guidelines
+- **TESTING_WORKFLOW.md**: Testing strategy, tools, and CI/CD guidelines
+- **TEST_SCENARIOS.md**: Detailed test scenarios for all modules (200+ test cases)
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: Initial user authentication.
