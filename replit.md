@@ -91,6 +91,10 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - **Invoice Management** (`/invoices`): Full CRUD with multi-currency selection, automatic exchange rate lookup, base amount conversion (to USD), line item management, and formatted currency display
   - **Payment Recording**: Cross-currency payment support with automatic conversion when payment currency differs from invoice currency, invoice status updates (draft/sent/partial/paid/overdue/cancelled)
 
+## Documentation
+- **MYBIZSTREAM_DOCUMENTATION.md**: Comprehensive platform documentation
+- **TESTING_WORKFLOW.md**: Complete testing strategy, scenarios, and CI/CD guidelines
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: Initial user authentication.
 - **PostgreSQL**: Primary database.
