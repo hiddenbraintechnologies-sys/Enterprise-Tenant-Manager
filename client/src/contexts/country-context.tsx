@@ -168,23 +168,36 @@ export function CountryProvider({ children }: { children: ReactNode }) {
     return FALLBACK_COUNTRIES[0];
   });
 
+  // Sync country with supportedCountries when API data loads
   useEffect(() => {
     if (supportedCountries.length > 0) {
       const saved = localStorage.getItem(STORAGE_KEY);
+      const currentCountrySupported = supportedCountries.find(c => c.code === country.code);
+      
       if (saved) {
-        const found = supportedCountries.find(c => c.code === saved);
-        if (found && found.code !== country.code) {
-          setCountryState(found);
+        const savedCountry = supportedCountries.find(c => c.code === saved);
+        if (savedCountry) {
+          // Only update if the saved country exists and is different from current
+          if (savedCountry.code !== country.code) {
+            setCountryState(savedCountry);
+          } else if (currentCountrySupported && currentCountrySupported !== country) {
+            // Update to get fresh config from API (e.g., tax rates)
+            setCountryState(currentCountrySupported);
+          }
+          return;
         }
-      } else if (!supportedCountries.find(c => c.code === country.code)) {
+      }
+      
+      // Current country not supported, fall back to first supported
+      if (!currentCountrySupported) {
         setCountryState(supportedCountries[0]);
       }
     }
-  }, [supportedCountries, country.code]);
+  }, [supportedCountries]); // Remove country.code from deps to prevent loop
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, country.code);
-  }, [country]);
+  }, [country.code]);
 
   const setCountry = (countryCode: string) => {
     const found = supportedCountries.find(c => c.code === countryCode);
