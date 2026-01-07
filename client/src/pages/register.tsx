@@ -106,10 +106,12 @@ export default function Register() {
         description: `Welcome to MyBizStream, ${data.user.firstName}!`,
       });
 
-      const dashboardRoute = data.tenant.businessType === "coworking" 
-        ? "/dashboard/coworking" 
-        : "/dashboard";
-      setLocation(dashboardRoute);
+      const businessType = data.tenant.businessType || "service";
+      const dashboardRoute = `/dashboard/${businessType}`;
+      
+      setTimeout(() => {
+        setLocation(dashboardRoute);
+      }, 100);
     },
     onError: (error: Error) => {
       toast({

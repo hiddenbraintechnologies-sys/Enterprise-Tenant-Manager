@@ -571,6 +571,8 @@ export async function registerRoutes(
         return res.status(401).json({ message: "No tenant associated with this account" });
       }
 
+      const [tenantData] = await db.select().from(tenants).where(eq(tenants.id, userTenantRecord.tenantId));
+
       const tokens = await jwtAuthService.generateTokenPair(
         existingUser.id,
         userTenantRecord.tenantId,
@@ -603,6 +605,11 @@ export async function registerRoutes(
           firstName: existingUser.firstName,
           lastName: existingUser.lastName,
         },
+        tenant: tenantData ? {
+          id: tenantData.id,
+          name: tenantData.name,
+          businessType: tenantData.businessType,
+        } : null,
       });
     } catch (error) {
       console.error("Login error:", error);

@@ -67,7 +67,12 @@ export default function Login() {
         description: `Signed in as ${data.user.email}`,
       });
 
-      setLocation("/dashboard");
+      const businessType = data.tenant?.businessType || "service";
+      const dashboardRoute = `/dashboard/${businessType}`;
+      
+      setTimeout(() => {
+        setLocation(dashboardRoute);
+      }, 100);
     },
     onError: (error: Error) => {
       toast({
