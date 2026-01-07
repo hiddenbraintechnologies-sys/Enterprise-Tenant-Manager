@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 
 export interface CountryConfig {
   code: string;
@@ -137,12 +138,14 @@ interface CountryContextType {
   formatDate: (date: Date | string) => string;
   supportedCountries: CountryConfig[];
   isLoading: boolean;
+  isLocked: boolean; // True when tenant is locked to their registered country
 }
 
 const CountryContext = createContext<CountryContextType | undefined>(undefined);
 
 export function CountryProvider({ children }: { children: ReactNode }) {
   const [supportedCountries, setSupportedCountries] = useState<CountryConfig[]>(FALLBACK_COUNTRIES);
+  const { tenant } = useAuth();
   
   const { data: regionConfigs, isLoading } = useQuery<RegionConfigResponse[]>({
     queryKey: ["/api/region-configs/active"],
@@ -150,12 +153,35 @@ export function CountryProvider({ children }: { children: ReactNode }) {
     retry: 2,
   });
 
+  // Map tenant country enum to country code
+  const tenantCountryCodeMap: Record<string, string> = {
+    india: "IN",
+    uae: "AE",
+    uk: "GB",
+    malaysia: "MY",
+    singapore: "SG",
+    other: "US",
+  };
+  
+  const tenantCountryCode = tenant?.country ? tenantCountryCodeMap[tenant.country] || null : null;
+  const isLocked = !!tenantCountryCode; // Tenant is locked to their registered country
+
   useEffect(() => {
     if (regionConfigs && regionConfigs.length > 0) {
       const convertedConfigs = regionConfigs.map(convertRegionToCountryConfig);
+      
+      // If tenant is locked, only show their country
+      if (tenantCountryCode) {
+        const tenantConfig = convertedConfigs.find(c => c.code === tenantCountryCode);
+        if (tenantConfig) {
+          setSupportedCountries([tenantConfig]);
+          return;
+        }
+      }
+      
       setSupportedCountries(convertedConfigs);
     }
-  }, [regionConfigs]);
+  }, [regionConfigs, tenantCountryCode]);
 
   const [country, setCountryState] = useState<CountryConfig>(() => {
     if (typeof window !== "undefined") {
@@ -168,9 +194,19 @@ export function CountryProvider({ children }: { children: ReactNode }) {
     return FALLBACK_COUNTRIES[0];
   });
 
-  // Sync country with supportedCountries when API data loads
+  // Sync country with tenant's country or supportedCountries when data loads
   useEffect(() => {
     if (supportedCountries.length > 0) {
+      // If tenant is locked to a country, always use that country
+      if (tenantCountryCode) {
+        const tenantConfig = supportedCountries.find(c => c.code === tenantCountryCode);
+        if (tenantConfig && tenantConfig.code !== country.code) {
+          setCountryState(tenantConfig);
+        }
+        return;
+      }
+      
+      // For non-tenant users (admin, public), allow country selection
       const saved = localStorage.getItem(STORAGE_KEY);
       const currentCountrySupported = supportedCountries.find(c => c.code === country.code);
       
@@ -193,7 +229,7 @@ export function CountryProvider({ children }: { children: ReactNode }) {
         setCountryState(supportedCountries[0]);
       }
     }
-  }, [supportedCountries]); // Remove country.code from deps to prevent loop
+  }, [supportedCountries, tenantCountryCode]); // Include tenantCountryCode to update when tenant logs in
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, country.code);
@@ -266,6 +302,7 @@ export function CountryProvider({ children }: { children: ReactNode }) {
         formatDate,
         supportedCountries,
         isLoading,
+        isLocked,
       }}
     >
       {children}

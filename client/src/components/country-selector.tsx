@@ -12,7 +12,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export function CountrySelector() {
-  const { country, setCountry, supportedCountries } = useCountry();
+  const { country, setCountry, supportedCountries, isLocked } = useCountry();
+
+  // If locked to a single country (tenant mode), show a static display
+  if (isLocked) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md bg-muted/50" data-testid="display-country-locked">
+        <Globe className="h-4 w-4 text-muted-foreground" />
+        <span className="hidden sm:inline">{country.name}</span>
+        <Badge variant="secondary" className="text-xs">
+          {country.currency.code}
+        </Badge>
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu>

@@ -8,6 +8,10 @@ export interface Tenant {
   name: string;
   businessType: BusinessType | null;
   onboardingCompleted?: boolean;
+  country?: string;
+  region?: string;
+  currency?: string;
+  timezone?: string;
 }
 
 export interface AuthUser extends User {
@@ -38,6 +42,10 @@ async function fetchUser(): Promise<AuthUser | null> {
           name: data.tenant.name,
           businessType: data.tenant.businessType,
           onboardingCompleted: data.tenant.onboardingCompleted,
+          country: data.tenant.country,
+          region: data.tenant.region,
+          currency: data.tenant.currency,
+          timezone: data.tenant.timezone,
         } : null,
         dashboardRoute: data.tenant?.businessType ? 
           `/dashboard/${data.tenant.businessType === "coworking" ? "coworking" : data.tenant.businessType}` : 
