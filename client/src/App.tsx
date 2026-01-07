@@ -16,6 +16,7 @@ import ClinicDashboard from "@/pages/clinic-dashboard";
 import SalonDashboard from "@/pages/salon-dashboard";
 import PGDashboard from "@/pages/pg-dashboard";
 import CoworkingDashboard from "@/pages/coworking-dashboard";
+import CoworkingSpaces from "@/pages/coworking/spaces";
 import ServiceDashboard from "@/pages/service-dashboard";
 import RealEstateDashboard from "@/pages/real-estate-dashboard";
 import TourismDashboard from "@/pages/tourism-dashboard";
@@ -144,7 +145,7 @@ function AuthenticatedRoutes() {
       <Route path="/coworking/spaces">
         <DashboardGuard allowedBusinessType="coworking">
           <ModuleGuard moduleId="spaces">
-            <CoworkingDashboard />
+            <CoworkingSpaces />
           </ModuleGuard>
         </DashboardGuard>
       </Route>

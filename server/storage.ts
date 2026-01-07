@@ -163,6 +163,9 @@ export interface IStorage {
   // Coworking - Spaces
   createSpace(space: InsertSpace): Promise<Space>;
   getSpaces(tenantId: string): Promise<Space[]>;
+  getSpace(id: string, tenantId: string): Promise<Space | undefined>;
+  updateSpace(id: string, tenantId: string, space: Partial<InsertSpace>): Promise<Space | undefined>;
+  deleteSpace(id: string, tenantId: string): Promise<void>;
 
   // Coworking - Desks
   getDesks(tenantId: string, spaceId?: string): Promise<Desk[]>;
@@ -807,7 +810,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSpaces(tenantId: string): Promise<Space[]> {
-    return db.select().from(spaces).where(eq(spaces.tenantId, tenantId));
+    return db.select().from(spaces).where(eq(spaces.tenantId, tenantId)).orderBy(spaces.name);
+  }
+
+  async getSpace(id: string, tenantId: string): Promise<Space | undefined> {
+    const [space] = await db.select().from(spaces).where(and(eq(spaces.id, id), eq(spaces.tenantId, tenantId)));
+    return space;
+  }
+
+  async updateSpace(id: string, tenantId: string, space: Partial<InsertSpace>): Promise<Space | undefined> {
+    const [updated] = await db.update(spaces).set({ ...space, updatedAt: new Date() }).where(and(eq(spaces.id, id), eq(spaces.tenantId, tenantId))).returning();
+    return updated;
+  }
+
+  async deleteSpace(id: string, tenantId: string): Promise<void> {
+    await db.delete(spaces).where(and(eq(spaces.id, id), eq(spaces.tenantId, tenantId)));
   }
 
   // Coworking - Desks

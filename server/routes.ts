@@ -4452,6 +4452,31 @@ export async function registerRoutes(
 
   // ==================== COWORKING MODULE ====================
 
+  app.get("/api/coworking/spaces", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const spacesList = await storage.getSpaces(tenantId);
+      res.json(spacesList);
+    } catch (error) {
+      console.error("Error fetching spaces:", error);
+      res.status(500).json({ message: "Failed to fetch spaces" });
+    }
+  });
+
+  app.get("/api/coworking/spaces/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const space = await storage.getSpace(req.params.id, tenantId);
+      if (!space) return res.status(404).json({ message: "Space not found" });
+      res.json(space);
+    } catch (error) {
+      console.error("Error fetching space:", error);
+      res.status(500).json({ message: "Failed to fetch space" });
+    }
+  });
+
   app.post("/api/coworking/spaces", isAuthenticated, async (req, res) => {
     try {
       const tenantId = getTenantId(req);
@@ -4463,6 +4488,44 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating space:", error);
       res.status(500).json({ message: "Failed to create space" });
+    }
+  });
+
+  app.patch("/api/coworking/spaces/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getSpace(req.params.id, tenantId);
+      if (!existing) return res.status(404).json({ message: "Space not found" });
+      
+      // Only allow updating specific fields (whitelist approach for security)
+      const allowedFields = ["name", "location", "description", "capacity", "amenities", "isActive"];
+      const updates: Record<string, unknown> = {};
+      for (const key of allowedFields) {
+        if (key in req.body) {
+          updates[key] = req.body[key];
+        }
+      }
+      
+      const space = await storage.updateSpace(req.params.id, tenantId, updates);
+      res.json(space);
+    } catch (error) {
+      console.error("Error updating space:", error);
+      res.status(500).json({ message: "Failed to update space" });
+    }
+  });
+
+  app.delete("/api/coworking/spaces/:id", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+      const existing = await storage.getSpace(req.params.id, tenantId);
+      if (!existing) return res.status(404).json({ message: "Space not found" });
+      await storage.deleteSpace(req.params.id, tenantId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting space:", error);
+      res.status(500).json({ message: "Failed to delete space" });
     }
   });
 
