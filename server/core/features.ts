@@ -61,6 +61,8 @@ export const FEATURES = {
   DOCUMENTS: "documents",
   COURT_DATES: "court_dates",
   TIME_TRACKING: "time_tracking",
+  // Customer Portal (controlled by super admin/platform managers)
+  CUSTOMER_PORTAL: "customer_portal",
 } as const;
 
 export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
@@ -408,6 +410,8 @@ export class FeatureService {
       { code: FEATURES.DOCUMENTS, name: "Document Management", category: "legal", defaultEnabled: false },
       { code: FEATURES.COURT_DATES, name: "Court Date Tracking", category: "legal", defaultEnabled: false },
       { code: FEATURES.TIME_TRACKING, name: "Time Tracking", category: "legal", requiredTier: "pro" },
+      // Customer Portal (admin controlled)
+      { code: FEATURES.CUSTOMER_PORTAL, name: "Customer Portal", category: "customer_experience", defaultEnabled: false, requiredTier: "pro" },
     ];
 
     for (const feature of featureDefinitions) {
