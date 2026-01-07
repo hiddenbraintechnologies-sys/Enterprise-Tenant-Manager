@@ -90,6 +90,14 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - Super Admin API endpoints for exchange rate management
   - **Invoice Management** (`/invoices`): Full CRUD with multi-currency selection, automatic exchange rate lookup, base amount conversion (to USD), line item management, and formatted currency display
   - **Payment Recording**: Cross-currency payment support with automatic conversion when payment currency differs from invoice currency, invoice status updates (draft/sent/partial/paid/overdue/cancelled)
+- **Customer Portal System**: Self-service portal for tenant customers with:
+  - **Portal Settings**: Per-tenant portal configuration with shareable access token, welcome message, and granular permissions
+  - **Portal Permissions**: allowSelfRegistration, allowProfileEdit, allowInvoiceView, allowPayments - all configurable by tenant admins
+  - **Customer Authentication**: Separate auth system with bcrypt password hashing, 24-hour session tokens, login rate limiting with 15-min lockout after 5 failures
+  - **Self-Registration**: Customers can create accounts directly when tenant enables self-registration
+  - **Invite System**: 7-day expiration invite tokens, single-use, creates portal account on acceptance
+  - **Customer Dashboard**: Profile management, invoice viewing (with PDF download), all gated by portal permissions
+  - **Tenant Isolation**: All portal routes enforce tenant isolation via session validation
 
 ## Documentation
 - **MYBIZSTREAM_DOCUMENTATION.md**: Comprehensive platform documentation

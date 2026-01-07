@@ -12,7 +12,7 @@ This document contains all test login credentials for development and testing pu
 
 | Field | Value |
 |-------|-------|
-| **Email** | superadmin@bizflow.app |
+| **Email** | superadmin@mybizstream.app |
 | **Password** | Admin@123! |
 | **Role** | SUPER_ADMIN |
 | **Access** | Full platform access, all features |
@@ -106,6 +106,47 @@ All passwords must meet these requirements:
 | Platform Admin Dashboard | `/admin` |
 | User Registration | `/register` |
 | User Onboarding | `/onboarding` |
+| Customer Portal Login | `/portal/{accessToken}` |
+| Customer Portal Invite | `/portal/invite/{inviteToken}` |
+| Customer Portal Dashboard | `/portal/dashboard` |
+
+---
+
+## Customer Portal
+
+The customer portal allows tenant businesses to provide their customers with self-service access.
+
+### Portal Access
+
+| Access Method | Description |
+|---------------|-------------|
+| **Shareable Link** | Tenants share `/portal/{accessToken}` with customers |
+| **Invite Link** | Send personalized `/portal/invite/{inviteToken}` to specific customers |
+
+### Portal Features
+
+| Feature | Setting | Default |
+|---------|---------|---------|
+| Self-Registration | `allowSelfRegistration` | Enabled |
+| Profile Editing | `allowProfileEdit` | Enabled |
+| Invoice Viewing | `allowInvoiceView` | Enabled |
+| Payments | `allowPayments` | Disabled |
+
+### Portal Authentication
+
+- Separate authentication from main platform
+- Password requirements: minimum 8 characters
+- Session duration: 24 hours
+- Rate limiting: 5 attempts, then 15-minute lockout
+
+### How to Enable Customer Portal
+
+1. Login as tenant admin
+2. Navigate to Settings page
+3. Find "Customer Portal" card
+4. Toggle "Enable Customer Portal"
+5. Configure permissions as needed
+6. Copy the shareable portal link
 
 ---
 

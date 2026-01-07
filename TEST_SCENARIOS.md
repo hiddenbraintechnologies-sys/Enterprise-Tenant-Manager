@@ -26,6 +26,7 @@
 13. [API Testing](#13-api-testing)
 14. [UI/UX Testing](#14-uiux-testing)
 15. [Mobile Application](#15-mobile-application)
+16. [Customer Portal](#16-customer-portal)
 
 ---
 
@@ -598,6 +599,73 @@
 
 ---
 
+## 16. Customer Portal
+
+### 16.1 Portal Configuration
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| CP-001 | Enable customer portal | Tenant admin logged in | 1. Navigate to Settings<br>2. Toggle portal enabled<br>3. Save | Portal enabled, access token generated | P0 |
+| CP-002 | Configure portal permissions | Portal enabled | 1. Toggle self-registration<br>2. Toggle profile edit<br>3. Toggle invoice view<br>4. Save | Permissions saved correctly | P1 |
+| CP-003 | Set welcome message | Portal enabled | 1. Enter custom welcome message<br>2. Save<br>3. View portal login | Welcome message displayed on login | P2 |
+| CP-004 | Regenerate access token | Portal enabled | 1. Click regenerate token<br>2. Confirm action | New token generated, old links invalidated | P1 |
+| CP-005 | Copy portal link | Portal enabled | 1. Click copy link button | Link copied to clipboard with access token | P2 |
+
+### 16.2 Customer Self-Registration
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| SR-001 | Self-register with valid data | Self-registration enabled | 1. Navigate to portal link<br>2. Click Create Account<br>3. Enter name, email, password<br>4. Submit | Account created, logged in to dashboard | P0 |
+| SR-002 | Self-register when disabled | Self-registration disabled | 1. Navigate to portal link | Create Account button not visible | P0 |
+| SR-003 | Duplicate email registration | Account exists | 1. Try registering with existing email | Error "An account with this email already exists" | P0 |
+| SR-004 | Weak password | Self-registration enabled | 1. Enter password < 8 chars | Error "Password must be at least 8 characters" | P1 |
+| SR-005 | Password mismatch | Self-registration enabled | 1. Enter different passwords | Error "Passwords don't match" | P1 |
+| SR-006 | Portal disabled access | Portal disabled | 1. Navigate to portal link | Error "Portal not found or disabled" | P0 |
+
+### 16.3 Customer Login
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| PL-001 | Login with valid credentials | Account exists | 1. Navigate to portal<br>2. Enter email/password<br>3. Click Sign In | Logged in, redirect to dashboard | P0 |
+| PL-002 | Login with invalid password | Account exists | 1. Enter wrong password<br>2. Submit | Error "Invalid email or password" | P0 |
+| PL-003 | Login with non-existent email | - | 1. Enter unregistered email<br>2. Submit | Error "Invalid email or password" | P0 |
+| PL-004 | Account lockout | 4 failed attempts | 1. Fail 5th login attempt | Account locked for 15 minutes | P0 |
+| PL-005 | Login after lockout expires | Locked account, 15 min passed | 1. Attempt login with correct password | Login successful | P1 |
+| PL-006 | Session persistence | Logged in | 1. Close browser<br>2. Reopen within 24 hours | Session still valid | P2 |
+
+### 16.4 Customer Invite Flow
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| CI-001 | Send invite to customer | Portal enabled, customer exists | 1. Navigate to Customers<br>2. Click share portal<br>3. Confirm invite | Invite created with unique token | P0 |
+| CI-002 | Accept invite | Valid invite token | 1. Navigate to invite link<br>2. Set password<br>3. Submit | Account created, logged in | P0 |
+| CI-003 | Expired invite | Invite older than 7 days | 1. Navigate to expired invite link | Error "This invite has expired" | P0 |
+| CI-004 | Used invite | Invite already used | 1. Navigate to used invite link | Error "This invite has already been used" | P1 |
+| CI-005 | Send invite when portal disabled | Portal disabled | 1. Try to send invite | Error "Customer portal is not enabled" | P0 |
+
+### 16.5 Customer Dashboard
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| CD-001 | View profile | Logged in | 1. Navigate to Profile tab | Customer name, email, phone displayed | P0 |
+| CD-002 | Edit profile (allowed) | allowProfileEdit true | 1. Click Edit Profile<br>2. Update name<br>3. Save | Profile updated successfully | P1 |
+| CD-003 | Edit profile (disallowed) | allowProfileEdit false | 1. View Profile tab | Edit button not visible | P1 |
+| CD-004 | View invoices (allowed) | allowInvoiceView true | 1. Navigate to Invoices tab | Invoice list displayed | P0 |
+| CD-005 | View invoices (disallowed) | allowInvoiceView false | 1. View dashboard | Invoices tab not visible | P0 |
+| CD-006 | Invoice details | Invoices visible, invoices exist | 1. View invoice list | Invoice number, amount, status, date shown | P1 |
+| CD-007 | Logout | Logged in | 1. Click Logout | Session ended, redirect to login | P1 |
+
+### 16.6 Portal Security
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| PS-001 | Cross-tenant access attempt | Logged into Tenant A portal | 1. Modify API calls to Tenant B | 403 Forbidden, data not exposed | P0 |
+| PS-002 | Expired session | Session > 24 hours old | 1. Make API request | 401 Unauthorized, redirect to login | P0 |
+| PS-003 | Invalid session token | Fabricated token | 1. Set fake portal token<br>2. Access dashboard | Redirect to login | P0 |
+| PS-004 | Password hashing verification | Account created | 1. Query database | Password stored as bcrypt hash, not plaintext | P0 |
+
+---
+
 ## Appendix A: Test Data
 
 ### Test Users
@@ -631,6 +699,7 @@
 | Compliance (India) | IN-001 to IN-006 |
 | Compliance (UK) | UK-001 to UK-007 |
 | Security | RL-001 to RL-003, IV-001 to IV-004, SS-001 to SS-003 |
+| Customer Portal | CP-001 to CP-005, SR-001 to SR-006, PL-001 to PL-006, CI-001 to CI-005, CD-001 to CD-007, PS-001 to PS-004 |
 
 ---
 

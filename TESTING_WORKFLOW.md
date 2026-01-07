@@ -347,6 +347,26 @@ async function seedTestData() {
 | REG-004 | Tax Calculation | Create invoice in region | Region-specific tax applied |
 | REG-005 | Disabled Region | Admin disables region | Region hidden from selector |
 
+### 7. Customer Portal Module
+
+| Test ID | Scenario | Steps | Expected Result |
+|---------|----------|-------|-----------------|
+| PORTAL-001 | Enable Portal | Toggle portal in settings | Portal enabled, access token generated |
+| PORTAL-002 | Self-Registration | Customer registers via portal link | Account created, logged in |
+| PORTAL-003 | Self-Registration Disabled | Customer visits portal with self-reg off | No registration button shown |
+| PORTAL-004 | Portal Login | Customer logs in with valid credentials | Session created, redirect to dashboard |
+| PORTAL-005 | Login Rate Limiting | 5 failed login attempts | Account locked for 15 minutes |
+| PORTAL-006 | Customer Invite | Admin sends invite to customer | Invite token created, expires in 7 days |
+| PORTAL-007 | Accept Invite | Customer uses invite link | Account created with pre-filled email |
+| PORTAL-008 | Expired Invite | Customer uses 8-day old invite | Error message displayed |
+| PORTAL-009 | View Profile | Logged-in customer views profile | Name, email, phone displayed |
+| PORTAL-010 | Edit Profile (Allowed) | Customer edits profile when permitted | Profile updated successfully |
+| PORTAL-011 | Edit Profile (Denied) | Customer tries to edit when disallowed | Edit button not visible |
+| PORTAL-012 | View Invoices | Customer views invoices when permitted | Invoice list displayed |
+| PORTAL-013 | Invoice Hidden | Customer accesses portal without invoice permission | Invoice tab not visible |
+| PORTAL-014 | Tenant Isolation | Customer tries accessing other tenant data | 403 Forbidden |
+| PORTAL-015 | Session Expiry | Session older than 24 hours | Redirect to login |
+
 ---
 
 ## Testing Tools & Frameworks

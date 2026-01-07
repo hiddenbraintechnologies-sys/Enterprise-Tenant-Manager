@@ -14,12 +14,13 @@
 6. [Manager Features](#manager-features)
 7. [Support Team Features](#support-team-features)
 8. [Multi-Tenancy System](#multi-tenancy-system)
-9. [Compliance & Regulatory Modules](#compliance--regulatory-modules)
-10. [Multi-Currency System](#multi-currency-system)
-11. [White-Label & Reseller System](#white-label--reseller-system)
-12. [Security Features](#security-features)
-13. [Business Vertical Dashboards](#business-vertical-dashboards)
-14. [API & Integration](#api--integration)
+9. [Customer Portal System](#customer-portal-system)
+10. [Compliance & Regulatory Modules](#compliance--regulatory-modules)
+11. [Multi-Currency System](#multi-currency-system)
+12. [White-Label & Reseller System](#white-label--reseller-system)
+13. [Security Features](#security-features)
+14. [Business Vertical Dashboards](#business-vertical-dashboards)
+15. [API & Integration](#api--integration)
 
 ---
 
@@ -402,6 +403,203 @@ Comprehensive white-label theming:
 
 ---
 
+## Customer Portal System
+
+MyBizStream provides a self-service customer portal that allows tenant businesses to offer their customers direct access to their account information, invoices, and services.
+
+### Portal Overview
+
+The customer portal is a white-label solution that tenants can enable to provide their customers with:
+- Self-service account management
+- Invoice viewing and payment
+- Profile management
+- Booking history (when enabled)
+
+### Portal Settings
+
+Each tenant can configure their portal with granular permissions:
+
+| Setting | Description |
+|---------|-------------|
+| `isEnabled` | Enable/disable the customer portal |
+| `allowSelfRegistration` | Allow customers to create accounts without invite |
+| `allowProfileEdit` | Allow customers to update their profile information |
+| `allowInvoiceView` | Allow customers to view their invoices |
+| `allowPayments` | Allow customers to make payments (future) |
+| `welcomeMessage` | Custom welcome message for the portal login |
+| `accessToken` | 64-character hex token for shareable portal URL |
+
+### Portal Access Methods
+
+#### Method 1: Shareable Link
+Tenants can share a portal link with their customers:
+```
+/portal/{accessToken}
+```
+
+This link provides access to:
+- Login page for existing customers
+- Self-registration (if enabled)
+
+#### Method 2: Customer Invite
+Tenants can send personalized invites to customers:
+```
+/portal/invite/{inviteToken}
+```
+
+Invite features:
+- 7-day expiration
+- Single-use tokens
+- Pre-populated customer data
+- Creates portal account on acceptance
+
+### Customer Authentication
+
+The portal uses a separate authentication system from the main platform:
+
+| Feature | Implementation |
+|---------|----------------|
+| Password Hashing | bcrypt with 10 rounds |
+| Session Duration | 24 hours |
+| Rate Limiting | 5 attempts, 15-minute lockout |
+| Token Type | 128-character hex session token |
+
+### Portal Pages
+
+#### Login Page (`/portal/:token`)
+- Email/password authentication
+- "Create Account" button (when self-registration enabled)
+- Custom welcome message display
+
+#### Self-Registration (`/portal/:token` - Register Tab)
+When enabled, customers can register with:
+- Full name
+- Email address
+- Password (8+ characters)
+- Password confirmation
+
+Registration creates:
+1. Customer record in tenant's customer list
+2. Portal account linked to customer
+3. Active session for immediate access
+
+#### Dashboard (`/portal/dashboard`)
+Customer dashboard with tabs:
+
+| Tab | Features | Permission Required |
+|-----|----------|---------------------|
+| Profile | View/edit name, email, phone | `allowProfileEdit` for editing |
+| Invoices | View invoice list, amounts, status, PDF download | `allowInvoiceView` |
+
+### Portal Database Schema
+
+#### Customer Portal Settings
+```sql
+customer_portal_settings (
+  id: uuid PRIMARY KEY,
+  tenant_id: uuid NOT NULL REFERENCES tenants,
+  is_enabled: boolean DEFAULT false,
+  access_token: varchar(64) UNIQUE,
+  welcome_message: text,
+  allow_self_registration: boolean DEFAULT true,
+  allow_profile_edit: boolean DEFAULT true,
+  allow_invoice_view: boolean DEFAULT true,
+  allow_payments: boolean DEFAULT false
+)
+```
+
+#### Customer Portal Accounts
+```sql
+customer_portal_accounts (
+  id: uuid PRIMARY KEY,
+  tenant_id: uuid NOT NULL,
+  customer_id: integer REFERENCES customers,
+  email: varchar NOT NULL,
+  password_hash: varchar NOT NULL,
+  status: varchar DEFAULT 'active',
+  email_verified: boolean DEFAULT false,
+  last_login_at: timestamp,
+  failed_login_attempts: integer DEFAULT 0,
+  locked_until: timestamp
+)
+```
+
+#### Customer Portal Sessions
+```sql
+customer_portal_sessions (
+  id: uuid PRIMARY KEY,
+  account_id: uuid REFERENCES customer_portal_accounts,
+  tenant_id: uuid NOT NULL,
+  session_token: varchar(128) UNIQUE,
+  expires_at: timestamp,
+  ip_address: varchar,
+  user_agent: text,
+  is_active: boolean DEFAULT true
+)
+```
+
+#### Customer Portal Invites
+```sql
+customer_portal_invites (
+  id: uuid PRIMARY KEY,
+  tenant_id: uuid NOT NULL,
+  customer_id: integer REFERENCES customers,
+  invite_token: varchar(64) UNIQUE,
+  email: varchar NOT NULL,
+  expires_at: timestamp,
+  used_at: timestamp,
+  created_by: varchar
+)
+```
+
+### Portal API Endpoints
+
+#### Public Endpoints (No Auth)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/portal/:token/info` | Get portal info (business name, settings) |
+| POST | `/api/portal/:token/login` | Customer login |
+| POST | `/api/portal/:token/self-register` | Self-registration (when enabled) |
+| GET | `/api/portal/invite/:inviteToken` | Get invite details |
+| POST | `/api/portal/invite/:inviteToken/accept` | Accept invite and create account |
+
+#### Authenticated Endpoints (Portal Session)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/portal/me` | Get current customer profile and settings |
+| PATCH | `/api/portal/profile` | Update customer profile |
+| GET | `/api/portal/invoices` | Get customer invoices |
+| POST | `/api/portal/logout` | End portal session |
+
+#### Tenant Admin Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/customer-portal/settings` | Get portal settings |
+| POST | `/api/customer-portal/settings` | Create/update portal settings |
+| POST | `/api/customer-portal/settings/regenerate-token` | Generate new access token |
+| POST | `/api/customers/:id/portal-invite` | Send portal invite to customer |
+
+### Security Features
+
+1. **Tenant Isolation**: All portal requests are scoped to the tenant via session validation
+2. **Rate Limiting**: Login attempts limited to prevent brute force
+3. **Account Lockout**: 15-minute lockout after 5 failed attempts
+4. **Session Expiration**: 24-hour session tokens with automatic expiry
+5. **Password Security**: bcrypt hashing with configurable rounds
+6. **Single-Use Invites**: Invite tokens invalidated after use
+
+### Feature Flag
+
+The customer portal is controlled by the `CUSTOMER_PORTAL` feature flag:
+- Can be enabled/disabled per tenant
+- Tied to subscription tiers
+- Managed through Super Admin feature registry
+
+---
+
 ## Compliance & Regulatory Modules
 
 ### Compliance Pack System
@@ -739,6 +937,6 @@ MyBizStream provides specialized dashboards for different business types:
 
 ---
 
-*Document Version: 1.1*
-*Last Updated: January 6, 2026*
+*Document Version: 1.2*
+*Last Updated: January 7, 2026*
 *Platform: MyBizStream Enterprise SaaS*
