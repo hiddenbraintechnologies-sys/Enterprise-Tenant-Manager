@@ -29,9 +29,12 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  XCircle
+  XCircle,
+  CreditCard,
+  Banknote,
+  History
 } from "lucide-react";
-import type { Invoice, Customer, ExchangeRate } from "@shared/schema";
+import type { Invoice, Customer, ExchangeRate, Payment } from "@shared/schema";
 
 interface InvoiceItem {
   description: string;
@@ -57,7 +60,23 @@ export default function InvoicesPage() {
   const [items, setItems] = useState<InvoiceItem[]>([{ description: "", quantity: 1, unitPrice: "0", totalPrice: "0" }]);
   const [convertedAmount, setConvertedAmount] = useState<{ amount: number; rate: number; toCurrency: string } | null>(null);
 
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [paymentInvoice, setPaymentInvoice] = useState<InvoiceWithItems | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentCurrency, setPaymentCurrency] = useState("INR");
+  const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentConversion, setPaymentConversion] = useState<{ converted: number; rate: number } | null>(null);
+
   const currencies = Object.keys(CURRENCY_CONFIGS);
+  const paymentMethods = [
+    { value: "cash", label: "Cash", icon: Banknote },
+    { value: "bank_transfer", label: "Bank Transfer", icon: CreditCard },
+    { value: "card", label: "Card Payment", icon: CreditCard },
+    { value: "upi", label: "UPI", icon: CreditCard },
+    { value: "cheque", label: "Cheque", icon: FileText },
+    { value: "other", label: "Other", icon: DollarSign },
+  ];
 
   const { data: invoices, isLoading } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
@@ -98,6 +117,73 @@ export default function InvoicesPage() {
       toast({ title: "Failed to delete invoice", description: error.message, variant: "destructive" });
     },
   });
+
+  const paymentMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("POST", "/api/payments", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payments"] });
+      toast({ title: "Payment recorded successfully" });
+      resetPaymentForm();
+      setIsPaymentDialogOpen(false);
+      setIsViewDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to record payment", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetPaymentForm = () => {
+    setPaymentAmount("");
+    setPaymentCurrency("INR");
+    setPaymentMethod("bank_transfer");
+    setPaymentNotes("");
+    setPaymentConversion(null);
+    setPaymentInvoice(null);
+  };
+
+  const openPaymentDialog = (invoice: InvoiceWithItems) => {
+    setPaymentInvoice(invoice);
+    setPaymentCurrency(invoice.currency);
+    const balance = parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || "0");
+    setPaymentAmount(balance.toFixed(2));
+    setIsPaymentDialogOpen(true);
+  };
+
+  const handlePaymentCurrencyChange = async (newCurrency: string) => {
+    setPaymentCurrency(newCurrency);
+    if (paymentInvoice && newCurrency !== paymentInvoice.currency && paymentAmount) {
+      const result = await convertCurrency(parseFloat(paymentAmount), newCurrency, paymentInvoice.currency);
+      if (result) {
+        setPaymentConversion({ converted: result.convertedAmount, rate: result.rate });
+      } else {
+        setPaymentConversion(null);
+      }
+    } else {
+      setPaymentConversion(null);
+    }
+  };
+
+  const handleRecordPayment = () => {
+    if (!paymentInvoice || !paymentAmount || parseFloat(paymentAmount) <= 0) {
+      toast({ title: "Please enter a valid payment amount", variant: "destructive" });
+      return;
+    }
+
+    paymentMutation.mutate({
+      invoiceId: paymentInvoice.id,
+      customerId: paymentInvoice.customerId,
+      currency: paymentCurrency,
+      baseCurrency: "USD",
+      amount: paymentAmount,
+      paymentMethod: paymentMethod,
+      paymentDate: new Date().toISOString(),
+      notes: paymentNotes || null,
+      status: "paid",
+    });
+  };
 
   const resetForm = () => {
     setCustomerId("");
@@ -497,6 +583,19 @@ export default function InvoicesPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
+                          {invoice.status !== "paid" && invoice.status !== "cancelled" && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => {
+                                const inv = invoice as InvoiceWithItems;
+                                openPaymentDialog(inv);
+                              }}
+                              data-testid={`button-pay-invoice-${invoice.id}`}
+                            >
+                              <CreditCard className="h-4 w-4 text-green-600" />
+                            </Button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="icon"
@@ -632,9 +731,156 @@ export default function InvoicesPage() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
               Close
+            </Button>
+            {selectedInvoice && 
+              parseFloat(selectedInvoice.totalAmount) - parseFloat(selectedInvoice.paidAmount || "0") > 0 && (
+              <Button onClick={() => openPaymentDialog(selectedInvoice)} data-testid="button-record-payment">
+                <CreditCard className="h-4 w-4 mr-2" />
+                Record Payment
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Record Payment
+            </DialogTitle>
+            <DialogDescription>
+              Invoice #{paymentInvoice?.invoiceNumber}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {paymentInvoice && (
+            <div className="space-y-4 py-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Invoice Total</span>
+                      <span className="font-medium">
+                        {formatCurrency(paymentInvoice.totalAmount, paymentInvoice.currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Already Paid</span>
+                      <span>{formatCurrency(paymentInvoice.paidAmount || "0", paymentInvoice.currency)}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between font-medium">
+                      <span>Balance Due</span>
+                      <span className="text-destructive">
+                        {formatCurrency(
+                          parseFloat(paymentInvoice.totalAmount) - parseFloat(paymentInvoice.paidAmount || "0"),
+                          paymentInvoice.currency
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Payment Amount</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      {getCurrencySymbol(paymentCurrency)}
+                    </span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="pl-8"
+                      data-testid="input-payment-amount"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Currency</Label>
+                  <Select value={paymentCurrency} onValueChange={handlePaymentCurrencyChange}>
+                    <SelectTrigger data-testid="select-payment-currency">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currencies.map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {getCurrencySymbol(code)} {code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {paymentConversion && paymentCurrency !== paymentInvoice.currency && (
+                <Card className="bg-muted/50">
+                  <CardContent className="pt-3 pb-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-muted-foreground">Converts to: </span>
+                        <span className="font-medium">
+                          {formatCurrency(paymentConversion.converted, paymentInvoice.currency)}
+                        </span>
+                        <div className="text-xs text-muted-foreground">
+                          Rate: 1 {paymentCurrency} = {paymentConversion.rate.toFixed(4)} {paymentInvoice.currency}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger data-testid="select-payment-method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((method) => (
+                      <SelectItem key={method.value} value={method.value}>
+                        <div className="flex items-center gap-2">
+                          <method.icon className="h-4 w-4" />
+                          {method.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  placeholder="Payment reference, transaction ID, etc."
+                  data-testid="input-payment-notes"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRecordPayment} 
+              disabled={paymentMutation.isPending}
+              data-testid="button-submit-payment"
+            >
+              {paymentMutation.isPending ? "Recording..." : "Record Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>
