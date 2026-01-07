@@ -6883,5 +6883,575 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // CUSTOMER PORTAL - Tenant Management Routes
+  // ============================================
+
+  // Get customer portal settings for tenant
+  app.get("/api/customer-portal/settings", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+
+      let settings = await storage.getCustomerPortalSettings(tenantId);
+      
+      // Create default settings if not exists
+      if (!settings) {
+        const crypto = await import("crypto");
+        const portalToken = crypto.randomBytes(32).toString("hex");
+        settings = await storage.createCustomerPortalSettings({
+          tenantId,
+          portalToken,
+          isEnabled: false,
+        });
+      }
+
+      // Generate portal URL
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : "http://localhost:5000";
+      const portalUrl = `${baseUrl}/portal/${settings.portalToken}`;
+
+      res.json({ ...settings, portalUrl });
+    } catch (error) {
+      console.error("Error fetching portal settings:", error);
+      res.status(500).json({ message: "Failed to fetch portal settings" });
+    }
+  });
+
+  // Update customer portal settings
+  app.patch("/api/customer-portal/settings", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+
+      // Whitelist allowed fields
+      const allowedFields = ["isEnabled", "allowSelfRegistration", "allowProfileEdit", "allowInvoiceView", "allowPayments", "welcomeMessage", "termsAndConditions", "privacyPolicy"];
+      const updates: Record<string, unknown> = {};
+      for (const key of allowedFields) {
+        if (key in req.body) {
+          updates[key] = req.body[key];
+        }
+      }
+
+      const settings = await storage.updateCustomerPortalSettings(tenantId, updates);
+      if (!settings) {
+        return res.status(404).json({ message: "Portal settings not found" });
+      }
+
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating portal settings:", error);
+      res.status(500).json({ message: "Failed to update portal settings" });
+    }
+  });
+
+  // Regenerate portal token
+  app.post("/api/customer-portal/regenerate-token", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+
+      const crypto = await import("crypto");
+      const newToken = crypto.randomBytes(32).toString("hex");
+
+      const settings = await storage.updateCustomerPortalSettings(tenantId, { portalToken: newToken });
+      if (!settings) {
+        return res.status(404).json({ message: "Portal settings not found" });
+      }
+
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : "http://localhost:5000";
+      const portalUrl = `${baseUrl}/portal/${settings.portalToken}`;
+
+      res.json({ ...settings, portalUrl });
+    } catch (error) {
+      console.error("Error regenerating token:", error);
+      res.status(500).json({ message: "Failed to regenerate token" });
+    }
+  });
+
+  // Send portal invite to customer
+  app.post("/api/customer-portal/invites", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+
+      const { customerId, email, sentVia } = req.body;
+      if (!customerId || !email) {
+        return res.status(400).json({ message: "Customer ID and email required" });
+      }
+
+      // Verify customer belongs to tenant
+      const customer = await storage.getCustomer(customerId, tenantId);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
+      // Generate invite token
+      const crypto = await import("crypto");
+      const inviteToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const invite = await storage.createCustomerPortalInvite({
+        tenantId,
+        customerId,
+        email,
+        inviteToken,
+        sentVia: sentVia || "email",
+        sentAt: new Date(),
+        expiresAt,
+        createdBy: (req as any).user?.id,
+      });
+
+      // Generate invite URL
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : "http://localhost:5000";
+      const inviteUrl = `${baseUrl}/portal/invite/${inviteToken}`;
+
+      res.json({ ...invite, inviteUrl });
+    } catch (error) {
+      console.error("Error creating invite:", error);
+      res.status(500).json({ message: "Failed to create invite" });
+    }
+  });
+
+  // Get portal invites for tenant
+  app.get("/api/customer-portal/invites", isAuthenticated, async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) return res.status(403).json({ message: "No tenant access" });
+
+      const invites = await storage.getCustomerPortalInvites(tenantId);
+      res.json(invites);
+    } catch (error) {
+      console.error("Error fetching invites:", error);
+      res.status(500).json({ message: "Failed to fetch invites" });
+    }
+  });
+
+  // ============================================
+  // CUSTOMER PORTAL - Public Routes
+  // ============================================
+
+  // Get tenant info from portal token (public)
+  app.get("/api/portal/:token/info", async (req, res) => {
+    try {
+      const settings = await storage.getCustomerPortalSettingsByToken(req.params.token);
+      if (!settings || !settings.isEnabled) {
+        return res.status(404).json({ message: "Portal not found or disabled" });
+      }
+
+      const tenant = await storage.getTenant(settings.tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Business not found" });
+      }
+
+      res.json({
+        tenantId: settings.tenantId,
+        businessName: tenant.name,
+        logoUrl: tenant.logoUrl,
+        primaryColor: tenant.primaryColor,
+        welcomeMessage: settings.welcomeMessage,
+        allowSelfRegistration: settings.allowSelfRegistration,
+        allowProfileEdit: settings.allowProfileEdit,
+        allowInvoiceView: settings.allowInvoiceView,
+        allowPayments: settings.allowPayments,
+        termsAndConditions: settings.termsAndConditions,
+        privacyPolicy: settings.privacyPolicy,
+      });
+    } catch (error) {
+      console.error("Error fetching portal info:", error);
+      res.status(500).json({ message: "Failed to fetch portal info" });
+    }
+  });
+
+  // Validate invite token (public)
+  app.get("/api/portal/invite/:token", async (req, res) => {
+    try {
+      const invite = await storage.getCustomerPortalInviteByToken(req.params.token);
+      if (!invite) {
+        return res.status(404).json({ message: "Invite not found" });
+      }
+
+      if (invite.acceptedAt) {
+        return res.status(400).json({ message: "Invite already used" });
+      }
+
+      if (new Date() > invite.expiresAt) {
+        return res.status(400).json({ message: "Invite expired" });
+      }
+
+      const tenant = await storage.getTenant(invite.tenantId);
+      const customer = await storage.getCustomer(invite.customerId, invite.tenantId);
+
+      res.json({
+        valid: true,
+        tenantId: invite.tenantId,
+        businessName: tenant?.name,
+        customerName: customer?.name,
+        email: invite.email,
+      });
+    } catch (error) {
+      console.error("Error validating invite:", error);
+      res.status(500).json({ message: "Failed to validate invite" });
+    }
+  });
+
+  // Customer registration via invite (public)
+  app.post("/api/portal/register", async (req, res) => {
+    try {
+      const { inviteToken, password } = req.body;
+      if (!inviteToken || !password) {
+        return res.status(400).json({ message: "Invite token and password required" });
+      }
+
+      const invite = await storage.getCustomerPortalInviteByToken(inviteToken);
+      if (!invite || invite.acceptedAt || new Date() > invite.expiresAt) {
+        return res.status(400).json({ message: "Invalid or expired invite" });
+      }
+
+      // Check if account already exists
+      const existingAccount = await storage.getCustomerPortalAccountByCustomerId(invite.customerId, invite.tenantId);
+      if (existingAccount && existingAccount.status === "active") {
+        return res.status(400).json({ message: "Account already exists" });
+      }
+
+      // Hash password
+      const bcrypt = await import("bcrypt");
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create or update portal account
+      let account;
+      if (existingAccount) {
+        account = await storage.updateCustomerPortalAccount(existingAccount.id, invite.tenantId, {
+          passwordHash,
+          status: "active",
+          emailVerified: true,
+        });
+      } else {
+        account = await storage.createCustomerPortalAccount({
+          tenantId: invite.tenantId,
+          customerId: invite.customerId,
+          email: invite.email,
+          passwordHash,
+          status: "active",
+          emailVerified: true,
+        });
+      }
+
+      // Mark invite as accepted
+      await storage.updateCustomerPortalInvite(invite.id, { acceptedAt: new Date() });
+
+      // Create session
+      const crypto = await import("crypto");
+      const sessionToken = crypto.randomBytes(64).toString("hex");
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      await storage.createCustomerPortalSession({
+        accountId: account!.id,
+        tenantId: invite.tenantId,
+        sessionToken,
+        expiresAt,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      res.json({ success: true, sessionToken });
+    } catch (error) {
+      console.error("Error registering customer:", error);
+      res.status(500).json({ message: "Failed to register" });
+    }
+  });
+
+  // Customer self-registration (public)
+  app.post("/api/portal/:token/self-register", async (req, res) => {
+    try {
+      const settings = await storage.getCustomerPortalSettingsByToken(req.params.token);
+      if (!settings || !settings.isEnabled) {
+        return res.status(404).json({ message: "Portal not found or disabled" });
+      }
+
+      if (!settings.allowSelfRegistration) {
+        return res.status(403).json({ message: "Self-registration is not enabled" });
+      }
+
+      const { name, email, password } = req.body;
+      if (!name || !email || !password) {
+        return res.status(400).json({ message: "Name, email and password required" });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      // Check if account already exists
+      const existingAccount = await storage.getCustomerPortalAccountByEmail(email, settings.tenantId);
+      if (existingAccount && existingAccount.status === "active") {
+        return res.status(400).json({ message: "An account with this email already exists" });
+      }
+
+      // Create customer record first
+      const customer = await storage.createCustomer({
+        tenantId: settings.tenantId,
+        name,
+        email,
+        status: "active",
+      });
+
+      // Hash password
+      const bcrypt = await import("bcrypt");
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create portal account
+      const account = await storage.createCustomerPortalAccount({
+        tenantId: settings.tenantId,
+        customerId: customer.id,
+        email,
+        passwordHash,
+        status: "active",
+        emailVerified: false,
+      });
+
+      // Create session
+      const crypto = await import("crypto");
+      const sessionToken = crypto.randomBytes(64).toString("hex");
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await storage.createCustomerPortalSession({
+        accountId: account.id,
+        tenantId: settings.tenantId,
+        sessionToken,
+        expiresAt,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      res.json({ success: true, sessionToken });
+    } catch (error) {
+      console.error("Error with self-registration:", error);
+      res.status(500).json({ message: "Failed to register" });
+    }
+  });
+
+  // Customer login (public)
+  app.post("/api/portal/:token/login", async (req, res) => {
+    try {
+      const settings = await storage.getCustomerPortalSettingsByToken(req.params.token);
+      if (!settings || !settings.isEnabled) {
+        return res.status(404).json({ message: "Portal not found or disabled" });
+      }
+
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password required" });
+      }
+
+      const account = await storage.getCustomerPortalAccountByEmail(email, settings.tenantId);
+      if (!account || account.status !== "active") {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Check lockout
+      if (account.lockedUntil && new Date() < account.lockedUntil) {
+        return res.status(423).json({ message: "Account temporarily locked" });
+      }
+
+      // Verify password
+      const bcrypt = await import("bcrypt");
+      const valid = await bcrypt.compare(password, account.passwordHash || "");
+      if (!valid) {
+        // Increment login attempts
+        const attempts = (account.loginAttempts || 0) + 1;
+        const updates: any = { loginAttempts: attempts };
+        if (attempts >= 5) {
+          updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 min lockout
+        }
+        await storage.updateCustomerPortalAccount(account.id, settings.tenantId, updates);
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Reset login attempts and update last login
+      await storage.updateCustomerPortalAccount(account.id, settings.tenantId, {
+        loginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+      });
+
+      // Create session
+      const crypto = await import("crypto");
+      const sessionToken = crypto.randomBytes(64).toString("hex");
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await storage.createCustomerPortalSession({
+        accountId: account.id,
+        tenantId: settings.tenantId,
+        sessionToken,
+        expiresAt,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      res.json({ success: true, sessionToken });
+    } catch (error) {
+      console.error("Error logging in:", error);
+      res.status(500).json({ message: "Failed to login" });
+    }
+  });
+
+  // Portal session middleware helper
+  const getPortalSession = async (req: any): Promise<{ account: any; customer: any; tenant: any } | null> => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) return null;
+
+    const token = authHeader.substring(7);
+    const session = await storage.getCustomerPortalSessionByToken(token);
+    if (!session || new Date() > session.expiresAt) return null;
+
+    const account = await storage.getCustomerPortalAccount(session.accountId, session.tenantId);
+    if (!account || account.status !== "active") return null;
+
+    const customer = await storage.getCustomer(account.customerId, session.tenantId);
+    const tenant = await storage.getTenant(session.tenantId);
+
+    return { account, customer, tenant };
+  };
+
+  // Get customer profile (authenticated customer)
+  app.get("/api/portal/me", async (req, res) => {
+    try {
+      const sessionData = await getPortalSession(req);
+      if (!sessionData) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { account, customer, tenant } = sessionData;
+      const settings = await storage.getCustomerPortalSettings(customer.tenantId);
+      
+      res.json({
+        account: {
+          id: account.id,
+          email: account.email,
+          lastLoginAt: account.lastLoginAt,
+        },
+        customer,
+        business: {
+          name: tenant?.name,
+          logoUrl: tenant?.logoUrl,
+        },
+        settings: settings ? {
+          allowProfileEdit: settings.allowProfileEdit,
+          allowInvoiceView: settings.allowInvoiceView,
+          allowPayments: settings.allowPayments,
+        } : undefined,
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  // Update customer profile (authenticated customer)
+  app.patch("/api/portal/me", async (req, res) => {
+    try {
+      const sessionData = await getPortalSession(req);
+      if (!sessionData) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { customer } = sessionData;
+      const settings = await storage.getCustomerPortalSettings(customer.tenantId);
+      if (!settings?.allowProfileEdit) {
+        return res.status(403).json({ message: "Profile editing disabled" });
+      }
+
+      // Only allow updating specific fields
+      const allowedFields = ["name", "phone", "address"];
+      const updates: Record<string, unknown> = {};
+      for (const key of allowedFields) {
+        if (key in req.body) {
+          updates[key] = req.body[key];
+        }
+      }
+
+      const updated = await storage.updateCustomer(customer.id, customer.tenantId, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // Get customer invoices (authenticated customer)
+  app.get("/api/portal/invoices", async (req, res) => {
+    try {
+      const sessionData = await getPortalSession(req);
+      if (!sessionData) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { customer } = sessionData;
+      const settings = await storage.getCustomerPortalSettings(customer.tenantId);
+      if (!settings?.allowInvoiceView) {
+        return res.status(403).json({ message: "Invoice viewing disabled" });
+      }
+
+      // Get invoices for this customer
+      const allInvoices = await storage.getInvoices(customer.tenantId);
+      const customerInvoices = allInvoices.filter(inv => inv.customerId === customer.id);
+
+      res.json(customerInvoices);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  // Get specific invoice (authenticated customer)
+  app.get("/api/portal/invoices/:invoiceId", async (req, res) => {
+    try {
+      const sessionData = await getPortalSession(req);
+      if (!sessionData) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { customer } = sessionData;
+      const settings = await storage.getCustomerPortalSettings(customer.tenantId);
+      if (!settings?.allowInvoiceView) {
+        return res.status(403).json({ message: "Invoice viewing disabled" });
+      }
+
+      const invoice = await storage.getInvoice(req.params.invoiceId, customer.tenantId);
+      if (!invoice || invoice.customerId !== customer.id) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+
+      // Get invoice items
+      const items = await storage.getInvoiceItems(invoice.id);
+
+      res.json({ ...invoice, items });
+    } catch (error) {
+      console.error("Error fetching invoice:", error);
+      res.status(500).json({ message: "Failed to fetch invoice" });
+    }
+  });
+
+  // Logout (authenticated customer)
+  app.post("/api/portal/logout", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith("Bearer ")) {
+        const token = authHeader.substring(7);
+        await storage.deleteCustomerPortalSession(token);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error logging out:", error);
+      res.status(500).json({ message: "Failed to logout" });
+    }
+  });
+
   return httpServer;
 }

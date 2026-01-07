@@ -59,6 +59,9 @@ import Login from "@/pages/login";
 import ManagerDashboard from "@/pages/manager/dashboard";
 import SupportDashboard from "@/pages/support/dashboard";
 import TechSupportDashboard from "@/pages/admin/tech-support";
+import PortalLogin from "@/pages/portal/login";
+import PortalRegister from "@/pages/portal/register";
+import PortalDashboard from "@/pages/portal/dashboard";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -312,9 +315,21 @@ function AppRouter() {
 
   const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin") || location.startsWith("/manager") || location.startsWith("/support") || location.startsWith("/tech-support");
   const isAdminLoginPath = location === "/admin-login";
+  const isPortalPath = location.startsWith("/portal");
 
   if (isAdminLoginPath) {
     return <AdminLogin />;
+  }
+
+  if (isPortalPath) {
+    return (
+      <Switch>
+        <Route path="/portal/dashboard" component={PortalDashboard} />
+        <Route path="/portal/invite/:inviteToken" component={PortalRegister} />
+        <Route path="/portal/:token" component={PortalLogin} />
+        <Route component={NotFound} />
+      </Switch>
+    );
   }
 
   if (isLoading) {

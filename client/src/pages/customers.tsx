@@ -32,7 +32,14 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Mail, Phone, Edit, Trash2, Users } from "lucide-react";
+import { Plus, Search, Mail, Phone, Edit, Trash2, Users, Share2, Copy, Check } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -195,14 +202,30 @@ function CustomerDialog({
   );
 }
 
+interface PortalInviteResponse {
+  id: string;
+  inviteUrl: string;
+}
+
+interface PortalSettings {
+  id: string;
+  isEnabled: boolean;
+  portalUrl: string;
+}
+
 export default function Customers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: customers, isLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
+  });
+
+  const { data: portalSettings } = useQuery<PortalSettings>({
+    queryKey: ["/api/customer-portal/settings"],
   });
 
   const deleteMutation = useMutation({
@@ -221,6 +244,61 @@ export default function Customers() {
       });
     },
   });
+
+  const inviteMutation = useMutation({
+    mutationFn: async ({ customerId, email }: { customerId: string; email: string }) => {
+      const res = await apiRequest("POST", "/api/customer-portal/invites", {
+        customerId,
+        email,
+        sentVia: "link",
+      });
+      return res.json() as Promise<PortalInviteResponse>;
+    },
+    onSuccess: async (data) => {
+      try {
+        await navigator.clipboard.writeText(data.inviteUrl);
+        setCopiedId(data.id);
+        setTimeout(() => setCopiedId(null), 2000);
+        toast({
+          title: "Invite link copied!",
+          description: "Share this link with your customer to give them portal access.",
+        });
+      } catch {
+        toast({
+          title: "Invite created",
+          description: "Copy the invite link from the portal invites section.",
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/invites"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create invite",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendInvite = (customer: Customer) => {
+    if (!portalSettings?.isEnabled) {
+      toast({
+        title: "Portal not enabled",
+        description: "Enable the customer portal in Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!customer.email) {
+      toast({
+        title: "Email required",
+        description: "Please add an email address for this customer first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    inviteMutation.mutate({ customerId: customer.id, email: customer.email });
+  };
 
   const filteredCustomers = customers?.filter((customer) =>
     customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -297,23 +375,39 @@ export default function Customers() {
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(customer)}
-                          data-testid={`button-edit-customer-${customer.id}`}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteMutation.mutate(customer.id)}
-                          disabled={deleteMutation.isPending}
-                          data-testid={`button-delete-customer-${customer.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" data-testid={`button-actions-${customer.id}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleSendInvite(customer)}
+                              disabled={inviteMutation.isPending}
+                              data-testid={`menu-invite-${customer.id}`}
+                            >
+                              <Share2 className="mr-2 h-4 w-4" />
+                              Share Portal Link
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleEdit(customer)}
+                              data-testid={`menu-edit-${customer.id}`}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => deleteMutation.mutate(customer.id)}
+                              disabled={deleteMutation.isPending}
+                              className="text-destructive"
+                              data-testid={`menu-delete-${customer.id}`}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </div>
@@ -360,6 +454,17 @@ export default function Customers() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSendInvite(customer)}
+                              disabled={inviteMutation.isPending}
+                              data-testid={`button-invite-customer-${customer.id}`}
+                              title="Share portal access"
+                            >
+                              <Share2 className="mr-1 h-4 w-4" />
+                              Share
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"

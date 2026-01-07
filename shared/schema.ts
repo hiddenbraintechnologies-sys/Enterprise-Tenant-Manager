@@ -6296,3 +6296,132 @@ export type InsertTaxCalculationLog = z.infer<typeof insertTaxCalculationLogSche
 
 export type TaxReport = typeof taxReports.$inferSelect;
 export type InsertTaxReport = z.infer<typeof insertTaxReportSchema>;
+
+// ============================================
+// CUSTOMER PORTAL
+// ============================================
+
+// Customer portal settings per tenant
+export const customerPortalSettings = pgTable("customer_portal_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  isEnabled: boolean("is_enabled").default(false),
+  portalToken: varchar("portal_token", { length: 64 }).notNull(), // Unique token for portal URL
+  allowSelfRegistration: boolean("allow_self_registration").default(true),
+  allowProfileEdit: boolean("allow_profile_edit").default(true),
+  allowInvoiceView: boolean("allow_invoice_view").default(true),
+  allowPayments: boolean("allow_payments").default(true),
+  welcomeMessage: text("welcome_message"),
+  termsAndConditions: text("terms_and_conditions"),
+  privacyPolicy: text("privacy_policy"),
+  brandingConfig: jsonb("branding_config").default({}), // Custom colors, logo, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_portal_settings_tenant").on(table.tenantId),
+  index("idx_portal_settings_token").on(table.portalToken),
+]);
+
+// Customer portal account status enum
+export const portalAccountStatusEnum = pgEnum("portal_account_status", [
+  "pending",    // Invited but not yet registered
+  "active",     // Active account
+  "suspended",  // Temporarily suspended
+  "deactivated" // Permanently deactivated
+]);
+
+// Customer portal accounts (login credentials for customers)
+export const customerPortalAccounts = pgTable("customer_portal_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash"), // null if pending invite
+  status: portalAccountStatusEnum("status").default("pending"),
+  lastLoginAt: timestamp("last_login_at"),
+  loginAttempts: integer("login_attempts").default(0),
+  lockedUntil: timestamp("locked_until"),
+  emailVerified: boolean("email_verified").default(false),
+  emailVerificationToken: varchar("email_verification_token", { length: 64 }),
+  passwordResetToken: varchar("password_reset_token", { length: 64 }),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_portal_accounts_tenant").on(table.tenantId),
+  index("idx_portal_accounts_customer").on(table.customerId),
+  index("idx_portal_accounts_email").on(table.tenantId, table.email),
+]);
+
+// Customer portal sessions
+export const customerPortalSessions = pgTable("customer_portal_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  accountId: varchar("account_id").notNull().references(() => customerPortalAccounts.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  sessionToken: varchar("session_token", { length: 128 }).notNull(),
+  refreshToken: varchar("refresh_token", { length: 128 }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_portal_sessions_account").on(table.accountId),
+  index("idx_portal_sessions_token").on(table.sessionToken),
+  index("idx_portal_sessions_expires").on(table.expiresAt),
+]);
+
+// Customer portal invitations
+export const customerPortalInvites = pgTable("customer_portal_invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  inviteToken: varchar("invite_token", { length: 64 }).notNull(),
+  email: text("email").notNull(),
+  sentVia: varchar("sent_via", { length: 20 }), // email, whatsapp, sms
+  sentAt: timestamp("sent_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_portal_invites_tenant").on(table.tenantId),
+  index("idx_portal_invites_customer").on(table.customerId),
+  index("idx_portal_invites_token").on(table.inviteToken),
+  index("idx_portal_invites_expires").on(table.expiresAt),
+]);
+
+// Insert schemas for customer portal
+export const insertCustomerPortalSettingsSchema = createInsertSchema(customerPortalSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCustomerPortalAccountSchema = createInsertSchema(customerPortalAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCustomerPortalSessionSchema = createInsertSchema(customerPortalSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCustomerPortalInviteSchema = createInsertSchema(customerPortalInvites).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for customer portal
+export type CustomerPortalSettings = typeof customerPortalSettings.$inferSelect;
+export type InsertCustomerPortalSettings = z.infer<typeof insertCustomerPortalSettingsSchema>;
+
+export type CustomerPortalAccount = typeof customerPortalAccounts.$inferSelect;
+export type InsertCustomerPortalAccount = z.infer<typeof insertCustomerPortalAccountSchema>;
+
+export type CustomerPortalSession = typeof customerPortalSessions.$inferSelect;
+export type InsertCustomerPortalSession = z.infer<typeof insertCustomerPortalSessionSchema>;
+
+export type CustomerPortalInvite = typeof customerPortalInvites.$inferSelect;
+export type InsertCustomerPortalInvite = z.infer<typeof insertCustomerPortalInviteSchema>;

@@ -6,8 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, User, Bell, Shield, Palette } from "lucide-react";
+import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/contexts/tenant-context";
 import {
   Select,
   SelectContent,
@@ -24,14 +29,65 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
   service: "General Service Business",
 };
 
+interface PortalSettings {
+  id: string;
+  tenantId: string;
+  portalToken: string;
+  isEnabled: boolean;
+  allowSelfRegistration: boolean;
+  allowProfileEdit: boolean;
+  allowInvoiceView: boolean;
+  allowPayments: boolean;
+  welcomeMessage: string | null;
+  portalUrl: string;
+}
+
 export default function Settings() {
   const { user, tenant } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { activeTenant } = useTenant();
+  const { toast } = useToast();
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
     const last = lastName?.charAt(0) || "";
     return (first + last).toUpperCase() || "U";
+  };
+
+  // Customer Portal settings
+  const { data: portalSettings, isLoading: portalLoading } = useQuery<PortalSettings>({
+    queryKey: ["/api/customer-portal/settings"],
+    enabled: !!activeTenant,
+  });
+
+  const updatePortalMutation = useMutation({
+    mutationFn: (data: Partial<PortalSettings>) =>
+      apiRequest("PATCH", "/api/customer-portal/settings", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/settings"] });
+      toast({ title: "Settings updated", description: "Customer portal settings saved." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update portal settings.", variant: "destructive" });
+    },
+  });
+
+  const regenerateTokenMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/customer-portal/regenerate-token"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/settings"] });
+      toast({ title: "Token regenerated", description: "A new portal link has been created." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to regenerate token.", variant: "destructive" });
+    },
+  });
+
+  const copyPortalLink = () => {
+    if (portalSettings?.portalUrl) {
+      navigator.clipboard.writeText(portalSettings.portalUrl);
+      toast({ title: "Copied!", description: "Portal link copied to clipboard." });
+    }
   };
 
   return (
@@ -231,6 +287,154 @@ export default function Settings() {
             <p className="text-sm text-muted-foreground">
               Security settings are managed through your Replit account.
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Customer Portal */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                <CardTitle className="text-lg font-medium">Customer Portal</CardTitle>
+              </div>
+              {portalSettings && (
+                <Switch
+                  checked={portalSettings.isEnabled}
+                  onCheckedChange={(checked) =>
+                    updatePortalMutation.mutate({ isEnabled: checked })
+                  }
+                  disabled={updatePortalMutation.isPending}
+                  data-testid="switch-portal-enabled"
+                />
+              )}
+            </div>
+            <CardDescription>
+              Allow your customers to access a self-service portal for viewing invoices and managing their profile
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {portalLoading ? (
+              <p className="text-sm text-muted-foreground">Loading portal settings...</p>
+            ) : portalSettings ? (
+              <>
+                {/* Portal Link */}
+                <div className="space-y-2">
+                  <Label>Portal Link</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={portalSettings.portalUrl}
+                      className="flex-1 font-mono text-sm"
+                      data-testid="input-portal-url"
+                    />
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={copyPortalLink}
+                      title="Copy link"
+                      data-testid="button-copy-portal-link"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => regenerateTokenMutation.mutate()}
+                      disabled={regenerateTokenMutation.isPending}
+                      title="Generate new link"
+                      data-testid="button-regenerate-token"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${regenerateTokenMutation.isPending ? "animate-spin" : ""}`} />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      asChild
+                      title="Open portal"
+                    >
+                      <a href={portalSettings.portalUrl} target="_blank" rel="noopener noreferrer" data-testid="link-open-portal">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Share this link with customers so they can access their portal
+                  </p>
+                </div>
+
+                <Separator />
+
+                {/* Portal Permissions */}
+                <div className="space-y-4">
+                  <Label className="text-base">Customer Permissions</Label>
+                  
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Self Registration</p>
+                      <p className="text-xs text-muted-foreground">Allow customers to create accounts without an invite</p>
+                    </div>
+                    <Switch
+                      checked={portalSettings.allowSelfRegistration}
+                      onCheckedChange={(checked) =>
+                        updatePortalMutation.mutate({ allowSelfRegistration: checked })
+                      }
+                      disabled={updatePortalMutation.isPending}
+                      data-testid="switch-self-registration"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Profile Editing</p>
+                      <p className="text-xs text-muted-foreground">Allow customers to update their profile information</p>
+                    </div>
+                    <Switch
+                      checked={portalSettings.allowProfileEdit}
+                      onCheckedChange={(checked) =>
+                        updatePortalMutation.mutate({ allowProfileEdit: checked })
+                      }
+                      disabled={updatePortalMutation.isPending}
+                      data-testid="switch-profile-edit"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">View Invoices</p>
+                      <p className="text-xs text-muted-foreground">Allow customers to view their invoices and payment history</p>
+                    </div>
+                    <Switch
+                      checked={portalSettings.allowInvoiceView}
+                      onCheckedChange={(checked) =>
+                        updatePortalMutation.mutate({ allowInvoiceView: checked })
+                      }
+                      disabled={updatePortalMutation.isPending}
+                      data-testid="switch-invoice-view"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Online Payments</p>
+                      <p className="text-xs text-muted-foreground">Allow customers to make payments through the portal</p>
+                    </div>
+                    <Switch
+                      checked={portalSettings.allowPayments}
+                      onCheckedChange={(checked) =>
+                        updatePortalMutation.mutate({ allowPayments: checked })
+                      }
+                      disabled={updatePortalMutation.isPending}
+                      data-testid="switch-payments"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Customer portal is not available for your plan.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

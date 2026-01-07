@@ -11,6 +11,7 @@ import {
   platformRegionConfigs, exchangeRates,
   supportTickets, supportTicketMessages, errorLogs, usageMetrics,
   auditLogs, userTenants,
+  customerPortalSettings, customerPortalAccounts, customerPortalSessions, customerPortalInvites,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
@@ -44,6 +45,10 @@ import {
   type ErrorLog, type InsertErrorLog,
   type UsageMetric, type InsertUsageMetric,
   type AuditLog,
+  type CustomerPortalSettings, type InsertCustomerPortalSettings,
+  type CustomerPortalAccount, type InsertCustomerPortalAccount,
+  type CustomerPortalSession, type InsertCustomerPortalSession,
+  type CustomerPortalInvite, type InsertCustomerPortalInvite,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -287,6 +292,31 @@ export interface IStorage {
   updateExchangeRate(id: string, rate: Partial<InsertExchangeRate>): Promise<ExchangeRate | undefined>;
   deactivateExchangeRate(id: string): Promise<void>;
   convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<{ convertedAmount: number; rate: number; decimalPlaces: number }>;
+
+  // Customer Portal Settings
+  getCustomerPortalSettings(tenantId: string): Promise<CustomerPortalSettings | undefined>;
+  createCustomerPortalSettings(settings: InsertCustomerPortalSettings): Promise<CustomerPortalSettings>;
+  updateCustomerPortalSettings(tenantId: string, settings: Partial<InsertCustomerPortalSettings>): Promise<CustomerPortalSettings | undefined>;
+  getCustomerPortalSettingsByToken(portalToken: string): Promise<CustomerPortalSettings | undefined>;
+
+  // Customer Portal Accounts
+  getCustomerPortalAccount(id: string, tenantId: string): Promise<CustomerPortalAccount | undefined>;
+  getCustomerPortalAccountByEmail(email: string, tenantId: string): Promise<CustomerPortalAccount | undefined>;
+  getCustomerPortalAccountByCustomerId(customerId: string, tenantId: string): Promise<CustomerPortalAccount | undefined>;
+  createCustomerPortalAccount(account: InsertCustomerPortalAccount): Promise<CustomerPortalAccount>;
+  updateCustomerPortalAccount(id: string, tenantId: string, account: Partial<InsertCustomerPortalAccount>): Promise<CustomerPortalAccount | undefined>;
+
+  // Customer Portal Sessions
+  createCustomerPortalSession(session: InsertCustomerPortalSession): Promise<CustomerPortalSession>;
+  getCustomerPortalSessionByToken(sessionToken: string): Promise<CustomerPortalSession | undefined>;
+  deleteCustomerPortalSession(sessionToken: string): Promise<void>;
+  deleteExpiredCustomerPortalSessions(): Promise<void>;
+
+  // Customer Portal Invites
+  createCustomerPortalInvite(invite: InsertCustomerPortalInvite): Promise<CustomerPortalInvite>;
+  getCustomerPortalInviteByToken(inviteToken: string): Promise<CustomerPortalInvite | undefined>;
+  updateCustomerPortalInvite(id: string, invite: Partial<InsertCustomerPortalInvite>): Promise<CustomerPortalInvite | undefined>;
+  getCustomerPortalInvites(tenantId: string): Promise<CustomerPortalInvite[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1104,7 +1134,7 @@ export class DatabaseStorage implements IStorage {
     
     // Filter by country if specified
     if (countryFilter && countryFilter.length > 0) {
-      allTenants = allTenants.filter(t => t.countryCode && countryFilter.includes(t.countryCode));
+      allTenants = allTenants.filter(t => t.country && countryFilter.includes(t.country));
     }
     
     const totalTenants = allTenants.length;
@@ -1138,7 +1168,7 @@ export class DatabaseStorage implements IStorage {
     let allUserTenants = await db.select({
       tenantId: userTenants.tenantId,
       tenantName: tenants.name,
-      countryCode: tenants.countryCode,
+      country: tenants.country,
       isActive: userTenants.isActive,
     })
       .from(userTenants)
@@ -1146,7 +1176,7 @@ export class DatabaseStorage implements IStorage {
 
     // Filter by country if specified
     if (countryFilter && countryFilter.length > 0) {
-      allUserTenants = allUserTenants.filter(ut => ut.countryCode && countryFilter.includes(ut.countryCode));
+      allUserTenants = allUserTenants.filter(ut => ut.country && countryFilter.includes(ut.country));
     }
 
     const totalUsers = allUserTenants.length;
@@ -1215,14 +1245,14 @@ export class DatabaseStorage implements IStorage {
       source: errorLogs.source,
       isResolved: errorLogs.isResolved,
       tenantId: errorLogs.tenantId,
-      countryCode: tenants.countryCode,
+      country: tenants.country,
     })
       .from(errorLogs)
       .leftJoin(tenants, eq(errorLogs.tenantId, tenants.id));
 
     // Filter by country if specified
     if (countryFilter && countryFilter.length > 0) {
-      allErrors = allErrors.filter(e => e.countryCode && countryFilter.includes(e.countryCode));
+      allErrors = allErrors.filter(e => e.country && countryFilter.includes(e.country));
     }
 
     const totalErrors = allErrors.length;
@@ -1304,14 +1334,14 @@ export class DatabaseStorage implements IStorage {
       status: supportTickets.status,
       priority: supportTickets.priority,
       tenantId: supportTickets.tenantId,
-      countryCode: tenants.countryCode,
+      country: tenants.country,
     })
       .from(supportTickets)
       .leftJoin(tenants, eq(supportTickets.tenantId, tenants.id));
 
     // Filter by country if specified
     if (countryFilter && countryFilter.length > 0) {
-      allTickets = allTickets.filter(t => t.countryCode && countryFilter.includes(t.countryCode));
+      allTickets = allTickets.filter(t => t.country && countryFilter.includes(t.country));
     }
 
     const totalTickets = allTickets.length;
@@ -1391,14 +1421,14 @@ export class DatabaseStorage implements IStorage {
       metricType: usageMetrics.metricType,
       metricValue: usageMetrics.metricValue,
       tenantId: usageMetrics.tenantId,
-      countryCode: tenants.countryCode,
+      country: tenants.country,
     })
       .from(usageMetrics)
       .leftJoin(tenants, eq(usageMetrics.tenantId, tenants.id));
 
     // Filter by country if specified
     if (countryFilter && countryFilter.length > 0) {
-      allMetrics = allMetrics.filter(m => m.countryCode && countryFilter.includes(m.countryCode));
+      allMetrics = allMetrics.filter(m => m.country && countryFilter.includes(m.country));
     }
     
     let totalApiCalls = 0;
@@ -1624,6 +1654,124 @@ export class DatabaseStorage implements IStorage {
     }));
     
     return db.insert(platformAdminCountryAssignments).values(assignments).returning();
+  }
+
+  // Customer Portal Settings
+  async getCustomerPortalSettings(tenantId: string): Promise<CustomerPortalSettings | undefined> {
+    const [settings] = await db.select().from(customerPortalSettings)
+      .where(eq(customerPortalSettings.tenantId, tenantId));
+    return settings;
+  }
+
+  async createCustomerPortalSettings(settings: InsertCustomerPortalSettings): Promise<CustomerPortalSettings> {
+    const [created] = await db.insert(customerPortalSettings).values(settings).returning();
+    return created;
+  }
+
+  async updateCustomerPortalSettings(tenantId: string, settings: Partial<InsertCustomerPortalSettings>): Promise<CustomerPortalSettings | undefined> {
+    const [updated] = await db.update(customerPortalSettings)
+      .set({ ...settings, updatedAt: new Date() })
+      .where(eq(customerPortalSettings.tenantId, tenantId))
+      .returning();
+    return updated;
+  }
+
+  async getCustomerPortalSettingsByToken(portalToken: string): Promise<CustomerPortalSettings | undefined> {
+    const [settings] = await db.select().from(customerPortalSettings)
+      .where(eq(customerPortalSettings.portalToken, portalToken));
+    return settings;
+  }
+
+  // Customer Portal Accounts
+  async getCustomerPortalAccount(id: string, tenantId: string): Promise<CustomerPortalAccount | undefined> {
+    const [account] = await db.select().from(customerPortalAccounts)
+      .where(and(
+        eq(customerPortalAccounts.id, id),
+        eq(customerPortalAccounts.tenantId, tenantId)
+      ));
+    return account;
+  }
+
+  async getCustomerPortalAccountByEmail(email: string, tenantId: string): Promise<CustomerPortalAccount | undefined> {
+    const [account] = await db.select().from(customerPortalAccounts)
+      .where(and(
+        eq(customerPortalAccounts.email, email),
+        eq(customerPortalAccounts.tenantId, tenantId)
+      ));
+    return account;
+  }
+
+  async getCustomerPortalAccountByCustomerId(customerId: string, tenantId: string): Promise<CustomerPortalAccount | undefined> {
+    const [account] = await db.select().from(customerPortalAccounts)
+      .where(and(
+        eq(customerPortalAccounts.customerId, customerId),
+        eq(customerPortalAccounts.tenantId, tenantId)
+      ));
+    return account;
+  }
+
+  async createCustomerPortalAccount(account: InsertCustomerPortalAccount): Promise<CustomerPortalAccount> {
+    const [created] = await db.insert(customerPortalAccounts).values(account).returning();
+    return created;
+  }
+
+  async updateCustomerPortalAccount(id: string, tenantId: string, account: Partial<InsertCustomerPortalAccount>): Promise<CustomerPortalAccount | undefined> {
+    const [updated] = await db.update(customerPortalAccounts)
+      .set({ ...account, updatedAt: new Date() })
+      .where(and(
+        eq(customerPortalAccounts.id, id),
+        eq(customerPortalAccounts.tenantId, tenantId)
+      ))
+      .returning();
+    return updated;
+  }
+
+  // Customer Portal Sessions
+  async createCustomerPortalSession(session: InsertCustomerPortalSession): Promise<CustomerPortalSession> {
+    const [created] = await db.insert(customerPortalSessions).values(session).returning();
+    return created;
+  }
+
+  async getCustomerPortalSessionByToken(sessionToken: string): Promise<CustomerPortalSession | undefined> {
+    const [session] = await db.select().from(customerPortalSessions)
+      .where(eq(customerPortalSessions.sessionToken, sessionToken));
+    return session;
+  }
+
+  async deleteCustomerPortalSession(sessionToken: string): Promise<void> {
+    await db.delete(customerPortalSessions)
+      .where(eq(customerPortalSessions.sessionToken, sessionToken));
+  }
+
+  async deleteExpiredCustomerPortalSessions(): Promise<void> {
+    await db.delete(customerPortalSessions)
+      .where(lte(customerPortalSessions.expiresAt, new Date()));
+  }
+
+  // Customer Portal Invites
+  async createCustomerPortalInvite(invite: InsertCustomerPortalInvite): Promise<CustomerPortalInvite> {
+    const [created] = await db.insert(customerPortalInvites).values(invite).returning();
+    return created;
+  }
+
+  async getCustomerPortalInviteByToken(inviteToken: string): Promise<CustomerPortalInvite | undefined> {
+    const [invite] = await db.select().from(customerPortalInvites)
+      .where(eq(customerPortalInvites.inviteToken, inviteToken));
+    return invite;
+  }
+
+  async updateCustomerPortalInvite(id: string, invite: Partial<InsertCustomerPortalInvite>): Promise<CustomerPortalInvite | undefined> {
+    const [updated] = await db.update(customerPortalInvites)
+      .set(invite)
+      .where(eq(customerPortalInvites.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getCustomerPortalInvites(tenantId: string): Promise<CustomerPortalInvite[]> {
+    return db.select().from(customerPortalInvites)
+      .where(eq(customerPortalInvites.tenantId, tenantId))
+      .orderBy(desc(customerPortalInvites.createdAt));
   }
 }
 
