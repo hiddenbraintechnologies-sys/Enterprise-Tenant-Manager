@@ -425,7 +425,8 @@ export async function registerRoutes(
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
     businessName: z.string().min(1, "Business name is required").max(200),
-    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service"]),
+    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism"]),
+    countryCode: z.string().min(1, "Country is required").max(5),
   });
 
   app.post("/api/auth/register", authRateLimit, async (req, res) => {
@@ -438,12 +439,44 @@ export async function registerRoutes(
         });
       }
 
-      const { firstName, lastName, email, password, businessName, businessType } = parsed.data;
+      const { firstName, lastName, email, password, businessName, businessType, countryCode } = parsed.data;
 
       const [existingUser] = await db.select().from(users).where(eq(users.email, email));
       if (existingUser) {
         return res.status(409).json({ message: "Email already registered" });
       }
+
+      // Look up region config for the selected country
+      const regionConfigs = await storage.getActiveRegionConfigs();
+      const selectedRegion = regionConfigs.find(r => r.countryCode === countryCode);
+      
+      if (!selectedRegion) {
+        return res.status(400).json({ message: "Invalid country selected" });
+      }
+      
+      if (!selectedRegion.registrationEnabled) {
+        return res.status(400).json({ message: "Registration is not available for this country" });
+      }
+
+      // Map countryCode to tenant country enum
+      const countryCodeToTenantCountry: Record<string, "india" | "uae" | "uk" | "malaysia" | "singapore" | "other"> = {
+        "IN": "india",
+        "AE": "uae",
+        "GB": "uk",
+        "MY": "malaysia",
+        "SG": "singapore",
+      };
+      const tenantCountry = countryCodeToTenantCountry[countryCode] || "other";
+
+      // Map region to tenant region enum
+      const regionToTenantRegion: Record<string, "asia_pacific" | "middle_east" | "europe" | "americas" | "africa"> = {
+        "asia_pacific": "asia_pacific",
+        "middle_east": "middle_east",
+        "europe": "europe",
+        "americas": "americas",
+        "africa": "africa",
+      };
+      const tenantRegion = regionToTenantRegion[selectedRegion.region] || "asia_pacific";
 
       const passwordHash = await bcrypt.hash(password, 12);
 
@@ -466,8 +499,10 @@ export async function registerRoutes(
           name: businessName,
           businessType: businessType,
           email: email,
-          currency: "INR",
-          timezone: "Asia/Kolkata",
+          country: tenantCountry,
+          region: tenantRegion,
+          currency: selectedRegion.defaultCurrency,
+          timezone: selectedRegion.defaultTimezone,
         }).returning();
 
         const [newUser] = await tx.insert(users).values({

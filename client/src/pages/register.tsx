@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,17 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Building2, ArrowLeft, Loader2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
+interface RegionConfig {
+  id: string;
+  countryCode: string;
+  countryName: string;
+  region: string;
+  status: string;
+  registrationEnabled: boolean;
+  defaultCurrency: string;
+  defaultTimezone: string;
+}
+
 const registrationSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(100),
   lastName: z.string().min(1, "Last name is required").max(100),
@@ -37,6 +48,7 @@ const registrationSchema = z.object({
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
   confirmPassword: z.string(),
+  countryCode: z.string().min(1, "Please select your country"),
   businessName: z.string().min(1, "Business name is required").max(200),
   businessType: z.enum(["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism"]),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -60,6 +72,14 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // Fetch active region configs for country selection
+  const { data: regionConfigs, isLoading: isLoadingRegions } = useQuery<RegionConfig[]>({
+    queryKey: ["/api/region-configs/active"],
+  });
+
+  // Filter only countries with registration enabled
+  const availableCountries = regionConfigs?.filter(r => r.registrationEnabled && r.status === "enabled") || [];
+
   const form = useForm<RegistrationForm>({
     resolver: zodResolver(registrationSchema),
     defaultValues: {
@@ -68,6 +88,7 @@ export default function Register() {
       email: "",
       password: "",
       confirmPassword: "",
+      countryCode: "",
       businessName: "",
       businessType: undefined,
     },
@@ -83,6 +104,7 @@ export default function Register() {
           lastName: data.lastName,
           email: data.email,
           password: data.password,
+          countryCode: data.countryCode,
           businessName: data.businessName,
           businessType: data.businessType,
         }),
@@ -209,6 +231,35 @@ export default function Register() {
                           {...field} 
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="countryCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Country / Region</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-country">
+                            <SelectValue placeholder={isLoadingRegions ? "Loading countries..." : "Select your country"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableCountries.map((country) => (
+                            <SelectItem 
+                              key={country.countryCode} 
+                              value={country.countryCode}
+                              data-testid={`option-country-${country.countryCode}`}
+                            >
+                              {country.countryName} ({country.defaultCurrency})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
