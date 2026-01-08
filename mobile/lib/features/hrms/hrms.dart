@@ -7,6 +7,7 @@ export 'bloc/leave_bloc.dart';
 export 'bloc/payroll_bloc.dart';
 export 'dashboard/hr_dashboard_page.dart';
 export 'employee_directory/employee_directory_page.dart';
+export 'employee_directory/add_edit_employee_page.dart';
 export 'attendance/attendance_page.dart';
 export 'leave/leave_page.dart';
 export 'payroll/payroll_page.dart';
