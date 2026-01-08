@@ -2689,8 +2689,11 @@ router.post("/invoices/bulk-reminders", async (req: Request, res: Response) => {
       .from(furnitureInvoices)
       .where(and(
         eq(furnitureInvoices.tenantId, tenantId),
-        eq(furnitureInvoices.status, "pending"),
-        lte(furnitureInvoices.dueDate, today.toISOString().split("T")[0])
+        or(
+          eq(furnitureInvoices.status, "issued"),
+          eq(furnitureInvoices.status, "partially_paid")
+        ),
+        lte(furnitureInvoices.dueDate, today)
       ));
 
     const results: Array<{ invoiceId: string; invoiceNumber: string; success: boolean; error?: string }> = [];
