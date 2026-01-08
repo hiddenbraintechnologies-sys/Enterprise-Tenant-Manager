@@ -1,13 +1,10 @@
 import { Router } from "express";
-import { tenantIsolationMiddleware } from "../../core/tenant-isolation";
-import { requireMinimumRole } from "../../core/auth-middleware";
-import { auditService } from "../../core/audit";
+import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
 import PayrollService from "../../services/hrms/payrollService";
 
 const router = Router();
-
 router.use(tenantIsolationMiddleware());
-router.use(requireMinimumRole("staff"));
+router.use(requireMinimumRole("hr"));
 
 router.get("/salary-structure/:employeeId", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
@@ -21,70 +18,34 @@ router.post("/salary-structure", requireMinimumRole("admin"), async (req, res) =
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "salary_structure",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("add_salary_structure", req, "salary_structure");
   const structure = await PayrollService.addSalaryStructure(tenantId, req.body);
   res.status(201).json(structure);
 });
 
-router.get("/payroll", async (req, res) => {
+router.get("/", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "access",
-    resource: "payroll",
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("view_payroll", req, "payroll");
   const result = await PayrollService.listPayroll(tenantId, req.query);
   res.json(result);
 });
 
-router.post("/payroll", requireMinimumRole("admin"), async (req, res) => {
+router.post("/", requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "payroll",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("run_payroll", req, "payroll");
   const payroll = await PayrollService.runPayroll(tenantId, req.body);
   res.status(201).json(payroll);
 });
 
-router.put("/payroll/:id", requireMinimumRole("admin"), async (req, res) => {
+router.put("/:id", requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "update",
-    resource: "payroll",
-    resourceId: req.params.id,
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("update_payroll", req, "payroll");
   const payroll = await PayrollService.updatePayroll(tenantId, req.params.id, req.body);
   res.json(payroll);
 });

@@ -2,7 +2,15 @@ import { hrmsStorage } from "../../storage/hrms";
 import { insertHrAttendanceSchema, insertHrHolidaySchema } from "@shared/schema";
 
 class AttendanceService {
-  static async listAttendance(tenantId: string, query: any) {
+  static async checkIn(tenantId: string, employeeId: string) {
+    return hrmsStorage.checkIn(tenantId, employeeId);
+  }
+
+  static async checkOut(tenantId: string, employeeId: string) {
+    return hrmsStorage.checkOut(tenantId, employeeId);
+  }
+
+  static async getAttendance(tenantId: string, query: any) {
     const filters = {
       employeeId: query.employeeId,
       startDate: query.startDate,

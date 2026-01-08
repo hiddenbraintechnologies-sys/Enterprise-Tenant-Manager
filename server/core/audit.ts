@@ -186,6 +186,26 @@ export class AuditService {
       .orderBy(desc(auditLogs.createdAt))
       .limit(limit);
   }
+
+  logFromRequest(action: string, req: any, resource?: string): void {
+    const tenantId = req.context?.tenant?.id || req.headers?.["x-tenant-id"];
+    const userId = req.context?.user?.id;
+    
+    setImmediate(async () => {
+      try {
+        await this.log({
+          tenantId,
+          userId,
+          action: action as AuditAction,
+          resource: resource || action,
+          ipAddress: req.ip,
+          userAgent: req.headers?.["user-agent"],
+        });
+      } catch (error) {
+        console.error("Failed to log audit entry:", error);
+      }
+    });
+  }
 }
 
 export const auditService = new AuditService();

@@ -1,49 +1,30 @@
 import { Router } from "express";
-import { tenantIsolationMiddleware } from "../../core/tenant-isolation";
-import { requireMinimumRole } from "../../core/auth-middleware";
-import { auditService } from "../../core/audit";
+import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
 import EmployeeService from "../../services/hrms/employeeService";
 
 const router = Router();
-
 router.use(tenantIsolationMiddleware());
-router.use(requireMinimumRole("staff"));
+router.use(requireMinimumRole("hr"));
 
 router.get("/dashboard", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "access",
-    resource: "hr_dashboard",
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("view_dashboard", req, "hr_dashboard");
   const stats = await EmployeeService.getDashboardStats(tenantId);
   res.json(stats);
 });
 
-router.get("/employees", async (req, res) => {
+router.get("/", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "access",
-    resource: "employees",
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("view_employees", req, "employees");
   const employees = await EmployeeService.listEmployees(tenantId, req.query);
   res.json(employees);
 });
 
-router.get("/employees/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -54,57 +35,29 @@ router.get("/employees/:id", async (req, res) => {
   res.json(employee);
 });
 
-router.post("/employees", requireMinimumRole("manager"), async (req, res) => {
+router.post("/", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "employees",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("add_employee", req, "employees");
   const employee = await EmployeeService.addEmployee(tenantId, req.body);
   res.status(201).json(employee);
 });
 
-router.put("/employees/:id", requireMinimumRole("manager"), async (req, res) => {
+router.put("/:id", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "update",
-    resource: "employees",
-    resourceId: req.params.id,
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("update_employee", req, "employees");
   const employee = await EmployeeService.updateEmployee(tenantId, req.params.id, req.body);
   res.json(employee);
 });
 
-router.delete("/employees/:id", requireMinimumRole("admin"), async (req, res) => {
+router.delete("/:id", requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "delete",
-    resource: "employees",
-    resourceId: req.params.id,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("delete_employee", req, "employees");
   await EmployeeService.deleteEmployee(tenantId, req.params.id);
   res.json({ success: true });
 });
@@ -121,16 +74,7 @@ router.post("/departments", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "departments",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("add_department", req, "departments");
   const department = await EmployeeService.addDepartment(tenantId, req.body);
   res.status(201).json(department);
 });

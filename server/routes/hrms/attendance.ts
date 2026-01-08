@@ -1,82 +1,61 @@
 import { Router } from "express";
-import { tenantIsolationMiddleware } from "../../core/tenant-isolation";
-import { requireMinimumRole } from "../../core/auth-middleware";
-import { auditService } from "../../core/audit";
+import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
 import AttendanceService from "../../services/hrms/attendanceService";
 
 const router = Router();
-
 router.use(tenantIsolationMiddleware());
-router.use(requireMinimumRole("staff"));
+router.use(requireMinimumRole("hr"));
 
-router.get("/attendance", async (req, res) => {
+router.post("/:employeeId/checkin", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "access",
-    resource: "attendance",
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
-  const attendance = await AttendanceService.listAttendance(tenantId, req.query);
-  res.json(attendance);
+  auditService.logFromRequest("checkin", req, "attendance");
+  const result = await AttendanceService.checkIn(tenantId, req.params.employeeId);
+  res.json(result);
 });
 
-router.post("/attendance", requireMinimumRole("manager"), async (req, res) => {
+router.post("/:employeeId/checkout", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "attendance",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
+  auditService.logFromRequest("checkout", req, "attendance");
+  const result = await AttendanceService.checkOut(tenantId, req.params.employeeId);
+  res.json(result);
+});
+
+router.get("/", async (req, res) => {
+  const tenantId = req.context?.tenant?.id;
+  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
+  auditService.logFromRequest("view_attendance", req, "attendance");
+  const data = await AttendanceService.getAttendance(tenantId, req.query);
+  res.json(data);
+});
+
+router.post("/", requireMinimumRole("manager"), async (req, res) => {
+  const tenantId = req.context?.tenant?.id;
+  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+  
+  auditService.logFromRequest("mark_attendance", req, "attendance");
   const record = await AttendanceService.markAttendance(tenantId, req.body);
   res.status(201).json(record);
 });
 
-router.post("/attendance/bulk", requireMinimumRole("manager"), async (req, res) => {
+router.post("/bulk", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "attendance_bulk",
-    newValue: { count: req.body.records?.length },
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("bulk_mark_attendance", req, "attendance");
   const results = await AttendanceService.bulkMarkAttendance(tenantId, req.body.records);
   res.status(201).json(results);
 });
 
-router.put("/attendance/:id", requireMinimumRole("manager"), async (req, res) => {
+router.put("/:id", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "update",
-    resource: "attendance",
-    resourceId: req.params.id,
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("update_attendance", req, "attendance");
   const record = await AttendanceService.updateAttendance(tenantId, req.params.id, req.body);
   res.json(record);
 });
@@ -94,16 +73,7 @@ router.post("/holidays", requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "holidays",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("add_holiday", req, "holidays");
   const holiday = await AttendanceService.addHoliday(tenantId, req.body);
   res.status(201).json(holiday);
 });
@@ -112,16 +82,7 @@ router.delete("/holidays/:id", requireMinimumRole("admin"), async (req, res) => 
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "delete",
-    resource: "holidays",
-    resourceId: req.params.id,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("delete_holiday", req, "holidays");
   await AttendanceService.deleteHoliday(tenantId, req.params.id);
   res.json({ success: true });
 });

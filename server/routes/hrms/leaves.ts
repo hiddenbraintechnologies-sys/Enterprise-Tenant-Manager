@@ -1,15 +1,12 @@
 import { Router } from "express";
-import { tenantIsolationMiddleware } from "../../core/tenant-isolation";
-import { requireMinimumRole } from "../../core/auth-middleware";
-import { auditService } from "../../core/audit";
+import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
 import LeaveService from "../../services/hrms/leaveService";
 
 const router = Router();
-
 router.use(tenantIsolationMiddleware());
-router.use(requireMinimumRole("staff"));
+router.use(requireMinimumRole("hr"));
 
-router.get("/leave-types", async (req, res) => {
+router.get("/types", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -17,25 +14,16 @@ router.get("/leave-types", async (req, res) => {
   res.json(leaveTypes);
 });
 
-router.post("/leave-types", requireMinimumRole("admin"), async (req, res) => {
+router.post("/types", requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "leave_types",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("add_leave_type", req, "leave_types");
   const leaveType = await LeaveService.addLeaveType(tenantId, req.body);
   res.status(201).json(leaveType);
 });
 
-router.get("/leave-balances/:employeeId", async (req, res) => {
+router.get("/balances/:employeeId", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -44,57 +32,30 @@ router.get("/leave-balances/:employeeId", async (req, res) => {
   res.json(balances);
 });
 
-router.get("/leaves", async (req, res) => {
+router.get("/", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "access",
-    resource: "leaves",
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("view_leaves", req, "leaves");
   const result = await LeaveService.listLeaves(tenantId, req.query);
   res.json(result);
 });
 
-router.post("/leaves", async (req, res) => {
+router.post("/", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "create",
-    resource: "leaves",
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("apply_leave", req, "leaves");
   const leave = await LeaveService.applyLeave(tenantId, req.body);
   res.status(201).json(leave);
 });
 
-router.put("/leaves/:id", requireMinimumRole("manager"), async (req, res) => {
+router.put("/:id", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  await auditService.logAsync({
-    tenantId,
-    userId,
-    action: "update",
-    resource: "leaves",
-    resourceId: req.params.id,
-    newValue: req.body,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
+  auditService.logFromRequest("update_leave", req, "leaves");
   const leave = await LeaveService.updateLeave(tenantId, req.params.id, req.body, userId);
   res.json(leave);
 });

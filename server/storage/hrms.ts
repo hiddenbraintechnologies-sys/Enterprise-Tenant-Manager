@@ -659,6 +659,78 @@ class HrmsStorage {
     };
     return true;
   }
+
+  async checkIn(tenantId: string, employeeId: string): Promise<HrAttendance> {
+    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    
+    const existing = await db.select()
+      .from(hrAttendance)
+      .where(and(
+        eq(hrAttendance.tenantId, tenantId),
+        eq(hrAttendance.employeeId, employeeId),
+        eq(hrAttendance.attendanceDate, today)
+      ))
+      .limit(1);
+
+    if (existing.length > 0 && existing[0].checkIn) {
+      throw new Error("Already checked in for today");
+    }
+
+    if (existing.length > 0) {
+      const [updated] = await db.update(hrAttendance)
+        .set({ checkIn: now.toTimeString().slice(0, 8), status: "present", updatedAt: now })
+        .where(eq(hrAttendance.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+
+    const [record] = await db.insert(hrAttendance)
+      .values({
+        tenantId,
+        employeeId,
+        attendanceDate: today,
+        checkIn: now.toTimeString().slice(0, 8),
+        status: "present",
+      })
+      .returning();
+    return record;
+  }
+
+  async checkOut(tenantId: string, employeeId: string): Promise<HrAttendance> {
+    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    
+    const existing = await db.select()
+      .from(hrAttendance)
+      .where(and(
+        eq(hrAttendance.tenantId, tenantId),
+        eq(hrAttendance.employeeId, employeeId),
+        eq(hrAttendance.attendanceDate, today)
+      ))
+      .limit(1);
+
+    if (existing.length === 0 || !existing[0].checkIn) {
+      throw new Error("Must check in before checking out");
+    }
+
+    if (existing[0].checkOut) {
+      throw new Error("Already checked out for today");
+    }
+
+    const checkInTime = new Date(`${today}T${existing[0].checkIn}`);
+    const hoursWorked = (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
+
+    const [updated] = await db.update(hrAttendance)
+      .set({ 
+        checkOut: now.toTimeString().slice(0, 8), 
+        hoursWorked: Math.round(hoursWorked * 100) / 100,
+        updatedAt: now 
+      })
+      .where(eq(hrAttendance.id, existing[0].id))
+      .returning();
+    return updated;
+  }
 }
 
 export const hrmsStorage = new HrmsStorage();
