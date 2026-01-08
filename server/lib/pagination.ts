@@ -168,3 +168,54 @@ export function parseCursor(cursor: string): { id: string; ts?: string } | null 
     return null;
   }
 }
+
+export interface SortParams {
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+}
+
+export function getSortParams(req: Request, allowedFields: string[] = ['createdAt']): SortParams {
+  const sortBy = req.query.sortBy as string;
+  const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+  
+  return {
+    sortBy: allowedFields.includes(sortBy) ? sortBy : 'createdAt',
+    sortOrder,
+  };
+}
+
+export interface FilterParams {
+  status?: string;
+  productType?: string;
+  startDate?: Date;
+  endDate?: Date;
+  search?: string;
+}
+
+export function getFilterParams(req: Request): FilterParams {
+  const filters: FilterParams = {};
+  
+  if (req.query.status) {
+    filters.status = req.query.status as string;
+  }
+  if (req.query.productType) {
+    filters.productType = req.query.productType as string;
+  }
+  if (req.query.startDate) {
+    const date = new Date(req.query.startDate as string);
+    if (!isNaN(date.getTime())) {
+      filters.startDate = date;
+    }
+  }
+  if (req.query.endDate) {
+    const date = new Date(req.query.endDate as string);
+    if (!isNaN(date.getTime())) {
+      filters.endDate = date;
+    }
+  }
+  if (req.query.search) {
+    filters.search = req.query.search as string;
+  }
+  
+  return filters;
+}
