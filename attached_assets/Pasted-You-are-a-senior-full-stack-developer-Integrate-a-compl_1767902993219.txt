@@ -1,0 +1,42 @@
+You are a senior full-stack developer. Integrate a complete HRMS module into an existing multi-tenant SaaS platform called MyBizStream. The platform has Furniture as baseline with fully abstracted services: BaseFinancialService, BaseNotificationService, BaseAnalyticsAdapter, tenantIsolationMiddleware(), requireMinimumRole(), auditService, and Flutter mobile app structure.
+
+Requirements:
+
+1. Backend Routes (server/routes/hrms/):
+   - Endpoints: dashboard, employees, attendance, leave, leave-types, payroll.
+   - Features:
+     - Tenant isolation (tenantIsolationMiddleware)
+     - RBAC (requireMinimumRole)
+     - Audit logging (auditService)
+     - Notification dispatch (BaseNotificationService) for onboarding, leave requests, approvals, payroll.
+     - Pagination and filtering for employee directory, attendance, payroll.
+   - Use existing database schemas: employees, departments, attendance, leaves, leave_types, payroll.
+
+2. Flutter Mobile (mobile/lib/features/hrms/):
+   - Pages:
+     - HR Dashboard: workforce stats, recent employees, pending leaves.
+     - Employee Directory: search, filter, pagination, add/edit/delete.
+     - Add/Edit Employee: full form, validation, dynamic departments.
+     - Attendance: check-in/out, date navigation, summary stats.
+     - Leave Management: apply/approve/reject, status tabs/filters.
+     - Payroll: month selector, run payroll, status filters.
+   - BLoCs: HrDashboardBloc, EmployeeBloc, AttendanceBloc, LeaveBloc, PayrollBloc.
+   - Repository: HrRepository for all API calls.
+   - Integrate notifications via BaseNotificationService.
+
+3. Analytics:
+   - Add workforce metrics to BaseAnalyticsAdapter (optional).
+
+4. Testing & Validation:
+   - Ensure tenant isolation, RBAC, audit logging, pagination are enforced.
+   - Provide mock data for employees, leaves, attendance, payroll for testing.
+   - Include basic CRUD and workflow tests.
+
+5. Output Format:
+   - Provide full backend route code with file paths.
+   - Provide Flutter pages, BLoCs, and repository code with file paths.
+   - Include wiring for notifications and analytics.
+   - Include comments for developers for clarity.
+   - Ready-to-merge into MyBizStream Phase 2.
+
+Generate the full integration code for HRMS module in one output.

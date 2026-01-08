@@ -1,0 +1,37 @@
+Build full MyBizStream SaaS platform features. Baseline: Furniture module + HRMS module completed. Goal: HRMS integration, Tier 1 normalization, Tier 2 implementation, mobile expansion. Use shared services and follow existing patterns.
+
+Requirements:
+
+1. HRMS Module
+- Backend: APIs for Dashboard, Employee CRUD, Attendance, Leave, Payroll, Departments, LeaveTypes.
+- Services: Use BaseNotificationService for onboarding, leave approvals, payroll events.
+- Models: HrDashboardStats, HrEmployee, HrDepartment, HrAttendance, HrLeave, HrLeaveType, HrPayroll, PaginatedResponse.
+- Flutter: Dashboard, Employee Directory, Add/Edit Employee, Attendance, Leave, Payroll pages. Full BLoC + repository + validation + pagination.
+
+2. Tier 1 Module Normalization (Legal, Education, Tourism, Logistics, Real Estate)
+- Backend: Integrate BaseFinancialService, BaseNotificationService, BaseAnalyticsAdapter, tenant isolation, RBAC, audit, pagination.
+- Flutter: Dashboards, CRUD, workflow pages using BLoC + repository.
+- AI features where applicable via adapters.
+
+3. Tier 2 Module Implementation (Clinic, Salon, Gym, PG/Hostel, Coworking, General)
+- Backend: Create routes from schema, integrate shared services where applicable, enforce tenant isolation, RBAC, audit.
+- Flutter: Pages with CRUD, forms, search, filters, BLoC + repository.
+
+4. Shared Services
+- BaseFinancialService wraps currencyService, taxCalculatorService, invoicePDFService.
+- BaseNotificationService wraps notificationService, whatsappService, event-based.
+- BaseAnalyticsAdapter with module adapters.
+- All modules must import shared services correctly.
+
+5. Testing & Verification
+- Backend unit tests for endpoints and services.
+- Flutter widget and BLoC tests.
+- Verify tenant isolation, RBAC, audit logging, notifications, analytics.
+
+Output:
+- Backend: Routes, services, models, adapters, file paths.
+- Flutter: Directories, pages, BLoCs, repositories, models.
+- Comments for clarity.
+- Ready-to-merge code.
+
+Generate complete backend + Flutter code + integration instructions for HRMS + Tier 1 normalization + Tier 2 implementation + mobile expansion.

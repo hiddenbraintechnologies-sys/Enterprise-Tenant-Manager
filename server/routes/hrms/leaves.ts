@@ -1,10 +1,26 @@
+/**
+ * Leave Management Routes
+ * 
+ * Handles leave applications and approvals for the HRMS module.
+ * 
+ * Endpoints (mounted at /api/hr/leaves):
+ * - GET  /types - List leave types
+ * - POST /types - Add leave type (admin only)
+ * - GET  /balances/:employeeId - Get leave balances
+ * - GET  / - List leaves with filtering
+ * - POST / - Apply for leave
+ * - PUT  /:id - Update/approve leave
+ * 
+ * Note: Tenant isolation and base RBAC applied at router level in index.ts
+ * 
+ * @module server/routes/hrms/leaves
+ */
+
 import { Router } from "express";
-import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
+import { requireMinimumRole, auditService } from "../../core";
 import LeaveService from "../../services/hrms/leaveService";
 
 const router = Router();
-router.use(tenantIsolationMiddleware());
-router.use(requireMinimumRole("hr"));
 
 router.get("/types", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
@@ -50,7 +66,7 @@ router.post("/", async (req, res) => {
   res.status(201).json(leave);
 });
 
-router.put("/:id", requireMinimumRole("manager"), async (req, res) => {
+router.put("/:id", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });

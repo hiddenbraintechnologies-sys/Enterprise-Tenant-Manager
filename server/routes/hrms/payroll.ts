@@ -1,10 +1,25 @@
+/**
+ * Payroll Management Routes
+ * 
+ * Handles payroll processing for the HRMS module.
+ * 
+ * Endpoints (mounted at /api/hr/payroll):
+ * - GET  /salary-structure/:employeeId - Get salary structure
+ * - POST /salary-structure - Add salary structure (admin only)
+ * - GET  / - List payroll records
+ * - POST / - Run payroll (admin only)
+ * - PUT  /:id - Update payroll (admin only)
+ * 
+ * Note: Tenant isolation and base RBAC applied at router level in index.ts
+ * 
+ * @module server/routes/hrms/payroll
+ */
+
 import { Router } from "express";
-import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
+import { requireMinimumRole, auditService } from "../../core";
 import PayrollService from "../../services/hrms/payrollService";
 
 const router = Router();
-router.use(tenantIsolationMiddleware());
-router.use(requireMinimumRole("hr"));
 
 router.get("/salary-structure/:employeeId", async (req, res) => {
   const tenantId = req.context?.tenant?.id;

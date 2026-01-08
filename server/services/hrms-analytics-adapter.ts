@@ -1,3 +1,17 @@
+/**
+ * HRMS Analytics Adapter
+ * 
+ * Provides workforce analytics metrics for the HRMS module:
+ * - Workforce metrics: total employees, active employees, departments
+ * - Attendance metrics: present today, absent today, attendance rate
+ * - Leave metrics: pending approvals, approved this month, leave utilization
+ * - Payroll metrics: total payroll, average salary (optional)
+ * 
+ * Integrates with BaseAnalyticsService for unified analytics across modules.
+ * 
+ * @module server/services/hrms-analytics-adapter
+ */
+
 import {
   IAnalyticsAdapter,
   ModuleAnalyticsConfig,
@@ -8,7 +22,7 @@ import {
   createMetricValue,
 } from "./base-analytics";
 import { hrmsStorage } from "../storage/hrms";
-import type { HrDepartment, HrEmployee, HrAttendance, HrLeave, HrPayroll } from "@shared/schema";
+import type { HrDepartment } from "@shared/schema";
 
 const HRMS_ANALYTICS_CONFIG: ModuleAnalyticsConfig = {
   moduleName: "hrms",
@@ -97,7 +111,7 @@ class HrmsAnalyticsAdapter implements IAnalyticsAdapter {
 
   private async getTopPerformingDepartments(tenantId: string): Promise<Array<{ id: string; name: string; value: number; metric: string }>> {
     const departments = await hrmsStorage.getDepartments(tenantId);
-    const employeesResult = await hrmsStorage.getEmployees(tenantId, { page: 1, limit: 1000 });
+    const employeesResult = await hrmsStorage.getEmployees(tenantId, {}, { page: 1, limit: 1000 });
 
     const deptEmployeeCount = new Map<string, number>();
     for (const emp of employeesResult.data) {

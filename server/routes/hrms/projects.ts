@@ -1,11 +1,33 @@
+/**
+ * Project Management Routes (IT Extensions)
+ * 
+ * Handles project tracking for IT-focused tenants. Gated by hrms_it_extensions feature flag.
+ * 
+ * Endpoints (mounted at /api/hr/projects):
+ * - GET  / - List projects
+ * - POST / - Create project
+ * - PUT  /:id - Update project
+ * - GET  /allocations - List allocations
+ * - POST /allocations - Add allocation
+ * - PUT  /allocations/:id - Update allocation
+ * - GET  /timesheets - List timesheets
+ * - POST /timesheets - Add timesheet
+ * - PUT  /timesheets/:id - Update timesheet
+ * 
+ * Feature Flag: hrms_it_extensions
+ * Enabled for: clinic, coworking, service, education, legal, furniture_manufacturing
+ * 
+ * Note: Tenant isolation and base RBAC applied at router level in index.ts
+ * 
+ * @module server/routes/hrms/projects
+ */
+
 import { Router, Request, Response, NextFunction } from "express";
-import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
+import { auditService } from "../../core";
 import ProjectService from "../../services/hrms/projectService";
 import { hrmsStorage } from "../../storage/hrms";
 
 const router = Router();
-router.use(tenantIsolationMiddleware());
-router.use(requireMinimumRole("hr"));
 
 const FEATURE_FLAGS: Record<string, string[]> = {
   hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "furniture_manufacturing"],
@@ -38,7 +60,7 @@ router.get("/", requireFeature("hrms_it_extensions"), async (req, res) => {
   res.json(result);
 });
 
-router.post("/", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.post("/", requireFeature("hrms_it_extensions"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -47,7 +69,7 @@ router.post("/", requireFeature("hrms_it_extensions"), requireMinimumRole("manag
   res.status(201).json(project);
 });
 
-router.put("/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.put("/:id", requireFeature("hrms_it_extensions"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -68,7 +90,7 @@ router.get("/allocations", requireFeature("hrms_it_extensions"), async (req, res
   res.json(allocations);
 });
 
-router.post("/allocations", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.post("/allocations", requireFeature("hrms_it_extensions"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -77,7 +99,7 @@ router.post("/allocations", requireFeature("hrms_it_extensions"), requireMinimum
   res.status(201).json(allocation);
 });
 
-router.put("/allocations/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.put("/allocations/:id", requireFeature("hrms_it_extensions"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -104,7 +126,7 @@ router.post("/timesheets", requireFeature("hrms_it_extensions"), async (req, res
   res.status(201).json(timesheet);
 });
 
-router.put("/timesheets/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.put("/timesheets/:id", requireFeature("hrms_it_extensions"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
