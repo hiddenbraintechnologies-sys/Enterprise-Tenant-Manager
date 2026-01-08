@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
-import { TenantProvider, DashboardGuard, ModuleGuard, useTenant } from "@/contexts/tenant-context";
+import { TenantProvider, DashboardGuard, ModuleGuard, FeatureGuard, useTenant } from "@/contexts/tenant-context";
 import { TourProvider } from "@/contexts/tour-context";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { CountryProvider } from "@/contexts/country-context";
@@ -28,6 +28,12 @@ import FurnitureInvoices from "@/pages/furniture/invoices";
 import FurnitureAnalytics from "@/pages/furniture/analytics";
 import HrDashboard from "@/pages/hr-dashboard";
 import HrEmployees from "@/pages/hr/employees";
+import HrAttendance from "@/pages/hr/attendance";
+import HrLeaves from "@/pages/hr/leaves";
+import HrPayroll from "@/pages/hr/payroll";
+import HrProjects from "@/pages/hr/projects";
+import HrTimesheets from "@/pages/hr/timesheets";
+import HrAllocations from "@/pages/hr/allocations";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
@@ -226,6 +232,42 @@ function AuthenticatedRoutes() {
       <Route path="/hr/employees">
         <ModuleGuard moduleId="hrms">
           <HrEmployees />
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/attendance">
+        <ModuleGuard moduleId="hrms">
+          <HrAttendance />
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/leaves">
+        <ModuleGuard moduleId="hrms">
+          <HrLeaves />
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/payroll">
+        <ModuleGuard moduleId="hrms">
+          <HrPayroll />
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/projects">
+        <ModuleGuard moduleId="hrms">
+          <FeatureGuard featureId="hrms_it_extensions">
+            <HrProjects />
+          </FeatureGuard>
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/timesheets">
+        <ModuleGuard moduleId="hrms">
+          <FeatureGuard featureId="hrms_it_extensions">
+            <HrTimesheets />
+          </FeatureGuard>
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/allocations">
+        <ModuleGuard moduleId="hrms">
+          <FeatureGuard featureId="hrms_it_extensions">
+            <HrAllocations />
+          </FeatureGuard>
         </ModuleGuard>
       </Route>
       <Route component={NotFound} />

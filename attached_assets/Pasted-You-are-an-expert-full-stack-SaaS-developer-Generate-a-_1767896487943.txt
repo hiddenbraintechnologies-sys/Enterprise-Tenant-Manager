@@ -1,0 +1,79 @@
+You are an expert full-stack SaaS developer. Generate a complete **HRMS module** for the MyBizStream platform, designed for IT and all businesses, integrating seamlessly with existing modules. Follow the platform’s architecture: multi-tenant, RBAC, audit logging, server-side pagination, Flutter mobile-ready, and using shared base services (BaseNotificationService, BaseAnalyticsAdapter, BaseFinancialService if needed).
+
+Module Name: HRMS
+Features:
+1. HR Dashboard
+   - Workforce stats: total employees, active, new hires
+   - Recent employees list
+   - Pending leave requests
+   - Analytics charts: attendance %, leave trends
+   - Flutter-ready dashboard page
+
+2. Employee Directory
+   - Search, filter, pagination
+   - Add / edit employee form
+   - View employee details
+   - Flutter-ready UI pages
+
+3. Attendance
+   - Daily check-in / check-out (manual & automated)
+   - View attendance by employee / department / date
+   - Late / early indicators
+   - Filters, pagination
+   - Notifications for anomalies
+   - Audit logs
+
+4. Leave Management
+   - Submit leave requests (employee)
+   - Approval workflow (manager / HR)
+   - Leave types configurable per tenant
+   - Leave balance tracking
+   - Pending / Approved / Rejected view
+   - Filters, pagination
+   - Notifications for approvals/rejections
+   - Audit logs
+
+5. Payroll
+   - Employee salary structure
+   - Payroll cycle management
+   - Payslip generation (PDF)
+   - Payment status tracking
+   - Notifications on payroll processed
+   - Audit logs
+
+Backend Requirements:
+- Node.js / TypeScript
+- Routes: server/routes/hrms/*.ts
+- Services: server/services/hrms/*.ts
+- Middleware: tenantIsolationMiddleware(), requireMinimumRole(), auditService
+- Use BaseNotificationService & BaseAnalyticsAdapter for notifications & analytics
+- Pagination via getPaginationParams + paginatedResponse
+- Modular, reusable, maintainable code
+- Unit tests for all routes
+
+Flutter Frontend:
+- Directory: mobile/lib/features/hrms/
+- Pages: Dashboard, Employee Directory, Attendance, Leave, Payroll
+- Full data binding with backend APIs
+- Pagination, search, filters
+- Notification alerts for events
+- Tenant-aware (tenantId)
+
+API Endpoints:
+- /api/hrms/attendance
+- /api/hrms/attendance/:employeeId
+- /api/hrms/leaves
+- /api/hrms/leaves/:employeeId
+- /api/hrms/payroll
+- /api/hrms/payroll/:employeeId
+- /api/hrms/employees
+- /api/hrms/employees/:employeeId
+- Include tenant isolation, RBAC, audit logging
+
+Output Requirement:
+- Provide folder structure, backend files with skeletons, service contracts, route stubs
+- Provide Flutter UI skeletons, state management stubs, navigation, and API integration placeholders
+- Clearly indicate where to implement business logic
+- Ready for Phase 2 integration
+
+Ensure all code follows MyBizStream conventions, multi-tenant safe, RBAC enforced, and audit-logged.

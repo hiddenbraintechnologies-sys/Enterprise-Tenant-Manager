@@ -26,6 +26,52 @@ function getTenantId(req: Request): string {
   return tenantId;
 }
 
+type FeatureFlag = "hrms_it_extensions" | "advanced_analytics" | "multi_currency";
+
+const FEATURE_FLAGS: Record<string, FeatureFlag[]> = {
+  clinic: ["hrms_it_extensions"],
+  salon: [],
+  pg: [],
+  coworking: ["hrms_it_extensions"],
+  service: ["hrms_it_extensions"],
+  real_estate: [],
+  tourism: [],
+  education: ["hrms_it_extensions"],
+  logistics: [],
+  legal: ["hrms_it_extensions"],
+  furniture_manufacturing: ["hrms_it_extensions", "multi_currency"],
+};
+
+function getAuthenticatedBusinessType(req: Request): string | null {
+  const businessType = (req as any).businessType;
+  if (businessType && typeof businessType === "string" && FEATURE_FLAGS.hasOwnProperty(businessType)) {
+    return businessType;
+  }
+  return null;
+}
+
+function hasFeatureFlag(req: Request, flag: FeatureFlag): boolean {
+  const businessType = getAuthenticatedBusinessType(req);
+  if (!businessType) {
+    return false;
+  }
+  const features = FEATURE_FLAGS[businessType] || [];
+  return features.includes(flag);
+}
+
+function requireFeature(flag: FeatureFlag) {
+  return (req: Request, res: Response, next: Function) => {
+    const businessType = getAuthenticatedBusinessType(req);
+    if (!businessType) {
+      return res.status(403).json({ error: "Business type not authenticated" });
+    }
+    if (!hasFeatureFlag(req, flag)) {
+      return res.status(403).json({ error: "Feature not available for your subscription" });
+    }
+    next();
+  };
+}
+
 function getUserId(req: Request): string | undefined {
   return (req as any).userId || (req as any).user?.id;
 }
@@ -358,7 +404,7 @@ router.patch("/payroll/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/projects", async (req: Request, res: Response) => {
+router.get("/projects", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const pagination = parsePagination(req);
@@ -373,7 +419,7 @@ router.get("/projects", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/projects", async (req: Request, res: Response) => {
+router.post("/projects", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const userId = getUserId(req);
@@ -387,7 +433,7 @@ router.post("/projects", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/projects/:id", async (req: Request, res: Response) => {
+router.patch("/projects/:id", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const userId = getUserId(req);
@@ -401,7 +447,7 @@ router.patch("/projects/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/allocations", async (req: Request, res: Response) => {
+router.get("/allocations", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const allocations = await hrmsStorage.getAllocations(
@@ -415,7 +461,7 @@ router.get("/allocations", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/allocations", async (req: Request, res: Response) => {
+router.post("/allocations", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const userId = getUserId(req);
@@ -427,7 +473,7 @@ router.post("/allocations", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/allocations/:id", async (req: Request, res: Response) => {
+router.patch("/allocations/:id", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const allocation = await hrmsStorage.updateAllocation(tenantId, req.params.id, req.body);
@@ -440,7 +486,7 @@ router.patch("/allocations/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/timesheets", async (req: Request, res: Response) => {
+router.get("/timesheets", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const pagination = parsePagination(req);
@@ -458,7 +504,7 @@ router.get("/timesheets", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/timesheets", async (req: Request, res: Response) => {
+router.post("/timesheets", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const userId = getUserId(req);
@@ -470,7 +516,7 @@ router.post("/timesheets", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/timesheets/:id", async (req: Request, res: Response) => {
+router.patch("/timesheets/:id", requireFeature("hrms_it_extensions"), async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
     const userId = getUserId(req);

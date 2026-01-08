@@ -11,10 +11,38 @@ export interface ModuleConfig {
   routes: string[];
 }
 
+export type FeatureFlag = "hrms_it_extensions" | "advanced_analytics" | "multi_currency";
+
+export interface FeatureFlagConfig {
+  [businessType: string]: FeatureFlag[];
+}
+
+const FEATURE_FLAGS: FeatureFlagConfig = {
+  clinic: ["hrms_it_extensions"],
+  salon: [],
+  pg: [],
+  coworking: ["hrms_it_extensions"],
+  service: ["hrms_it_extensions"],
+  real_estate: [],
+  tourism: [],
+  education: ["hrms_it_extensions"],
+  logistics: [],
+  legal: ["hrms_it_extensions"],
+  furniture_manufacturing: ["hrms_it_extensions", "multi_currency"],
+};
+
+const HRMS_MODULE: ModuleConfig = {
+  id: "hrms",
+  name: "HR Management",
+  enabled: true,
+  routes: ["/hr", "/hr/employees", "/hr/attendance", "/hr/leaves", "/hr/payroll", "/hr/projects", "/hr/timesheets", "/hr/allocations"],
+};
+
 const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
   clinic: [
     { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
     { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -22,12 +50,14 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "customers", name: "Clients", enabled: true, routes: ["/customers", "/customers/new"] },
     { id: "services", name: "Services", enabled: true, routes: ["/services", "/services/new"] },
     { id: "bookings", name: "Appointments", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
   pg: [
     { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
     { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -35,6 +65,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "spaces", name: "Spaces", enabled: true, routes: ["/coworking/spaces"] },
     { id: "desks", name: "Desks", enabled: true, routes: ["/coworking/desks"] },
     { id: "bookings", name: "Bookings", enabled: true, routes: ["/coworking/bookings", "/coworking/book"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -42,6 +73,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
     { id: "services", name: "Services", enabled: true, routes: ["/services", "/services/new"] },
     { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -51,6 +83,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "leads", name: "Leads", enabled: true, routes: ["/leads", "/leads/new", "/leads/:id"] },
     { id: "site_visits", name: "Site Visits", enabled: true, routes: ["/site-visits", "/site-visits/new", "/site-visits/:id"] },
     { id: "agents", name: "Agents", enabled: true, routes: ["/agents", "/agents/new", "/agents/:id"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -60,6 +93,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new", "/customers/:id"] },
     { id: "itineraries", name: "Itineraries", enabled: true, routes: ["/itineraries", "/itineraries/new", "/itineraries/:id"] },
     { id: "vendors", name: "Vendors", enabled: true, routes: ["/vendors", "/vendors/new", "/vendors/:id"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -70,6 +104,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "attendance", name: "Attendance", enabled: true, routes: ["/attendance", "/attendance/:batchId"] },
     { id: "exams", name: "Exams", enabled: true, routes: ["/exams", "/exams/new", "/exams/:id", "/exams/:id/results"] },
     { id: "fees", name: "Fees", enabled: true, routes: ["/fees", "/fees/new", "/fees/:id", "/fees/collections"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -80,6 +115,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "shipments", name: "Shipments", enabled: true, routes: ["/shipments", "/shipments/new", "/shipments/:id"] },
     { id: "tracking", name: "Tracking", enabled: true, routes: ["/tracking", "/tracking/:shipmentId"] },
     { id: "maintenance", name: "Maintenance", enabled: true, routes: ["/maintenance", "/maintenance/new", "/maintenance/:id"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -89,6 +125,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "appointments", name: "Appointments", enabled: true, routes: ["/appointments", "/appointments/new", "/appointments/:id"] },
     { id: "documents", name: "Documents", enabled: true, routes: ["/documents", "/documents/new", "/documents/:id"] },
     { id: "billing", name: "Billing", enabled: true, routes: ["/billing", "/billing/new", "/billing/:id", "/billing/invoices"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -100,6 +137,7 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "sales", name: "Sales Orders", enabled: true, routes: ["/furniture/sales-orders", "/furniture/sales-orders/new", "/furniture/sales-orders/:id"] },
     { id: "deliveries", name: "Deliveries", enabled: true, routes: ["/furniture/deliveries", "/furniture/deliveries/new", "/furniture/deliveries/:id"] },
     { id: "installations", name: "Installations", enabled: true, routes: ["/furniture/installations", "/furniture/installations/new", "/furniture/installations/:id"] },
+    HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
@@ -124,8 +162,10 @@ interface TenantContextValue {
   businessType: BusinessType;
   modules: ModuleConfig[];
   dashboardRoute: string;
+  features: FeatureFlag[];
   isModuleEnabled: (moduleId: string) => boolean;
   isRouteAllowed: (route: string) => boolean;
+  isFeatureEnabled: (featureId: FeatureFlag) => boolean;
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null);
@@ -144,6 +184,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   const modules = BUSINESS_TYPE_MODULES[businessType] || BUSINESS_TYPE_MODULES.service;
   const dashboardRoute = DASHBOARD_ROUTES[businessType] || DASHBOARD_ROUTES.service;
+  const features = FEATURE_FLAGS[businessType] || [];
 
   const isModuleEnabled = (moduleId: string): boolean => {
     const module = modules.find((m) => m.id === moduleId);
@@ -163,12 +204,18 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     return allowedRoutes.some((r) => route === r || route.startsWith(r + "/"));
   };
 
+  const isFeatureEnabled = (featureId: FeatureFlag): boolean => {
+    return features.includes(featureId);
+  };
+
   const value: TenantContextValue = {
     businessType,
     modules,
     dashboardRoute,
+    features,
     isModuleEnabled,
     isRouteAllowed,
+    isFeatureEnabled,
   };
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
@@ -218,6 +265,25 @@ export function ModuleGuard({ children, moduleId }: ModuleGuardProps) {
   const { isModuleEnabled, dashboardRoute } = useTenant();
 
   if (!isModuleEnabled(moduleId)) {
+    return <Redirect to={dashboardRoute} />;
+  }
+
+  return <>{children}</>;
+}
+
+interface FeatureGuardProps {
+  children: ReactNode;
+  featureId: FeatureFlag;
+  fallback?: ReactNode;
+}
+
+export function FeatureGuard({ children, featureId, fallback = null }: FeatureGuardProps) {
+  const { isFeatureEnabled, dashboardRoute } = useTenant();
+
+  if (!isFeatureEnabled(featureId)) {
+    if (fallback) {
+      return <>{fallback}</>;
+    }
     return <Redirect to={dashboardRoute} />;
   }
 

@@ -17,8 +17,11 @@ import {
   UserPlus,
   CalendarCheck,
   FileText,
+  FolderKanban,
+  Timer,
 } from "lucide-react";
 import { Link } from "wouter";
+import { useTenant } from "@/contexts/tenant-context";
 
 interface DashboardStats {
   totalEmployees: number;
@@ -109,6 +112,9 @@ function getStatusVariant(status: string): "default" | "secondary" | "destructiv
 }
 
 export default function HrDashboard() {
+  const { isFeatureEnabled } = useTenant();
+  const hasItExtensions = isFeatureEnabled("hrms_it_extensions");
+  
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/hr/dashboard"],
   });
@@ -222,8 +228,10 @@ export default function HrDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
             <CardTitle className="text-lg">Pending Leave Requests</CardTitle>
-            <Button variant="ghost" size="sm" disabled data-testid="button-view-all-leaves">
-              View All <ArrowRight className="ml-1 h-4 w-4" />
+            <Button asChild variant="ghost" size="sm" data-testid="button-view-all-leaves">
+              <Link href="/hr/leaves">
+                View All <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -267,15 +275,40 @@ export default function HrDashboard() {
             <Users className="mr-2 h-4 w-4" /> Manage Employees
           </Link>
         </Button>
-        <Button variant="outline" disabled data-testid="button-view-attendance">
-          <Clock className="mr-2 h-4 w-4" /> View Attendance (Coming Soon)
+        <Button asChild variant="outline" data-testid="button-view-attendance">
+          <Link href="/hr/attendance">
+            <Clock className="mr-2 h-4 w-4" /> View Attendance
+          </Link>
         </Button>
-        <Button variant="outline" disabled data-testid="button-manage-leaves">
-          <Calendar className="mr-2 h-4 w-4" /> Manage Leaves (Coming Soon)
+        <Button asChild variant="outline" data-testid="button-manage-leaves">
+          <Link href="/hr/leaves">
+            <Calendar className="mr-2 h-4 w-4" /> Manage Leaves
+          </Link>
         </Button>
-        <Button variant="outline" disabled data-testid="button-process-payroll">
-          <DollarSign className="mr-2 h-4 w-4" /> Process Payroll (Coming Soon)
+        <Button asChild variant="outline" data-testid="button-process-payroll">
+          <Link href="/hr/payroll">
+            <DollarSign className="mr-2 h-4 w-4" /> Process Payroll
+          </Link>
         </Button>
+        {hasItExtensions && (
+          <>
+            <Button asChild variant="outline" data-testid="button-manage-projects">
+              <Link href="/hr/projects">
+                <FolderKanban className="mr-2 h-4 w-4" /> Projects
+              </Link>
+            </Button>
+            <Button asChild variant="outline" data-testid="button-manage-timesheets">
+              <Link href="/hr/timesheets">
+                <Timer className="mr-2 h-4 w-4" /> Timesheets
+              </Link>
+            </Button>
+            <Button asChild variant="outline" data-testid="button-manage-allocations">
+              <Link href="/hr/allocations">
+                <UserCheck className="mr-2 h-4 w-4" /> Allocations
+              </Link>
+            </Button>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
