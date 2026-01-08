@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -480,15 +480,23 @@ function StockMovementDialog({
 
 export default function FurnitureRawMaterials() {
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [showLowStock, setShowLowStock] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
   const [showMaterialDialog, setShowMaterialDialog] = useState(false);
   const [showMovementDialog, setShowMovementDialog] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   const [activeTab, setActiveTab] = useState("materials");
 
   const pagination = usePagination({ initialLimit: 20 });
+
+  // Debounced search - update server filter after 300ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      pagination.setFilter("search", searchInput || undefined);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const showLowStock = pagination.filters.lowStock === "true";
 
   const { data: materialsResponse, isLoading: loadingMaterials } = useQuery<PaginationResponse<RawMaterial>>({
     queryKey: ["/api/furniture/raw-materials", pagination.queryParams],
@@ -501,9 +509,11 @@ export default function FurnitureRawMaterials() {
     queryKey: ["/api/furniture/raw-material-categories"],
   });
 
+  // Low stock count for the warning banner
   const { data: lowStockMaterials = [] } = useQuery<RawMaterial[]>({
     queryKey: ["/api/furniture/raw-materials/low-stock"],
   });
+  const lowStockCount = lowStockMaterials.length;
 
   const { data: movements = [], isLoading: loadingMovements } = useQuery<RawMaterialStockMovement[]>({
     queryKey: ["/api/furniture/stock-movements"],
@@ -580,16 +590,7 @@ export default function FurnitureRawMaterials() {
     }
   };
 
-  const displayMaterials = showLowStock ? lowStockMaterials : materials;
-  const filteredMaterials = displayMaterials.filter((material) => {
-    const matchesSearch =
-      !searchQuery ||
-      material.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      material.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      categoryFilter === "all" || material.categoryId === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  // Server-side filtering - materials already filtered by lowStock parameter when toggled
 
   const getCategoryName = (categoryId: string | null) => {
     if (!categoryId) return "-";
@@ -643,13 +644,13 @@ export default function FurnitureRawMaterials() {
         </div>
 
         <TabsContent value="materials" className="space-y-6">
-          {lowStockMaterials.length > 0 && (
+          {lowStockCount > 0 && (
             <Card className="border-destructive/50 bg-destructive/5">
               <CardContent className="flex items-center gap-4 p-4">
                 <AlertTriangle className="h-5 w-5 text-destructive" />
                 <div className="flex-1">
                   <p className="font-medium text-destructive">
-                    {lowStockMaterials.length} materials below minimum stock level
+                    {lowStockCount} materials below minimum stock level
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Review and reorder to prevent production delays
@@ -658,7 +659,7 @@ export default function FurnitureRawMaterials() {
                 <Button
                   variant={showLowStock ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setShowLowStock(!showLowStock)}
+                  onClick={() => pagination.setFilter("lowStock", showLowStock ? undefined : "true")}
                   data-testid="button-toggle-low-stock"
                 >
                   {showLowStock ? "Show All" : "Show Low Stock"}
@@ -672,13 +673,16 @@ export default function FurnitureRawMaterials() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search materials..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
                 data-testid="input-search-materials"
               />
             </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <Select 
+              value={pagination.filters.categoryId || "all"} 
+              onValueChange={(v) => pagination.setFilter("categoryId", v === "all" ? undefined : v)}
+            >
               <SelectTrigger className="w-[180px]" data-testid="select-filter-category">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
@@ -699,7 +703,7 @@ export default function FurnitureRawMaterials() {
                     <Skeleton key={i} className="h-16 w-full" />
                   ))}
                 </div>
-              ) : filteredMaterials.length === 0 ? (
+              ) : materials.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Package className="h-12 w-12 text-muted-foreground" />
                   <h3 className="mt-4 text-lg font-semibold">No materials found</h3>
@@ -723,7 +727,7 @@ export default function FurnitureRawMaterials() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMaterials.map((material) => {
+                    {materials.map((material) => {
                       const isLowStock =
                         parseFloat(material.currentStock || "0") <=
                         parseFloat(material.minStockLevel || "0");
@@ -794,6 +798,11 @@ export default function FurnitureRawMaterials() {
                   hasPrev={paginationInfo.hasPrev}
                   onPageChange={pagination.setPage}
                   onLimitChange={pagination.setLimit}
+                  isFiltered={pagination.hasActiveFilters}
+                  onClearFilters={() => {
+                    pagination.clearFilters();
+                    setSearchInput("");
+                  }}
                 />
               )}
             </CardContent>

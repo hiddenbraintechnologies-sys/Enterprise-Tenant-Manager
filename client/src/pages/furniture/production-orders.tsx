@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -139,7 +139,7 @@ function OrderDialog({
           bomId: order.bomId || "",
           salesOrderId: order.salesOrderId || "",
           quantity: String(order.quantity || 1),
-          priority: order.priority || "normal",
+          priority: String(order.priority || "normal"),
           scheduledStartDate: order.scheduledStartDate
             ? new Date(order.scheduledStartDate).toISOString().split("T")[0]
             : "",
@@ -437,14 +437,20 @@ function StagesView({
 
 export default function FurnitureProductionOrders() {
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [searchInput, setSearchInput] = useState("");
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [editingOrder, setEditingOrder] = useState<ProductionOrder | null>(null);
   const [viewingStages, setViewingStages] = useState<ProductionOrder | null>(null);
 
   const pagination = usePagination({ initialLimit: 20 });
+
+  // Debounced search - update server filter after 300ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      pagination.setFilter("search", searchInput || undefined);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const { data: ordersResponse, isLoading } = useQuery<PaginationResponse<ProductionOrder>>({
     queryKey: ["/api/furniture/production-orders", pagination.queryParams],
@@ -534,14 +540,7 @@ export default function FurnitureProductionOrders() {
     }
   };
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      !searchQuery ||
-      order.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    const matchesPriority = priorityFilter === "all" || order.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
-  });
+  // Server-side filtering - no client-side filtering needed
 
   const getProductName = (productId: string) => {
     return products.find((p) => p.id === productId)?.name || "-";
@@ -575,13 +574,16 @@ export default function FurnitureProductionOrders() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
                 data-testid="input-search-orders"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select 
+              value={pagination.filters.status || "all"} 
+              onValueChange={(v) => pagination.setFilter("status", v === "all" ? undefined : v)}
+            >
               <SelectTrigger className="w-[150px]" data-testid="select-filter-status">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -592,7 +594,10 @@ export default function FurnitureProductionOrders() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <Select 
+              value={pagination.filters.priority || "all"} 
+              onValueChange={(v) => pagination.setFilter("priority", v === "all" ? undefined : v)}
+            >
               <SelectTrigger className="w-[130px]" data-testid="select-filter-priority">
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
@@ -624,7 +629,7 @@ export default function FurnitureProductionOrders() {
                   <Skeleton key={i} className="h-16 w-full" />
                 ))}
               </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : orders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Hammer className="h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-semibold">No production orders</h3>
@@ -646,7 +651,7 @@ export default function FurnitureProductionOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.map((order) => (
+                  {orders.map((order) => (
                     <TableRow key={order.id} data-testid={`row-order-${order.id}`}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -663,11 +668,11 @@ export default function FurnitureProductionOrders() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{getProductName(order.productId)}</TableCell>
+                      <TableCell>{getProductName(order.productId || "")}</TableCell>
                       <TableCell className="text-right font-mono">{order.quantity}</TableCell>
                       <TableCell>
-                        <Badge variant={getPriorityVariant(order.priority)}>
-                          {order.priority}
+                        <Badge variant={getPriorityVariant(String(order.priority || "normal"))}>
+                          {order.priority || "normal"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -689,8 +694,8 @@ export default function FurnitureProductionOrders() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(order.status)}>
-                          {order.status.replace("_", " ")}
+                        <Badge variant={getStatusVariant(order.status || "pending")}>
+                          {(order.status || "pending").replace("_", " ")}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -763,6 +768,11 @@ export default function FurnitureProductionOrders() {
                 hasPrev={paginationInfo.hasPrev}
                 onPageChange={pagination.setPage}
                 onLimitChange={pagination.setLimit}
+                isFiltered={pagination.hasActiveFilters}
+                onClearFilters={() => {
+                  pagination.clearFilters();
+                  setSearchInput("");
+                }}
               />
             )}
           </CardContent>

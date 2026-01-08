@@ -109,6 +109,12 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - **Installation Orders**: Optional post-delivery installation, installer assignment with helpers, completion tracking with customer feedback/ratings
   - **Sales Orders**: Retail/wholesale/B2B order types, advance payments, multi-currency support, GST invoicing, delivery/installation linking
   - **API Endpoints**: Full CRUD at `/api/furniture/*` with tenant isolation via X-Tenant-ID header
+  - **Server-Side Pagination & Filtering**: All furniture pages use server-side filtering pattern:
+    - Debounced search (300ms delay) via `pagination.setFilter("search", value)`
+    - Status/type/priority/category filters via `pagination.setFilter(key, value)`
+    - DataTablePagination with `isFiltered` and `onClearFilters` props
+    - Low stock filter (`lowStock=true`) for raw materials server-side filtering
+    - Dual-tab pagination for deliveries/installations with tab-switch filter clearing
 
 ## Documentation
 - **MYBIZSTREAM_DOCUMENTATION.md**: Comprehensive platform documentation

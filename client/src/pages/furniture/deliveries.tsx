@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -393,8 +393,7 @@ function InstallationDialog({
 export default function FurnitureDeliveries() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("deliveries");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchInput, setSearchInput] = useState("");
   const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
   const [showInstallDialog, setShowInstallDialog] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState<DeliveryOrder | null>(null);
@@ -402,6 +401,26 @@ export default function FurnitureDeliveries() {
 
   const deliveryPagination = usePagination({ initialLimit: 20 });
   const installPagination = usePagination({ initialLimit: 20 });
+
+  // Debounced search - update server filter after 300ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (activeTab === "deliveries") {
+        deliveryPagination.setFilter("search", searchInput || undefined);
+      } else {
+        installPagination.setFilter("search", searchInput || undefined);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput, activeTab]);
+
+  // Clear search when switching tabs to prevent stale filters
+  const handleTabChange = (newTab: string) => {
+    setSearchInput("");
+    deliveryPagination.clearFilters();
+    installPagination.clearFilters();
+    setActiveTab(newTab);
+  };
 
   const { data: deliveriesResponse, isLoading: loadingDeliveries } = useQuery<PaginationResponse<DeliveryOrder>>({
     queryKey: ["/api/furniture/deliveries", deliveryPagination.queryParams],
@@ -498,22 +517,7 @@ export default function FurnitureDeliveries() {
     }
   };
 
-  const filteredDeliveries = deliveries.filter((d) => {
-    const matchesSearch =
-      !searchQuery ||
-      d.deliveryNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.deliveryAddress?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || d.deliveryStatus === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const filteredInstalls = installations.filter((i) => {
-    const matchesSearch =
-      !searchQuery ||
-      i.installationNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || i.installationStatus === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Server-side filtering - no client-side filtering needed
 
   const getOrderNumber = (salesOrderId: string | null) => {
     if (!salesOrderId) return "-";
@@ -529,7 +533,7 @@ export default function FurnitureDeliveries() {
       ]}
     >
       <div className="space-y-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <TabsList>
               <TabsTrigger value="deliveries" data-testid="tab-deliveries">
@@ -564,13 +568,22 @@ export default function FurnitureDeliveries() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={activeTab === "deliveries" ? "Search deliveries..." : "Search installations..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
                 data-testid="input-search"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select 
+              value={(activeTab === "deliveries" ? deliveryPagination.filters.status : installPagination.filters.status) || "all"} 
+              onValueChange={(v) => {
+                if (activeTab === "deliveries") {
+                  deliveryPagination.setFilter("status", v === "all" ? undefined : v);
+                } else {
+                  installPagination.setFilter("status", v === "all" ? undefined : v);
+                }
+              }}
+            >
               <SelectTrigger className="w-[150px]" data-testid="select-filter-status">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -592,7 +605,7 @@ export default function FurnitureDeliveries() {
                       <Skeleton key={i} className="h-16 w-full" />
                     ))}
                   </div>
-                ) : filteredDeliveries.length === 0 ? (
+                ) : deliveries.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Truck className="h-12 w-12 text-muted-foreground" />
                     <h3 className="mt-4 text-lg font-semibold">No deliveries</h3>
@@ -613,7 +626,7 @@ export default function FurnitureDeliveries() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredDeliveries.map((delivery) => (
+                      {deliveries.map((delivery) => (
                         <TableRow key={delivery.id} data-testid={`row-delivery-${delivery.id}`}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -687,6 +700,12 @@ export default function FurnitureDeliveries() {
                     hasPrev={deliveryPaginationInfo.hasPrev}
                     onPageChange={deliveryPagination.setPage}
                     onLimitChange={deliveryPagination.setLimit}
+                    isFiltered={deliveryPagination.hasActiveFilters}
+                    onClearFilters={() => {
+                      deliveryPagination.clearFilters();
+                      installPagination.clearFilters();
+                      setSearchInput("");
+                    }}
                   />
                 )}
               </CardContent>
@@ -702,7 +721,7 @@ export default function FurnitureDeliveries() {
                       <Skeleton key={i} className="h-16 w-full" />
                     ))}
                   </div>
-                ) : filteredInstalls.length === 0 ? (
+                ) : installations.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Wrench className="h-12 w-12 text-muted-foreground" />
                     <h3 className="mt-4 text-lg font-semibold">No installations</h3>
@@ -722,7 +741,7 @@ export default function FurnitureDeliveries() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredInstalls.map((install) => (
+                      {installations.map((install) => (
                         <TableRow key={install.id} data-testid={`row-install-${install.id}`}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -740,7 +759,13 @@ export default function FurnitureDeliveries() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{getOrderNumber(install.salesOrderId)}</TableCell>
+                          <TableCell>
+                            {install.deliveryOrderId 
+                              ? deliveries.find(d => d.id === install.deliveryOrderId)?.salesOrderId 
+                                ? getOrderNumber(deliveries.find(d => d.id === install.deliveryOrderId)?.salesOrderId || null) 
+                                : "-"
+                              : "-"}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3 text-muted-foreground" />
@@ -782,6 +807,12 @@ export default function FurnitureDeliveries() {
                     hasPrev={installPaginationInfo.hasPrev}
                     onPageChange={installPagination.setPage}
                     onLimitChange={installPagination.setLimit}
+                    isFiltered={installPagination.hasActiveFilters}
+                    onClearFilters={() => {
+                      deliveryPagination.clearFilters();
+                      installPagination.clearFilters();
+                      setSearchInput("");
+                    }}
                   />
                 )}
               </CardContent>

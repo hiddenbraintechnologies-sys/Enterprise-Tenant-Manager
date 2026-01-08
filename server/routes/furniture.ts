@@ -300,6 +300,9 @@ router.get("/raw-materials", async (req: Request, res: Response) => {
     if (req.query.categoryId) {
       conditions.push(eq(rawMaterials.categoryId, req.query.categoryId as string));
     }
+    if (req.query.lowStock === "true") {
+      conditions.push(sql`CAST(${rawMaterials.currentStock} AS NUMERIC) <= CAST(${rawMaterials.minStockLevel} AS NUMERIC)`);
+    }
     
     const whereClause = and(...conditions);
     

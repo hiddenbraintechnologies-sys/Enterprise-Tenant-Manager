@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -400,14 +400,20 @@ function OrderDetailView({
 
 export default function FurnitureSalesOrders() {
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [searchInput, setSearchInput] = useState("");
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [editingOrder, setEditingOrder] = useState<FurnitureSalesOrder | null>(null);
   const [viewingOrder, setViewingOrder] = useState<FurnitureSalesOrder | null>(null);
 
   const pagination = usePagination({ initialLimit: 20 });
+
+  // Debounced search - update server filter after 300ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      pagination.setFilter("search", searchInput || undefined);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const { data: ordersResponse, isLoading } = useQuery<PaginationResponse<FurnitureSalesOrder>>({
     queryKey: ["/api/furniture/sales-orders", pagination.queryParams],
@@ -467,14 +473,7 @@ export default function FurnitureSalesOrders() {
     }
   };
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      !searchQuery ||
-      order.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    const matchesType = typeFilter === "all" || order.orderType === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  // Server-side filtering - no client-side filtering needed
 
   const getCustomerName = (customerId: string | null) => {
     if (!customerId) return "-";
@@ -497,13 +496,16 @@ export default function FurnitureSalesOrders() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
                 data-testid="input-search-orders"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select 
+              value={pagination.filters.status || "all"} 
+              onValueChange={(v) => pagination.setFilter("status", v === "all" ? undefined : v)}
+            >
               <SelectTrigger className="w-[150px]" data-testid="select-filter-status">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -514,7 +516,10 @@ export default function FurnitureSalesOrders() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select 
+              value={pagination.filters.orderType || "all"} 
+              onValueChange={(v) => pagination.setFilter("orderType", v === "all" ? undefined : v)}
+            >
               <SelectTrigger className="w-[130px]" data-testid="select-filter-type">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
@@ -546,7 +551,7 @@ export default function FurnitureSalesOrders() {
                   <Skeleton key={i} className="h-16 w-full" />
                 ))}
               </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : orders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <ShoppingCart className="h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-semibold">No sales orders</h3>
@@ -567,7 +572,7 @@ export default function FurnitureSalesOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.map((order) => (
+                  {orders.map((order) => (
                     <TableRow key={order.id} data-testid={`row-order-${order.id}`}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -642,6 +647,11 @@ export default function FurnitureSalesOrders() {
                 hasPrev={paginationInfo.hasPrev}
                 onPageChange={pagination.setPage}
                 onLimitChange={pagination.setLimit}
+                isFiltered={pagination.hasActiveFilters}
+                onClearFilters={() => {
+                  pagination.clearFilters();
+                  setSearchInput("");
+                }}
               />
             )}
           </CardContent>
