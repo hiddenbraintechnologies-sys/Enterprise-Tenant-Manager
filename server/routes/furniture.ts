@@ -53,6 +53,9 @@ import { seedFurnitureDemoData } from "../seed/furniture-demo-data";
 import { currencyService } from "../services/currency";
 import { taxCalculatorService } from "../services/tax-calculator";
 import { invoicePDFService } from "../services/invoice-pdf";
+import { analyticsService } from "../services/analytics";
+import { aiInsightsService } from "../services/ai-insights";
+import { startOfDay, endOfDay, subDays, subMonths, parseISO } from "date-fns";
 
 const router = Router();
 
@@ -3297,6 +3300,298 @@ router.get("/upcoming-payments", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching upcoming payments:", error);
     res.status(500).json({ error: "Failed to fetch upcoming payments" });
+  }
+});
+
+// ============================================
+// ANALYTICS & INSIGHTS
+// ============================================
+
+router.get("/analytics/overview", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const period = (req.query.period as string) || "30d";
+    let startDate: Date;
+    const endDate = endOfDay(new Date());
+
+    switch (period) {
+      case "7d":
+        startDate = startOfDay(subDays(new Date(), 7));
+        break;
+      case "30d":
+        startDate = startOfDay(subDays(new Date(), 30));
+        break;
+      case "90d":
+        startDate = startOfDay(subDays(new Date(), 90));
+        break;
+      case "1y":
+        startDate = startOfDay(subMonths(new Date(), 12));
+        break;
+      default:
+        startDate = startOfDay(subDays(new Date(), 30));
+    }
+
+    if (req.query.startDate) {
+      startDate = startOfDay(parseISO(req.query.startDate as string));
+    }
+    if (req.query.endDate) {
+      const customEndDate = endOfDay(parseISO(req.query.endDate as string));
+      const overview = await analyticsService.getOverview(tenantId, { startDate, endDate: customEndDate });
+      return res.json({ dateRange: { startDate, endDate: customEndDate }, ...overview });
+    }
+
+    const overview = await analyticsService.getOverview(tenantId, { startDate, endDate });
+    res.json({ dateRange: { startDate, endDate }, ...overview });
+  } catch (error) {
+    console.error("Error fetching analytics overview:", error);
+    res.status(500).json({ error: "Failed to fetch analytics overview" });
+  }
+});
+
+router.get("/analytics/production", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const startDate = req.query.startDate 
+      ? startOfDay(parseISO(req.query.startDate as string))
+      : startOfDay(subDays(new Date(), 30));
+    const endDate = req.query.endDate 
+      ? endOfDay(parseISO(req.query.endDate as string))
+      : endOfDay(new Date());
+
+    const metrics = await analyticsService.getProductionMetrics(tenantId, { startDate, endDate });
+    res.json(metrics);
+  } catch (error) {
+    console.error("Error fetching production analytics:", error);
+    res.status(500).json({ error: "Failed to fetch production analytics" });
+  }
+});
+
+router.get("/analytics/sales", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const startDate = req.query.startDate 
+      ? startOfDay(parseISO(req.query.startDate as string))
+      : startOfDay(subDays(new Date(), 30));
+    const endDate = req.query.endDate 
+      ? endOfDay(parseISO(req.query.endDate as string))
+      : endOfDay(new Date());
+
+    const metrics = await analyticsService.getSalesMetrics(tenantId, { startDate, endDate });
+    res.json(metrics);
+  } catch (error) {
+    console.error("Error fetching sales analytics:", error);
+    res.status(500).json({ error: "Failed to fetch sales analytics" });
+  }
+});
+
+router.get("/analytics/payments", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const startDate = req.query.startDate 
+      ? startOfDay(parseISO(req.query.startDate as string))
+      : startOfDay(subDays(new Date(), 30));
+    const endDate = req.query.endDate 
+      ? endOfDay(parseISO(req.query.endDate as string))
+      : endOfDay(new Date());
+
+    const metrics = await analyticsService.getPaymentMetrics(tenantId, { startDate, endDate });
+    res.json(metrics);
+  } catch (error) {
+    console.error("Error fetching payment analytics:", error);
+    res.status(500).json({ error: "Failed to fetch payment analytics" });
+  }
+});
+
+router.get("/analytics/operations", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const startDate = req.query.startDate 
+      ? startOfDay(parseISO(req.query.startDate as string))
+      : startOfDay(subDays(new Date(), 30));
+    const endDate = req.query.endDate 
+      ? endOfDay(parseISO(req.query.endDate as string))
+      : endOfDay(new Date());
+
+    const metrics = await analyticsService.getOperationsMetrics(tenantId, { startDate, endDate });
+    res.json(metrics);
+  } catch (error) {
+    console.error("Error fetching operations analytics:", error);
+    res.status(500).json({ error: "Failed to fetch operations analytics" });
+  }
+});
+
+router.get("/analytics/trend/:metric", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const { metric } = req.params;
+    const days = parseInt(req.query.days as string) || 30;
+
+    const trendData = await analyticsService.getTrendData(tenantId, metric, days);
+    res.json(trendData);
+  } catch (error) {
+    console.error("Error fetching trend data:", error);
+    res.status(500).json({ error: "Failed to fetch trend data" });
+  }
+});
+
+router.post("/analytics/snapshots/generate", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const date = req.body.date ? parseISO(req.body.date) : new Date();
+    const snapshot = await analyticsService.createDailySnapshot(tenantId, date);
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "analytics_snapshot",
+      entityId: snapshot.id,
+      details: { date: snapshot.snapshotDate, type: snapshot.snapshotType },
+    });
+
+    res.json(snapshot);
+  } catch (error) {
+    console.error("Error generating snapshot:", error);
+    res.status(500).json({ error: "Failed to generate analytics snapshot" });
+  }
+});
+
+router.get("/analytics/snapshots", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const type = (req.query.type as "daily" | "weekly" | "monthly") || "daily";
+    const startDate = req.query.startDate 
+      ? startOfDay(parseISO(req.query.startDate as string))
+      : startOfDay(subDays(new Date(), 30));
+    const endDate = req.query.endDate 
+      ? endOfDay(parseISO(req.query.endDate as string))
+      : endOfDay(new Date());
+
+    const snapshots = await analyticsService.getSnapshots(tenantId, { startDate, endDate }, type);
+    res.json(snapshots);
+  } catch (error) {
+    console.error("Error fetching snapshots:", error);
+    res.status(500).json({ error: "Failed to fetch analytics snapshots" });
+  }
+});
+
+// AI Insights endpoints
+router.get("/insights", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const options = {
+      category: req.query.category as string | undefined,
+      severity: req.query.severity as string | undefined,
+      includeRead: req.query.includeRead === "true",
+      limit: parseInt(req.query.limit as string) || 20,
+    };
+
+    const insights = await aiInsightsService.getInsights(tenantId, options);
+    res.json(insights);
+  } catch (error) {
+    console.error("Error fetching insights:", error);
+    res.status(500).json({ error: "Failed to fetch AI insights" });
+  }
+});
+
+router.post("/insights/generate", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const result = await aiInsightsService.generateInsights(tenantId);
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "ai_insights_generation",
+      entityId: `gen-${Date.now()}`,
+      details: { generated: result.generated },
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error generating insights:", error);
+    res.status(500).json({ error: "Failed to generate AI insights" });
+  }
+});
+
+router.patch("/insights/:id/read", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const insight = await aiInsightsService.markInsightRead(req.params.id, tenantId);
+    if (!insight) {
+      return res.status(404).json({ error: "Insight not found" });
+    }
+
+    res.json(insight);
+  } catch (error) {
+    console.error("Error marking insight as read:", error);
+    res.status(500).json({ error: "Failed to update insight" });
+  }
+});
+
+router.patch("/insights/:id/dismiss", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const insight = await aiInsightsService.dismissInsight(req.params.id, tenantId);
+    if (!insight) {
+      return res.status(404).json({ error: "Insight not found" });
+    }
+
+    res.json(insight);
+  } catch (error) {
+    console.error("Error dismissing insight:", error);
+    res.status(500).json({ error: "Failed to dismiss insight" });
   }
 });
 
