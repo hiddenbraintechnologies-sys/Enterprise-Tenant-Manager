@@ -3775,12 +3775,63 @@ export const agents = pgTable("agents", {
   index("idx_agents_status").on(table.status),
 ]);
 
+// Commission Status Enum
+export const commissionStatusEnum = pgEnum("commission_status", [
+  "pending", "approved", "paid", "cancelled", "disputed"
+]);
+
+// Commission Type Enum
+export const commissionTypeEnum = pgEnum("commission_type", [
+  "sale", "rental", "lease", "referral", "management_fee"
+]);
+
+// Real Estate Commissions Table
+export const realEstateCommissions = pgTable("real_estate_commissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  agentId: varchar("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  listingId: varchar("listing_id").references(() => listings.id, { onDelete: "set null" }),
+  propertyId: varchar("property_id").references(() => properties.id, { onDelete: "set null" }),
+  leadId: varchar("lead_id").references(() => realEstateLeads.id, { onDelete: "set null" }),
+  commissionNumber: varchar("commission_number", { length: 50 }),
+  commissionType: commissionTypeEnum("commission_type").default("sale"),
+  status: commissionStatusEnum("status").default("pending"),
+  dealValue: decimal("deal_value", { precision: 18, scale: 2 }).notNull(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 15, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 15, scale: 2 }).default("0"),
+  netAmount: decimal("net_amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  dealClosedDate: date("deal_closed_date"),
+  paymentDueDate: date("payment_due_date"),
+  paidDate: date("paid_date"),
+  paidAmount: decimal("paid_amount", { precision: 15, scale: 2 }).default("0"),
+  clientName: text("client_name"),
+  clientEmail: text("client_email"),
+  clientPhone: varchar("client_phone", { length: 20 }),
+  description: text("description"),
+  notes: text("notes"),
+  invoiceId: varchar("invoice_id"),
+  metadata: jsonb("metadata").default({}),
+  approvedBy: varchar("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_re_commissions_tenant").on(table.tenantId),
+  index("idx_re_commissions_agent").on(table.agentId),
+  index("idx_re_commissions_status").on(table.status),
+  index("idx_re_commissions_listing").on(table.listingId),
+]);
+
 // Insert schemas for Real Estate
 export const insertPropertySchema = createInsertSchema(properties).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertListingSchema = createInsertSchema(listings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRealEstateLeadSchema = createInsertSchema(realEstateLeads).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSiteVisitSchema = createInsertSchema(siteVisits).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRealEstateCommissionSchema = createInsertSchema(realEstateCommissions).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Real Estate types
 export type Property = typeof properties.$inferSelect;
@@ -3797,6 +3848,9 @@ export type InsertSiteVisit = z.infer<typeof insertSiteVisitSchema>;
 
 export type Agent = typeof agents.$inferSelect;
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
+
+export type RealEstateCommission = typeof realEstateCommissions.$inferSelect;
+export type InsertRealEstateCommission = z.infer<typeof insertRealEstateCommissionSchema>;
 
 // ============================================
 // TOURISM MODULE
