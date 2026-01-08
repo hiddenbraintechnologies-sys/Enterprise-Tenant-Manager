@@ -5,6 +5,8 @@ import '../../domain/entities/furniture_product.dart';
 import '../../domain/entities/raw_material.dart';
 import '../../domain/entities/production_order.dart';
 import '../../domain/entities/sales_order.dart';
+import '../../domain/entities/furniture_invoice.dart';
+import '../../domain/entities/notification_log.dart';
 
 class FurnitureRemoteDataSource {
   final ApiClient _apiClient;
@@ -113,5 +115,47 @@ class FurnitureRemoteDataSource {
   Future<Map<String, dynamic>> getDashboardStats() async {
     final response = await _apiClient.get('$_basePath/dashboard/stats');
     return response.data as Map<String, dynamic>;
+  }
+
+  Future<PaginatedResponse<FurnitureInvoice>> getInvoices(
+    PaginationParams params, {
+    String? status,
+  }) async {
+    final queryParams = params.toQueryParameters();
+    if (status != null && status != 'all') queryParams['status'] = status;
+
+    final response = await _apiClient.get(
+      '$_basePath/invoices',
+      queryParameters: queryParams,
+    );
+
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => FurnitureInvoice.fromJson(json),
+    );
+  }
+
+  Future<FurnitureInvoice> getInvoice(String id) async {
+    final response = await _apiClient.get('$_basePath/invoices/$id');
+    return FurnitureInvoice.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<List<NotificationLog>> getInvoiceNotifications(String invoiceId) async {
+    final response = await _apiClient.get('$_basePath/invoices/$invoiceId/notifications');
+    final List<dynamic> data = response.data as List<dynamic>;
+    return data.map((json) => NotificationLog.fromJson(json as Map<String, dynamic>)).toList();
+  }
+
+  Future<NotificationLog> sendInvoiceNotification(
+    String invoiceId, {
+    required String channel,
+    required String eventType,
+  }) async {
+    final response = await _apiClient.post(
+      '$_basePath/invoices/$invoiceId/notify',
+      queryParameters: {'channel': channel},
+      data: {'eventType': eventType},
+    );
+    return NotificationLog.fromJson(response.data['notification'] as Map<String, dynamic>);
   }
 }

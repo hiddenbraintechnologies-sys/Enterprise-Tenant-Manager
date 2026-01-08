@@ -3,6 +3,8 @@ import '../../domain/entities/furniture_product.dart';
 import '../../domain/entities/raw_material.dart';
 import '../../domain/entities/production_order.dart';
 import '../../domain/entities/sales_order.dart';
+import '../../domain/entities/furniture_invoice.dart';
+import '../../domain/entities/notification_log.dart';
 import '../../domain/repositories/furniture_repository.dart';
 import '../datasources/furniture_remote_datasource.dart';
 
@@ -84,5 +86,36 @@ class FurnitureRepositoryImpl implements FurnitureRepository {
   @override
   Future<Map<String, dynamic>> getDashboardStats() {
     return _remoteDataSource.getDashboardStats();
+  }
+
+  @override
+  Future<PaginatedResponse<FurnitureInvoice>> getInvoices(
+    PaginationParams params, {
+    String? status,
+  }) {
+    return _remoteDataSource.getInvoices(params, status: status);
+  }
+
+  @override
+  Future<FurnitureInvoice> getInvoice(String id) {
+    return _remoteDataSource.getInvoice(id);
+  }
+
+  @override
+  Future<List<NotificationLog>> getInvoiceNotifications(String invoiceId) {
+    return _remoteDataSource.getInvoiceNotifications(invoiceId);
+  }
+
+  @override
+  Future<NotificationLog> sendInvoiceNotification(
+    String invoiceId, {
+    required String channel,
+    required String eventType,
+  }) {
+    return _remoteDataSource.sendInvoiceNotification(
+      invoiceId,
+      channel: channel,
+      eventType: eventType,
+    );
   }
 }

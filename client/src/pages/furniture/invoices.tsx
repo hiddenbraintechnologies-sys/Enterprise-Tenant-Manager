@@ -180,13 +180,13 @@ function NotificationDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="email">
+                  <SelectItem value="email" data-testid="option-channel-email">
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4" />
                       Email
                     </div>
                   </SelectItem>
-                  <SelectItem value="whatsapp">
+                  <SelectItem value="whatsapp" data-testid="option-channel-whatsapp">
                     <div className="flex items-center gap-2">
                       <MessageCircle className="h-4 w-4" />
                       WhatsApp
@@ -203,10 +203,10 @@ function NotificationDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="invoice_issued">Invoice Issued</SelectItem>
-                  <SelectItem value="payment_reminder">Payment Reminder</SelectItem>
-                  <SelectItem value="invoice_overdue">Overdue Notice</SelectItem>
-                  <SelectItem value="payment_received">Payment Confirmation</SelectItem>
+                  <SelectItem value="invoice_issued" data-testid="option-type-issued">Invoice Issued</SelectItem>
+                  <SelectItem value="payment_reminder" data-testid="option-type-reminder">Payment Reminder</SelectItem>
+                  <SelectItem value="invoice_overdue" data-testid="option-type-overdue">Overdue Notice</SelectItem>
+                  <SelectItem value="payment_received" data-testid="option-type-received">Payment Confirmation</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -283,7 +283,7 @@ function NotificationDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-notification">
             Cancel
           </Button>
           <Button 
@@ -609,12 +609,12 @@ export default function FurnitureInvoicesPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
+                              <DropdownMenuItem onClick={() => handleViewInvoice(invoice)} data-testid={`menu-view-${invoice.id}`}>
                                 <Eye className="h-4 w-4 mr-2" />
                                 View Details
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleSendNotification(invoice)}>
+                              <DropdownMenuItem onClick={() => handleSendNotification(invoice)} data-testid={`menu-notify-${invoice.id}`}>
                                 <Send className="h-4 w-4 mr-2" />
                                 Send Notification
                               </DropdownMenuItem>

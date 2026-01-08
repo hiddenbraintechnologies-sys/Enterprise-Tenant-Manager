@@ -3,6 +3,8 @@ import '../entities/furniture_product.dart';
 import '../entities/raw_material.dart';
 import '../entities/production_order.dart';
 import '../entities/sales_order.dart';
+import '../entities/furniture_invoice.dart';
+import '../entities/notification_log.dart';
 
 abstract class FurnitureRepository {
   Future<PaginatedResponse<FurnitureProduct>> getProducts(
@@ -37,4 +39,19 @@ abstract class FurnitureRepository {
   Future<SalesOrder> getSalesOrder(String id);
 
   Future<Map<String, dynamic>> getDashboardStats();
+
+  Future<PaginatedResponse<FurnitureInvoice>> getInvoices(
+    PaginationParams params, {
+    String? status,
+  });
+
+  Future<FurnitureInvoice> getInvoice(String id);
+
+  Future<List<NotificationLog>> getInvoiceNotifications(String invoiceId);
+
+  Future<NotificationLog> sendInvoiceNotification(
+    String invoiceId, {
+    required String channel,
+    required String eventType,
+  });
 }
