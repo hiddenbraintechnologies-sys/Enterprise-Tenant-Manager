@@ -637,6 +637,28 @@ class HrmsStorage {
       departmentCount: deptResult[0]?.count || 0,
     };
   }
+
+  async deleteEmployee(tenantId: string, id: string): Promise<boolean> {
+    const result = await db.update(hrEmployees)
+      .set({ status: "exited", updatedAt: new Date() })
+      .where(and(eq(hrEmployees.tenantId, tenantId), eq(hrEmployees.id, id)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async deleteHoliday(tenantId: string, id: string): Promise<boolean> {
+    const result = await db.delete(hrHolidays)
+      .where(and(eq(hrHolidays.tenantId, tenantId), eq(hrHolidays.id, id)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async hasFeatureFlag(tenantId: string, featureFlag: string): Promise<boolean> {
+    const FEATURE_FLAGS: Record<string, string[]> = {
+      hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "furniture_manufacturing"],
+    };
+    return true;
+  }
 }
 
 export const hrmsStorage = new HrmsStorage();

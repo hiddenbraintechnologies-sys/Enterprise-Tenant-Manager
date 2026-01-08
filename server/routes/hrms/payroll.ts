@@ -1,68 +1,105 @@
-import { Router, Request, Response } from "express";
-import { payrollService } from "../../services/hrms/payrollService";
-import { getTenantId, getUserId, parsePagination } from "./shared";
+import { Router } from "express";
+import { tenantIsolationMiddleware } from "../../core/tenant-isolation";
+import { requireMinimumRole } from "../../core/auth-middleware";
+import { auditService } from "../../core/audit";
+import PayrollService from "../../services/hrms/payrollService";
 
-export function registerPayrollRoutes(router: Router): void {
-  router.get("/salary-structure/:employeeId", async (req: Request, res: Response) => {
-    try {
-      const tenantId = getTenantId(req);
-      const structure = await payrollService.getSalaryStructure(tenantId, req.params.employeeId);
-      res.json(structure);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+const router = Router();
 
-  router.post("/salary-structure", async (req: Request, res: Response) => {
-    try {
-      const tenantId = getTenantId(req);
-      const userId = getUserId(req);
-      const structure = await payrollService.createSalaryStructure(req.body, tenantId, userId);
-      res.status(201).json(structure);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+router.use(tenantIsolationMiddleware());
+router.use(requireMinimumRole("staff"));
 
-  router.get("/payroll", async (req: Request, res: Response) => {
-    try {
-      const tenantId = getTenantId(req);
-      const pagination = parsePagination(req);
-      const filters = {
-        employeeId: req.query.employeeId as string,
-        month: req.query.month ? parseInt(req.query.month as string) : undefined,
-        year: req.query.year ? parseInt(req.query.year as string) : undefined,
-        status: req.query.status as string,
-      };
-      const result = await payrollService.getPayroll(tenantId, filters, pagination);
-      res.json(result);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+router.get("/salary-structure/:employeeId", async (req, res) => {
+  const tenantId = req.context?.tenant?.id;
+  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+  
+  const structure = await PayrollService.getSalaryStructure(tenantId, req.params.employeeId);
+  res.json(structure);
+});
 
-  router.post("/payroll", async (req: Request, res: Response) => {
-    try {
-      const tenantId = getTenantId(req);
-      const userId = getUserId(req);
-      const payroll = await payrollService.createPayroll(req.body, tenantId, userId);
-      res.status(201).json(payroll);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
+router.post("/salary-structure", requireMinimumRole("admin"), async (req, res) => {
+  const tenantId = req.context?.tenant?.id;
+  const userId = req.context?.user?.id;
+  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+  
+  const structure = await PayrollService.createSalaryStructure(tenantId, req.body, userId);
+  
+  await auditService.logAsync({
+    tenantId,
+    userId,
+    action: "create",
+    resource: "salary_structure",
+    resourceId: structure.id,
+    newValue: req.body,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
   });
+  
+  res.status(201).json(structure);
+});
 
-  router.patch("/payroll/:id", async (req: Request, res: Response) => {
-    try {
-      const tenantId = getTenantId(req);
-      const userId = getUserId(req);
-      const payroll = await payrollService.updatePayroll(tenantId, req.params.id, req.body, userId);
-      if (!payroll) {
-        return res.status(404).json({ error: "Payroll record not found" });
-      }
-      res.json(payroll);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
+router.get("/payroll", async (req, res) => {
+  const tenantId = req.context?.tenant?.id;
+  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+  
+  const filters = {
+    employeeId: req.query.employeeId as string,
+    month: req.query.month ? parseInt(req.query.month as string) : undefined,
+    year: req.query.year ? parseInt(req.query.year as string) : undefined,
+    status: req.query.status as string,
+  };
+  const pagination = {
+    page: parseInt(req.query.page as string) || 1,
+    limit: parseInt(req.query.limit as string) || 20,
+  };
+  
+  const result = await PayrollService.getPayroll(tenantId, filters, pagination);
+  res.json(result);
+});
+
+router.post("/payroll", requireMinimumRole("admin"), async (req, res) => {
+  const tenantId = req.context?.tenant?.id;
+  const userId = req.context?.user?.id;
+  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+  
+  const payroll = await PayrollService.createPayroll(tenantId, req.body, userId);
+  
+  await auditService.logAsync({
+    tenantId,
+    userId,
+    action: "create",
+    resource: "payroll",
+    resourceId: payroll.id,
+    newValue: req.body,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
   });
-}
+  
+  res.status(201).json(payroll);
+});
+
+router.patch("/payroll/:id", requireMinimumRole("admin"), async (req, res) => {
+  const tenantId = req.context?.tenant?.id;
+  const userId = req.context?.user?.id;
+  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+  
+  const payroll = await PayrollService.updatePayroll(tenantId, req.params.id, req.body, userId);
+  if (!payroll) {
+    return res.status(404).json({ error: "Payroll record not found" });
+  }
+  
+  await auditService.logAsync({
+    tenantId,
+    userId,
+    action: "update",
+    resource: "payroll",
+    resourceId: req.params.id,
+    newValue: req.body,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+  
+  res.json(payroll);
+});
+
+export default router;

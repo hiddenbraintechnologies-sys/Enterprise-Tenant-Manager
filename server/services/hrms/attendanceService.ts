@@ -1,37 +1,42 @@
 import { hrmsStorage } from "../../storage/hrms";
 import { insertHrAttendanceSchema, insertHrHolidaySchema } from "@shared/schema";
-import { logHrmsAudit } from "../audit";
 
-export class AttendanceService {
-  async getAttendance(tenantId: string, filters: any, pagination: any) {
+class AttendanceService {
+  static async getAttendance(tenantId: string, filters: any, pagination: any) {
     return hrmsStorage.getAttendance(tenantId, filters, pagination);
   }
 
-  async recordAttendance(data: any, tenantId: string, userId?: string) {
+  static async markAttendance(tenantId: string, data: any, userId?: string) {
     const validated = insertHrAttendanceSchema.parse({ ...data, tenantId, createdBy: userId });
-    const attendance = await hrmsStorage.recordAttendance(validated);
-    await logHrmsAudit(tenantId, "create", "hr_attendance", attendance.id, null, attendance, userId);
-    return attendance;
+    return hrmsStorage.recordAttendance(validated);
   }
 
-  async updateAttendance(tenantId: string, attendanceId: string, data: any, userId?: string) {
-    const attendance = await hrmsStorage.updateAttendance(tenantId, attendanceId, data);
-    if (attendance) {
-      await logHrmsAudit(tenantId, "update", "hr_attendance", attendanceId, null, attendance, userId);
+  static async bulkMarkAttendance(tenantId: string, records: any[], userId?: string) {
+    const results = [];
+    for (const record of records) {
+      const validated = insertHrAttendanceSchema.parse({ ...record, tenantId, createdBy: userId });
+      const attendance = await hrmsStorage.recordAttendance(validated);
+      results.push(attendance);
     }
-    return attendance;
+    return results;
   }
 
-  async getHolidays(tenantId: string, year: number) {
+  static async updateAttendance(tenantId: string, attendanceId: string, data: any, userId?: string) {
+    return hrmsStorage.updateAttendance(tenantId, attendanceId, data);
+  }
+
+  static async getHolidays(tenantId: string, year: number) {
     return hrmsStorage.getHolidays(tenantId, year);
   }
 
-  async createHoliday(data: any, tenantId: string, userId?: string) {
+  static async createHoliday(tenantId: string, data: any, userId?: string) {
     const validated = insertHrHolidaySchema.parse({ ...data, tenantId, createdBy: userId });
-    const holiday = await hrmsStorage.createHoliday(validated);
-    await logHrmsAudit(tenantId, "create", "hr_holiday", holiday.id, null, holiday, userId);
-    return holiday;
+    return hrmsStorage.createHoliday(validated);
+  }
+
+  static async deleteHoliday(tenantId: string, holidayId: string) {
+    return hrmsStorage.deleteHoliday(tenantId, holidayId);
   }
 }
 
-export const attendanceService = new AttendanceService();
+export default AttendanceService;

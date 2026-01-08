@@ -1,17 +1,17 @@
 import { Router } from "express";
-import { registerEmployeeRoutes } from "./employees";
-import { registerAttendanceRoutes } from "./attendance";
-import { registerLeaveRoutes } from "./leaves";
-import { registerPayrollRoutes } from "./payroll";
-import { registerProjectRoutes } from "./projects";
+import employeesRouter from "./employees";
+import attendanceRouter from "./attendance";
+import leavesRouter from "./leaves";
+import payrollRouter from "./payroll";
+import projectsRouter from "./projects";
 
 const router = Router();
 
-registerEmployeeRoutes(router);
-registerAttendanceRoutes(router);
-registerLeaveRoutes(router);
-registerPayrollRoutes(router);
-registerProjectRoutes(router);
+router.use(employeesRouter);
+router.use(attendanceRouter);
+router.use(leavesRouter);
+router.use(payrollRouter);
+router.use(projectsRouter);
 
-export { FEATURE_FLAGS, hasFeatureFlag, requireFeature } from "./shared";
+export { FEATURE_FLAGS, requireFeature } from "./projects";
 export default router;

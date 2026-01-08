@@ -1,46 +1,37 @@
 import { hrmsStorage } from "../../storage/hrms";
 import { insertHrLeaveSchema, insertHrLeaveTypeSchema } from "@shared/schema";
-import { logHrmsAudit } from "../audit";
 
-export class LeaveService {
-  async getLeaveTypes(tenantId: string) {
+class LeaveService {
+  static async getLeaveTypes(tenantId: string) {
     return hrmsStorage.getLeaveTypes(tenantId);
   }
 
-  async createLeaveType(data: any, tenantId: string, userId?: string) {
+  static async createLeaveType(tenantId: string, data: any, userId?: string) {
     const validated = insertHrLeaveTypeSchema.parse({ ...data, tenantId, createdBy: userId });
-    const leaveType = await hrmsStorage.createLeaveType(validated);
-    await logHrmsAudit(tenantId, "create", "hr_leave_type", leaveType.id, null, leaveType, userId);
-    return leaveType;
+    return hrmsStorage.createLeaveType(validated);
   }
 
-  async getLeaveBalances(tenantId: string, employeeId: string, year: number) {
+  static async getLeaveBalances(tenantId: string, employeeId: string, year: number) {
     return hrmsStorage.getLeaveBalances(tenantId, employeeId, year);
   }
 
-  async getLeaves(tenantId: string, filters: any, pagination: any) {
+  static async getLeaves(tenantId: string, filters: any, pagination: any) {
     return hrmsStorage.getLeaves(tenantId, filters, pagination);
   }
 
-  async createLeave(data: any, tenantId: string, userId?: string) {
+  static async createLeave(tenantId: string, data: any, userId?: string) {
     const validated = insertHrLeaveSchema.parse({ ...data, tenantId, createdBy: userId });
-    const leave = await hrmsStorage.createLeave(validated);
-    await logHrmsAudit(tenantId, "create", "hr_leave", leave.id, null, leave, userId);
-    return leave;
+    return hrmsStorage.createLeave(validated);
   }
 
-  async updateLeave(tenantId: string, leaveId: string, data: any, userId?: string) {
+  static async updateLeave(tenantId: string, leaveId: string, data: any, userId?: string) {
     const updateData = {
       ...data,
       approvedBy: data.status === "approved" ? userId : undefined,
       approvedAt: data.status === "approved" ? new Date() : undefined,
     };
-    const leave = await hrmsStorage.updateLeave(tenantId, leaveId, updateData);
-    if (leave) {
-      await logHrmsAudit(tenantId, "update", "hr_leave", leaveId, null, leave, userId);
-    }
-    return leave;
+    return hrmsStorage.updateLeave(tenantId, leaveId, updateData);
   }
 }
 
-export const leaveService = new LeaveService();
+export default LeaveService;

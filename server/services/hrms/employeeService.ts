@@ -1,47 +1,40 @@
 import { hrmsStorage } from "../../storage/hrms";
 import { insertHrEmployeeSchema, insertHrDepartmentSchema } from "@shared/schema";
-import { logHrmsAudit } from "../audit";
 
-export class EmployeeService {
-  async getDashboardStats(tenantId: string) {
+class EmployeeService {
+  static async getDashboardStats(tenantId: string) {
     return hrmsStorage.getDashboardStats(tenantId);
   }
 
-  async getEmployees(tenantId: string, filters: any, pagination: any) {
+  static async getEmployees(tenantId: string, filters: any, pagination: any) {
     return hrmsStorage.getEmployees(tenantId, filters, pagination);
   }
 
-  async getEmployeeById(tenantId: string, employeeId: string) {
+  static async getEmployeeById(tenantId: string, employeeId: string) {
     return hrmsStorage.getEmployeeById(tenantId, employeeId);
   }
 
-  async createEmployee(data: any, tenantId: string, userId?: string) {
+  static async createEmployee(data: any, tenantId: string, userId?: string) {
     const validated = insertHrEmployeeSchema.parse({ ...data, tenantId, createdBy: userId });
-    const employee = await hrmsStorage.createEmployee(validated);
-    await logHrmsAudit(tenantId, "create", "hr_employee", employee.id, null, employee, userId);
-    return employee;
+    return hrmsStorage.createEmployee(validated);
   }
 
-  async updateEmployee(tenantId: string, employeeId: string, data: any, userId?: string) {
-    const existing = await hrmsStorage.getEmployeeById(tenantId, employeeId);
-    if (!existing) {
-      return null;
-    }
-    const employee = await hrmsStorage.updateEmployee(tenantId, employeeId, data);
-    await logHrmsAudit(tenantId, "update", "hr_employee", employeeId, existing, employee, userId);
-    return employee;
+  static async updateEmployee(tenantId: string, employeeId: string, data: any, userId?: string) {
+    return hrmsStorage.updateEmployee(tenantId, employeeId, data);
   }
 
-  async getDepartments(tenantId: string) {
+  static async deleteEmployee(tenantId: string, employeeId: string) {
+    return hrmsStorage.deleteEmployee(tenantId, employeeId);
+  }
+
+  static async getDepartments(tenantId: string) {
     return hrmsStorage.getDepartments(tenantId);
   }
 
-  async createDepartment(data: any, tenantId: string, userId?: string) {
+  static async createDepartment(data: any, tenantId: string, userId?: string) {
     const validated = insertHrDepartmentSchema.parse({ ...data, tenantId, createdBy: userId });
-    const department = await hrmsStorage.createDepartment(validated);
-    await logHrmsAudit(tenantId, "create", "hr_department", department.id, null, department, userId);
-    return department;
+    return hrmsStorage.createDepartment(validated);
   }
 }
 
-export const employeeService = new EmployeeService();
+export default EmployeeService;
