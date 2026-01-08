@@ -75,9 +75,10 @@ interface DeliveryFormData {
 }
 
 interface InstallationFormData {
-  salesOrderId: string;
   deliveryOrderId: string;
+  customerId: string;
   scheduledDate: string;
+  scheduledTimeSlot: string;
   notes: string;
 }
 
@@ -269,7 +270,6 @@ function DeliveryDialog({
 
 function InstallationDialog({
   installation,
-  salesOrders,
   deliveries,
   open,
   onOpenChange,
@@ -277,7 +277,6 @@ function InstallationDialog({
   isSaving,
 }: {
   installation: InstallationOrder | null;
-  salesOrders: FurnitureSalesOrder[];
   deliveries: DeliveryOrder[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -285,13 +284,23 @@ function InstallationDialog({
   isSaving: boolean;
 }) {
   const [formData, setFormData] = useState<InstallationFormData>({
-    salesOrderId: installation?.salesOrderId || "",
     deliveryOrderId: installation?.deliveryOrderId || "",
+    customerId: installation?.customerId || "",
     scheduledDate: installation?.scheduledDate
       ? new Date(installation.scheduledDate).toISOString().split("T")[0]
       : "",
+    scheduledTimeSlot: installation?.scheduledTimeSlot || "",
     notes: installation?.notes || "",
   });
+
+  const handleSelectDelivery = (deliveryId: string) => {
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    setFormData({
+      ...formData,
+      deliveryOrderId: deliveryId,
+      customerId: delivery?.customerId || "",
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,40 +313,21 @@ function InstallationDialog({
         <DialogHeader>
           <DialogTitle>{installation ? "Edit Installation" : "Schedule Installation"}</DialogTitle>
           <DialogDescription>
-            {installation ? "Update installation details" : "Schedule a new installation"}
+            {installation ? "Update installation details" : "Schedule a new installation after delivery"}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Sales Order</Label>
-            <Select
-              value={formData.salesOrderId}
-              onValueChange={(v) => setFormData({ ...formData, salesOrderId: v })}
-            >
-              <SelectTrigger data-testid="select-install-order">
-                <SelectValue placeholder="Select sales order" />
-              </SelectTrigger>
-              <SelectContent>
-                {salesOrders.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.orderNumber}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Delivery Order</Label>
+            <Label>Delivery Order *</Label>
             <Select
               value={formData.deliveryOrderId}
-              onValueChange={(v) => setFormData({ ...formData, deliveryOrderId: v })}
+              onValueChange={handleSelectDelivery}
             >
               <SelectTrigger data-testid="select-install-delivery">
-                <SelectValue placeholder="Select delivery" />
+                <SelectValue placeholder="Select a delivered order" />
               </SelectTrigger>
               <SelectContent>
-                {deliveries.map((d) => (
+                {deliveries.filter(d => d.deliveryStatus === "delivered").map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.deliveryNumber}
                   </SelectItem>
@@ -346,14 +336,32 @@ function InstallationDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Scheduled Date</Label>
-            <Input
-              type="date"
-              value={formData.scheduledDate}
-              onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-              data-testid="input-install-date"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Scheduled Date</Label>
+              <Input
+                type="date"
+                value={formData.scheduledDate}
+                onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
+                data-testid="input-install-date"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Time Slot</Label>
+              <Select
+                value={formData.scheduledTimeSlot}
+                onValueChange={(v) => setFormData({ ...formData, scheduledTimeSlot: v })}
+              >
+                <SelectTrigger data-testid="select-install-time">
+                  <SelectValue placeholder="Select time" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="morning">Morning (9AM-12PM)</SelectItem>
+                  <SelectItem value="afternoon">Afternoon (12PM-4PM)</SelectItem>
+                  <SelectItem value="evening">Evening (4PM-7PM)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -491,7 +499,7 @@ export default function FurnitureDeliveries() {
     const matchesSearch =
       !searchQuery ||
       i.installationNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || i.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || i.installationStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -718,8 +726,8 @@ export default function FurnitureDeliveries() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getInstallStatusVariant(install.status || "pending")}>
-                              {install.status}
+                            <Badge variant={getInstallStatusVariant(install.installationStatus || "pending")}>
+                              {install.installationStatus}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -760,7 +768,6 @@ export default function FurnitureDeliveries() {
 
       <InstallationDialog
         installation={editingInstall}
-        salesOrders={salesOrders}
         deliveries={deliveries}
         open={showInstallDialog}
         onOpenChange={(open) => {
