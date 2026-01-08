@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePagination, type PaginationResponse } from "@/hooks/use-pagination";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
   Table,
   TableBody,
@@ -442,21 +444,29 @@ export default function FurnitureProductionOrders() {
   const [editingOrder, setEditingOrder] = useState<ProductionOrder | null>(null);
   const [viewingStages, setViewingStages] = useState<ProductionOrder | null>(null);
 
-  const { data: orders = [], isLoading } = useQuery<ProductionOrder[]>({
-    queryKey: ["/api/furniture/production-orders"],
+  const pagination = usePagination({ initialLimit: 20 });
+
+  const { data: ordersResponse, isLoading } = useQuery<PaginationResponse<ProductionOrder>>({
+    queryKey: ["/api/furniture/production-orders", pagination.queryParams],
   });
 
-  const { data: products = [] } = useQuery<FurnitureProduct[]>({
-    queryKey: ["/api/furniture/products"],
-  });
+  const orders = ordersResponse?.data ?? [];
+  const paginationInfo = ordersResponse?.pagination;
 
-  const { data: boms = [] } = useQuery<BillOfMaterials[]>({
-    queryKey: ["/api/furniture/bom"],
+  const { data: productsResponse } = useQuery<PaginationResponse<FurnitureProduct>>({
+    queryKey: ["/api/furniture/products", { limit: "1000" }],
   });
+  const products = productsResponse?.data ?? [];
 
-  const { data: salesOrders = [] } = useQuery<FurnitureSalesOrder[]>({
-    queryKey: ["/api/furniture/sales-orders"],
+  const { data: bomsResponse } = useQuery<PaginationResponse<BillOfMaterials>>({
+    queryKey: ["/api/furniture/bom", { limit: "1000" }],
   });
+  const boms = bomsResponse?.data ?? [];
+
+  const { data: salesOrdersResponse } = useQuery<PaginationResponse<FurnitureSalesOrder>>({
+    queryKey: ["/api/furniture/sales-orders", { limit: "1000" }],
+  });
+  const salesOrders = salesOrdersResponse?.data ?? [];
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: OrderFormData) => {
@@ -742,6 +752,18 @@ export default function FurnitureProductionOrders() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+            {paginationInfo && (
+              <DataTablePagination
+                page={paginationInfo.page}
+                totalPages={paginationInfo.totalPages}
+                total={paginationInfo.total}
+                limit={paginationInfo.limit}
+                hasNext={paginationInfo.hasNext}
+                hasPrev={paginationInfo.hasPrev}
+                onPageChange={pagination.setPage}
+                onLimitChange={pagination.setLimit}
+              />
             )}
           </CardContent>
         </Card>

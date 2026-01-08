@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePagination, type PaginationResponse } from "@/hooks/use-pagination";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
   Table,
   TableBody,
@@ -486,9 +488,14 @@ export default function FurnitureRawMaterials() {
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   const [activeTab, setActiveTab] = useState("materials");
 
-  const { data: materials = [], isLoading: loadingMaterials } = useQuery<RawMaterial[]>({
-    queryKey: ["/api/furniture/raw-materials"],
+  const pagination = usePagination({ initialLimit: 20 });
+
+  const { data: materialsResponse, isLoading: loadingMaterials } = useQuery<PaginationResponse<RawMaterial>>({
+    queryKey: ["/api/furniture/raw-materials", pagination.queryParams],
   });
+
+  const materials = materialsResponse?.data ?? [];
+  const paginationInfo = materialsResponse?.pagination;
 
   const { data: categories = [] } = useQuery<RawMaterialCategory[]>({
     queryKey: ["/api/furniture/raw-material-categories"],
@@ -776,6 +783,18 @@ export default function FurnitureRawMaterials() {
                     })}
                   </TableBody>
                 </Table>
+              )}
+              {paginationInfo && (
+                <DataTablePagination
+                  page={paginationInfo.page}
+                  totalPages={paginationInfo.totalPages}
+                  total={paginationInfo.total}
+                  limit={paginationInfo.limit}
+                  hasNext={paginationInfo.hasNext}
+                  hasPrev={paginationInfo.hasPrev}
+                  onPageChange={pagination.setPage}
+                  onLimitChange={pagination.setLimit}
+                />
               )}
             </CardContent>
           </Card>

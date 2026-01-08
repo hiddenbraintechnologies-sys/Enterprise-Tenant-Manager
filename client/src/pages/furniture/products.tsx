@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePagination, type PaginationResponse } from "@/hooks/use-pagination";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
   Table,
   TableBody,
@@ -164,10 +166,11 @@ function ProductDialog({
       : defaultFormData
   );
 
-  const { data: boms } = useQuery<BillOfMaterials[]>({
-    queryKey: ["/api/furniture/bom"],
+  const { data: bomsResponse } = useQuery<PaginationResponse<BillOfMaterials>>({
+    queryKey: ["/api/furniture/bom", { limit: "1000" }],
     enabled: open,
   });
+  const boms = bomsResponse?.data ?? [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -483,9 +486,14 @@ export default function FurnitureProducts() {
   const [showDialog, setShowDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<FurnitureProduct | null>(null);
 
-  const { data: products = [], isLoading } = useQuery<FurnitureProduct[]>({
-    queryKey: ["/api/furniture/products"],
+  const pagination = usePagination({ initialLimit: 20 });
+
+  const { data: productsResponse, isLoading } = useQuery<PaginationResponse<FurnitureProduct>>({
+    queryKey: ["/api/furniture/products", pagination.queryParams],
   });
+
+  const products = productsResponse?.data ?? [];
+  const paginationInfo = productsResponse?.pagination;
 
   const createMutation = useMutation({
     mutationFn: async (data: ProductFormData) => {
@@ -751,6 +759,18 @@ export default function FurnitureProducts() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+            {paginationInfo && (
+              <DataTablePagination
+                page={paginationInfo.page}
+                totalPages={paginationInfo.totalPages}
+                total={paginationInfo.total}
+                limit={paginationInfo.limit}
+                hasNext={paginationInfo.hasNext}
+                hasPrev={paginationInfo.hasPrev}
+                onPageChange={pagination.setPage}
+                onLimitChange={pagination.setLimit}
+              />
             )}
           </CardContent>
         </Card>

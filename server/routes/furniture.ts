@@ -2,11 +2,18 @@ import { Router, Request, Response } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, asc, sql, count, ilike, gte, lte } from "drizzle-orm";
 import {
   payments,
   invoices,
   furnitureSalesOrders,
+  furnitureProducts,
+  rawMaterials,
+  rawMaterialCategories,
+  billOfMaterials,
+  productionOrders,
+  deliveryOrders,
+  installationOrders,
   insertFurnitureProductSchema,
   insertRawMaterialCategorySchema,
   insertRawMaterialSchema,
@@ -21,6 +28,13 @@ import {
   insertFurnitureSalesOrderSchema,
   insertFurnitureSalesOrderItemSchema,
 } from "@shared/schema";
+import {
+  getPaginationParams,
+  paginatedResponse,
+  getFilterParams,
+  type PaginatedResult,
+  type PaginationParams,
+} from "../lib/pagination";
 import {
   furnitureGuardrails,
   logFurnitureAudit,
@@ -68,8 +82,47 @@ router.get("/products", async (req: Request, res: Response) => {
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const products = await storage.getFurnitureProducts(tenantId);
-    res.json(products);
+    
+    const pagination = getPaginationParams(req);
+    const filters = getFilterParams(req);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    
+    const conditions = [
+      eq(furnitureProducts.tenantId, tenantId),
+      sql`${furnitureProducts.deletedAt} IS NULL`
+    ];
+    
+    if (filters.productType) {
+      conditions.push(eq(furnitureProducts.productType, filters.productType as any));
+    }
+    if (filters.search) {
+      conditions.push(ilike(furnitureProducts.name, `%${filters.search}%`));
+    }
+    
+    const whereClause = and(...conditions);
+    
+    const columnMap: Record<string, any> = {
+      createdAt: furnitureProducts.createdAt,
+      name: furnitureProducts.name,
+      sku: furnitureProducts.sku,
+      productType: furnitureProducts.productType,
+    };
+    const orderColumn = columnMap[sortBy] || furnitureProducts.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+    
+    const [countResult] = await db.select({ count: count() })
+      .from(furnitureProducts)
+      .where(whereClause);
+    
+    const data = await db.select()
+      .from(furnitureProducts)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+    
+    res.json(paginatedResponse(data, Number(countResult?.count || 0), pagination));
   } catch (error) {
     console.error("Error fetching furniture products:", error);
     res.status(500).json({ error: "Failed to fetch products" });
@@ -219,8 +272,47 @@ router.get("/raw-materials", async (req: Request, res: Response) => {
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const materials = await storage.getRawMaterials(tenantId);
-    res.json(materials);
+    
+    const pagination = getPaginationParams(req);
+    const filters = getFilterParams(req);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    
+    const conditions = [
+      eq(rawMaterials.tenantId, tenantId),
+      sql`${rawMaterials.deletedAt} IS NULL`
+    ];
+    
+    if (filters.search) {
+      conditions.push(ilike(rawMaterials.name, `%${filters.search}%`));
+    }
+    if (req.query.categoryId) {
+      conditions.push(eq(rawMaterials.categoryId, req.query.categoryId as string));
+    }
+    
+    const whereClause = and(...conditions);
+    
+    const columnMap: Record<string, any> = {
+      createdAt: rawMaterials.createdAt,
+      name: rawMaterials.name,
+      sku: rawMaterials.sku,
+      currentStock: rawMaterials.currentStock,
+    };
+    const orderColumn = columnMap[sortBy] || rawMaterials.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+    
+    const [countResult] = await db.select({ count: count() })
+      .from(rawMaterials)
+      .where(whereClause);
+    
+    const data = await db.select()
+      .from(rawMaterials)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+    
+    res.json(paginatedResponse(data, Number(countResult?.count || 0), pagination));
   } catch (error) {
     console.error("Error fetching raw materials:", error);
     res.status(500).json({ error: "Failed to fetch raw materials" });
@@ -373,9 +465,41 @@ router.get("/bom", async (req: Request, res: Response) => {
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const productId = req.query.productId as string | undefined;
-    const boms = await storage.getBillOfMaterials(tenantId, productId);
-    res.json(boms);
+    
+    const pagination = getPaginationParams(req);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    
+    const conditions = [
+      eq(billOfMaterials.tenantId, tenantId),
+      sql`${billOfMaterials.deletedAt} IS NULL`
+    ];
+    
+    if (req.query.productId) {
+      conditions.push(eq(billOfMaterials.productId, req.query.productId as string));
+    }
+    
+    const whereClause = and(...conditions);
+    
+    const columnMap: Record<string, any> = {
+      createdAt: billOfMaterials.createdAt,
+      version: billOfMaterials.version,
+    };
+    const orderColumn = columnMap[sortBy] || billOfMaterials.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+    
+    const [countResult] = await db.select({ count: count() })
+      .from(billOfMaterials)
+      .where(whereClause);
+    
+    const data = await db.select()
+      .from(billOfMaterials)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+    
+    res.json(paginatedResponse(data, Number(countResult?.count || 0), pagination));
   } catch (error) {
     console.error("Error fetching BOMs:", error);
     res.status(500).json({ error: "Failed to fetch BOMs" });
@@ -509,8 +633,50 @@ router.get("/production-orders", async (req: Request, res: Response) => {
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const orders = await storage.getProductionOrders(tenantId);
-    res.json(orders);
+    
+    const pagination = getPaginationParams(req);
+    const filters = getFilterParams(req);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    
+    const conditions = [
+      eq(productionOrders.tenantId, tenantId),
+      sql`${productionOrders.deletedAt} IS NULL`
+    ];
+    
+    if (filters.status) {
+      conditions.push(eq(productionOrders.status, filters.status as any));
+    }
+    if (filters.startDate) {
+      conditions.push(gte(productionOrders.createdAt, filters.startDate));
+    }
+    if (filters.endDate) {
+      conditions.push(lte(productionOrders.createdAt, filters.endDate));
+    }
+    
+    const whereClause = and(...conditions);
+    
+    const columnMap: Record<string, any> = {
+      createdAt: productionOrders.createdAt,
+      orderNumber: productionOrders.orderNumber,
+      status: productionOrders.status,
+      scheduledStartDate: productionOrders.scheduledStartDate,
+    };
+    const orderColumn = columnMap[sortBy] || productionOrders.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+    
+    const [countResult] = await db.select({ count: count() })
+      .from(productionOrders)
+      .where(whereClause);
+    
+    const data = await db.select()
+      .from(productionOrders)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+    
+    res.json(paginatedResponse(data, Number(countResult?.count || 0), pagination));
   } catch (error) {
     console.error("Error fetching production orders:", error);
     res.status(500).json({ error: "Failed to fetch production orders" });
@@ -688,8 +854,50 @@ router.get("/delivery-orders", async (req: Request, res: Response) => {
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const orders = await storage.getDeliveryOrders(tenantId);
-    res.json(orders);
+    
+    const pagination = getPaginationParams(req);
+    const filters = getFilterParams(req);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    
+    const conditions = [
+      eq(deliveryOrders.tenantId, tenantId),
+      sql`${deliveryOrders.deletedAt} IS NULL`
+    ];
+    
+    if (filters.status) {
+      conditions.push(eq(deliveryOrders.deliveryStatus, filters.status as any));
+    }
+    if (filters.startDate) {
+      conditions.push(gte(deliveryOrders.createdAt, filters.startDate));
+    }
+    if (filters.endDate) {
+      conditions.push(lte(deliveryOrders.createdAt, filters.endDate));
+    }
+    
+    const whereClause = and(...conditions);
+    
+    const columnMap: Record<string, any> = {
+      createdAt: deliveryOrders.createdAt,
+      deliveryNumber: deliveryOrders.deliveryNumber,
+      deliveryStatus: deliveryOrders.deliveryStatus,
+      scheduledDate: deliveryOrders.scheduledDate,
+    };
+    const orderColumn = columnMap[sortBy] || deliveryOrders.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+    
+    const [countResult] = await db.select({ count: count() })
+      .from(deliveryOrders)
+      .where(whereClause);
+    
+    const data = await db.select()
+      .from(deliveryOrders)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+    
+    res.json(paginatedResponse(data, Number(countResult?.count || 0), pagination));
   } catch (error) {
     console.error("Error fetching delivery orders:", error);
     res.status(500).json({ error: "Failed to fetch delivery orders" });
@@ -841,8 +1049,50 @@ router.get("/installation-orders", async (req: Request, res: Response) => {
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const orders = await storage.getInstallationOrders(tenantId);
-    res.json(orders);
+    
+    const pagination = getPaginationParams(req);
+    const filters = getFilterParams(req);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    
+    const conditions = [
+      eq(installationOrders.tenantId, tenantId),
+      sql`${installationOrders.deletedAt} IS NULL`
+    ];
+    
+    if (filters.status) {
+      conditions.push(eq(installationOrders.installationStatus, filters.status as any));
+    }
+    if (filters.startDate) {
+      conditions.push(gte(installationOrders.createdAt, filters.startDate));
+    }
+    if (filters.endDate) {
+      conditions.push(lte(installationOrders.createdAt, filters.endDate));
+    }
+    
+    const whereClause = and(...conditions);
+    
+    const columnMap: Record<string, any> = {
+      createdAt: installationOrders.createdAt,
+      installationNumber: installationOrders.installationNumber,
+      installationStatus: installationOrders.installationStatus,
+      scheduledDate: installationOrders.scheduledDate,
+    };
+    const orderColumn = columnMap[sortBy] || installationOrders.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+    
+    const [countResult] = await db.select({ count: count() })
+      .from(installationOrders)
+      .where(whereClause);
+    
+    const data = await db.select()
+      .from(installationOrders)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+    
+    res.json(paginatedResponse(data, Number(countResult?.count || 0), pagination));
   } catch (error) {
     console.error("Error fetching installation orders:", error);
     res.status(500).json({ error: "Failed to fetch installation orders" });
@@ -942,8 +1192,53 @@ router.get("/sales-orders", async (req: Request, res: Response) => {
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const orders = await storage.getFurnitureSalesOrders(tenantId);
-    res.json(orders);
+    
+    const pagination = getPaginationParams(req);
+    const filters = getFilterParams(req);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    
+    const conditions = [
+      eq(furnitureSalesOrders.tenantId, tenantId),
+      sql`${furnitureSalesOrders.deletedAt} IS NULL`
+    ];
+    
+    if (filters.status) {
+      conditions.push(eq(furnitureSalesOrders.status, filters.status as any));
+    }
+    if (filters.startDate) {
+      conditions.push(gte(furnitureSalesOrders.createdAt, filters.startDate));
+    }
+    if (filters.endDate) {
+      conditions.push(lte(furnitureSalesOrders.createdAt, filters.endDate));
+    }
+    if (req.query.orderType) {
+      conditions.push(eq(furnitureSalesOrders.orderType, req.query.orderType as any));
+    }
+    
+    const whereClause = and(...conditions);
+    
+    const columnMap: Record<string, any> = {
+      createdAt: furnitureSalesOrders.createdAt,
+      orderNumber: furnitureSalesOrders.orderNumber,
+      status: furnitureSalesOrders.status,
+      totalAmount: furnitureSalesOrders.totalAmount,
+    };
+    const orderColumn = columnMap[sortBy] || furnitureSalesOrders.createdAt;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+    
+    const [countResult] = await db.select({ count: count() })
+      .from(furnitureSalesOrders)
+      .where(whereClause);
+    
+    const data = await db.select()
+      .from(furnitureSalesOrders)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+    
+    res.json(paginatedResponse(data, Number(countResult?.count || 0), pagination));
   } catch (error) {
     console.error("Error fetching sales orders:", error);
     res.status(500).json({ error: "Failed to fetch sales orders" });

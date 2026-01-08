@@ -34,12 +34,47 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
+function buildUrl(queryKey: readonly unknown[]): string {
+  const pathSegments: string[] = [];
+  const mergedParams: Record<string, unknown> = {};
+  
+  for (const segment of queryKey) {
+    if (typeof segment === 'string') {
+      pathSegments.push(segment);
+    } else if (segment && typeof segment === 'object' && !Array.isArray(segment)) {
+      Object.assign(mergedParams, segment);
+    }
+  }
+  
+  if (pathSegments.length === 0) {
+    throw new Error('queryKey must contain at least one string URL segment');
+  }
+  
+  const basePath = pathSegments.length === 1 ? pathSegments[0] : pathSegments.join('/');
+  
+  const paramEntries = Object.entries(mergedParams);
+  if (paramEntries.length > 0) {
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of paramEntries) {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, String(value));
+      }
+    }
+    const queryString = searchParams.toString();
+    return queryString ? `${basePath}?${queryString}` : basePath;
+  }
+  
+  return basePath;
+}
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = buildUrl(queryKey);
+    const res = await fetch(url, {
       credentials: "include",
       headers: getAuthHeaders(),
     });

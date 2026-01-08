@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePagination, type PaginationResponse } from "@/hooks/use-pagination";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
   Table,
   TableBody,
@@ -405,17 +407,24 @@ export default function FurnitureSalesOrders() {
   const [editingOrder, setEditingOrder] = useState<FurnitureSalesOrder | null>(null);
   const [viewingOrder, setViewingOrder] = useState<FurnitureSalesOrder | null>(null);
 
-  const { data: orders = [], isLoading } = useQuery<FurnitureSalesOrder[]>({
-    queryKey: ["/api/furniture/sales-orders"],
+  const pagination = usePagination({ initialLimit: 20 });
+
+  const { data: ordersResponse, isLoading } = useQuery<PaginationResponse<FurnitureSalesOrder>>({
+    queryKey: ["/api/furniture/sales-orders", pagination.queryParams],
   });
 
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["/api/customers"],
-  });
+  const orders = ordersResponse?.data ?? [];
+  const paginationInfo = ordersResponse?.pagination;
 
-  const { data: products = [] } = useQuery<FurnitureProduct[]>({
-    queryKey: ["/api/furniture/products"],
+  const { data: customersResponse } = useQuery<PaginationResponse<Customer>>({
+    queryKey: ["/api/customers", { limit: "1000" }],
   });
+  const customers = customersResponse?.data ?? [];
+
+  const { data: productsResponse } = useQuery<PaginationResponse<FurnitureProduct>>({
+    queryKey: ["/api/furniture/products", { limit: "1000" }],
+  });
+  const products = productsResponse?.data ?? [];
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: OrderFormData) => {
@@ -622,6 +631,18 @@ export default function FurnitureSalesOrders() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+            {paginationInfo && (
+              <DataTablePagination
+                page={paginationInfo.page}
+                totalPages={paginationInfo.totalPages}
+                total={paginationInfo.total}
+                limit={paginationInfo.limit}
+                hasNext={paginationInfo.hasNext}
+                hasPrev={paginationInfo.hasPrev}
+                onPageChange={pagination.setPage}
+                onLimitChange={pagination.setLimit}
+              />
             )}
           </CardContent>
         </Card>

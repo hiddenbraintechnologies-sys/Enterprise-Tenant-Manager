@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePagination, type PaginationResponse } from "@/hooks/use-pagination";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -398,18 +400,28 @@ export default function FurnitureDeliveries() {
   const [editingDelivery, setEditingDelivery] = useState<DeliveryOrder | null>(null);
   const [editingInstall, setEditingInstall] = useState<InstallationOrder | null>(null);
 
-  const { data: deliveries = [], isLoading: loadingDeliveries } = useQuery<DeliveryOrder[]>({
-    queryKey: ["/api/furniture/deliveries"],
+  const deliveryPagination = usePagination({ initialLimit: 20 });
+  const installPagination = usePagination({ initialLimit: 20 });
+
+  const { data: deliveriesResponse, isLoading: loadingDeliveries } = useQuery<PaginationResponse<DeliveryOrder>>({
+    queryKey: ["/api/furniture/deliveries", deliveryPagination.queryParams],
   });
 
-  const { data: installations = [], isLoading: loadingInstalls } = useQuery<InstallationOrder[]>({
-    queryKey: ["/api/furniture/installations"],
+  const deliveries = deliveriesResponse?.data ?? [];
+  const deliveryPaginationInfo = deliveriesResponse?.pagination;
+
+  const { data: installationsResponse, isLoading: loadingInstalls } = useQuery<PaginationResponse<InstallationOrder>>({
+    queryKey: ["/api/furniture/installations", installPagination.queryParams],
     enabled: activeTab === "installations",
   });
 
-  const { data: salesOrders = [] } = useQuery<FurnitureSalesOrder[]>({
-    queryKey: ["/api/furniture/sales-orders"],
+  const installations = installationsResponse?.data ?? [];
+  const installPaginationInfo = installationsResponse?.pagination;
+
+  const { data: salesOrdersResponse } = useQuery<PaginationResponse<FurnitureSalesOrder>>({
+    queryKey: ["/api/furniture/sales-orders", { limit: "1000" }],
   });
+  const salesOrders = salesOrdersResponse?.data ?? [];
 
   const createDeliveryMutation = useMutation({
     mutationFn: async (data: DeliveryFormData) => {
@@ -665,6 +677,18 @@ export default function FurnitureDeliveries() {
                     </TableBody>
                   </Table>
                 )}
+                {deliveryPaginationInfo && (
+                  <DataTablePagination
+                    page={deliveryPaginationInfo.page}
+                    totalPages={deliveryPaginationInfo.totalPages}
+                    total={deliveryPaginationInfo.total}
+                    limit={deliveryPaginationInfo.limit}
+                    hasNext={deliveryPaginationInfo.hasNext}
+                    hasPrev={deliveryPaginationInfo.hasPrev}
+                    onPageChange={deliveryPagination.setPage}
+                    onLimitChange={deliveryPagination.setLimit}
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -747,6 +771,18 @@ export default function FurnitureDeliveries() {
                       ))}
                     </TableBody>
                   </Table>
+                )}
+                {installPaginationInfo && (
+                  <DataTablePagination
+                    page={installPaginationInfo.page}
+                    totalPages={installPaginationInfo.totalPages}
+                    total={installPaginationInfo.total}
+                    limit={installPaginationInfo.limit}
+                    hasNext={installPaginationInfo.hasNext}
+                    hasPrev={installPaginationInfo.hasPrev}
+                    onPageChange={installPagination.setPage}
+                    onLimitChange={installPagination.setLimit}
+                  />
                 )}
               </CardContent>
             </Card>

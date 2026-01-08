@@ -5,7 +5,7 @@
  */
 
 import { Request } from 'express';
-import { SQL, sql, count } from 'drizzle-orm';
+import { SQL, sql, count, asc, desc } from 'drizzle-orm';
 import { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { db } from '../db';
 
@@ -218,4 +218,38 @@ export function getFilterParams(req: Request): FilterParams {
   }
   
   return filters;
+}
+
+export type ColumnMap = Record<string, PgColumn>;
+
+export function buildOrderBy(
+  sortParams: SortParams,
+  columnMap: ColumnMap,
+  defaultColumn: PgColumn
+): SQL {
+  const column = columnMap[sortParams.sortBy] || defaultColumn;
+  return sortParams.sortOrder === 'asc' ? asc(column) : desc(column);
+}
+
+export interface EnhancedPaginationOptions {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export function parseEnhancedPaginationParams(req: Request, allowedSortFields: string[] = ['createdAt']): EnhancedPaginationOptions & PaginationParams {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+  const offset = (page - 1) * limit;
+  const sortBy = req.query.sortBy as string;
+  const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' as const : 'desc' as const;
+  
+  return {
+    page,
+    limit,
+    offset,
+    sortBy: allowedSortFields.includes(sortBy) ? sortBy : 'createdAt',
+    sortOrder,
+  };
 }

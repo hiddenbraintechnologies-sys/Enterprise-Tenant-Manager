@@ -1910,7 +1910,7 @@ export class DatabaseStorage implements IStorage {
 
     const [deliveryResult] = await db.select({ count: sql<number>`count(*)::int` })
       .from(deliveryOrders)
-      .where(and(eq(deliveryOrders.tenantId, tenantId), eq(deliveryOrders.status, "scheduled")));
+      .where(and(eq(deliveryOrders.tenantId, tenantId), eq(deliveryOrders.deliveryStatus, "scheduled")));
 
     const lowStockMaterials = await this.getLowStockRawMaterials(tenantId);
 
@@ -1920,7 +1920,7 @@ export class DatabaseStorage implements IStorage {
 
     const [installationResult] = await db.select({ count: sql<number>`count(*)::int` })
       .from(installationOrders)
-      .where(and(eq(installationOrders.tenantId, tenantId), eq(installationOrders.status, "scheduled")));
+      .where(and(eq(installationOrders.tenantId, tenantId), eq(installationOrders.installationStatus, "scheduled")));
 
     return {
       totalProducts: productsResult?.count ?? 0,
