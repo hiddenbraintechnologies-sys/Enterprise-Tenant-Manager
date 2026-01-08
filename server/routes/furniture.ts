@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, desc, asc, sql, count, ilike, gte, lte } from "drizzle-orm";
+import { eq, and, desc, asc, sql, count, ilike, gte, lte, or } from "drizzle-orm";
 import {
   payments,
   invoices,
@@ -96,8 +96,19 @@ router.get("/products", async (req: Request, res: Response) => {
     if (filters.productType) {
       conditions.push(eq(furnitureProducts.productType, filters.productType as any));
     }
+    if (filters.materialType) {
+      conditions.push(eq(furnitureProducts.materialType, filters.materialType as any));
+    }
+    if (filters.isActive !== undefined) {
+      conditions.push(eq(furnitureProducts.isActive, filters.isActive));
+    }
     if (filters.search) {
-      conditions.push(ilike(furnitureProducts.name, `%${filters.search}%`));
+      conditions.push(
+        or(
+          ilike(furnitureProducts.name, `%${filters.search}%`),
+          ilike(furnitureProducts.sku, `%${filters.search}%`)
+        )!
+      );
     }
     
     const whereClause = and(...conditions);
@@ -478,6 +489,9 @@ router.get("/bom", async (req: Request, res: Response) => {
     if (req.query.productId) {
       conditions.push(eq(billOfMaterials.productId, req.query.productId as string));
     }
+    if (req.query.search) {
+      conditions.push(ilike(billOfMaterials.name, `%${req.query.search}%`));
+    }
     
     const whereClause = and(...conditions);
     
@@ -646,6 +660,12 @@ router.get("/production-orders", async (req: Request, res: Response) => {
     
     if (filters.status) {
       conditions.push(eq(productionOrders.status, filters.status as any));
+    }
+    if (filters.priority) {
+      conditions.push(eq(productionOrders.priority, filters.priority as any));
+    }
+    if (filters.search) {
+      conditions.push(ilike(productionOrders.orderNumber, `%${filters.search}%`));
     }
     if (filters.startDate) {
       conditions.push(gte(productionOrders.createdAt, filters.startDate));
@@ -868,6 +888,9 @@ router.get("/delivery-orders", async (req: Request, res: Response) => {
     if (filters.status) {
       conditions.push(eq(deliveryOrders.deliveryStatus, filters.status as any));
     }
+    if (filters.search) {
+      conditions.push(ilike(deliveryOrders.deliveryNumber, `%${filters.search}%`));
+    }
     if (filters.startDate) {
       conditions.push(gte(deliveryOrders.createdAt, filters.startDate));
     }
@@ -1063,6 +1086,9 @@ router.get("/installation-orders", async (req: Request, res: Response) => {
     if (filters.status) {
       conditions.push(eq(installationOrders.installationStatus, filters.status as any));
     }
+    if (filters.search) {
+      conditions.push(ilike(installationOrders.installationNumber, `%${filters.search}%`));
+    }
     if (filters.startDate) {
       conditions.push(gte(installationOrders.createdAt, filters.startDate));
     }
@@ -1205,6 +1231,12 @@ router.get("/sales-orders", async (req: Request, res: Response) => {
     
     if (filters.status) {
       conditions.push(eq(furnitureSalesOrders.status, filters.status as any));
+    }
+    if (filters.search) {
+      conditions.push(ilike(furnitureSalesOrders.orderNumber, `%${filters.search}%`));
+    }
+    if (filters.orderType) {
+      conditions.push(eq(furnitureSalesOrders.orderType, filters.orderType as any));
     }
     if (filters.startDate) {
       conditions.push(gte(furnitureSalesOrders.createdAt, filters.startDate));

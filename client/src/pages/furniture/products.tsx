@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -479,14 +479,19 @@ function ProductDialog({
 
 export default function FurnitureProducts() {
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [materialFilter, setMaterialFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showDialog, setShowDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<FurnitureProduct | null>(null);
+  const [searchInput, setSearchInput] = useState("");
 
   const pagination = usePagination({ initialLimit: 20 });
+
+  // Debounced search - update server filter after 300ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      pagination.setFilter("search", searchInput || undefined);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const { data: productsResponse, isLoading } = useQuery<PaginationResponse<FurnitureProduct>>({
     queryKey: ["/api/furniture/products", pagination.queryParams],
@@ -559,19 +564,7 @@ export default function FurnitureProducts() {
     }
   };
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      !searchQuery ||
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === "all" || product.productType === typeFilter;
-    const matchesMaterial = materialFilter === "all" || product.materialType === materialFilter;
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && product.isActive) ||
-      (statusFilter === "inactive" && !product.isActive);
-    return matchesSearch && matchesType && matchesMaterial && matchesStatus;
-  });
+  // No client-side filtering - all filtering is done server-side via pagination.queryParams
 
   const getProductTypeLabel = (type: string) => {
     return PRODUCT_TYPES.find((t) => t.value === type)?.label || type;
@@ -596,13 +589,16 @@ export default function FurnitureProducts() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
                 data-testid="input-search-products"
               />
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select 
+              value={pagination.filters.productType || "all"} 
+              onValueChange={(v) => pagination.setFilter("productType", v)}
+            >
               <SelectTrigger className="w-[140px]" data-testid="select-filter-type">
                 <Filter className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Type" />
@@ -614,7 +610,10 @@ export default function FurnitureProducts() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={materialFilter} onValueChange={setMaterialFilter}>
+            <Select 
+              value={pagination.filters.materialType || "all"} 
+              onValueChange={(v) => pagination.setFilter("materialType", v)}
+            >
               <SelectTrigger className="w-[140px]" data-testid="select-filter-material">
                 <SelectValue placeholder="Material" />
               </SelectTrigger>
@@ -625,7 +624,16 @@ export default function FurnitureProducts() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select 
+              value={pagination.filters.isActive !== undefined ? (pagination.filters.isActive === "true" ? "active" : "inactive") : "all"} 
+              onValueChange={(v) => {
+                if (v === "all") {
+                  pagination.setFilter("isActive", undefined);
+                } else {
+                  pagination.setFilter("isActive", v === "active" ? "true" : "false");
+                }
+              }}
+            >
               <SelectTrigger className="w-[130px]" data-testid="select-filter-status">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -656,7 +664,7 @@ export default function FurnitureProducts() {
                   <Skeleton key={i} className="h-16 w-full" />
                 ))}
               </div>
-            ) : filteredProducts.length === 0 ? (
+            ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Armchair className="h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-semibold">No products found</h3>
@@ -682,7 +690,7 @@ export default function FurnitureProducts() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.map((product) => (
+                  {products.map((product) => (
                     <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -770,6 +778,11 @@ export default function FurnitureProducts() {
                 hasPrev={paginationInfo.hasPrev}
                 onPageChange={pagination.setPage}
                 onLimitChange={pagination.setLimit}
+                isFiltered={pagination.hasActiveFilters}
+                onClearFilters={() => {
+                  pagination.clearFilters();
+                  setSearchInput("");
+                }}
               />
             )}
           </CardContent>
