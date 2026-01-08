@@ -1,0 +1,166 @@
+1️⃣ Establish the Baseline (Reference Module)
+
+Treat Furniture as the platform reference implementation.
+
+Confirm it has:
+
+End-to-end financial lifecycle (invoice → tax → currency → payments → PDF)
+
+Financial guardrails and immutability
+
+Server-side pagination, filtering, sorting
+
+Notifications (Email + WhatsApp)
+
+Analytics + AI insights
+
+Audit logging on all critical paths
+
+RBAC + tenant isolation
+
+Flutter mobile parity
+
+Explicitly state if any of these are missing or partially implemented.
+
+2️⃣ Downward Parity Check (Furniture → Other Modules)
+
+For each module (Real Estate, Tourism, Education, Logistics, Legal, Clinic, Salon, PG/Hostel, Coworking, Gym, General):
+
+Verify in code:
+
+Do server routes exist or only schemas?
+
+Are shared services actually imported and used?
+
+currencyService
+
+taxCalculatorService
+
+invoicePDFService
+
+notificationService
+
+whatsappService
+
+analyticsService
+
+Are financial guardrails enforced?
+
+Is auditService wired on mutations?
+
+Is RBAC + tenant isolation enforced at route level?
+
+Is pagination/filtering server-side?
+
+Does a Flutter mobile feature directory exist?
+
+Output:
+
+A truth table with:
+
+✅ Implemented
+
+⚠️ Partial (explain what’s missing)
+
+❌ Missing (no wiring / no routes)
+
+Include file paths as evidence.
+
+3️⃣ Upward Parity Check (Others → Furniture)
+
+Identify platform-level features implemented in other modules that:
+
+Are reusable
+
+Are NOT industry-specific
+
+Could improve Furniture
+
+Specifically check:
+
+Appointment scheduling (Legal / Clinic)
+
+AI risk prediction (Education)
+
+AI document summarization (Legal)
+
+State clearly:
+
+SHOULD ADD
+
+COULD ADD
+
+SHOULD NOT ADD
+(with justification)
+
+4️⃣ Shared Services Reality Check
+
+For each shared service:
+
+Confirm it exists
+
+Confirm which modules actually import it
+
+Identify if it is Furniture-coupled
+
+Output a table:
+
+Service | Exists | Furniture Uses | Other Modules Use | Action Required
+
+5️⃣ Mobile Parity Verification
+
+Inspect mobile/lib/features/ and report:
+
+Which modules have Flutter implementations
+
+Which are missing entirely
+
+Which are partial
+
+Furniture should be the mobile reference.
+
+6️⃣ Normalization Readiness Score
+
+For every module, assign:
+
+Baseline Compliance %
+
+Blocking gaps
+
+Estimated effort (Low / Medium / High)
+
+This must be based on code reality, not assumptions.
+
+7️⃣ Recommendations (Actionable)
+
+Produce:
+
+A short list of services to abstract immediately
+
+A phased normalization roadmap
+
+A clear answer to:
+
+Is Furniture the correct platform baseline? (Yes/No, why)
+
+Are shared services ready for reuse? (Yes/No, why)
+
+Which module should be normalized next?
+
+8️⃣ Output Rules (Strict)
+
+No marketing language
+
+No assumptions
+
+No future promises
+
+Every claim must be backed by:
+
+File path
+
+Import usage
+
+Route existence
+
+If something does not exist in code, mark it ❌
