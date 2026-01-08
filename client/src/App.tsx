@@ -26,6 +26,8 @@ import LegalDashboard from "@/pages/legal-dashboard";
 import FurnitureDashboard from "@/pages/furniture-dashboard";
 import FurnitureInvoices from "@/pages/furniture/invoices";
 import FurnitureAnalytics from "@/pages/furniture/analytics";
+import HrDashboard from "@/pages/hr-dashboard";
+import HrEmployees from "@/pages/hr/employees";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
@@ -215,6 +217,17 @@ function AuthenticatedRoutes() {
       <Route path="/settings" component={Settings} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />
+      
+      <Route path="/hr">
+        <ModuleGuard moduleId="hrms">
+          <HrDashboard />
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/employees">
+        <ModuleGuard moduleId="hrms">
+          <HrEmployees />
+        </ModuleGuard>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
