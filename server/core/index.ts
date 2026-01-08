@@ -26,6 +26,12 @@ export { tourismRouter } from "./tourism";
 export { educationRouter } from "./education";
 export { logisticsRouter } from "./logistics";
 export { legalRouter } from "./legal";
+export { clinicRouter } from "./clinic";
+export { salonRouter } from "./salon";
+export { gymRouter } from "./gym";
+export { pgHostelRouter } from "./pg-hostel";
+export { coworkingRouter } from "./coworking";
+export { generalServiceRouter } from "./general-service";
 export { 
   validateDashboardAccess, 
   validateDashboardAccessAsync, 
