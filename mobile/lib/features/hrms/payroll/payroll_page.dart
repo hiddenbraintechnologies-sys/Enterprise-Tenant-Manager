@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/payroll_bloc.dart';
+import '../data/models/hr_models.dart';
 
 class PayrollPage extends StatefulWidget {
   const PayrollPage({super.key});
@@ -18,6 +21,20 @@ class _PayrollPageState extends State<PayrollPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadPayroll();
+  }
+
+  void _loadPayroll() {
+    context.read<PayrollBloc>().add(LoadPayroll(
+      month: _selectedMonth,
+      year: _selectedYear,
+      status: _selectedStatus == 'all' ? null : _selectedStatus,
+    ));
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -29,14 +46,29 @@ class _PayrollPageState extends State<PayrollPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildMonthSelector(),
-          _buildSummaryCard(),
-          Expanded(
-            child: _buildPayrollList(),
-          ),
-        ],
+      body: BlocConsumer<PayrollBloc, PayrollState>(
+        listener: (context, state) {
+          if (state is PayrollActionSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          } else if (state is PayrollError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+            );
+          }
+        },
+        builder: (context, state) {
+          return Column(
+            children: [
+              _buildMonthSelector(),
+              if (state is PayrollLoaded) _buildSummaryCard(state),
+              Expanded(
+                child: _buildContent(state),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showRunPayrollDialog,
@@ -63,6 +95,7 @@ class _PayrollPageState extends State<PayrollPage> {
                   _selectedMonth--;
                 }
               });
+              _loadPayroll();
             },
           ),
           InkWell(
@@ -90,6 +123,7 @@ class _PayrollPageState extends State<PayrollPage> {
                   _selectedMonth++;
                 }
               });
+              _loadPayroll();
             },
           ),
         ],
@@ -97,7 +131,7 @@ class _PayrollPageState extends State<PayrollPage> {
     );
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard(PayrollLoaded state) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Padding(
@@ -105,10 +139,10 @@ class _PayrollPageState extends State<PayrollPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildSummaryItem('Total', '0', Colors.blue),
-            _buildSummaryItem('Processed', '0', Colors.green),
-            _buildSummaryItem('Pending', '0', Colors.orange),
-            _buildSummaryItem('Failed', '0', Colors.red),
+            _buildSummaryItem('Total', '${state.total}', Colors.blue),
+            _buildSummaryItem('Processed', '${state.processedCount}', Colors.green),
+            _buildSummaryItem('Pending', '${state.pendingCount}', Colors.orange),
+            _buildSummaryItem('Failed', '${state.failedCount}', Colors.red),
           ],
         ),
       ),
@@ -134,32 +168,84 @@ class _PayrollPageState extends State<PayrollPage> {
     );
   }
 
-  Widget _buildPayrollList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: 0,
-      itemBuilder: (context, index) {
-        return _buildPayrollCard(index);
-      },
-    );
+  Widget _buildContent(PayrollState state) {
+    if (state is PayrollLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state is PayrollError) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+            const SizedBox(height: 16),
+            Text(state.message),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _loadPayroll,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (state is PayrollLoaded) {
+      if (state.records.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.payments, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              const SizedBox(height: 16),
+              Text(
+                'No payroll records',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Run payroll to generate records',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return RefreshIndicator(
+        onRefresh: () async => _loadPayroll(),
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: state.records.length,
+          itemBuilder: (context, index) {
+            return _buildPayrollCard(state.records[index]);
+          },
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
-  Widget _buildPayrollCard(int index) {
+  Widget _buildPayrollCard(HrPayroll payroll) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
         leading: const CircleAvatar(child: Icon(Icons.person)),
-        title: const Text('Employee Name'),
-        subtitle: const Text('Employee ID'),
+        title: Text(payroll.employeeName ?? 'Employee'),
+        subtitle: Text('ID: ${payroll.employeeId.substring(0, 8)}...'),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            const Text(
-              '\$0.00',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Text(
+              '\$${payroll.netPay.toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            _buildStatusChip('pending'),
+            _buildStatusChip(payroll.status),
           ],
         ),
         children: [
@@ -167,30 +253,27 @@ class _PayrollPageState extends State<PayrollPage> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                _buildPayrollRow('Basic Salary', '\$0.00'),
-                _buildPayrollRow('Allowances', '\$0.00'),
-                _buildPayrollRow('Overtime', '\$0.00'),
+                _buildPayrollRow('Basic Salary', '\$${payroll.basicSalary.toStringAsFixed(2)}'),
+                _buildPayrollRow('Allowances', '\$${payroll.allowances.toStringAsFixed(2)}'),
                 const Divider(),
-                _buildPayrollRow('Gross Salary', '\$0.00', bold: true),
-                _buildPayrollRow('Tax Deductions', '-\$0.00'),
-                _buildPayrollRow('Other Deductions', '-\$0.00'),
+                _buildPayrollRow('Gross Salary', '\$${payroll.grossSalary.toStringAsFixed(2)}', bold: true),
+                _buildPayrollRow('Deductions', '-\$${payroll.deductions.toStringAsFixed(2)}'),
                 const Divider(),
-                _buildPayrollRow('Net Salary', '\$0.00', bold: true),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () {},
-                      child: const Text('View Details'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () {},
-                      child: const Text('Process'),
-                    ),
-                  ],
-                ),
+                _buildPayrollRow('Net Salary', '\$${payroll.netPay.toStringAsFixed(2)}', bold: true),
+                if (payroll.status == 'pending') ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      FilledButton(
+                        onPressed: () {
+                          context.read<PayrollBloc>().add(ProcessPayroll(payroll.id));
+                        },
+                        child: const Text('Process'),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -225,6 +308,7 @@ class _PayrollPageState extends State<PayrollPage> {
         color = Colors.red;
         break;
       case 'pending':
+      case 'draft':
         color = Colors.orange;
         break;
       default:
@@ -270,6 +354,7 @@ class _PayrollPageState extends State<PayrollPage> {
                       onPressed: () {
                         setState(() => _selectedMonth = month);
                         Navigator.pop(context);
+                        _loadPayroll();
                       },
                       style: OutlinedButton.styleFrom(
                         backgroundColor: _selectedMonth == month
@@ -292,57 +377,72 @@ class _PayrollPageState extends State<PayrollPage> {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Filter by Status',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  FilterChip(
-                    label: const Text('All'),
-                    selected: _selectedStatus == 'all',
-                    onSelected: (selected) {
-                      setState(() => _selectedStatus = 'all');
-                      Navigator.pop(context);
-                    },
+                  Text(
+                    'Filter by Status',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  FilterChip(
-                    label: const Text('Pending'),
-                    selected: _selectedStatus == 'pending',
-                    onSelected: (selected) {
-                      setState(() => _selectedStatus = 'pending');
-                      Navigator.pop(context);
-                    },
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilterChip(
+                        label: const Text('All'),
+                        selected: _selectedStatus == 'all',
+                        onSelected: (selected) {
+                          setModalState(() => _selectedStatus = 'all');
+                          setState(() {});
+                        },
+                      ),
+                      FilterChip(
+                        label: const Text('Pending'),
+                        selected: _selectedStatus == 'pending',
+                        onSelected: (selected) {
+                          setModalState(() => _selectedStatus = 'pending');
+                          setState(() {});
+                        },
+                      ),
+                      FilterChip(
+                        label: const Text('Processed'),
+                        selected: _selectedStatus == 'processed',
+                        onSelected: (selected) {
+                          setModalState(() => _selectedStatus = 'processed');
+                          setState(() {});
+                        },
+                      ),
+                      FilterChip(
+                        label: const Text('Failed'),
+                        selected: _selectedStatus == 'failed',
+                        onSelected: (selected) {
+                          setModalState(() => _selectedStatus = 'failed');
+                          setState(() {});
+                        },
+                      ),
+                    ],
                   ),
-                  FilterChip(
-                    label: const Text('Processed'),
-                    selected: _selectedStatus == 'processed',
-                    onSelected: (selected) {
-                      setState(() => _selectedStatus = 'processed');
-                      Navigator.pop(context);
-                    },
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _loadPayroll();
+                      },
+                      child: const Text('Apply Filter'),
+                    ),
                   ),
-                  FilterChip(
-                    label: const Text('Failed'),
-                    selected: _selectedStatus == 'failed',
-                    onSelected: (selected) {
-                      setState(() => _selectedStatus = 'failed');
-                      Navigator.pop(context);
-                    },
-                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -365,9 +465,10 @@ class _PayrollPageState extends State<PayrollPage> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Payroll processing started...')),
-                );
+                context.read<PayrollBloc>().add(RunPayroll(
+                  month: _selectedMonth,
+                  year: _selectedYear,
+                ));
               },
               child: const Text('Run'),
             ),
