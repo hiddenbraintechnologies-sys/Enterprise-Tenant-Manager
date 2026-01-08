@@ -1,0 +1,199 @@
+1️⃣ Production Order Stage State Machine (STRICT ENFORCEMENT)
+
+Implement a strict sequential workflow for ProductionOrderStage.
+
+Allowed order (fixed):
+
+cutting → assembly → finishing → quality_check → ready_for_dispatch
+
+Rules
+
+A stage cannot start or complete unless all previous stages are completed
+
+Stages cannot be skipped
+
+Completed stages cannot be reverted
+
+Stage type cannot be changed after creation
+
+Block any invalid transition at the API/service level
+
+Audit Logging (mandatory)
+
+Log every blocked transition with:
+
+entityType: ProductionOrderStage
+
+entityId
+
+attemptedStage
+
+currentStage
+
+reason
+
+userId
+
+timestamp
+
+2️⃣ Sales Order Financial Integrity (HARD VALIDATION)
+
+Enforce on create AND update:
+
+Rules
+
+subtotal + taxAmount === totalAmount
+
+Partial updates must merge with existing values before validation
+
+advancePaid must never exceed totalAmount
+
+Reject invalid requests with clear error messages
+
+Audit Logging
+
+Log all failed validations
+
+Log all successful creates/updates with before & after values
+
+3️⃣ Read-Only Enforcement by Final Status
+
+Once an entity reaches a terminal state, it becomes immutable.
+
+Entity	Read-Only Status
+ProductionOrder	completed, cancelled
+SalesOrder	delivered, cancelled, closed
+DeliveryOrder	delivered, cancelled
+InstallationOrder	completed, cancelled
+Rules
+
+No update or delete allowed in these states
+
+Blocked attempts must be audit logged
+
+4️⃣ Core Business Guardrails
+
+Implement the following non-negotiable rules:
+
+❌ Sales orders linked to deliveries cannot be deleted
+
+❌ Installation orders can only be created after delivery is completed
+
+❌ Delivery orders cannot be completed without a scheduled date
+
+❌ Installation must reference a completed delivery order
+
+All validations must be transaction-safe and server-side enforced.
+
+5️⃣ Audit Logging System (CENTRALIZED)
+
+Implement a centralized audit logging service used by all mutations.
+
+Audit fields
+
+entityType
+
+entityId
+
+action (CREATE / UPDATE / DELETE / BLOCKED)
+
+beforeState (nullable)
+
+afterState (nullable)
+
+reason (if blocked)
+
+userId
+
+timestamp
+
+Audit logs must be queryable by:
+
+entity
+
+user
+
+action type
+
+date range
+
+6️⃣ Invoicing & Payments Module (Furniture-Specific)
+Invoicing
+
+Generate invoices from Sales Orders
+
+Invoice must lock financial values once issued
+
+Support partial & full payments
+
+GST-ready structure (CGST / SGST / IGST placeholders)
+
+Payments
+
+Track payment method (cash, bank transfer, UPI)
+
+Prevent overpayment
+
+Update Sales Order payment status automatically
+
+Audit all payment actions
+
+7️⃣ Demo Seed Data (DEV ONLY)
+
+Create a dev-only endpoint to populate realistic test data.
+
+Must include
+
+Furniture categories
+
+Raw materials
+
+Products
+
+Bill of Materials (BOM)
+
+Production orders with full stage pipelines
+
+Sales orders, deliveries, installations
+
+Rules
+
+Endpoint must be disabled in production
+
+Guard with environment checks
+
+8️⃣ UI & API Expectations
+
+Backend validations are the source of truth
+
+UI must surface API validation errors clearly
+
+TanStack Query mutations must invalidate caches properly
+
+No silent failures
+
+9️⃣ Completion Criteria
+
+The module is complete when:
+
+All invalid operations are blocked
+
+All valid operations succeed
+
+Full audit trail is available
+
+No TypeScript or schema mismatches
+
+Furniture module is enterprise-grade but SMB-priced
+
+OUTPUT REQUIREMENTS
+
+Implement backend services + API handlers
+
+Do NOT change schema
+
+Do NOT add fake fields
+
+Multi-tenant safe
+
+Production ready

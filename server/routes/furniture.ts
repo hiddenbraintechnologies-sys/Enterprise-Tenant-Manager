@@ -971,9 +971,9 @@ router.post("/sales-orders", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Tenant ID required" });
     }
 
-    if (req.body.subtotalAmount && req.body.taxAmount && req.body.totalAmount) {
+    if (req.body.subtotal && req.body.taxAmount && req.body.totalAmount) {
       const totalsCheck = furnitureGuardrails.validateTotals(
-        req.body.subtotalAmount, req.body.taxAmount, req.body.totalAmount
+        req.body.subtotal, req.body.taxAmount, req.body.totalAmount
       );
       if (!totalsCheck.valid) {
         await logFurnitureAudit(tenantId, userId, "create", "sales_order", "new", null, null, {
@@ -1034,7 +1034,7 @@ router.patch("/sales-orders/:id", async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Cannot modify sales order with status: ${existing.status}` });
     }
 
-    const mergedSubtotal = req.body.subtotalAmount ?? existing.subtotalAmount;
+    const mergedSubtotal = req.body.subtotal ?? existing.subtotal;
     const mergedTax = req.body.taxAmount ?? existing.taxAmount;
     const mergedTotal = req.body.totalAmount ?? existing.totalAmount;
 
@@ -1042,7 +1042,7 @@ router.patch("/sales-orders/:id", async (req: Request, res: Response) => {
       const totalsCheck = furnitureGuardrails.validateTotals(mergedSubtotal, mergedTax, mergedTotal);
       if (!totalsCheck.valid) {
         await logFurnitureAudit(tenantId, userId, "update", "sales_order", req.params.id, null, null, {
-          blocked: true, reason: totalsCheck.error, subtotal: mergedSubtotal, tax: mergedTax, total: mergedTotal
+          blocked: true, reason: totalsCheck.error, subtotalVal: mergedSubtotal, taxVal: mergedTax, totalVal: mergedTotal
         });
         return res.status(400).json({ error: totalsCheck.error });
       }
@@ -1144,6 +1144,296 @@ router.delete("/sales-orders/:orderId/items/:id", async (req: Request, res: Resp
   } catch (error) {
     console.error("Error deleting sales order item:", error);
     res.status(500).json({ error: "Failed to delete sales order item" });
+  }
+});
+
+// ============================================
+// FURNITURE INVOICING & PAYMENTS
+// ============================================
+
+router.post("/sales-orders/:orderId/generate-invoice", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const salesOrder = await storage.getFurnitureSalesOrder(req.params.orderId, tenantId);
+    if (!salesOrder) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+
+    if (!["confirmed", "processing", "ready", "delivered"].includes(salesOrder.status || "")) {
+      return res.status(400).json({ error: `Cannot generate invoice for sales order with status: ${salesOrder.status}` });
+    }
+
+    const invoiceType = req.body.invoiceType || "tax_invoice";
+    const invoiceNumber = `INV-${Date.now()}`;
+    
+    const subtotal = parseFloat(String(salesOrder.subtotal)) || 0;
+    const taxAmount = parseFloat(String(salesOrder.taxAmount)) || 0;
+    const totalAmount = parseFloat(String(salesOrder.totalAmount)) || 0;
+
+    const gstDetails = {
+      cgst: taxAmount / 2,
+      sgst: taxAmount / 2,
+      igst: 0,
+      isInterState: req.body.isInterState || false,
+    };
+    
+    if (gstDetails.isInterState) {
+      gstDetails.igst = taxAmount;
+      gstDetails.cgst = 0;
+      gstDetails.sgst = 0;
+    }
+
+    const invoice = await storage.createInvoice({
+      tenantId,
+      customerId: salesOrder.customerId,
+      invoiceNumber,
+      status: "sent",
+      currency: salesOrder.currency || "INR",
+      subtotal: String(subtotal),
+      taxAmount: String(taxAmount),
+      totalAmount: String(totalAmount),
+      paidAmount: String(salesOrder.paidAmount || 0),
+      dueDate: req.body.dueDate || null,
+      notes: req.body.notes || null,
+      metadata: { 
+        salesOrderId: salesOrder.id, 
+        invoiceType,
+        gstDetails,
+        lockedAt: new Date().toISOString(),
+      },
+      createdBy: userId || null,
+    });
+
+    const orderItems = await storage.getFurnitureSalesOrderItems(salesOrder.id, tenantId);
+    for (const item of orderItems) {
+      await storage.createInvoiceItem({
+        invoiceId: invoice.id,
+        description: item.description || "Furniture item",
+        quantity: item.quantity || 1,
+        unitPrice: String(item.unitPrice),
+        totalPrice: String(item.totalPrice),
+        taxRate: String(item.taxRate || 0),
+      });
+    }
+
+    await logFurnitureAudit(tenantId, userId, "create", "invoice", invoice.id, null, invoice, {
+      salesOrderId: salesOrder.id, invoiceType
+    });
+
+    res.status(201).json({ 
+      invoice, 
+      gstDetails,
+      message: "Invoice generated and locked" 
+    });
+  } catch (error) {
+    console.error("Error generating invoice:", error);
+    res.status(500).json({ error: "Failed to generate invoice" });
+  }
+});
+
+router.get("/sales-orders/:orderId/invoices", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.headers["x-tenant-id"] as string;
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const allInvoices = await storage.getInvoices(tenantId);
+    const orderInvoices = allInvoices.filter(inv => {
+      const meta = inv.metadata as any;
+      return meta?.salesOrderId === req.params.orderId;
+    });
+
+    res.json(orderInvoices);
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    res.status(500).json({ error: "Failed to fetch invoices" });
+  }
+});
+
+router.post("/sales-orders/:orderId/payments", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const salesOrder = await storage.getFurnitureSalesOrder(req.params.orderId, tenantId);
+    if (!salesOrder) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+
+    if (furnitureGuardrails.isReadOnly(salesOrder.status || "", "salesOrder")) {
+      await logFurnitureAudit(tenantId, userId, "create", "payment", "new", null, null, {
+        blocked: true, reason: `Cannot add payment to ${salesOrder.status} order`, salesOrderId: salesOrder.id
+      });
+      return res.status(400).json({ error: `Cannot add payment to ${salesOrder.status} order` });
+    }
+
+    const paymentAmount = parseFloat(req.body.amount);
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+      return res.status(400).json({ error: "Payment amount must be a positive number" });
+    }
+
+    const totalAmount = parseFloat(String(salesOrder.totalAmount)) || 0;
+    const currentPaid = parseFloat(String(salesOrder.paidAmount)) || 0;
+    const maxPayable = totalAmount - currentPaid;
+
+    if (paymentAmount > maxPayable + 0.01) {
+      await logFurnitureAudit(tenantId, userId, "create", "payment", "new", null, null, {
+        blocked: true, reason: "Overpayment not allowed", paymentAmount, maxPayable, salesOrderId: salesOrder.id
+      });
+      return res.status(400).json({ 
+        error: `Payment amount (${paymentAmount}) exceeds remaining balance (${maxPayable.toFixed(2)})` 
+      });
+    }
+
+    const allInvoices = await storage.getInvoices(tenantId);
+    const orderInvoice = allInvoices.find(inv => {
+      const meta = inv.metadata as any;
+      return meta?.salesOrderId === req.params.orderId;
+    });
+
+    const payment = await storage.createPayment({
+      tenantId,
+      invoiceId: orderInvoice?.id || null,
+      customerId: salesOrder.customerId,
+      currency: salesOrder.currency || "INR",
+      amount: String(paymentAmount),
+      method: req.body.method || "cash",
+      status: "paid",
+      transactionId: req.body.transactionId || null,
+      notes: req.body.notes || null,
+      paidAt: new Date(),
+      createdBy: userId || null,
+    });
+
+    const newPaidAmount = currentPaid + paymentAmount;
+    const newBalance = totalAmount - newPaidAmount;
+    
+    let newPaymentStatus = "partial";
+    if (newPaidAmount >= totalAmount - 0.01) {
+      newPaymentStatus = "paid";
+    } else if (newPaidAmount === 0) {
+      newPaymentStatus = "pending";
+    }
+
+    await storage.updateFurnitureSalesOrder(salesOrder.id, tenantId, {
+      paidAmount: String(newPaidAmount),
+      balanceAmount: String(newBalance),
+      paymentStatus: newPaymentStatus,
+      status: newPaymentStatus === "paid" && salesOrder.status === "delivered" ? "completed" : salesOrder.status,
+    });
+
+    if (orderInvoice) {
+      await storage.updateInvoice(orderInvoice.id, tenantId, {
+        paidAmount: String(newPaidAmount),
+        status: newPaymentStatus === "paid" ? "paid" : "partial",
+      });
+    }
+
+    await logFurnitureAudit(tenantId, userId, "create", "payment", payment.id, null, payment, {
+      salesOrderId: salesOrder.id, paymentAmount, newPaidAmount, newBalance, paymentStatus: newPaymentStatus
+    });
+
+    res.status(201).json({
+      payment,
+      salesOrderUpdate: {
+        paidAmount: newPaidAmount,
+        balanceAmount: newBalance,
+        paymentStatus: newPaymentStatus,
+      },
+    });
+  } catch (error) {
+    console.error("Error recording payment:", error);
+    res.status(500).json({ error: "Failed to record payment" });
+  }
+});
+
+router.get("/sales-orders/:orderId/payments", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.headers["x-tenant-id"] as string;
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const salesOrder = await storage.getFurnitureSalesOrder(req.params.orderId, tenantId);
+    if (!salesOrder) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+
+    const allPayments = await storage.getPayments(tenantId);
+    const allInvoices = await storage.getInvoices(tenantId);
+    
+    const orderInvoice = allInvoices.find(inv => {
+      const meta = inv.metadata as any;
+      return meta?.salesOrderId === req.params.orderId;
+    });
+
+    const orderPayments = allPayments.filter(p => 
+      p.invoiceId === orderInvoice?.id || p.customerId === salesOrder.customerId
+    );
+
+    const totalAmount = parseFloat(String(salesOrder.totalAmount)) || 0;
+    const paidAmount = parseFloat(String(salesOrder.paidAmount)) || 0;
+
+    res.json({
+      payments: orderPayments,
+      summary: {
+        totalAmount,
+        paidAmount,
+        balanceAmount: totalAmount - paidAmount,
+        paymentStatus: paidAmount >= totalAmount - 0.01 ? "paid" : (paidAmount > 0 ? "partial" : "pending"),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
+router.patch("/invoices/:id", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const existing = await storage.getInvoice(req.params.id, tenantId);
+    if (!existing) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const meta = existing.metadata as any;
+    if (meta?.lockedAt && existing.status !== "draft") {
+      const allowedFields = ["notes", "dueDate"];
+      const attemptedFields = Object.keys(req.body);
+      const disallowedFields = attemptedFields.filter(f => !allowedFields.includes(f));
+      
+      if (disallowedFields.length > 0) {
+        await logFurnitureAudit(tenantId, userId, "update", "invoice", req.params.id, null, null, {
+          blocked: true, reason: "Invoice is locked after issuance", disallowedFields
+        });
+        return res.status(400).json({ 
+          error: "Invoice is locked. Only notes and dueDate can be modified.",
+          lockedAt: meta.lockedAt,
+        });
+      }
+    }
+
+    const invoice = await storage.updateInvoice(req.params.id, tenantId, req.body);
+    await logFurnitureAudit(tenantId, userId, "update", "invoice", req.params.id, existing, invoice);
+    res.json(invoice);
+  } catch (error) {
+    console.error("Error updating invoice:", error);
+    res.status(500).json({ error: "Failed to update invoice" });
   }
 });
 

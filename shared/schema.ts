@@ -7019,6 +7019,7 @@ export const furnitureSalesOrders = pgTable("furniture_sales_orders", {
   advanceAmount: decimal("advance_amount", { precision: 12, scale: 2 }).default("0"),
   paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
   balanceAmount: decimal("balance_amount", { precision: 12, scale: 2 }),
+  paymentStatus: varchar("payment_status", { length: 20 }).notNull().default("pending"), // pending, partial, paid
   
   // Currency
   currency: varchar("currency", { length: 5 }).default("INR").notNull(),
