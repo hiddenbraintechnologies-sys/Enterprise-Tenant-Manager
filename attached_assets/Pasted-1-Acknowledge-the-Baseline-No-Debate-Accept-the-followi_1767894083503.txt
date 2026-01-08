@@ -1,0 +1,128 @@
+1️⃣ Acknowledge the Baseline (No Debate)
+
+Accept the following as fact:
+
+Furniture is the platform baseline (95% complete)
+
+Shared services exist but are Furniture-coupled
+
+Other modules lack financial, notification, analytics, and mobile wiring
+
+Legal is the closest next module to normalize
+
+Do not challenge or restate this.
+
+2️⃣ Phase 1: Service Abstraction (Immediate)
+
+Create the following base services without breaking Furniture:
+
+A. BaseFinancialService
+
+Location: server/services/base-financial.ts
+
+Must wrap:
+
+currencyService
+
+taxCalculatorService
+
+invoicePDFService
+
+Expose a module-agnostic interface so other modules can plug in without copying logic.
+
+B. BaseNotificationService
+
+Location: server/services/base-notification.ts
+
+Must:
+
+Wrap notificationService + whatsappService
+
+Introduce event-based dispatch (e.g. INVOICE_ISSUED, PAYMENT_RECEIVED)
+
+Furniture must migrate to this base service without regression.
+
+C. BaseAnalyticsAdapter
+
+Location: server/services/base-analytics.ts
+
+Must:
+
+Define a common analytics contract
+
+Allow module-specific metric adapters
+
+Furniture becomes the first adapter, not the hardcoded implementation.
+
+3️⃣ Phase 2: Legal Module Normalization (Next Priority)
+
+Normalize Legal to match Furniture baseline:
+
+You must add:
+
+Payment processing
+
+Currency + tax integration
+
+PDF invoice generation
+
+Notification hooks
+
+Analytics adapter wiring
+
+You must reuse the new base services, not duplicate logic.
+
+Do not add Flutter yet.
+
+4️⃣ Phase 3: Education Financial Unification
+
+Refactor Education to:
+
+Merge fees.ts into a proper invoice flow
+
+Generate PDF receipts
+
+Use BaseFinancialService
+
+Prepare for analytics wiring
+
+No UI redesign required.
+
+5️⃣ Phase 4: Furniture Enhancements (Upward Parity)
+
+Add only platform-level reusable features to Furniture:
+
+REQUIRED
+
+Appointment / installation scheduling
+(adapt from server/core/legal/appointments.ts)
+
+OPTIONAL (behind feature flag)
+
+AI risk scoring (from Education)
+
+Do not add industry-specific features (routes, fleet, attendance, etc.).
+
+6️⃣ Explicitly Do NOT Do the Following
+
+❌ Do not re-audit parity
+❌ Do not add schema-only modules yet
+❌ Do not introduce breaking changes
+❌ Do not redesign UI
+❌ Do not add mobile modules yet (except later phases)
+
+7️⃣ Final Output Required
+
+Reply with:
+
+Confirmation that the audit is accepted as source of truth
+
+Exact files you will create or modify in Phase 1
+
+Order of execution (commit-level plan)
+
+Any blocking technical risks before starting
+
+No summaries.
+No marketing language.
+No assumptions.
