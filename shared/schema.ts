@@ -7742,6 +7742,132 @@ export const tenantTaxRegistrations = pgTable("tenant_tax_registrations", {
 ]);
 
 // ============================================
+// ANALYTICS & AI INSIGHTS
+// ============================================
+
+export const analyticsSnapshotTypeEnum = pgEnum("analytics_snapshot_type", [
+  "daily",
+  "weekly", 
+  "monthly",
+]);
+
+export const aiInsightCategoryEnum = pgEnum("ai_insight_category", [
+  "production",
+  "sales",
+  "payments",
+  "operations",
+  "inventory",
+  "customer",
+  "cashflow",
+]);
+
+export const aiInsightSeverityEnum = pgEnum("ai_insight_severity", [
+  "info",
+  "warning",
+  "critical",
+]);
+
+export const analyticsSnapshots = pgTable("analytics_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  snapshotDate: date("snapshot_date").notNull(),
+  snapshotType: analyticsSnapshotTypeEnum("snapshot_type").notNull().default("daily"),
+  
+  // Production metrics
+  productionOrdersTotal: integer("production_orders_total").default(0),
+  productionOrdersDraft: integer("production_orders_draft").default(0),
+  productionOrdersPending: integer("production_orders_pending").default(0),
+  productionOrdersInProgress: integer("production_orders_in_progress").default(0),
+  productionOrdersCompleted: integer("production_orders_completed").default(0),
+  productionOrdersCancelled: integer("production_orders_cancelled").default(0),
+  avgProductionTimeHours: decimal("avg_production_time_hours", { precision: 10, scale: 2 }),
+  wastagePercentage: decimal("wastage_percentage", { precision: 5, scale: 2 }),
+  
+  // Sales metrics
+  salesOrdersTotal: integer("sales_orders_total").default(0),
+  salesOrdersCompleted: integer("sales_orders_completed").default(0),
+  revenueTotal: decimal("revenue_total", { precision: 14, scale: 2 }).default("0"),
+  revenueUsd: decimal("revenue_usd", { precision: 14, scale: 2 }).default("0"),
+  orderConversionRate: decimal("order_conversion_rate", { precision: 5, scale: 2 }),
+  topProductsSold: jsonb("top_products_sold").default([]),
+  
+  // Payment metrics
+  invoicesTotal: integer("invoices_total").default(0),
+  invoicesPaid: integer("invoices_paid").default(0),
+  invoicesOverdue: integer("invoices_overdue").default(0),
+  invoicesPartiallyPaid: integer("invoices_partially_paid").default(0),
+  totalReceivables: decimal("total_receivables", { precision: 14, scale: 2 }).default("0"),
+  totalReceivablesUsd: decimal("total_receivables_usd", { precision: 14, scale: 2 }).default("0"),
+  avgPaymentDelayDays: decimal("avg_payment_delay_days", { precision: 6, scale: 2 }),
+  paymentsReceived: decimal("payments_received", { precision: 14, scale: 2 }).default("0"),
+  paymentsReceivedUsd: decimal("payments_received_usd", { precision: 14, scale: 2 }).default("0"),
+  
+  // Operations metrics
+  deliveriesTotal: integer("deliveries_total").default(0),
+  deliveriesOnTime: integer("deliveries_on_time").default(0),
+  deliveriesLate: integer("deliveries_late").default(0),
+  deliveryOnTimeRate: decimal("delivery_on_time_rate", { precision: 5, scale: 2 }),
+  installationsTotal: integer("installations_total").default(0),
+  installationsCompleted: integer("installations_completed").default(0),
+  installationCompletionRate: decimal("installation_completion_rate", { precision: 5, scale: 2 }),
+  avgInstallationRating: decimal("avg_installation_rating", { precision: 3, scale: 2 }),
+  
+  // Raw data for drill-down
+  rawMetrics: jsonb("raw_metrics").default({}),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_analytics_snapshots_tenant").on(table.tenantId),
+  index("idx_analytics_snapshots_date").on(table.tenantId, table.snapshotDate),
+  uniqueIndex("idx_analytics_snapshots_unique").on(table.tenantId, table.snapshotDate, table.snapshotType),
+]);
+
+export const aiInsights = pgTable("ai_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  category: aiInsightCategoryEnum("category").notNull(),
+  severity: aiInsightSeverityEnum("severity").notNull().default("info"),
+  
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  
+  // Data supporting the insight
+  supportingData: jsonb("supporting_data").default({}),
+  
+  // Related entities
+  relatedEntityType: varchar("related_entity_type", { length: 50 }),
+  relatedEntityId: varchar("related_entity_id"),
+  
+  // Metrics
+  metricValue: decimal("metric_value", { precision: 14, scale: 4 }),
+  metricUnit: varchar("metric_unit", { length: 50 }),
+  comparisonValue: decimal("comparison_value", { precision: 14, scale: 4 }),
+  changePercentage: decimal("change_percentage", { precision: 8, scale: 2 }),
+  
+  // Time context
+  periodStart: timestamp("period_start"),
+  periodEnd: timestamp("period_end"),
+  
+  // Status
+  isRead: boolean("is_read").default(false),
+  isDismissed: boolean("is_dismissed").default(false),
+  
+  // Expiry
+  expiresAt: timestamp("expires_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_ai_insights_tenant").on(table.tenantId),
+  index("idx_ai_insights_category").on(table.tenantId, table.category),
+  index("idx_ai_insights_severity").on(table.tenantId, table.severity),
+  index("idx_ai_insights_created").on(table.tenantId, table.createdAt),
+]);
+
+// ============================================
 // FURNITURE MODULE: INSERT SCHEMAS
 // ============================================
 
@@ -7975,3 +8101,22 @@ export type InsertScheduledBillingJob = z.infer<typeof insertScheduledBillingJob
 
 export type ScheduledBillingJobLog = typeof scheduledBillingJobLogs.$inferSelect;
 export type InsertScheduledBillingJobLog = z.infer<typeof insertScheduledBillingJobLogSchema>;
+
+// Analytics types
+export const insertAnalyticsSnapshotSchema = createInsertSchema(analyticsSnapshots).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAiInsightSchema = createInsertSchema(aiInsights).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type AnalyticsSnapshot = typeof analyticsSnapshots.$inferSelect;
+export type InsertAnalyticsSnapshot = z.infer<typeof insertAnalyticsSnapshotSchema>;
+
+export type AiInsight = typeof aiInsights.$inferSelect;
+export type InsertAiInsight = z.infer<typeof insertAiInsightSchema>;

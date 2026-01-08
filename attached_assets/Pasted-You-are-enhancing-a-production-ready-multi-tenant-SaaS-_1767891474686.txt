@@ -1,0 +1,117 @@
+You are enhancing a production-ready, multi-tenant SaaS platform.
+The Furniture Manufacturing Module already supports:
+- Production, Sales, Invoicing, Payments
+- Multi-currency, multi-country compliance
+- Mobile + Web dashboards
+- Audit logging and RBAC
+
+Now implement **Analytics Dashboards and AI-powered Insights**.
+
+────────────────────────
+1️⃣ Analytics Data Layer
+────────────────────────
+Create an analytics aggregation layer (read-optimized):
+
+Metrics to track (per tenant, date-range aware):
+- Production:
+  • Orders by status
+  • Average production time per stage
+  • Wastage percentage
+- Sales:
+  • Revenue (daily / weekly / monthly)
+  • Top products
+  • Order conversion rate
+- Payments:
+  • Paid vs unpaid invoices
+  • Outstanding receivables
+  • Average payment delay
+- Operations:
+  • Delivery on-time rate
+  • Installation completion rate
+
+Store pre-aggregated metrics using:
+- Daily snapshots
+- Currency-normalized base values (USD)
+- Tenant isolation enforced
+
+────────────────────────
+2️⃣ Analytics API Endpoints
+────────────────────────
+Create read-only analytics APIs:
+
+GET /api/analytics/overview
+GET /api/analytics/production
+GET /api/analytics/sales
+GET /api/analytics/payments
+GET /api/analytics/operations
+
+Features:
+- Date range filters
+- Currency selection for display
+- Role-based access (Admin, Manager only)
+- Cached responses (Redis-ready)
+
+────────────────────────
+3️⃣ Web Dashboard (React)
+────────────────────────
+Add an **Analytics Dashboard** section:
+
+Pages:
+- Overview (KPIs + trends)
+- Production Analytics
+- Sales & Revenue
+- Payments & Cashflow
+
+UI Requirements:
+- KPI cards
+- Line & bar charts
+- Filters (date range, currency)
+- Empty states for new tenants
+- Export to CSV
+
+────────────────────────
+4️⃣ Flutter Mobile Analytics
+────────────────────────
+Mobile-friendly analytics:
+- KPI cards
+- Simplified charts
+- Swipeable date ranges
+- Offline-safe cached views
+
+Ensure:
+- Same APIs as web
+- Tenant isolation
+- RBAC respected
+
+────────────────────────
+5️⃣ AI Insights Engine
+────────────────────────
+Create an AI insights service that analyzes analytics data and generates:
+
+Examples:
+- “Production bottleneck detected in finishing stage”
+- “High wastage in Product X this month”
+- “Customers with repeated late payments”
+- “Cashflow risk due to overdue invoices”
+- “Top 3 products driving 70% of revenue”
+
+Rules:
+- AI insights are READ-ONLY
+- No automated actions
+- Generated per tenant
+- Stored with timestamp & category
+
+API:
+GET /api/analytics/ai-insights
+
+────────────────────────
+6️⃣ Notifications (Optional)
+────────────────────────
+Trigger AI insight alerts:
+- Dashboard banners
+- Optional email/WhatsApp summary (weekly)
+
+────────────────────────
+7️⃣ Testing & Validation
+────────────────────────
+Add tes
