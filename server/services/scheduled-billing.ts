@@ -76,8 +76,21 @@ export class ScheduledBillingService {
   }
 
   async toggleJobStatus(id: string, tenantId: string, isActive: boolean): Promise<ScheduledBillingJob | undefined> {
+    const [existingJob] = await db.select()
+      .from(scheduledBillingJobs)
+      .where(and(
+        eq(scheduledBillingJobs.id, id),
+        eq(scheduledBillingJobs.tenantId, tenantId)
+      ));
+
+    if (!existingJob) return undefined;
+
     const nextRunAt = isActive 
-      ? this.calculateNextRunTime("daily", 9, 0)
+      ? this.calculateNextRunTime(
+          existingJob.frequency as "hourly" | "daily" | "weekly",
+          existingJob.runAtHour || 9,
+          existingJob.runAtMinute || 0
+        )
       : null;
 
     const [updated] = await db.update(scheduledBillingJobs)
