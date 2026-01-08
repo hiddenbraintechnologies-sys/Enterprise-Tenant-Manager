@@ -36,53 +36,44 @@ router.get("/projects", requireFeature("hrms_it_extensions"), async (req, res) =
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  const filters = {
-    status: req.query.status as string,
-    search: req.query.search as string,
-  };
-  const pagination = {
-    page: parseInt(req.query.page as string) || 1,
-    limit: parseInt(req.query.limit as string) || 20,
-  };
+  await auditService.logAsync({
+    tenantId,
+    userId: req.context?.user?.id,
+    action: "access",
+    resource: "projects",
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
   
-  const result = await ProjectService.getProjects(tenantId, filters, pagination);
+  const result = await ProjectService.listProjects(tenantId, req.query);
   res.json(result);
 });
 
 router.post("/projects", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const project = await ProjectService.createProject(tenantId, req.body, userId);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "create",
     resource: "projects",
-    resourceId: project.id,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const project = await ProjectService.addProject(tenantId, req.body);
   res.status(201).json(project);
 });
 
-router.patch("/projects/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.put("/projects/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const project = await ProjectService.updateProject(tenantId, req.params.id, req.body, userId);
-  if (!project) {
-    return res.status(404).json({ error: "Project not found" });
-  }
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "update",
     resource: "projects",
     resourceId: req.params.id,
@@ -91,6 +82,7 @@ router.patch("/projects/:id", requireFeature("hrms_it_extensions"), requireMinim
     userAgent: req.headers["user-agent"],
   });
   
+  const project = await ProjectService.updateProject(tenantId, req.params.id, req.body);
   res.json(project);
 });
 
@@ -98,7 +90,7 @@ router.get("/allocations", requireFeature("hrms_it_extensions"), async (req, res
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  const allocations = await ProjectService.getAllocations(
+  const allocations = await ProjectService.listAllocations(
     tenantId,
     req.query.employeeId as string,
     req.query.projectId as string
@@ -108,38 +100,29 @@ router.get("/allocations", requireFeature("hrms_it_extensions"), async (req, res
 
 router.post("/allocations", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const allocation = await ProjectService.createAllocation(tenantId, req.body, userId);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "create",
     resource: "allocations",
-    resourceId: allocation.id,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const allocation = await ProjectService.addAllocation(tenantId, req.body);
   res.status(201).json(allocation);
 });
 
-router.patch("/allocations/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.put("/allocations/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const allocation = await ProjectService.updateAllocation(tenantId, req.params.id, req.body, userId);
-  if (!allocation) {
-    return res.status(404).json({ error: "Allocation not found" });
-  }
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "update",
     resource: "allocations",
     resourceId: req.params.id,
@@ -148,6 +131,7 @@ router.patch("/allocations/:id", requireFeature("hrms_it_extensions"), requireMi
     userAgent: req.headers["user-agent"],
   });
   
+  const allocation = await ProjectService.updateAllocation(tenantId, req.params.id, req.body);
   res.json(allocation);
 });
 
@@ -155,52 +139,41 @@ router.get("/timesheets", requireFeature("hrms_it_extensions"), async (req, res)
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  const filters = {
-    employeeId: req.query.employeeId as string,
-    projectId: req.query.projectId as string,
-    startDate: req.query.startDate as string,
-    endDate: req.query.endDate as string,
-    status: req.query.status as string,
-  };
-  const pagination = {
-    page: parseInt(req.query.page as string) || 1,
-    limit: parseInt(req.query.limit as string) || 20,
-  };
+  await auditService.logAsync({
+    tenantId,
+    userId: req.context?.user?.id,
+    action: "access",
+    resource: "timesheets",
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
   
-  const result = await ProjectService.getTimesheets(tenantId, filters, pagination);
+  const result = await ProjectService.listTimesheets(tenantId, req.query);
   res.json(result);
 });
 
 router.post("/timesheets", requireFeature("hrms_it_extensions"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const timesheet = await ProjectService.createTimesheet(tenantId, req.body, userId);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "create",
     resource: "timesheets",
-    resourceId: timesheet.id,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const timesheet = await ProjectService.addTimesheet(tenantId, req.body);
   res.status(201).json(timesheet);
 });
 
-router.patch("/timesheets/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
+router.put("/timesheets/:id", requireFeature("hrms_it_extensions"), requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const timesheet = await ProjectService.updateTimesheet(tenantId, req.params.id, req.body, userId);
-  if (!timesheet) {
-    return res.status(404).json({ error: "Timesheet not found" });
-  }
   
   await auditService.logAsync({
     tenantId,
@@ -213,6 +186,7 @@ router.patch("/timesheets/:id", requireFeature("hrms_it_extensions"), requireMin
     userAgent: req.headers["user-agent"],
   });
   
+  const timesheet = await ProjectService.updateTimesheet(tenantId, req.params.id, req.body, userId);
   res.json(timesheet);
 });
 

@@ -13,28 +13,25 @@ router.get("/leave-types", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  const leaveTypes = await LeaveService.getLeaveTypes(tenantId);
+  const leaveTypes = await LeaveService.listLeaveTypes(tenantId);
   res.json(leaveTypes);
 });
 
 router.post("/leave-types", requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const leaveType = await LeaveService.createLeaveType(tenantId, req.body, userId);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "create",
     resource: "leave_types",
-    resourceId: leaveType.id,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const leaveType = await LeaveService.addLeaveType(tenantId, req.body);
   res.status(201).json(leaveType);
 });
 
@@ -51,52 +48,41 @@ router.get("/leaves", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  const filters = {
-    employeeId: req.query.employeeId as string,
-    status: req.query.status as string,
-    leaveTypeId: req.query.leaveTypeId as string,
-    startDate: req.query.startDate as string,
-    endDate: req.query.endDate as string,
-  };
-  const pagination = {
-    page: parseInt(req.query.page as string) || 1,
-    limit: parseInt(req.query.limit as string) || 20,
-  };
+  await auditService.logAsync({
+    tenantId,
+    userId: req.context?.user?.id,
+    action: "access",
+    resource: "leaves",
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
   
-  const result = await LeaveService.getLeaves(tenantId, filters, pagination);
+  const result = await LeaveService.listLeaves(tenantId, req.query);
   res.json(result);
 });
 
 router.post("/leaves", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const leave = await LeaveService.createLeave(tenantId, req.body, userId);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "create",
     resource: "leaves",
-    resourceId: leave.id,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const leave = await LeaveService.applyLeave(tenantId, req.body);
   res.status(201).json(leave);
 });
 
-router.patch("/leaves/:id", requireMinimumRole("manager"), async (req, res) => {
+router.put("/leaves/:id", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const leave = await LeaveService.updateLeave(tenantId, req.params.id, req.body, userId);
-  if (!leave) {
-    return res.status(404).json({ error: "Leave request not found" });
-  }
   
   await auditService.logAsync({
     tenantId,
@@ -109,6 +95,7 @@ router.patch("/leaves/:id", requireMinimumRole("manager"), async (req, res) => {
     userAgent: req.headers["user-agent"],
   });
   
+  const leave = await LeaveService.updateLeave(tenantId, req.params.id, req.body, userId);
   res.json(leave);
 });
 

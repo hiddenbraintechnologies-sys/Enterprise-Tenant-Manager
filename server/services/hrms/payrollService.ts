@@ -6,22 +6,32 @@ class PayrollService {
     return hrmsStorage.getSalaryStructure(tenantId, employeeId);
   }
 
-  static async createSalaryStructure(tenantId: string, data: any, userId?: string) {
-    const validated = insertHrSalaryStructureSchema.parse({ ...data, tenantId, createdBy: userId });
+  static async addSalaryStructure(tenantId: string, data: any) {
+    const validated = insertHrSalaryStructureSchema.parse({ ...data, tenantId });
     return hrmsStorage.createSalaryStructure(validated);
   }
 
-  static async getPayroll(tenantId: string, filters: any, pagination: any) {
+  static async listPayroll(tenantId: string, query: any) {
+    const filters = {
+      employeeId: query.employeeId,
+      month: query.month ? parseInt(query.month) : undefined,
+      year: query.year ? parseInt(query.year) : undefined,
+      status: query.status,
+    };
+    const pagination = {
+      page: parseInt(query.page) || 1,
+      limit: parseInt(query.limit) || 20,
+    };
     return hrmsStorage.getPayroll(tenantId, filters, pagination);
   }
 
-  static async createPayroll(tenantId: string, data: any, userId?: string) {
-    const validated = insertHrPayrollSchema.parse({ ...data, tenantId, createdBy: userId });
+  static async runPayroll(tenantId: string, data: any) {
+    const validated = insertHrPayrollSchema.parse({ ...data, tenantId });
     return hrmsStorage.createPayroll(validated);
   }
 
-  static async updatePayroll(tenantId: string, payrollId: string, data: any, userId?: string) {
-    return hrmsStorage.updatePayroll(tenantId, payrollId, data);
+  static async updatePayroll(tenantId: string, id: string, data: any) {
+    return hrmsStorage.updatePayroll(tenantId, id, data);
   }
 }
 

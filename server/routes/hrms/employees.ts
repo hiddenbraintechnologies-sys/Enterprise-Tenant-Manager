@@ -39,18 +39,7 @@ router.get("/employees", async (req, res) => {
     userAgent: req.headers["user-agent"],
   });
   
-  const filters = {
-    status: req.query.status as string,
-    departmentId: req.query.departmentId as string,
-    employmentType: req.query.employmentType as string,
-    search: req.query.search as string,
-  };
-  const pagination = {
-    page: parseInt(req.query.page as string) || 1,
-    limit: parseInt(req.query.limit as string) || 20,
-  };
-  
-  const employees = await EmployeeService.getEmployees(tenantId, filters, pagination);
+  const employees = await EmployeeService.listEmployees(tenantId, req.query);
   res.json(employees);
 });
 
@@ -58,95 +47,65 @@ router.get("/employees/:id", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  const employee = await EmployeeService.getEmployeeById(tenantId, req.params.id);
+  const employee = await EmployeeService.getEmployee(tenantId, req.params.id);
   if (!employee) {
     return res.status(404).json({ error: "Employee not found" });
   }
-  
-  await auditService.logAsync({
-    tenantId,
-    userId: req.context?.user?.id,
-    action: "access",
-    resource: "employees",
-    resourceId: req.params.id,
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  });
-  
   res.json(employee);
 });
 
 router.post("/employees", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const employee = await EmployeeService.createEmployee(req.body, tenantId, userId);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "create",
     resource: "employees",
-    resourceId: employee.id,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const employee = await EmployeeService.addEmployee(tenantId, req.body);
   res.status(201).json(employee);
 });
 
-router.patch("/employees/:id", requireMinimumRole("manager"), async (req, res) => {
+router.put("/employees/:id", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const oldEmployee = await EmployeeService.getEmployeeById(tenantId, req.params.id);
-  const employee = await EmployeeService.updateEmployee(tenantId, req.params.id, req.body, userId);
-  
-  if (!employee) {
-    return res.status(404).json({ error: "Employee not found" });
-  }
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "update",
     resource: "employees",
     resourceId: req.params.id,
-    oldValue: oldEmployee,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const employee = await EmployeeService.updateEmployee(tenantId, req.params.id, req.body);
   res.json(employee);
 });
 
 router.delete("/employees/:id", requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const oldEmployee = await EmployeeService.getEmployeeById(tenantId, req.params.id);
-  if (!oldEmployee) {
-    return res.status(404).json({ error: "Employee not found" });
-  }
-  
-  await EmployeeService.deleteEmployee(tenantId, req.params.id);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "delete",
     resource: "employees",
     resourceId: req.params.id,
-    oldValue: oldEmployee,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  await EmployeeService.deleteEmployee(tenantId, req.params.id);
   res.json({ success: true });
 });
 
@@ -154,28 +113,25 @@ router.get("/departments", async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
-  const departments = await EmployeeService.getDepartments(tenantId);
+  const departments = await EmployeeService.listDepartments(tenantId);
   res.json(departments);
 });
 
 router.post("/departments", requireMinimumRole("manager"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
-  const userId = req.context?.user?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const department = await EmployeeService.createDepartment(req.body, tenantId, userId);
   
   await auditService.logAsync({
     tenantId,
-    userId,
+    userId: req.context?.user?.id,
     action: "create",
     resource: "departments",
-    resourceId: department.id,
     newValue: req.body,
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
   
+  const department = await EmployeeService.addDepartment(tenantId, req.body);
   res.status(201).json(department);
 });
 
