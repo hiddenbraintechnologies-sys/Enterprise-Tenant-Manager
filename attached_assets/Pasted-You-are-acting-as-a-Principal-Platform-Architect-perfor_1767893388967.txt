@@ -1,0 +1,102 @@
+You are acting as a Principal Platform Architect performing a **code-level bidirectional feature parity audit** for the MyBizStream multi-tenant SaaS platform.
+
+Context:
+- There are 12 business modules (Furniture, Real Estate, Tourism, Education, Logistics, Legal, PG/Hostel, Coworking, Salon, Clinic, Gym, General).
+- Furniture is currently the most feature-complete module and is proposed as the platform baseline.
+- A detailed Bidirectional Feature Parity Audit document already exists (shared below).
+
+Your task is NOT to restate the audit.
+Your task is to **VERIFY it against the actual codebase** and **identify truth vs assumptions**.
+
+### OBJECTIVES (MANDATORY)
+
+You must perform **both directions** of comparison:
+
+---
+
+## A) Furniture → Other Modules (Downward Parity Check)
+
+For **each feature implemented in Furniture**, verify whether it exists in every other module by checking:
+
+- Controllers / routes
+- Services
+- Guards / middleware
+- Database schemas
+- Tests (API, RBAC, validation)
+- Flutter mobile implementation (if applicable)
+
+For EACH feature:
+1. Confirm **EXISTS / PARTIAL / MISSING**
+2. Provide **exact file paths** where it exists
+3. If missing, state:
+   - Is this a **platform-level gap** or **intentional industry exclusion**?
+   - What **breaks or risks** if it stays missing?
+
+Examples to explicitly verify:
+- InvoiceService wiring
+- PaymentService + webhooks
+- CurrencyService usage
+- TaxCalculatorService usage
+- PDF generation endpoints
+- Audit logging middleware
+- Guardrails (read-only enforcement, lifecycle locks)
+- NotificationService (WhatsApp + Email)
+- Analytics adapters
+- Flutter mobile parity
+
+---
+
+## B) Other Modules → Furniture (Upward Parity Check)
+
+For **each non-Furniture module**, identify **unique capabilities** that Furniture does NOT have.
+
+For EACH such feature:
+1. Confirm whether it is:
+   - Platform-level reusable
+   - Industry-specific only
+2. State whether Furniture should:
+   - MUST adopt
+   - SHOULD adopt
+   - CAN ignore
+3. If adoptable, propose:
+   - Target abstraction (shared service / adapter / hook)
+   - Minimal schema or API changes required
+
+Examples to check:
+- Appointment scheduling (Clinic / Salon / Legal)
+- Risk prediction AI (Education)
+- Case summarization AI (Legal)
+- Membership lifecycle (Gym / Coworking)
+- Site visit tracking (Real Estate)
+
+---
+
+## C) Truth Table Output (MANDATORY FORMAT)
+
+Produce **three tables**:
+
+### 1️⃣ Feature Truth Table
+Columns:
+- Feature ID
+- Feature Name
+- Furniture Status
+- Other Modules Status (per module)
+- Verified in Code (YES/NO)
+- Evidence (file paths)
+
+### 2️⃣ False Assumptions Table
+List features that:
+- Were assumed present
+- Are partially implemented
+- Exist only as schemas without services
+
+### 3️⃣ Normalization Readiness Table
+Columns:
+- Module
+- Baseline Compliance %
+- Blocking Gaps
+- Estimated Effort to Normalize (Low/Medium/High)
+
+---
+
+## D) B
