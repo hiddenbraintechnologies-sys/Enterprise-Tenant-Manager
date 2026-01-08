@@ -35,7 +35,17 @@ export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk",
 export const tenantStatusEnum = pgEnum("tenant_status", ["active", "suspended", "cancelled"]);
 export const tenantRegionEnum = pgEnum("tenant_region", ["asia_pacific", "middle_east", "europe", "americas", "africa"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp", "push"]);
-export const notificationStatusEnum = pgEnum("notification_status", ["pending", "sent", "delivered", "failed"]);
+export const notificationStatusEnum = pgEnum("notification_status", ["pending", "sent", "delivered", "failed", "retrying"]);
+export const notificationEventTypeEnum = pgEnum("notification_event_type", [
+  "invoice_created",
+  "invoice_issued",
+  "payment_reminder",
+  "payment_received",
+  "payment_partial",
+  "invoice_overdue",
+  "invoice_cancelled",
+  "custom"
+]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "pending", "paid", "partial", "overdue", "cancelled", "refunded"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["cash", "card", "upi", "netbanking", "wallet", "other"]);
 export const membershipStatusEnum = pgEnum("membership_status", ["active", "expired", "suspended", "cancelled"]);
@@ -901,6 +911,7 @@ export const notificationTemplates = pgTable("notification_templates", {
   code: varchar("code", { length: 100 }).notNull(),
   name: text("name").notNull(),
   channel: notificationChannelEnum("channel").notNull(),
+  language: varchar("language", { length: 10 }).default("en"),
   subject: text("subject"),
   body: text("body").notNull(),
   variables: jsonb("variables").default([]),
@@ -909,7 +920,7 @@ export const notificationTemplates = pgTable("notification_templates", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
-  uniqueIndex("idx_notification_templates_unique").on(table.tenantId, table.code, table.channel),
+  uniqueIndex("idx_notification_templates_unique").on(table.tenantId, table.code, table.channel, table.language),
 ]);
 
 export const notificationLogs = pgTable("notification_logs", {
@@ -917,20 +928,43 @@ export const notificationLogs = pgTable("notification_logs", {
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   templateId: varchar("template_id").references(() => notificationTemplates.id),
   channel: notificationChannelEnum("channel").notNull(),
+  eventType: notificationEventTypeEnum("event_type").default("custom"),
   recipient: text("recipient").notNull(),
   subject: text("subject"),
   body: text("body").notNull(),
   status: notificationStatusEnum("status").default("pending"),
+  externalMessageId: varchar("external_message_id", { length: 255 }),
+  retryCount: integer("retry_count").default(0),
+  maxRetries: integer("max_retries").default(3),
+  nextRetryAt: timestamp("next_retry_at"),
   sentAt: timestamp("sent_at"),
   deliveredAt: timestamp("delivered_at"),
   failedAt: timestamp("failed_at"),
   errorMessage: text("error_message"),
+  invoiceId: varchar("invoice_id"),
+  userId: varchar("user_id"),
   metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_notification_logs_tenant").on(table.tenantId),
   index("idx_notification_logs_status").on(table.status),
   index("idx_notification_logs_created").on(table.createdAt),
+  index("idx_notification_logs_retry").on(table.status, table.nextRetryAt),
+  index("idx_notification_logs_invoice").on(table.invoiceId),
+]);
+
+export const tenantNotificationSettings = pgTable("tenant_notification_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  channel: notificationChannelEnum("channel").notNull(),
+  isEnabled: boolean("is_enabled").default(false),
+  providerName: varchar("provider_name", { length: 50 }),
+  config: jsonb("config").default({}),
+  defaultLanguage: varchar("default_language", { length: 10 }).default("en"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_tenant_notification_settings_unique").on(table.tenantId, table.channel),
 ]);
 
 // ============================================
@@ -2248,6 +2282,7 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true,
 
 export const insertNotificationTemplateSchema = createInsertSchema(notificationTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertNotificationLogSchema = createInsertSchema(notificationLogs).omit({ id: true, createdAt: true });
+export const insertTenantNotificationSettingsSchema = createInsertSchema(tenantNotificationSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertInvoiceItemSchema = createInsertSchema(invoiceItems).omit({ id: true, createdAt: true });
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });
@@ -2371,6 +2406,9 @@ export type InsertNotificationTemplate = z.infer<typeof insertNotificationTempla
 
 export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
+
+export type TenantNotificationSettings = typeof tenantNotificationSettings.$inferSelect;
+export type InsertTenantNotificationSettings = z.infer<typeof insertTenantNotificationSettingsSchema>;
 
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
