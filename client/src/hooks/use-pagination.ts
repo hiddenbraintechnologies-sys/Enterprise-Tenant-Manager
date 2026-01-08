@@ -1,10 +1,20 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 
 export interface PaginationState {
   page: number;
   limit: number;
   sortBy: string;
   sortOrder: "asc" | "desc";
+}
+
+export interface FilterState {
+  search?: string;
+  status?: string;
+  productType?: string;
+  materialType?: string;
+  orderType?: string;
+  priority?: string;
+  [key: string]: string | undefined;
 }
 
 export interface PaginationResponse<T> {
@@ -34,6 +44,8 @@ export function usePagination(options: UsePaginationOptions = {}) {
     sortOrder: options.initialSortOrder ?? "desc",
   });
 
+  const [filters, setFiltersState] = useState<FilterState>({});
+
   const setPage = useCallback((page: number) => {
     setState((prev) => ({ ...prev, page: Math.max(1, page) }));
   }, []);
@@ -51,6 +63,29 @@ export function usePagination(options: UsePaginationOptions = {}) {
     }));
   }, []);
 
+  const setFilters = useCallback((newFilters: FilterState) => {
+    setFiltersState(newFilters);
+    setState((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const setFilter = useCallback((key: string, value: string | undefined) => {
+    setFiltersState((prev) => {
+      const updated = { ...prev };
+      if (value === undefined || value === "" || value === "all") {
+        delete updated[key];
+      } else {
+        updated[key] = value;
+      }
+      return updated;
+    });
+    setState((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setFiltersState({});
+    setState((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
   const nextPage = useCallback(() => {
     setState((prev) => ({ ...prev, page: prev.page + 1 }));
   }, []);
@@ -66,20 +101,40 @@ export function usePagination(options: UsePaginationOptions = {}) {
       sortBy: options.initialSortBy ?? "createdAt",
       sortOrder: options.initialSortOrder ?? "desc",
     });
+    setFiltersState({});
   }, [options]);
 
-  const queryParams = {
-    page: String(state.page),
-    limit: String(state.limit),
-    sortBy: state.sortBy,
-    sortOrder: state.sortOrder,
-  };
+  const hasActiveFilters = useMemo(() => {
+    return Object.keys(filters).length > 0;
+  }, [filters]);
+
+  const queryParams = useMemo(() => {
+    const params: Record<string, string> = {
+      page: String(state.page),
+      limit: String(state.limit),
+      sortBy: state.sortBy,
+      sortOrder: state.sortOrder,
+    };
+    
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== "" && value !== "all") {
+        params[key] = value;
+      }
+    }
+    
+    return params;
+  }, [state, filters]);
 
   return {
     ...state,
+    filters,
+    hasActiveFilters,
     setPage,
     setLimit,
     setSort,
+    setFilter,
+    setFilters,
+    clearFilters,
     nextPage,
     prevPage,
     reset,

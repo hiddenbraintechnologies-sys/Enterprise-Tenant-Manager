@@ -18,6 +18,8 @@ interface DataTablePaginationProps {
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
   limitOptions?: number[];
+  isFiltered?: boolean;
+  onClearFilters?: () => void;
 }
 
 export function DataTablePagination({
@@ -30,6 +32,8 @@ export function DataTablePagination({
   onPageChange,
   onLimitChange,
   limitOptions = [10, 20, 50, 100],
+  isFiltered = false,
+  onClearFilters,
 }: DataTablePaginationProps) {
   const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
   const endItem = Math.min(page * limit, total);
@@ -38,8 +42,19 @@ export function DataTablePagination({
     <div className="flex flex-wrap items-center justify-between gap-4 px-2 py-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span data-testid="text-pagination-info">
-          Showing {startItem}-{endItem} of {total} items
+          Showing {startItem}-{endItem} of {total} {isFiltered ? "filtered " : ""}items
         </span>
+        {isFiltered && onClearFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearFilters}
+            className="h-7 px-2 text-xs"
+            data-testid="button-clear-filters"
+          >
+            Clear filters
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-4">

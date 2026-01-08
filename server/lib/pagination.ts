@@ -187,6 +187,10 @@ export function getSortParams(req: Request, allowedFields: string[] = ['createdA
 export interface FilterParams {
   status?: string;
   productType?: string;
+  materialType?: string;
+  orderType?: string;
+  priority?: string;
+  isActive?: boolean;
   startDate?: Date;
   endDate?: Date;
   search?: string;
@@ -200,6 +204,18 @@ export function getFilterParams(req: Request): FilterParams {
   }
   if (req.query.productType) {
     filters.productType = req.query.productType as string;
+  }
+  if (req.query.materialType) {
+    filters.materialType = req.query.materialType as string;
+  }
+  if (req.query.orderType) {
+    filters.orderType = req.query.orderType as string;
+  }
+  if (req.query.priority) {
+    filters.priority = req.query.priority as string;
+  }
+  if (req.query.isActive !== undefined) {
+    filters.isActive = req.query.isActive === 'true';
   }
   if (req.query.startDate) {
     const date = new Date(req.query.startDate as string);
