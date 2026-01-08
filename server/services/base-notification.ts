@@ -16,6 +16,14 @@ export type NotificationEventType =
   | "ORDER_COMPLETED"
   | "DELIVERY_SCHEDULED"
   | "DELIVERY_COMPLETED"
+  | "HR_EMPLOYEE_ONBOARDED"
+  | "HR_LEAVE_REQUEST"
+  | "HR_LEAVE_APPROVED"
+  | "HR_LEAVE_REJECTED"
+  | "HR_PAYROLL_PROCESSED"
+  | "HR_ATTENDANCE_ALERT"
+  | "HR_PROJECT_ASSIGNED"
+  | "HR_TIMESHEET_REMINDER"
   | "CUSTOM";
 
 export interface NotificationRecipient {
@@ -100,6 +108,14 @@ const EVENT_TYPE_MAPPING: Record<NotificationEventType, string> = {
   ORDER_COMPLETED: "custom",
   DELIVERY_SCHEDULED: "custom",
   DELIVERY_COMPLETED: "custom",
+  HR_EMPLOYEE_ONBOARDED: "custom",
+  HR_LEAVE_REQUEST: "custom",
+  HR_LEAVE_APPROVED: "custom",
+  HR_LEAVE_REJECTED: "custom",
+  HR_PAYROLL_PROCESSED: "custom",
+  HR_ATTENDANCE_ALERT: "custom",
+  HR_PROJECT_ASSIGNED: "custom",
+  HR_TIMESHEET_REMINDER: "custom",
   CUSTOM: "custom",
 };
 
