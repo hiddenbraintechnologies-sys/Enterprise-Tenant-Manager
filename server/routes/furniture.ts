@@ -2739,4 +2739,565 @@ router.post("/invoices/bulk-reminders", async (req: Request, res: Response) => {
   }
 });
 
+// ============================================
+// RECURRING PAYMENTS
+// ============================================
+
+import { recurringPaymentService } from "../services/recurring-payments";
+import { autoReminderService } from "../services/auto-reminders";
+import { scheduledBillingService } from "../services/scheduled-billing";
+
+router.post("/invoices/:id/recurring", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    const invoiceId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const [invoice] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, invoiceId),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const schema = z.object({
+      name: z.string().min(1),
+      description: z.string().optional(),
+      frequency: z.enum(["daily", "weekly", "biweekly", "monthly", "quarterly", "yearly"]),
+      intervalCount: z.number().int().positive().optional().default(1),
+      amount: z.string().optional(),
+      startDate: z.string().datetime().optional(),
+      endDate: z.string().datetime().optional(),
+      preferredPaymentMethod: z.string().optional(),
+      autoGenerateInvoice: z.boolean().optional().default(true),
+      invoicePrefix: z.string().optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+    }
+
+    const data = parsed.data;
+
+    const schedule = await recurringPaymentService.createSchedule({
+      tenantId,
+      customerId: invoice.customerId,
+      sourceInvoiceId: invoiceId,
+      name: data.name,
+      description: data.description,
+      frequency: data.frequency,
+      intervalCount: data.intervalCount,
+      amount: data.amount || invoice.totalAmount,
+      currency: invoice.currency,
+      startDate: data.startDate ? new Date(data.startDate) : new Date(),
+      endDate: data.endDate ? new Date(data.endDate) : undefined,
+      preferredPaymentMethod: data.preferredPaymentMethod,
+      autoGenerateInvoice: data.autoGenerateInvoice,
+      invoicePrefix: data.invoicePrefix,
+      createdBy: userId,
+    });
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "recurring_schedule",
+      entityId: schedule.id,
+      details: { invoiceId, frequency: data.frequency },
+    });
+
+    res.status(201).json(schedule);
+  } catch (error) {
+    console.error("Error creating recurring schedule:", error);
+    res.status(500).json({ error: "Failed to create recurring schedule" });
+  }
+});
+
+router.get("/recurring-schedules", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schedules = await recurringPaymentService.getSchedulesByTenant(tenantId);
+    res.json(schedules);
+  } catch (error) {
+    console.error("Error fetching recurring schedules:", error);
+    res.status(500).json({ error: "Failed to fetch recurring schedules" });
+  }
+});
+
+router.get("/recurring-schedules/:id", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const scheduleId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schedule = await recurringPaymentService.getScheduleById(scheduleId, tenantId);
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    res.json(schedule);
+  } catch (error) {
+    console.error("Error fetching recurring schedule:", error);
+    res.status(500).json({ error: "Failed to fetch recurring schedule" });
+  }
+});
+
+router.patch("/recurring-schedules/:id/status", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    const scheduleId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schema = z.object({
+      status: z.enum(["active", "paused", "cancelled"]),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+    }
+
+    const schedule = await recurringPaymentService.updateScheduleStatus(
+      scheduleId,
+      tenantId,
+      parsed.data.status
+    );
+
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "update",
+      entityType: "recurring_schedule",
+      entityId: scheduleId,
+      details: { newStatus: parsed.data.status },
+    });
+
+    res.json(schedule);
+  } catch (error) {
+    console.error("Error updating recurring schedule:", error);
+    res.status(500).json({ error: "Failed to update recurring schedule" });
+  }
+});
+
+router.get("/recurring-schedules/:id/executions", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const scheduleId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const executions = await recurringPaymentService.getExecutionHistory(scheduleId, tenantId);
+    res.json(executions);
+  } catch (error) {
+    console.error("Error fetching execution history:", error);
+    res.status(500).json({ error: "Failed to fetch execution history" });
+  }
+});
+
+// ============================================
+// AUTO-REMINDERS
+// ============================================
+
+router.post("/reminder-schedules", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schema = z.object({
+      name: z.string().min(1),
+      description: z.string().optional(),
+      daysFromDueDate: z.number().int(),
+      sendTimeHour: z.number().int().min(0).max(23).optional().default(9),
+      sendTimeMinute: z.number().int().min(0).max(59).optional().default(0),
+      channels: z.array(z.enum(["email", "whatsapp"])).min(1),
+      emailTemplateId: z.string().optional(),
+      whatsappTemplateId: z.string().optional(),
+      eventType: z.string().optional(),
+      appliesTo: z.enum(["all", "overdue_only", "upcoming_only"]).optional().default("all"),
+      minBalanceAmount: z.string().optional(),
+      maxRetryAttempts: z.number().int().positive().optional().default(3),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+    }
+
+    const schedule = await autoReminderService.createReminderSchedule({
+      tenantId,
+      ...parsed.data,
+      createdBy: userId,
+    });
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "reminder_schedule",
+      entityId: schedule.id,
+      details: { daysFromDueDate: parsed.data.daysFromDueDate, channels: parsed.data.channels },
+    });
+
+    res.status(201).json(schedule);
+  } catch (error) {
+    console.error("Error creating reminder schedule:", error);
+    res.status(500).json({ error: "Failed to create reminder schedule" });
+  }
+});
+
+router.get("/reminder-schedules", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schedules = await autoReminderService.getReminderSchedulesByTenant(tenantId);
+    res.json(schedules);
+  } catch (error) {
+    console.error("Error fetching reminder schedules:", error);
+    res.status(500).json({ error: "Failed to fetch reminder schedules" });
+  }
+});
+
+router.patch("/reminder-schedules/:id", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    const scheduleId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schedule = await autoReminderService.updateReminderSchedule(
+      scheduleId,
+      tenantId,
+      req.body
+    );
+
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "update",
+      entityType: "reminder_schedule",
+      entityId: scheduleId,
+      details: req.body,
+    });
+
+    res.json(schedule);
+  } catch (error) {
+    console.error("Error updating reminder schedule:", error);
+    res.status(500).json({ error: "Failed to update reminder schedule" });
+  }
+});
+
+router.delete("/reminder-schedules/:id", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    const scheduleId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    await autoReminderService.deleteReminderSchedule(scheduleId, tenantId);
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "delete",
+      entityType: "reminder_schedule",
+      entityId: scheduleId,
+    });
+
+    res.json({ message: "Reminder schedule deleted" });
+  } catch (error) {
+    console.error("Error deleting reminder schedule:", error);
+    res.status(500).json({ error: "Failed to delete reminder schedule" });
+  }
+});
+
+router.post("/invoices/:id/reminder", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    const invoiceId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const channel = (req.query.channel || "email") as "email" | "whatsapp";
+    if (!["email", "whatsapp"].includes(channel)) {
+      return res.status(400).json({ error: "Valid channel required (email or whatsapp)" });
+    }
+
+    const [invoice] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, invoiceId),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const result = await autoReminderService.sendManualReminder(tenantId, invoiceId, channel);
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "manual_reminder",
+      entityId: invoiceId,
+      details: { channel, success: result.success },
+    });
+
+    if (result.success) {
+      res.json({ message: "Reminder sent successfully", invoiceId, channel });
+    } else {
+      res.status(500).json({ error: result.error || "Failed to send reminder" });
+    }
+  } catch (error) {
+    console.error("Error sending manual reminder:", error);
+    res.status(500).json({ error: "Failed to send reminder" });
+  }
+});
+
+router.get("/scheduled-reminders", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const status = req.query.status as string | undefined;
+    const reminders = await autoReminderService.getScheduledReminders(tenantId, status);
+    res.json(reminders);
+  } catch (error) {
+    console.error("Error fetching scheduled reminders:", error);
+    res.status(500).json({ error: "Failed to fetch scheduled reminders" });
+  }
+});
+
+// ============================================
+// SCHEDULED BILLING JOBS
+// ============================================
+
+router.post("/billing-jobs", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schema = z.object({
+      jobType: z.enum(["recurring_invoice", "reminder_dispatch", "overdue_check"]),
+      name: z.string().min(1),
+      description: z.string().optional(),
+      frequency: z.enum(["hourly", "daily", "weekly"]),
+      runAtHour: z.number().int().min(0).max(23).optional().default(9),
+      runAtMinute: z.number().int().min(0).max(59).optional().default(0),
+      timezone: z.string().optional().default("UTC"),
+      recurringScheduleId: z.string().optional(),
+      reminderScheduleId: z.string().optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+    }
+
+    const job = await scheduledBillingService.createJob({
+      tenantId,
+      ...parsed.data,
+    });
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "billing_job",
+      entityId: job.id,
+      details: { jobType: parsed.data.jobType, frequency: parsed.data.frequency },
+    });
+
+    res.status(201).json(job);
+  } catch (error) {
+    console.error("Error creating billing job:", error);
+    res.status(500).json({ error: "Failed to create billing job" });
+  }
+});
+
+router.get("/billing-jobs", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const jobs = await scheduledBillingService.getJobsByTenant(tenantId);
+    res.json(jobs);
+  } catch (error) {
+    console.error("Error fetching billing jobs:", error);
+    res.status(500).json({ error: "Failed to fetch billing jobs" });
+  }
+});
+
+router.patch("/billing-jobs/:id/toggle", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    const jobId = req.params.id;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const schema = z.object({
+      isActive: z.boolean(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
+    }
+
+    const job = await scheduledBillingService.toggleJobStatus(jobId, tenantId, parsed.data.isActive);
+
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "update",
+      entityType: "billing_job",
+      entityId: jobId,
+      details: { isActive: parsed.data.isActive },
+    });
+
+    res.json(job);
+  } catch (error) {
+    console.error("Error toggling billing job:", error);
+    res.status(500).json({ error: "Failed to toggle billing job" });
+  }
+});
+
+router.get("/billing-jobs/:id/logs", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const jobId = req.params.id;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const logs = await scheduledBillingService.getJobLogs(jobId, tenantId, limit);
+    res.json(logs);
+  } catch (error) {
+    console.error("Error fetching job logs:", error);
+    res.status(500).json({ error: "Failed to fetch job logs" });
+  }
+});
+
+router.post("/billing-jobs/run-due", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const result = await scheduledBillingService.runAllDueJobs();
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "billing_job_run",
+      entityId: `run-${Date.now()}`,
+      details: { jobsRun: result.jobsRun },
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error running due jobs:", error);
+    res.status(500).json({ error: "Failed to run due jobs" });
+  }
+});
+
+router.get("/invoices/scheduled", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const data = await scheduledBillingService.getScheduledPaymentsAndReminders(tenantId);
+    res.json(data);
+  } catch (error) {
+    console.error("Error fetching scheduled data:", error);
+    res.status(500).json({ error: "Failed to fetch scheduled data" });
+  }
+});
+
+router.get("/upcoming-payments", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const daysAhead = parseInt(req.query.days as string) || 30;
+    const payments = await recurringPaymentService.getUpcomingPayments(tenantId, daysAhead);
+    res.json(payments);
+  } catch (error) {
+    console.error("Error fetching upcoming payments:", error);
+    res.status(500).json({ error: "Failed to fetch upcoming payments" });
+  }
+});
+
 export default router;

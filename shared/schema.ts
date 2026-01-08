@@ -7338,6 +7338,296 @@ export const furnitureInvoicePayments = pgTable("furniture_invoice_payments", {
 ]);
 
 // ============================================
+// RECURRING PAYMENTS & SCHEDULED BILLING
+// ============================================
+
+// Recurrence frequency enum
+export const recurrenceFrequencyEnum = pgEnum("recurrence_frequency", [
+  "daily",
+  "weekly", 
+  "biweekly",
+  "monthly",
+  "quarterly",
+  "yearly"
+]);
+
+// Recurring payment status enum
+export const recurringPaymentStatusEnum = pgEnum("recurring_payment_status", [
+  "active",
+  "paused",
+  "cancelled",
+  "completed",
+  "failed"
+]);
+
+// Recurring payment schedules
+export const recurringPaymentSchedules = pgTable("recurring_payment_schedules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Source - either linked to invoice or standalone subscription
+  sourceInvoiceId: varchar("source_invoice_id").references(() => furnitureInvoices.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  
+  // Subscription details
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  
+  // Recurrence configuration
+  frequency: recurrenceFrequencyEnum("frequency").notNull().default("monthly"),
+  intervalCount: integer("interval_count").notNull().default(1), // e.g., every 2 weeks
+  
+  // Amount and currency
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 5 }).notNull().default("INR"),
+  
+  // Payment method preferences
+  preferredPaymentMethod: varchar("preferred_payment_method", { length: 50 }), // upi, card, bank_transfer
+  paymentGateway: varchar("payment_gateway", { length: 50 }), // stripe, razorpay, etc.
+  gatewaySubscriptionId: varchar("gateway_subscription_id", { length: 255 }), // External subscription ID
+  
+  // Schedule timing
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"), // null = indefinite
+  nextBillingDate: timestamp("next_billing_date").notNull(),
+  lastBillingDate: timestamp("last_billing_date"),
+  
+  // Billing period tracking to prevent duplicates
+  currentBillingPeriodStart: timestamp("current_billing_period_start"),
+  currentBillingPeriodEnd: timestamp("current_billing_period_end"),
+  
+  // Status
+  status: recurringPaymentStatusEnum("status").notNull().default("active"),
+  
+  // Payment history
+  totalPaymentsMade: integer("total_payments_made").default(0),
+  totalAmountPaid: decimal("total_amount_paid", { precision: 15, scale: 2 }).default("0"),
+  failedPaymentCount: integer("failed_payment_count").default(0),
+  lastPaymentStatus: varchar("last_payment_status", { length: 20 }),
+  lastPaymentDate: timestamp("last_payment_date"),
+  
+  // Auto-invoice generation
+  autoGenerateInvoice: boolean("auto_generate_invoice").default(true),
+  invoicePrefix: varchar("invoice_prefix", { length: 20 }),
+  
+  // Retry configuration
+  maxRetryAttempts: integer("max_retry_attempts").default(3),
+  retryIntervalMinutes: integer("retry_interval_minutes").default(1440), // 24 hours
+  
+  // Metadata
+  metadata: jsonb("metadata").default({}),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_recurring_schedule_tenant").on(table.tenantId),
+  index("idx_recurring_schedule_customer").on(table.customerId),
+  index("idx_recurring_schedule_next_billing").on(table.nextBillingDate),
+  index("idx_recurring_schedule_status").on(table.status),
+]);
+
+// Recurring payment execution log
+export const recurringPaymentExecutions = pgTable("recurring_payment_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scheduleId: varchar("schedule_id").notNull().references(() => recurringPaymentSchedules.id, { onDelete: "cascade" }),
+  
+  // Billing period this execution covers
+  billingPeriodStart: timestamp("billing_period_start").notNull(),
+  billingPeriodEnd: timestamp("billing_period_end").notNull(),
+  
+  // Generated invoice (if auto-generate enabled)
+  generatedInvoiceId: varchar("generated_invoice_id").references(() => furnitureInvoices.id),
+  
+  // Payment details
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 5 }).notNull(),
+  
+  // Execution status
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, processing, completed, failed
+  
+  // Payment processing
+  paymentId: varchar("payment_id").references(() => furnitureInvoicePayments.id),
+  paymentReference: varchar("payment_reference", { length: 255 }),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  
+  // Retry tracking
+  attemptCount: integer("attempt_count").default(1),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  nextRetryAt: timestamp("next_retry_at"),
+  
+  // Error tracking
+  errorMessage: text("error_message"),
+  errorCode: varchar("error_code", { length: 50 }),
+  
+  executedAt: timestamp("executed_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_recurring_exec_schedule").on(table.scheduleId),
+  index("idx_recurring_exec_status").on(table.status),
+  index("idx_recurring_exec_period").on(table.billingPeriodStart, table.billingPeriodEnd),
+]);
+
+// Invoice reminder schedules
+export const invoiceReminderSchedules = pgTable("invoice_reminder_schedules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Name and description
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  
+  // Timing: days relative to due date (negative = before, positive = after)
+  daysFromDueDate: integer("days_from_due_date").notNull(), // -7 = 7 days before, 3 = 3 days after
+  
+  // Time of day to send (in tenant's timezone)
+  sendTimeHour: integer("send_time_hour").default(9), // 0-23
+  sendTimeMinute: integer("send_time_minute").default(0), // 0-59
+  
+  // Channel configuration
+  channels: text("channels").array().notNull().default(sql`ARRAY['email']::text[]`), // email, whatsapp
+  
+  // Template to use (references notification templates)
+  emailTemplateId: varchar("email_template_id").references(() => notificationTemplates.id),
+  whatsappTemplateId: varchar("whatsapp_template_id").references(() => notificationTemplates.id),
+  
+  // Event type for notification
+  eventType: varchar("event_type", { length: 50 }).default("payment_reminder"),
+  
+  // Conditions
+  appliesTo: varchar("applies_to", { length: 20 }).default("all"), // all, overdue_only, upcoming_only
+  minBalanceAmount: decimal("min_balance_amount", { precision: 15, scale: 2 }).default("0"),
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+  
+  // Retry configuration
+  maxRetryAttempts: integer("max_retry_attempts").default(3),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_reminder_schedule_tenant").on(table.tenantId),
+  index("idx_reminder_schedule_active").on(table.isActive),
+]);
+
+// Scheduled reminder executions
+export const scheduledReminderExecutions = pgTable("scheduled_reminder_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scheduleId: varchar("schedule_id").notNull().references(() => invoiceReminderSchedules.id, { onDelete: "cascade" }),
+  invoiceId: varchar("invoice_id").notNull().references(() => furnitureInvoices.id, { onDelete: "cascade" }),
+  
+  // Scheduled execution time
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  
+  // Execution status
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, sent, failed, skipped
+  
+  // Channels attempted
+  emailSent: boolean("email_sent").default(false),
+  whatsappSent: boolean("whatsapp_sent").default(false),
+  
+  // Link to notification logs
+  emailNotificationLogId: varchar("email_notification_log_id").references(() => notificationLogs.id),
+  whatsappNotificationLogId: varchar("whatsapp_notification_log_id").references(() => notificationLogs.id),
+  
+  // Retry tracking
+  attemptCount: integer("attempt_count").default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  nextRetryAt: timestamp("next_retry_at"),
+  
+  // Error tracking
+  errorMessage: text("error_message"),
+  
+  // Skip reason (if skipped)
+  skipReason: varchar("skip_reason", { length: 255 }),
+  
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_reminder_exec_schedule").on(table.scheduleId),
+  index("idx_reminder_exec_invoice").on(table.invoiceId),
+  index("idx_reminder_exec_scheduled").on(table.scheduledFor),
+  index("idx_reminder_exec_status").on(table.status),
+  uniqueIndex("idx_reminder_exec_unique").on(table.scheduleId, table.invoiceId, table.scheduledFor),
+]);
+
+// Scheduled billing jobs
+export const scheduledBillingJobs = pgTable("scheduled_billing_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Job type
+  jobType: varchar("job_type", { length: 50 }).notNull(), // recurring_invoice, reminder_dispatch, overdue_check
+  
+  // Job configuration
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  
+  // Schedule (cron-like configuration)
+  cronExpression: varchar("cron_expression", { length: 100 }), // e.g., "0 9 * * *" for 9 AM daily
+  frequency: varchar("frequency", { length: 20 }), // hourly, daily, weekly
+  runAtHour: integer("run_at_hour").default(9), // 0-23
+  runAtMinute: integer("run_at_minute").default(0), // 0-59
+  timezone: varchar("timezone", { length: 50 }).default("UTC"),
+  
+  // Reference to related schedule (if applicable)
+  recurringScheduleId: varchar("recurring_schedule_id").references(() => recurringPaymentSchedules.id),
+  reminderScheduleId: varchar("reminder_schedule_id").references(() => invoiceReminderSchedules.id),
+  
+  // Execution tracking
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  lastRunStatus: varchar("last_run_status", { length: 20 }), // success, partial, failed
+  lastRunError: text("last_run_error"),
+  
+  // Statistics
+  totalRuns: integer("total_runs").default(0),
+  successfulRuns: integer("successful_runs").default(0),
+  failedRuns: integer("failed_runs").default(0),
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_billing_job_tenant").on(table.tenantId),
+  index("idx_billing_job_next_run").on(table.nextRunAt),
+  index("idx_billing_job_type").on(table.jobType),
+  index("idx_billing_job_active").on(table.isActive),
+]);
+
+// Scheduled billing job execution log
+export const scheduledBillingJobLogs = pgTable("scheduled_billing_job_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").notNull().references(() => scheduledBillingJobs.id, { onDelete: "cascade" }),
+  
+  // Execution details
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  
+  // Status
+  status: varchar("status", { length: 20 }).notNull().default("running"), // running, success, partial, failed
+  
+  // Results
+  itemsProcessed: integer("items_processed").default(0),
+  itemsSucceeded: integer("items_succeeded").default(0),
+  itemsFailed: integer("items_failed").default(0),
+  
+  // Details
+  details: jsonb("details").default({}), // Detailed results per item
+  errorMessage: text("error_message"),
+  
+  // Duration
+  durationMs: integer("duration_ms"),
+}, (table) => [
+  index("idx_billing_job_log_job").on(table.jobId),
+  index("idx_billing_job_log_started").on(table.startedAt),
+]);
+
+// ============================================
 // MALAYSIA SST CONFIGURATION
 // ============================================
 
@@ -7574,6 +7864,39 @@ export const insertFurnitureSalesOrderItemSchema = createInsertSchema(furnitureS
   updatedAt: true,
 });
 
+export const insertRecurringPaymentScheduleSchema = createInsertSchema(recurringPaymentSchedules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertRecurringPaymentExecutionSchema = createInsertSchema(recurringPaymentExecutions).omit({
+  id: true,
+  executedAt: true,
+});
+
+export const insertInvoiceReminderScheduleSchema = createInsertSchema(invoiceReminderSchedules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertScheduledReminderExecutionSchema = createInsertSchema(scheduledReminderExecutions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertScheduledBillingJobSchema = createInsertSchema(scheduledBillingJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertScheduledBillingJobLogSchema = createInsertSchema(scheduledBillingJobLogs).omit({
+  id: true,
+  startedAt: true,
+});
+
 // ============================================
 // FURNITURE MODULE: TYPES
 // ============================================
@@ -7634,3 +7957,21 @@ export type InsertUsStateSalesTaxConfiguration = z.infer<typeof insertUsStateSal
 
 export type TenantTaxRegistration = typeof tenantTaxRegistrations.$inferSelect;
 export type InsertTenantTaxRegistration = z.infer<typeof insertTenantTaxRegistrationSchema>;
+
+export type RecurringPaymentSchedule = typeof recurringPaymentSchedules.$inferSelect;
+export type InsertRecurringPaymentSchedule = z.infer<typeof insertRecurringPaymentScheduleSchema>;
+
+export type RecurringPaymentExecution = typeof recurringPaymentExecutions.$inferSelect;
+export type InsertRecurringPaymentExecution = z.infer<typeof insertRecurringPaymentExecutionSchema>;
+
+export type InvoiceReminderSchedule = typeof invoiceReminderSchedules.$inferSelect;
+export type InsertInvoiceReminderSchedule = z.infer<typeof insertInvoiceReminderScheduleSchema>;
+
+export type ScheduledReminderExecution = typeof scheduledReminderExecutions.$inferSelect;
+export type InsertScheduledReminderExecution = z.infer<typeof insertScheduledReminderExecutionSchema>;
+
+export type ScheduledBillingJob = typeof scheduledBillingJobs.$inferSelect;
+export type InsertScheduledBillingJob = z.infer<typeof insertScheduledBillingJobSchema>;
+
+export type ScheduledBillingJobLog = typeof scheduledBillingJobLogs.$inferSelect;
+export type InsertScheduledBillingJobLog = z.infer<typeof insertScheduledBillingJobLogSchema>;

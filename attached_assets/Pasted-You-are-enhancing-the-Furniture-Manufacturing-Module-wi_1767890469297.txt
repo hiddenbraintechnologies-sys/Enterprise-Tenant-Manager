@@ -1,0 +1,53 @@
+You are enhancing the Furniture Manufacturing Module with automated financial workflows. The multi-country invoicing and notifications are complete. Now implement **recurring payments, auto-reminders, and scheduled billing**.
+
+1️⃣ Recurring Payments
+- Support for:
+  • Fixed monthly or weekly subscriptions (e.g., maintenance, membership fees)
+  • Recurring invoice generation from sales orders (if applicable)
+  • Payment via UPI, card, or tenant-configured gateway
+- Store recurrence schedule and last payment status in the database
+- Validate:
+  • Amounts match original invoice or subscription
+  • Payments cannot exceed total
+  • Multi-currency supported
+
+2️⃣ Auto-Reminders
+- Scheduled reminders for unpaid invoices:
+  • Configurable days before/after due date
+  • Multi-channel: WhatsApp + Email
+  • Retry mechanism for failed delivery
+- Logs each reminder event (tenant, invoice, customer, timestamp, status)
+
+3️⃣ Scheduled Billing
+- Admin-configurable schedules for:
+  • Generating recurring invoices
+  • Sending reminders
+- System runs via cron or serverless scheduled jobs
+- Prevent duplicate invoice creation for the same billing period
+
+4️⃣ Frontend & Mobile Integration
+- React dashboard:
+  • Toggle recurring payments per customer/invoice
+  • View upcoming scheduled payments and reminders
+  • Manual trigger for sending reminders
+- Flutter mobile app:
+  • Display upcoming payments, due reminders
+  • Trigger reminders manually if needed
+
+5️⃣ Backend & API Endpoints
+- POST /api/furniture/invoices/:id/recurring — set up recurring invoice/payment
+- POST /api/furniture/invoices/:id/reminder — send manual reminder
+- GET /api/furniture/invoices/scheduled — list upcoming scheduled payments/reminders
+- Background scheduler handles automatic invoice creation & reminder dispatch
+
+6️⃣ Testing & Validation
+- Multi-tenant safe: each tenant only sees own scheduled payments/reminders
+- Test across India, UAE, UK, Malaysia, US tenants
+- Ensure notifications respect tenant templates
+- Ensure payment transactions are atomic and logged
+
+7️⃣ Completion Criteria
+- Recurring invoices/payments auto-generate per schedule
+- Auto-reminders sent reliably via WhatsApp and Email
+- Admins can view and manage schedules on web and mobile
+- Fully multi-tenant, production-ready, tested for all supported countries
