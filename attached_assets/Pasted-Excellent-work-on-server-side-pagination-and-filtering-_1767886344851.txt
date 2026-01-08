@@ -1,0 +1,47 @@
+Excellent work on server-side pagination and filtering. Now proceed with the following production-grade improvements and validations.
+
+1️⃣ Automated Integration & Regression Tests
+- Add end-to-end tests for all Furniture module pages:
+  • Products, Raw Materials, BOM
+  • Production Orders, Sales Orders
+  • Deliveries & Installations
+- Test cases must cover:
+  • Pagination navigation (next, previous, first, last)
+  • Server-side filters (search, status, category, lowStock, order type)
+  • Multi-tenant isolation (users cannot see other tenants' data)
+  • RBAC enforcement (staff vs admin vs super-admin)
+  • Financial validation for sales orders and payments
+  • Read-only enforcement for final statuses
+- Prefer Playwright or Cypress for frontend, Jest + Supertest for API endpoints
+
+2️⃣ Flutter Mobile App Sync
+- Ensure all paginated endpoints reflect **same server-side filters** in mobile app
+- Implement:
+  • Infinite scroll or paginated fetch matching web dashboard
+  • Filter parameters (search, status, category, lowStock) passed in API requests
+  • Proper loading & empty states
+- Test mobile behavior against same demo tenant data
+
+3️⃣ Performance Validation
+- Validate high-volume scenarios:
+  • 1000+ products/raw materials
+  • 500+ production & sales orders
+  • Concurrent deliveries & installations updates
+- Ensure response times < 300ms for list endpoints
+- Verify indexes, query optimization, and no N+1 issues
+
+4️⃣ Optional Enhancements
+- Add debounced search delay parameter configurable in frontend (default 300ms)
+- Add server-side sorting support if missing (createdAt, name, sku, status, priority)
+- Ensure filtered counts and “Showing X–Y of Z (filtered)” displays correctly
+
+5️⃣ Completion Criteria
+- All tests pass
+- Mobile app fetches and displays data consistently with web dashboard
+- Pagination, filtering, sorting are robust, performant, and multi-tenant safe
+- Furniture module is fully production-ready
+
+OUTPUT EXPECTED:
+- Automated test suite covering all scenarios
+- Flutter mobile pagination & filtering working
+- Confirmation report: all endpoints performant, filters consistent, no regressions
