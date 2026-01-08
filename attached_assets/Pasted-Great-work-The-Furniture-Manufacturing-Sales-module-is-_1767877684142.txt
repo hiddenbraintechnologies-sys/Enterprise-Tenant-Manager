@@ -1,0 +1,121 @@
+Great work. The Furniture Manufacturing & Sales module is now compiling cleanly and aligned with the actual database schema.
+
+NEXT STEP: HARDENING & PRODUCTION READINESS
+Do NOT add new features. Do NOT refactor architecture.
+
+Focus only on validation, guardrails, and safety checks.
+
+================================================
+1️⃣ TENANT ISOLATION VERIFICATION
+================================================
+Verify and enforce tenant isolation across ALL furniture pages:
+
+- Products
+- Raw Materials
+- BOM
+- Production Orders
+- Sales Orders
+- Deliveries
+- Installations
+- Reports
+
+Actions:
+- Ensure every query is scoped by tenant_id
+- Add defensive checks on API layer
+- Add automated test cases for cross-tenant access denial
+
+================================================
+2️⃣ BUSINESS LOGIC GUARDRAILS
+================================================
+Add guardrails to prevent invalid operations:
+
+Production:
+- Enforce production stage order (cannot skip stages)
+- Prevent editing completed production orders
+
+Sales Orders:
+- Prevent deletion once invoice exists
+- Lock order when fully delivered & paid
+
+Deliveries:
+- Delivery cannot be completed without schedule
+- Installation cannot start without linked delivery
+
+Completed entities should become READ-ONLY.
+
+================================================
+3️⃣ FINANCIAL CONSISTENCY CHECKS
+================================================
+Verify and protect financial logic:
+
+- Advance payments correctly adjust invoice balances
+- Partial payments update outstanding amount correctly
+- subtotal + taxAmount = totalAmount (always)
+- Editing line items recalculates totals safely
+- Archiving items does NOT break totals
+
+Add assertions where possible.
+
+================================================
+4️⃣ RBAC ENFORCEMENT AUDIT
+================================================
+Verify role-based permissions:
+
+- Staff cannot edit prices, BOM, or tax fields
+- Only Admin/Manager can:
+  • Create or edit BOM
+  • Approve production orders
+  • Close sales orders
+- Reports must be read-only for all roles
+
+Ensure UI and API both enforce RBAC.
+
+================================================
+5️⃣ AUDIT LOG COMPLETENESS
+================================================
+Confirm audit logging for:
+- Create / update / archive
+- Status transitions
+- Payment collection
+- Delivery & installation completion
+
+Audit logs must include:
+- tenant_id
+- user_id
+- entity
+- action
+- timestamp
+
+================================================
+6️⃣ PERFORMANCE & UX SAFETY
+================================================
+- Ensure lists use pagination
+- Prevent N+1 queries
+- Graceful empty states
+- Safe error handling with user-friendly messages
+
+================================================
+7️⃣ DEMO & SEED DATA
+================================================
+Add demo seed data for a Furniture tenant:
+- Sample products
+- Sample raw materials
+- Sample BOM
+- Sample sales + production + delivery
+
+Used only in dev/demo mode.
+
+================================================
+8️⃣ FINAL CHECK
+================================================
+Confirm:
+- No TypeScript errors
+- No runtime errors
+- No breaking migrations
+- Backward compatibility preserved
+
+OUTPUT EXPECTED:
+- Hardened furniture module
+- Guardrails enforced
+- Safe for production rollout
+- Minimal regression risk

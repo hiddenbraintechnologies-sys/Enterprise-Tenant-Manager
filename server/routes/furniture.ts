@@ -16,8 +16,24 @@ import {
   insertFurnitureSalesOrderSchema,
   insertFurnitureSalesOrderItemSchema,
 } from "@shared/schema";
+import {
+  furnitureGuardrails,
+  logFurnitureAudit,
+  enforceTenantScope,
+  enforceReadOnlyForCompleted,
+  validateFinancialConsistency,
+} from "./furniture-guardrails";
+import { seedFurnitureDemoData } from "../seed/furniture-demo-data";
 
 const router = Router();
+
+const getTenantId = (req: Request): string | null => {
+  return req.headers["x-tenant-id"] as string || null;
+};
+
+const getUserId = (req: Request): string | undefined => {
+  return req.context?.user?.id;
+};
 
 // ============================================
 // DASHBOARD STATS
@@ -556,13 +572,26 @@ router.post("/production-orders", async (req: Request, res: Response) => {
 router.patch("/production-orders/:id", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
+
+    const canModify = await furnitureGuardrails.canModifyProductionOrder(req.params.id, tenantId);
+    if (!canModify.allowed) {
+      await logFurnitureAudit(tenantId, userId, "update", "production_order", req.params.id, null, null, {
+        blocked: true, reason: canModify.reason
+      });
+      return res.status(400).json({ error: canModify.reason });
+    }
+
+    const existing = await storage.getProductionOrder(req.params.id, tenantId);
     const order = await storage.updateProductionOrder(req.params.id, tenantId, req.body);
     if (!order) {
       return res.status(404).json({ error: "Production order not found" });
     }
+
+    await logFurnitureAudit(tenantId, userId, "update", "production_order", req.params.id, existing, order);
     res.json(order);
   } catch (error) {
     console.error("Error updating production order:", error);
@@ -588,13 +617,55 @@ router.delete("/production-orders/:id", async (req: Request, res: Response) => {
 router.patch("/production-orders/:orderId/stages/:id", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
+
+    const canModify = await furnitureGuardrails.canModifyProductionOrder(req.params.orderId, tenantId);
+    if (!canModify.allowed) {
+      await logFurnitureAudit(tenantId, userId, "update", "production_stage", req.params.id, null, null, {
+        blocked: true, reason: canModify.reason
+      });
+      return res.status(400).json({ error: canModify.reason });
+    }
+
+    const existingStage = await storage.getProductionStage(req.params.id, req.params.orderId, tenantId);
+    if (!existingStage) {
+      return res.status(404).json({ error: "Production stage not found" });
+    }
+
+    if (req.body.stageType && req.body.stageType !== existingStage.stageType) {
+      await logFurnitureAudit(tenantId, userId, "update", "production_stage", req.params.id, null, null, {
+        blocked: true, reason: "Cannot change stage type after creation"
+      });
+      return res.status(400).json({ error: "Cannot change stage type after creation" });
+    }
+
+    if (req.body.status && req.body.status !== existingStage.status) {
+      const allStages = await storage.getProductionStages(req.params.orderId, tenantId);
+      const targetStageType = existingStage.stageType || "";
+      const desiredStatus = req.body.status;
+      
+      const validation = furnitureGuardrails.validateProductionStageTransition(
+        targetStageType,
+        desiredStatus,
+        allStages.map(s => ({ stageType: s.stageType || "", status: s.status || "" }))
+      );
+      if (!validation.valid) {
+        await logFurnitureAudit(tenantId, userId, "update", "production_stage", req.params.id, null, null, {
+          blocked: true, reason: validation.error, attemptedStatus: desiredStatus, stageType: targetStageType
+        });
+        return res.status(400).json({ error: validation.error });
+      }
+    }
+
     const stage = await storage.updateProductionStage(req.params.id, req.params.orderId, tenantId, req.body);
     if (!stage) {
       return res.status(404).json({ error: "Production stage not found" });
     }
+
+    await logFurnitureAudit(tenantId, userId, "update", "production_stage", req.params.id, existingStage, stage);
     res.json(stage);
   } catch (error) {
     console.error("Error updating production stage:", error);
@@ -666,13 +737,35 @@ router.post("/delivery-orders", async (req: Request, res: Response) => {
 router.patch("/delivery-orders/:id", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const order = await storage.updateDeliveryOrder(req.params.id, tenantId, req.body);
-    if (!order) {
+
+    const existing = await storage.getDeliveryOrder(req.params.id, tenantId);
+    if (!existing) {
       return res.status(404).json({ error: "Delivery order not found" });
     }
+
+    if (furnitureGuardrails.isReadOnly(existing.deliveryStatus || "", "delivery")) {
+      await logFurnitureAudit(tenantId, userId, "update", "delivery_order", req.params.id, null, null, {
+        blocked: true, reason: `Delivery is ${existing.deliveryStatus} and cannot be modified`
+      });
+      return res.status(400).json({ error: `Cannot modify delivery order with status: ${existing.deliveryStatus}` });
+    }
+
+    if (req.body.deliveryStatus === "delivered" && existing.deliveryStatus !== "delivered") {
+      const canComplete = await furnitureGuardrails.canCompleteDelivery(req.params.id, tenantId);
+      if (!canComplete.allowed) {
+        await logFurnitureAudit(tenantId, userId, "update", "delivery_order", req.params.id, null, null, {
+          blocked: true, reason: canComplete.reason, attemptedStatus: "delivered"
+        });
+        return res.status(400).json({ error: canComplete.reason });
+      }
+    }
+
+    const order = await storage.updateDeliveryOrder(req.params.id, tenantId, req.body);
+    await logFurnitureAudit(tenantId, userId, "update", "delivery_order", req.params.id, existing, order);
     res.json(order);
   } catch (error) {
     console.error("Error updating delivery order:", error);
@@ -771,8 +864,19 @@ router.get("/installation-orders/:id", async (req: Request, res: Response) => {
 router.post("/installation-orders", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    if (req.body.deliveryOrderId) {
+      const canStart = await furnitureGuardrails.canStartInstallation(req.body.deliveryOrderId, tenantId);
+      if (!canStart.allowed) {
+        await logFurnitureAudit(tenantId, userId, "create", "installation_order", "new", null, null, {
+          blocked: true, reason: canStart.reason, deliveryOrderId: req.body.deliveryOrderId
+        });
+        return res.status(400).json({ error: canStart.reason });
+      }
     }
     
     const installationNumber = `INS-${Date.now()}`;
@@ -783,6 +887,7 @@ router.post("/installation-orders", async (req: Request, res: Response) => {
       installationNumber,
     });
     const order = await storage.createInstallationOrder(data);
+    await logFurnitureAudit(tenantId, userId, "create", "installation_order", order.id, null, order);
     res.status(201).json(order);
   } catch (error) {
     console.error("Error creating installation order:", error);
@@ -796,13 +901,25 @@ router.post("/installation-orders", async (req: Request, res: Response) => {
 router.patch("/installation-orders/:id", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const order = await storage.updateInstallationOrder(req.params.id, tenantId, req.body);
-    if (!order) {
+
+    const existing = await storage.getInstallationOrder(req.params.id, tenantId);
+    if (!existing) {
       return res.status(404).json({ error: "Installation order not found" });
     }
+
+    if (furnitureGuardrails.isReadOnly(existing.installationStatus || "", "installation")) {
+      await logFurnitureAudit(tenantId, userId, "update", "installation_order", req.params.id, null, null, {
+        blocked: true, reason: `Installation is ${existing.installationStatus} and cannot be modified`
+      });
+      return res.status(400).json({ error: `Cannot modify installation order with status: ${existing.installationStatus}` });
+    }
+
+    const order = await storage.updateInstallationOrder(req.params.id, tenantId, req.body);
+    await logFurnitureAudit(tenantId, userId, "update", "installation_order", req.params.id, existing, order);
     res.json(order);
   } catch (error) {
     console.error("Error updating installation order:", error);
@@ -849,8 +966,33 @@ router.get("/sales-orders/:id", async (req: Request, res: Response) => {
 router.post("/sales-orders", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    if (req.body.subtotalAmount && req.body.taxAmount && req.body.totalAmount) {
+      const totalsCheck = furnitureGuardrails.validateTotals(
+        req.body.subtotalAmount, req.body.taxAmount, req.body.totalAmount
+      );
+      if (!totalsCheck.valid) {
+        await logFurnitureAudit(tenantId, userId, "create", "sales_order", "new", null, null, {
+          blocked: true, reason: totalsCheck.error
+        });
+        return res.status(400).json({ error: totalsCheck.error });
+      }
+    }
+
+    if (req.body.advanceAmount !== undefined && req.body.totalAmount) {
+      const advanceCheck = furnitureGuardrails.validateAdvancePayment(
+        req.body.advanceAmount, req.body.totalAmount
+      );
+      if (!advanceCheck.valid) {
+        await logFurnitureAudit(tenantId, userId, "create", "sales_order", "new", null, null, {
+          blocked: true, reason: advanceCheck.error
+        });
+        return res.status(400).json({ error: advanceCheck.error });
+      }
     }
     
     const orderNumber = `SO-${Date.now()}`;
@@ -861,6 +1003,7 @@ router.post("/sales-orders", async (req: Request, res: Response) => {
       orderNumber,
     });
     const order = await storage.createFurnitureSalesOrder(data);
+    await logFurnitureAudit(tenantId, userId, "create", "sales_order", order.id, null, order);
     res.status(201).json(order);
   } catch (error) {
     console.error("Error creating sales order:", error);
@@ -874,13 +1017,50 @@ router.post("/sales-orders", async (req: Request, res: Response) => {
 router.patch("/sales-orders/:id", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
-    const order = await storage.updateFurnitureSalesOrder(req.params.id, tenantId, req.body);
-    if (!order) {
+
+    const existing = await storage.getFurnitureSalesOrder(req.params.id, tenantId);
+    if (!existing) {
       return res.status(404).json({ error: "Sales order not found" });
     }
+
+    if (furnitureGuardrails.isReadOnly(existing.status || "", "salesOrder")) {
+      await logFurnitureAudit(tenantId, userId, "update", "sales_order", req.params.id, null, null, {
+        blocked: true, reason: `Order is ${existing.status} and cannot be modified`
+      });
+      return res.status(400).json({ error: `Cannot modify sales order with status: ${existing.status}` });
+    }
+
+    const mergedSubtotal = req.body.subtotalAmount ?? existing.subtotalAmount;
+    const mergedTax = req.body.taxAmount ?? existing.taxAmount;
+    const mergedTotal = req.body.totalAmount ?? existing.totalAmount;
+
+    if (mergedSubtotal || mergedTax || mergedTotal) {
+      const totalsCheck = furnitureGuardrails.validateTotals(mergedSubtotal, mergedTax, mergedTotal);
+      if (!totalsCheck.valid) {
+        await logFurnitureAudit(tenantId, userId, "update", "sales_order", req.params.id, null, null, {
+          blocked: true, reason: totalsCheck.error, subtotal: mergedSubtotal, tax: mergedTax, total: mergedTotal
+        });
+        return res.status(400).json({ error: totalsCheck.error });
+      }
+    }
+
+    const mergedAdvance = req.body.advanceAmount ?? existing.advanceAmount;
+    if (mergedAdvance !== undefined && mergedAdvance !== null) {
+      const advanceCheck = furnitureGuardrails.validateAdvancePayment(mergedAdvance, mergedTotal);
+      if (!advanceCheck.valid) {
+        await logFurnitureAudit(tenantId, userId, "update", "sales_order", req.params.id, null, null, {
+          blocked: true, reason: advanceCheck.error, advance: mergedAdvance, total: mergedTotal
+        });
+        return res.status(400).json({ error: advanceCheck.error });
+      }
+    }
+
+    const order = await storage.updateFurnitureSalesOrder(req.params.id, tenantId, req.body);
+    await logFurnitureAudit(tenantId, userId, "update", "sales_order", req.params.id, existing, order);
     res.json(order);
   } catch (error) {
     console.error("Error updating sales order:", error);
@@ -891,10 +1071,22 @@ router.patch("/sales-orders/:id", async (req: Request, res: Response) => {
 router.delete("/sales-orders/:id", async (req: Request, res: Response) => {
   try {
     const tenantId = req.headers["x-tenant-id"] as string;
+    const userId = getUserId(req);
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
+
+    const canDelete = await furnitureGuardrails.canDeleteSalesOrder(req.params.id, tenantId);
+    if (!canDelete.allowed) {
+      await logFurnitureAudit(tenantId, userId, "delete", "sales_order", req.params.id, null, null, {
+        blocked: true, reason: canDelete.reason
+      });
+      return res.status(400).json({ error: canDelete.reason });
+    }
+
+    const existing = await storage.getFurnitureSalesOrder(req.params.id, tenantId);
     await storage.deleteFurnitureSalesOrder(req.params.id, tenantId);
+    await logFurnitureAudit(tenantId, userId, "delete", "sales_order", req.params.id, existing, null);
     res.status(204).send();
   } catch (error) {
     console.error("Error deleting sales order:", error);
@@ -952,6 +1144,108 @@ router.delete("/sales-orders/:orderId/items/:id", async (req: Request, res: Resp
   } catch (error) {
     console.error("Error deleting sales order item:", error);
     res.status(500).json({ error: "Failed to delete sales order item" });
+  }
+});
+
+// ============================================
+// DEMO SEED DATA (Development Only)
+// ============================================
+
+router.post("/seed-demo-data", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      return res.status(403).json({ error: "Seed endpoint disabled in production" });
+    }
+
+    const result = await seedFurnitureDemoData(tenantId);
+    
+    if (result.success) {
+      await logFurnitureAudit(tenantId, getUserId(req), "create", "demo-data", "seed", null, null, { action: "seed_demo_data" });
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    console.error("Error seeding demo data:", error);
+    res.status(500).json({ error: "Failed to seed demo data" });
+  }
+});
+
+// ============================================
+// GUARDRAIL ENDPOINTS
+// ============================================
+
+router.post("/validate-totals", async (req: Request, res: Response) => {
+  try {
+    const { subtotal, taxAmount, totalAmount, advanceAmount } = req.body;
+    
+    const totalsValidation = furnitureGuardrails.validateTotals(subtotal, taxAmount, totalAmount);
+    if (!totalsValidation.valid) {
+      return res.status(400).json({ valid: false, error: totalsValidation.error });
+    }
+
+    if (advanceAmount !== undefined) {
+      const advanceValidation = furnitureGuardrails.validateAdvancePayment(advanceAmount, totalAmount);
+      if (!advanceValidation.valid) {
+        return res.status(400).json({ valid: false, error: advanceValidation.error });
+      }
+    }
+
+    const outstanding = furnitureGuardrails.calculateOutstandingAmount(totalAmount, advanceAmount || 0);
+    res.json({ valid: true, outstandingAmount: outstanding });
+  } catch (error) {
+    console.error("Error validating totals:", error);
+    res.status(500).json({ error: "Validation failed" });
+  }
+});
+
+router.get("/sales-orders/:id/can-delete", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const result = await furnitureGuardrails.canDeleteSalesOrder(req.params.id, tenantId);
+    res.json(result);
+  } catch (error) {
+    console.error("Error checking delete permission:", error);
+    res.status(500).json({ error: "Failed to check permission" });
+  }
+});
+
+router.get("/production-orders/:id/can-modify", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const result = await furnitureGuardrails.canModifyProductionOrder(req.params.id, tenantId);
+    res.json(result);
+  } catch (error) {
+    console.error("Error checking modify permission:", error);
+    res.status(500).json({ error: "Failed to check permission" });
+  }
+});
+
+router.get("/installation-orders/:deliveryId/can-start", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const result = await furnitureGuardrails.canStartInstallation(req.params.deliveryId, tenantId);
+    res.json(result);
+  } catch (error) {
+    console.error("Error checking installation permission:", error);
+    res.status(500).json({ error: "Failed to check permission" });
   }
 });
 
