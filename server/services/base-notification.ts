@@ -25,7 +25,16 @@ export interface NotificationRecipient {
 }
 
 export interface NotificationVariables {
-  [key: string]: string | number | boolean | undefined;
+  customerName?: string;
+  invoiceNumber?: string;
+  totalAmount?: string;
+  currency?: string;
+  dueDate?: string;
+  taxAmount?: string;
+  paidAmount?: string;
+  balanceAmount?: string;
+  tenantName?: string;
+  [key: string]: string | undefined;
 }
 
 export interface NotificationPayload {
@@ -127,7 +136,7 @@ class BaseNotificationService implements INotificationService {
             channel: channel,
             eventType: legacyEventType as any,
             recipient: payload.recipient,
-            variables: this.convertVariables(payload.variables),
+            variables: payload.variables as any,
             invoiceId: payload.referenceType === "invoice" ? payload.referenceId : undefined,
             userId: payload.userId,
             language: payload.language,
@@ -155,7 +164,7 @@ class BaseNotificationService implements INotificationService {
             toPhoneNumber: payload.recipient.phone,
             messageType: "template",
             templateName: this.getTemplateNameForEvent(payload.eventType, payload.moduleContext),
-            templateParams: payload.variables,
+            templateParams: payload.variables as Record<string, string>,
             metadata: {
               referenceId: payload.referenceId,
               referenceType: payload.referenceType,
@@ -211,13 +220,6 @@ class BaseNotificationService implements INotificationService {
     return baseTemplate;
   }
 
-  private convertVariables(variables: NotificationVariables): Record<string, string | undefined> {
-    const result: Record<string, string | undefined> = {};
-    for (const [key, value] of Object.entries(variables)) {
-      result[key] = value !== undefined ? String(value) : undefined;
-    }
-    return result;
-  }
 }
 
 export const baseNotificationService = new BaseNotificationService();
