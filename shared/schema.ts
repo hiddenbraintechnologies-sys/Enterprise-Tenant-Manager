@@ -10,6 +10,9 @@ import { users } from "./models/auth";
 // Re-export SSO models
 export * from "./models/sso";
 
+// Re-export HRMS models
+export * from "./models/hrms";
+
 // ============================================
 // ENUMS
 // ============================================

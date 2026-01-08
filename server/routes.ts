@@ -76,6 +76,7 @@ import businessVersionRoutes from "./routes/business-version";
 import regionLockRoutes from "./routes/region-lock";
 import { regionLockService } from "./services/region-lock";
 import furnitureRoutes from "./routes/furniture";
+import hrmsRoutes from "./routes/hrms";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 
@@ -188,6 +189,9 @@ export async function registerRoutes(
 
   // Register Furniture Manufacturing module routes (protected)
   app.use('/api/furniture', ...moduleProtectedMiddleware("furniture_manufacturing"), furnitureRoutes);
+
+  // Register HRMS module routes (protected, cross-business horizontal module)
+  app.use('/api/hr', isAuthenticated, hrmsRoutes);
 
   // Register Reseller/White-label routes
   app.use('/api/resellers', authenticateJWT({ required: true }), resellerRoutes);

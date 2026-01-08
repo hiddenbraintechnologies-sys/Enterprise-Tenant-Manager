@@ -1,0 +1,281 @@
+Add HRMS Module (Cross-Business, IT-Ready)
+
+Objective
+Implement a multi-tenant, cross-business HRMS module that works for all industries (Furniture, PG/Hostel, Retail, Services, etc.) and includes IT-industry–specific capabilities, while remaining modular and reusable.
+
+This module must integrate cleanly with existing RBAC, tenant isolation, audit logging, notifications, and analytics base services.
+
+1️⃣ HRMS Scope & Design Principles
+Core Principles
+
+Horizontal module (not industry-locked)
+
+Tenant-isolated (company = tenant)
+
+Role-driven access
+
+Audit-first
+
+Config-driven IT extensions
+
+No breaking changes to existing modules
+
+2️⃣ HRMS Core Modules (Applicable to ALL Businesses)
+Employee Management
+
+Employee master profile
+
+Employee ID (auto-generated)
+
+Name, email, phone
+
+Department, designation
+
+Employment type (Full-time / Part-time / Contract / Intern)
+
+Join date, probation end date
+
+Reporting manager
+
+Work location (onsite / remote / hybrid)
+
+Status (active / exited / on-hold)
+
+Employee documents
+
+ID proof
+
+Offer letter
+
+Contracts
+
+Exit management
+
+Resignation date
+
+Last working day
+
+Exit reason
+
+Clearance checklist
+
+Attendance & Leave
+
+Attendance
+
+Daily check-in / check-out
+
+Manual + auto attendance
+
+Late / early flags
+
+Leave management
+
+Leave types (CL, SL, EL, unpaid – configurable)
+
+Leave balance
+
+Approval workflow
+
+Holiday calendar (tenant-configurable)
+
+Payroll (Base Layer)
+
+Salary structure
+
+Basic, HRA, allowances, deductions
+
+Payroll cycle
+
+Payslip generation
+
+Payment status tracking
+
+Export (PDF / CSV)
+
+No country-specific compliance in Phase 1 (plug-in ready later)
+
+Roles, Access & Policies
+
+HR Admin
+
+Manager
+
+Employee
+
+Finance
+
+Custom roles via RBAC
+
+Company policies
+
+Leave policy
+
+Attendance rules
+
+Working hours
+
+Notifications & Audit
+
+Events:
+
+Leave request / approval
+
+Attendance anomaly
+
+Payroll generated
+
+Employee onboarding / exit
+
+Full audit logs:
+
+Who changed what
+
+Before/after snapshots
+
+3️⃣ IT-Industry Specific Extensions (Config-Driven)
+
+These must be optional and enabled per tenant
+
+Project & Allocation
+
+Employee → Project allocation
+
+Allocation %
+
+Billable vs non-billable
+
+Client mapping
+
+Timesheets
+
+Daily / weekly timesheets
+
+Project-wise hours
+
+Approval workflow
+
+Billable hour reports
+
+Shift & Remote Work
+
+Shift assignment
+
+Flexible hours
+
+Remote work tracking
+
+Client time zone mapping
+
+Performance (Lightweight)
+
+Skill matrix
+
+Appraisal cycle
+
+Manager feedback
+
+KPI tags (non-mandatory)
+
+4️⃣ Data Model Expectations
+
+Create new schema namespace:
+
+hr_employees
+hr_attendance
+hr_leaves
+hr_leave_balances
+hr_payroll
+hr_salary_structures
+hr_projects
+hr_allocations
+hr_timesheets
+
+
+All tables must include:
+
+tenantId
+
+createdAt / updatedAt
+
+createdBy
+
+audit hooks
+
+5️⃣ API Requirements
+
+Create:
+
+/api/hr/employees
+/api/hr/attendance
+/api/hr/leaves
+/api/hr/payroll
+/api/hr/projects
+/api/hr/timesheets
+
+
+Must support:
+
+Pagination
+
+Server-side filtering
+
+Sorting
+
+Role-based access
+
+Audit logging
+
+6️⃣ UI Expectations (Web First)
+
+HR Dashboard
+
+Headcount
+
+Attendance today
+
+Leave stats
+
+Employee Directory
+
+Attendance & Leave screens
+
+Payroll overview
+
+IT extensions shown only when enabled
+
+Mobile-ready structure (Flutter later)
+
+7️⃣ Guardrails (Non-Negotiable)
+
+❌ No coupling HRMS logic to Furniture
+
+❌ No hard-coding IT assumptions
+
+✅ Feature flags per tenant
+
+✅ Reuse BaseNotificationService, BaseAnalyticsAdapter
+
+✅ Follow existing pagination + filtering patterns
+
+✅ No schema or API changes to existing business modules
+
+8️⃣ Delivery Expectation
+
+At completion:
+
+HRMS works for any business
+
+IT companies can enable:
+
+Projects
+
+Timesheets
+
+Allocations
+
+Fully auditable
+
+RBAC-secured
+
+Production-ready baseline
