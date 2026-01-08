@@ -1,0 +1,130 @@
+Yes, please proceed and add detailed sub-pages for the Furniture Manufacturing & Sales module.
+
+IMPORTANT RULES:
+- Do NOT refactor existing architecture
+- Reuse existing components, patterns, and services wherever possible
+- Enforce tenant isolation, RBAC, feature flags, and audit logging on all pages
+- Follow existing UI layout and navigation conventions
+- No hard deletes (use soft delete / archive only)
+
+================================================
+1️⃣ PRODUCTS MANAGEMENT
+================================================
+Add a Products sub-page with:
+- Product list with search, filters (type, material, status)
+- Create / edit product
+- Support product types:
+  • Ready-made
+  • Made-to-order
+  • Semi-finished
+- Product fields:
+  SKU, material, dimensions (L×W×H), finish/color,
+  cost price, selling price, tax category
+- Attach BOM when manufacturing is enabled
+- Read-only audit history per product
+
+================================================
+2️⃣ RAW MATERIALS & INVENTORY
+================================================
+Add Raw Materials sub-page:
+- Raw material master (name, unit, category)
+- Stock in / stock out entries
+- Minimum stock threshold & alerts
+- View material usage linked to BOM & production orders
+- Wastage logs (read-only)
+
+================================================
+3️⃣ BILL OF MATERIALS (BOM)
+================================================
+Add BOM management:
+- BOM per product
+- Map raw materials + quantities
+- Optional waste percentage per item
+- BOM versioning:
+  • Old versions archived
+  • No deletion of historical BOMs
+
+================================================
+4️⃣ PRODUCTION ORDERS
+================================================
+Add Production Orders sub-page:
+- Create production order from sales order
+- Production stages:
+  Cutting → Assembly → Finishing → QC → Ready for Dispatch
+- Stage-wise status updates
+- Assign staff/workers per stage
+- Optional start/end timestamps
+- Auto-deduct raw materials on completion
+- Auto-add finished goods to inventory
+- Read-only cost summary
+
+================================================
+5️⃣ SALES ORDERS
+================================================
+Extend Sales Orders view:
+- Customer details
+- Multiple line items
+- Custom dimensions per item
+- Advance amount tracking
+- Link to production order (if made-to-order)
+- Order status timeline
+- Support partial delivery
+
+================================================
+6️⃣ INVOICES & PAYMENTS
+================================================
+Reuse existing invoicing and payment modules:
+- Proforma / Tax / Final invoices
+- Advance adjustment
+- Partial payments
+- Outstanding balance tracking
+- GST / VAT logic remains unchanged
+⚠️ Do NOT duplicate invoice or payment logic
+
+================================================
+7️⃣ DELIVERIES & INSTALLATIONS
+================================================
+Add Deliveries & Installations sub-page:
+- Delivery scheduling
+- Installer assignment
+- Delivery / installation status
+- Proof of delivery (photo or signature)
+- Completion confirmation
+
+================================================
+8️⃣ REPORTS (READ-ONLY)
+================================================
+Add furniture-specific reports:
+- Sales by product
+- Manufacturing cost vs selling price
+- Raw material consumption
+- Wastage summary
+- Pending orders
+- Outstanding payments
+
+================================================
+9️⃣ UI & PERMISSIONS
+================================================
+- Pages visible only when FEATURE_FURNITURE_* flags are enabled
+- Enforce RBAC permissions:
+  CREATE_PRODUCTION_ORDER
+  UPDATE_PRODUCTION_STAGE
+  VIEW_BOM
+  MANAGE_RAW_MATERIALS
+  COLLECT_PAYMENT
+  VIEW_MANUFACTURING_REPORTS
+- Mobile-friendly list + detail views
+
+================================================
+🔟 DATA & COMPLIANCE
+================================================
+- All records must be tenant-scoped
+- All actions logged in audit logs
+- Maintain backward compatibility
+- Add safe database migrations only
+
+EXPECTED OUTPUT:
+- UI pages wired into dashboard navigation
+- API endpoints connected to existing services
+- Schema extensions where required
+- Minimal regression impact
