@@ -2570,4 +2570,170 @@ router.get("/invoices/:id/payments", async (req: Request, res: Response) => {
   }
 });
 
+// ============================================
+// INVOICE NOTIFICATIONS
+// ============================================
+
+import { notificationService, type NotificationChannel, type NotificationEventType } from "../services/notification";
+
+// Send notification for invoice
+router.post("/invoices/:id/notify", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const channel = req.query.channel as NotificationChannel;
+    if (!channel || !["email", "whatsapp"].includes(channel)) {
+      return res.status(400).json({ error: "Valid channel required (email or whatsapp)" });
+    }
+
+    const eventType = (req.body.eventType || "invoice_issued") as NotificationEventType;
+    const validEventTypes = [
+      "invoice_created", "invoice_issued", "payment_reminder", 
+      "payment_received", "payment_partial", "invoice_overdue", 
+      "invoice_cancelled", "custom"
+    ];
+    if (!validEventTypes.includes(eventType)) {
+      return res.status(400).json({ error: "Invalid event type" });
+    }
+
+    const result = await notificationService.sendInvoiceNotification(
+      tenantId,
+      req.params.id,
+      eventType,
+      channel,
+      userId
+    );
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "notification",
+      entityId: result.logId,
+      details: { 
+        invoiceId: req.params.id, 
+        channel, 
+        eventType,
+        success: result.success,
+        error: result.error 
+      },
+    });
+
+    if (result.success) {
+      res.json({ 
+        message: "Notification sent successfully", 
+        logId: result.logId,
+        messageId: result.messageId 
+      });
+    } else {
+      res.status(400).json({ 
+        error: result.error,
+        logId: result.logId 
+      });
+    }
+  } catch (error) {
+    console.error("Error sending notification:", error);
+    res.status(500).json({ error: "Failed to send notification" });
+  }
+});
+
+// Get notification history for invoice
+router.get("/invoices/:id/notifications", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const [invoice] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const logs = await notificationService.getNotificationLogs(tenantId, req.params.id);
+    res.json(logs);
+  } catch (error) {
+    console.error("Error fetching notification logs:", error);
+    res.status(500).json({ error: "Failed to fetch notification logs" });
+  }
+});
+
+// Bulk send reminders for overdue invoices
+router.post("/invoices/bulk-reminders", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const channel = (req.query.channel || "email") as NotificationChannel;
+    if (!["email", "whatsapp"].includes(channel)) {
+      return res.status(400).json({ error: "Valid channel required (email or whatsapp)" });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const overdueInvoices = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.tenantId, tenantId),
+        eq(furnitureInvoices.status, "pending"),
+        lte(furnitureInvoices.dueDate, today.toISOString().split("T")[0])
+      ));
+
+    const results: Array<{ invoiceId: string; invoiceNumber: string; success: boolean; error?: string }> = [];
+
+    for (const invoice of overdueInvoices) {
+      const result = await notificationService.sendInvoiceNotification(
+        tenantId,
+        invoice.id,
+        "invoice_overdue",
+        channel,
+        userId
+      );
+
+      results.push({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        success: result.success,
+        error: result.error
+      });
+    }
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "bulk_notification",
+      entityId: `bulk-${Date.now()}`,
+      details: { 
+        channel,
+        totalInvoices: overdueInvoices.length,
+        successCount: results.filter(r => r.success).length,
+        failureCount: results.filter(r => !r.success).length
+      },
+    });
+
+    res.json({
+      message: `Sent ${results.filter(r => r.success).length} of ${overdueInvoices.length} reminders`,
+      results
+    });
+  } catch (error) {
+    console.error("Error sending bulk reminders:", error);
+    res.status(500).json({ error: "Failed to send bulk reminders" });
+  }
+});
+
 export default router;
