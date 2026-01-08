@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing";
 
 export interface ModuleConfig {
   id: string;
@@ -92,6 +92,17 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
+  furniture_manufacturing: [
+    { id: "products", name: "Products", enabled: true, routes: ["/furniture/products", "/furniture/products/new", "/furniture/products/:id"] },
+    { id: "raw_materials", name: "Raw Materials", enabled: true, routes: ["/furniture/raw-materials", "/furniture/raw-materials/new", "/furniture/raw-materials/:id"] },
+    { id: "bom", name: "Bill of Materials", enabled: true, routes: ["/furniture/bom", "/furniture/bom/new", "/furniture/bom/:id"] },
+    { id: "production", name: "Production Orders", enabled: true, routes: ["/furniture/production-orders", "/furniture/production-orders/new", "/furniture/production-orders/:id"] },
+    { id: "sales", name: "Sales Orders", enabled: true, routes: ["/furniture/sales-orders", "/furniture/sales-orders/new", "/furniture/sales-orders/:id"] },
+    { id: "deliveries", name: "Deliveries", enabled: true, routes: ["/furniture/deliveries", "/furniture/deliveries/new", "/furniture/deliveries/:id"] },
+    { id: "installations", name: "Installations", enabled: true, routes: ["/furniture/installations", "/furniture/installations/new", "/furniture/installations/:id"] },
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
@@ -105,6 +116,7 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   education: "/dashboard/education",
   logistics: "/dashboard/logistics",
   legal: "/dashboard/legal",
+  furniture_manufacturing: "/dashboard/furniture",
 };
 
 

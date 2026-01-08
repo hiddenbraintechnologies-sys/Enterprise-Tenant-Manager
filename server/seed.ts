@@ -445,6 +445,24 @@ const SAMPLE_TENANTS: SampleTenantDefinition[] = [
     subscriptionTier: "pro",
     email: "contact@mumbailegal.example.com",
   },
+  {
+    name: "Royal Furniture Works",
+    slug: "royal-furniture-works",
+    businessType: "furniture_manufacturing",
+    country: "india",
+    region: "asia_pacific",
+    subscriptionTier: "enterprise",
+    email: "sales@royalfurniture.example.com",
+  },
+  {
+    name: "Modern Living UAE",
+    slug: "modern-living-uae",
+    businessType: "furniture_manufacturing",
+    country: "uae",
+    region: "middle_east",
+    subscriptionTier: "pro",
+    email: "info@modernlivinguae.example.com",
+  },
 ];
 
 export async function seedSampleTenants(): Promise<number> {

@@ -38,6 +38,26 @@ const WELCOME_CONFIG: Record<BusinessType, { title: string; subtitle: string; gr
     subtitle: "Manage tours, bookings, and travel packages with ease",
     gradient: "from-teal-500/10 to-cyan-500/10 dark:from-teal-500/20 dark:to-cyan-500/20",
   },
+  education: {
+    title: "Welcome to Your Education Dashboard",
+    subtitle: "Manage students, courses, and academic programs efficiently",
+    gradient: "from-indigo-500/10 to-blue-500/10 dark:from-indigo-500/20 dark:to-blue-500/20",
+  },
+  logistics: {
+    title: "Welcome to Your Logistics Dashboard",
+    subtitle: "Manage vehicles, shipments, and deliveries seamlessly",
+    gradient: "from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20",
+  },
+  legal: {
+    title: "Welcome to Your Legal Practice Dashboard",
+    subtitle: "Manage cases, clients, and legal documents with precision",
+    gradient: "from-slate-500/10 to-gray-500/10 dark:from-slate-500/20 dark:to-gray-500/20",
+  },
+  furniture_manufacturing: {
+    title: "Welcome to Your Furniture Manufacturing Dashboard",
+    subtitle: "Manage production, inventory, and sales with efficiency",
+    gradient: "from-amber-500/10 to-yellow-500/10 dark:from-amber-500/20 dark:to-yellow-500/20",
+  },
 };
 
 interface WelcomeMessageProps {

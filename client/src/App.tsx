@@ -23,6 +23,7 @@ import TourismDashboard from "@/pages/tourism-dashboard";
 import EducationDashboard from "@/pages/education-dashboard";
 import LogisticsDashboard from "@/pages/logistics-dashboard";
 import LegalDashboard from "@/pages/legal-dashboard";
+import FurnitureDashboard from "@/pages/furniture-dashboard";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
@@ -123,6 +124,11 @@ function AuthenticatedRoutes() {
       <Route path="/dashboard/legal">
         <DashboardGuard allowedBusinessType="legal">
           <LegalDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/furniture">
+        <DashboardGuard allowedBusinessType="furniture_manufacturing">
+          <FurnitureDashboard />
         </DashboardGuard>
       </Route>
       
