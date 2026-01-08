@@ -416,10 +416,10 @@ export default function FurnitureSalesOrders() {
   const orders = ordersResponse?.data ?? [];
   const paginationInfo = ordersResponse?.pagination;
 
-  const { data: customersResponse } = useQuery<PaginationResponse<Customer>>({
-    queryKey: ["/api/customers", { limit: "1000" }],
+  const { data: customersRaw } = useQuery<Customer[] | PaginationResponse<Customer>>({
+    queryKey: ["/api/customers"],
   });
-  const customers = customersResponse?.data ?? [];
+  const customers = Array.isArray(customersRaw) ? customersRaw : (customersRaw?.data ?? []);
 
   const { data: productsResponse } = useQuery<PaginationResponse<FurnitureProduct>>({
     queryKey: ["/api/furniture/products", { limit: "1000" }],
