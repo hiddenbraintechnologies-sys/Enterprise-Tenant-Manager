@@ -1,0 +1,133 @@
+You are acting as the Chief Platform Architect for MyBizStream.
+
+The platform contains multiple industry modules.
+The Furniture Manufacturing module is currently the most production-hardened, but other modules may contain features not yet present in Furniture.
+
+TASK:
+Perform a **BIDIRECTIONAL FEATURE PARITY AUDIT** across all business modules.
+
+This audit must answer BOTH questions:
+1) What features from the Furniture module are missing or incomplete in other modules?
+2) What features from other modules are missing or incomplete in the Furniture module?
+
+────────────────────────
+MODULES IN SCOPE
+────────────────────────
+- Furniture Manufacturing (baseline candidate)
+- PG / Hostel Management
+- Co-working Spaces
+- Salons & Beauty Parlours
+- Clinics & Diagnostics
+- Coaching / Education Institutes
+- Gyms & Membership Businesses
+- Logistics & Fleet
+- Real Estate Agencies
+- Tourism
+- Legal & Consulting Firms
+- General Service Businesses
+
+────────────────────────
+1️⃣ Unified Feature Inventory
+────────────────────────
+Create a **single master feature inventory** across the entire platform, including:
+
+Core Platform:
+- Multi-tenancy & tenant isolation
+- RBAC & admin hierarchy
+- Audit logging
+- Feature flags
+- White-label & branding
+- Mobile (Flutter) parity
+
+Operational:
+- CRUD + pagination + filtering
+- Lifecycle state machines
+- Read-only enforcement
+- Bulk operations
+- Import/export
+
+Financial:
+- Invoicing
+- Payments
+- Multi-currency
+- Country-specific tax logic
+- PDF generation
+- Recurring billing & reminders
+
+Communication:
+- WhatsApp
+- Email
+- Notifications & templates
+
+Compliance:
+- India, UAE, UK, Malaysia, US
+- Healthcare compliance where applicable
+
+Intelligence:
+- Analytics dashboards
+- AI insights
+- Reporting & exports
+
+Industry-Specific:
+- Appointments (clinics, salons)
+- Beds/rooms (PG/hostels)
+- Memberships (gyms)
+- Route optimization (logistics)
+- Property listings (real estate)
+- Student lifecycle (education)
+
+────────────────────────
+2️⃣ Bidirectional Parity Matrix
+────────────────────────
+Produce a table where:
+- Rows = features (from unified inventory)
+- Columns = modules
+- Each cell clearly marked as:
+  ✅ Fully implemented
+  ⚠️ Partially implemented
+  ❌ Missing
+
+Furniture MUST be included as a column like all others.
+
+────────────────────────
+3️⃣ Directional Gap Analysis
+────────────────────────
+
+A) Furniture → Others
+- For each module, list features present in Furniture but missing elsewhere
+- Highlight risks caused by missing guardrails or validations
+
+B) Others → Furniture
+- Identify features present in other modules but NOT in Furniture
+- Explain whether they are:
+  • Industry-specific (OK to exclude)
+  • Platform-level (should be added to Furniture)
+
+────────────────────────
+4️⃣ Risk & Consistency Assessment
+────────────────────────
+Identify:
+- Platform inconsistencies
+- Financial or compliance gaps
+- Mobile vs web mismatches
+- RBAC or tenant isolation deviations
+
+────────────────────────
+5️⃣ Normalization & Baseline Recommendation
+────────────────────────
+Based on findings:
+- Should Furniture become the **official platform baseline**? (Yes/No + justification)
+- What features must be added to Furniture to make it baseline-complete?
+- What features should be extracted into shared platform services?
+
+────────────────────────
+6️⃣ Output Requirements
+────────────────────────
+- Feature parity matrix
+- Two-way gap analysis (Furniture ↔ Others)
+- Risk summary
+- Recommended normalization roadmap (phased)
+- Clear architectural recommendation
+
+IMPORTANT:
+This is a **design & audit tas**
