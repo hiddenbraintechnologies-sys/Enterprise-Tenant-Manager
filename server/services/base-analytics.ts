@@ -41,7 +41,7 @@ export interface ModuleAnalyticsConfig {
 export interface IAnalyticsAdapter {
   getModuleName(): string;
   getConfig(): ModuleAnalyticsConfig;
-  getOverview(tenantId: string, dateRange: DateRange): Promise<AnalyticsOverview>;
+  getAdapterOverview(tenantId: string, dateRange: DateRange): Promise<AnalyticsOverview>;
   getMetricsByCategory(tenantId: string, category: string, dateRange: DateRange): Promise<CategoryMetrics>;
   getTrends(tenantId: string, metric: string, dateRange: DateRange): Promise<Array<{ date: string; value: number }>>;
 }

@@ -85,13 +85,20 @@ export interface IFinancialService {
   getCurrencyInfo(currencyCode: string): CurrencyInfo | null;
   formatCurrency(amount: number, currencyCode: string): string;
   getSupportedCurrencies(): Record<string, CurrencyInfo>;
-}
-
-export interface IInvoicePDFGenerator {
-  generatePDF(request: InvoicePDFRequest): Promise<Buffer>;
+  generateInvoicePDF(request: InvoicePDFRequest): Promise<Buffer>;
 }
 
 class BaseFinancialService implements IFinancialService {
+  private invoicePdfService: typeof import("./invoice-pdf").invoicePDFService | null = null;
+
+  private async getInvoicePDFService() {
+    if (!this.invoicePdfService) {
+      const mod = await import("./invoice-pdf");
+      this.invoicePdfService = mod.invoicePDFService;
+    }
+    return this.invoicePdfService;
+  }
+
   async calculateTax(request: TaxCalculationRequest): Promise<TaxCalculationResult> {
     return taxCalculatorService.calculateTax(
       request.tenantId,
@@ -176,6 +183,39 @@ class BaseFinancialService implements IFinancialService {
       taxAmount: Math.round(taxAmount * 100) / 100,
       totalAmount: Math.round(totalAmount * 100) / 100,
     };
+  }
+
+  async generateInvoicePDF(request: InvoicePDFRequest): Promise<Buffer> {
+    const pdfService = await this.getInvoicePDFService();
+    const legacyInvoice = {
+      ...request.invoice,
+      invoiceDate: request.invoice.invoiceDate.toISOString(),
+      dueDate: request.invoice.dueDate?.toISOString() || null,
+      subtotal: String(request.invoice.subtotal),
+      discountAmount: String(request.invoice.discountAmount),
+      taxAmount: String(request.invoice.taxAmount),
+      totalAmount: String(request.invoice.totalAmount),
+      paidAmount: String(request.invoice.paidAmount),
+      balanceAmount: String(request.invoice.balanceAmount),
+      exchangeRate: String(request.invoice.exchangeRate),
+    };
+
+    const legacyItems = request.items.map(item => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: String(item.unitPrice),
+      discountAmount: item.discountAmount ? String(item.discountAmount) : null,
+      taxAmount: String((item.quantity * item.unitPrice * (item.taxRate || 0)) / 100),
+      totalPrice: String(item.quantity * item.unitPrice - (item.discountAmount || 0)),
+      hsnCode: item.hsnCode || null,
+    }));
+
+    return pdfService.generatePDF(
+      legacyInvoice as Parameters<typeof pdfService.generatePDF>[0],
+      legacyItems as Parameters<typeof pdfService.generatePDF>[1],
+      request.branding as Parameters<typeof pdfService.generatePDF>[2],
+      request.tenant as Parameters<typeof pdfService.generatePDF>[3]
+    );
   }
 }
 

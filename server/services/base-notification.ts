@@ -106,6 +106,20 @@ const EVENT_TYPE_MAPPING: Record<NotificationEventType, string> = {
 class BaseNotificationService implements INotificationService {
   private notificationService: typeof import("./notification").notificationService | null = null;
   private whatsappService: typeof import("../core/whatsapp/whatsapp-service").whatsappService | null = null;
+  private adapters: Map<string, INotificationAdapter> = new Map();
+
+  registerAdapter(adapter: INotificationAdapter): void {
+    const moduleName = adapter.getModuleName();
+    this.adapters.set(moduleName, adapter);
+  }
+
+  getAdapter(moduleName: string): INotificationAdapter | undefined {
+    return this.adapters.get(moduleName);
+  }
+
+  getRegisteredModules(): string[] {
+    return Array.from(this.adapters.keys());
+  }
 
   private async getNotificationService() {
     if (!this.notificationService) {

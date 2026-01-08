@@ -88,7 +88,7 @@ export class AnalyticsService implements IAnalyticsAdapter {
     };
   }
 
-  async getOverviewAdapter(tenantId: string, dateRange: BaseDateRange): Promise<AnalyticsOverview> {
+  async getAdapterOverview(tenantId: string, dateRange: BaseDateRange): Promise<AnalyticsOverview> {
     const overview = await this.getOverview(tenantId, dateRange);
     
     return {
