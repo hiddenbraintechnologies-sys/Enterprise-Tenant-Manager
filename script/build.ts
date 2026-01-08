@@ -1,10 +1,10 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
-import { execSync } from "child_process";
 
-// Database schema is synced during build phase via drizzle-kit push
-// This prevents deployment startup from hanging on DDL operations
+// NOTE: Database migrations are NOT run during build/deployment
+// Schema changes made in development are synced to production automatically by Replit's platform
+// Do NOT add drizzle-kit push here - it requires interactive confirmation which blocks cloud builds
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -64,10 +64,7 @@ async function buildAll() {
     logLevel: "info",
   });
 
-  // NOTE: Database schema sync removed from build phase
-  // drizzle-kit push requires interactive confirmation which blocks cloud builds
-  // Sync schema manually before deployment: npx drizzle-kit push --force
-  console.log("build complete - sync database schema manually if needed: npx drizzle-kit push --force");
+  console.log("build complete");
 }
 
 buildAll().catch((err) => {
