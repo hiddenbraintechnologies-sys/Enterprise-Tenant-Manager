@@ -75,6 +75,7 @@ import featureFlagsRoutes from "./routes/feature-flags";
 import businessVersionRoutes from "./routes/business-version";
 import regionLockRoutes from "./routes/region-lock";
 import { regionLockService } from "./services/region-lock";
+import furnitureRoutes from "./routes/furniture";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 
@@ -162,12 +163,12 @@ export async function registerRoutes(
   app.use('/api/ai/audit', aiAuditRoutes);
 
   // Module-protected middleware stack (includes tenant context resolution)
-  const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal") => [
+  const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing") => [
     authenticateJWT({ required: true }),
     tenantResolutionMiddleware(),
     enforceTenantBoundary(),
     tenantIsolationMiddleware(),
-    validateModuleAccess(businessType),
+    validateModuleAccess(businessType as any),
   ];
 
   // Register Real Estate module routes (protected)
@@ -184,6 +185,9 @@ export async function registerRoutes(
 
   // Register Legal module routes (protected)
   app.use('/api/legal', ...moduleProtectedMiddleware("legal"), legalRouter);
+
+  // Register Furniture Manufacturing module routes (protected)
+  app.use('/api/furniture', ...moduleProtectedMiddleware("furniture_manufacturing"), furnitureRoutes);
 
   // Register Reseller/White-label routes
   app.use('/api/resellers', authenticateJWT({ required: true }), resellerRoutes);

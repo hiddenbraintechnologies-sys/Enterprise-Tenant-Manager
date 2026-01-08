@@ -98,6 +98,17 @@ The frontend uses React 18 with TypeScript, Tailwind CSS, and shadcn/ui. It feat
   - **Invite System**: 7-day expiration invite tokens, single-use, creates portal account on acceptance
   - **Customer Dashboard**: Profile management, invoice viewing (with PDF download), all gated by portal permissions
   - **Tenant Isolation**: All portal routes enforce tenant isolation via session validation
+- **Furniture Manufacturing Module**: Comprehensive module for furniture retail/manufacturing businesses with:
+  - **Product Catalog**: Furniture products with ready_made/made_to_order/semi_finished types, dimensions, pricing (cost/selling/wholesale), GST/HSN codes, customization options
+  - **Raw Materials Inventory**: Material categories, inventory items with units of measure, stock levels, batch tracking, supplier info, reorder points
+  - **Stock Movements**: In/out/adjustment tracking with reference to production orders, batch/lot numbers, cost tracking
+  - **Bill of Materials (BOM)**: Versioned BOMs per product, component lists with waste allowance, labor/overhead costs, yield quantities
+  - **Production Orders**: Auto-generated order numbers (PO-{timestamp}), status workflow (draft/pending/in_progress/on_hold/completed/cancelled), scheduling, priority, wastage tracking
+  - **Production Stages**: Default stages (cutting/assembly/finishing/quality_check/ready_for_dispatch), custom stages, stage status tracking with timestamps
+  - **Delivery Orders**: Delivery scheduling with time slots, address management, driver/vehicle assignment, proof of delivery (signature/photo), tracking
+  - **Installation Orders**: Optional post-delivery installation, installer assignment with helpers, completion tracking with customer feedback/ratings
+  - **Sales Orders**: Retail/wholesale/B2B order types, advance payments, multi-currency support, GST invoicing, delivery/installation linking
+  - **API Endpoints**: Full CRUD at `/api/furniture/*` with tenant isolation via X-Tenant-ID header
 
 ## Documentation
 - **MYBIZSTREAM_DOCUMENTATION.md**: Comprehensive platform documentation

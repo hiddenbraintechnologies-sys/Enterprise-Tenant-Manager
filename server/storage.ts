@@ -12,6 +12,10 @@ import {
   supportTickets, supportTicketMessages, errorLogs, usageMetrics,
   auditLogs, userTenants,
   customerPortalSettings, customerPortalAccounts, customerPortalSessions, customerPortalInvites,
+  furnitureProducts, rawMaterialCategories, rawMaterials, rawMaterialStockMovements,
+  billOfMaterials, bomComponents, productionOrders, productionStages,
+  deliveryOrders, deliveryOrderItems, installationOrders,
+  furnitureSalesOrders, furnitureSalesOrderItems,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
@@ -49,6 +53,19 @@ import {
   type CustomerPortalAccount, type InsertCustomerPortalAccount,
   type CustomerPortalSession, type InsertCustomerPortalSession,
   type CustomerPortalInvite, type InsertCustomerPortalInvite,
+  type FurnitureProduct, type InsertFurnitureProduct,
+  type RawMaterialCategory, type InsertRawMaterialCategory,
+  type RawMaterial, type InsertRawMaterial,
+  type RawMaterialStockMovement, type InsertRawMaterialStockMovement,
+  type BillOfMaterials, type InsertBillOfMaterials,
+  type BomComponent, type InsertBomComponent,
+  type ProductionOrder, type InsertProductionOrder,
+  type ProductionStage, type InsertProductionStage,
+  type DeliveryOrder, type InsertDeliveryOrder,
+  type DeliveryOrderItem, type InsertDeliveryOrderItem,
+  type InstallationOrder, type InsertInstallationOrder,
+  type FurnitureSalesOrder, type InsertFurnitureSalesOrder,
+  type FurnitureSalesOrderItem, type InsertFurnitureSalesOrderItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -317,6 +334,92 @@ export interface IStorage {
   getCustomerPortalInviteByToken(inviteToken: string): Promise<CustomerPortalInvite | undefined>;
   updateCustomerPortalInvite(id: string, invite: Partial<InsertCustomerPortalInvite>): Promise<CustomerPortalInvite | undefined>;
   getCustomerPortalInvites(tenantId: string): Promise<CustomerPortalInvite[]>;
+
+  // ============================================
+  // FURNITURE MANUFACTURING MODULE
+  // ============================================
+
+  // Furniture Products
+  getFurnitureProducts(tenantId: string): Promise<FurnitureProduct[]>;
+  getFurnitureProduct(id: string, tenantId: string): Promise<FurnitureProduct | undefined>;
+  createFurnitureProduct(product: InsertFurnitureProduct): Promise<FurnitureProduct>;
+  updateFurnitureProduct(id: string, tenantId: string, product: Partial<InsertFurnitureProduct>): Promise<FurnitureProduct | undefined>;
+  deleteFurnitureProduct(id: string, tenantId: string): Promise<void>;
+
+  // Raw Material Categories
+  getRawMaterialCategories(tenantId: string): Promise<RawMaterialCategory[]>;
+  createRawMaterialCategory(category: InsertRawMaterialCategory): Promise<RawMaterialCategory>;
+  updateRawMaterialCategory(id: string, tenantId: string, category: Partial<InsertRawMaterialCategory>): Promise<RawMaterialCategory | undefined>;
+  deleteRawMaterialCategory(id: string, tenantId: string): Promise<void>;
+
+  // Raw Materials
+  getRawMaterials(tenantId: string): Promise<RawMaterial[]>;
+  getRawMaterial(id: string, tenantId: string): Promise<RawMaterial | undefined>;
+  createRawMaterial(material: InsertRawMaterial): Promise<RawMaterial>;
+  updateRawMaterial(id: string, tenantId: string, material: Partial<InsertRawMaterial>): Promise<RawMaterial | undefined>;
+  deleteRawMaterial(id: string, tenantId: string): Promise<void>;
+  getLowStockRawMaterials(tenantId: string): Promise<RawMaterial[]>;
+
+  // Raw Material Stock Movements
+  createRawMaterialStockMovement(movement: InsertRawMaterialStockMovement): Promise<RawMaterialStockMovement>;
+  getRawMaterialStockMovements(tenantId: string, rawMaterialId?: string): Promise<RawMaterialStockMovement[]>;
+
+  // Bill of Materials
+  getBillOfMaterials(tenantId: string, productId?: string): Promise<BillOfMaterials[]>;
+  getBillOfMaterial(id: string, tenantId: string): Promise<BillOfMaterials | undefined>;
+  createBillOfMaterials(bom: InsertBillOfMaterials): Promise<BillOfMaterials>;
+  updateBillOfMaterials(id: string, tenantId: string, bom: Partial<InsertBillOfMaterials>): Promise<BillOfMaterials | undefined>;
+  deleteBillOfMaterials(id: string, tenantId: string): Promise<void>;
+
+  // BOM Components (tenant verified through parent BOM)
+  getBomComponents(bomId: string, tenantId: string): Promise<BomComponent[]>;
+  createBomComponent(component: InsertBomComponent, tenantId: string): Promise<BomComponent>;
+  updateBomComponent(id: string, bomId: string, tenantId: string, component: Partial<InsertBomComponent>): Promise<BomComponent | undefined>;
+  deleteBomComponent(id: string, bomId: string, tenantId: string): Promise<void>;
+
+  // Production Orders
+  getProductionOrders(tenantId: string): Promise<ProductionOrder[]>;
+  getProductionOrder(id: string, tenantId: string): Promise<ProductionOrder | undefined>;
+  createProductionOrder(order: InsertProductionOrder): Promise<ProductionOrder>;
+  updateProductionOrder(id: string, tenantId: string, order: Partial<InsertProductionOrder>): Promise<ProductionOrder | undefined>;
+  deleteProductionOrder(id: string, tenantId: string): Promise<void>;
+
+  // Production Stages (tenant verified through parent production order)
+  getProductionStages(productionOrderId: string, tenantId: string): Promise<ProductionStage[]>;
+  getProductionStage(id: string, productionOrderId: string, tenantId: string): Promise<ProductionStage | undefined>;
+  createProductionStage(stage: InsertProductionStage, tenantId: string): Promise<ProductionStage>;
+  updateProductionStage(id: string, productionOrderId: string, tenantId: string, stage: Partial<InsertProductionStage>): Promise<ProductionStage | undefined>;
+
+  // Delivery Orders
+  getDeliveryOrders(tenantId: string): Promise<DeliveryOrder[]>;
+  getDeliveryOrder(id: string, tenantId: string): Promise<DeliveryOrder | undefined>;
+  createDeliveryOrder(order: InsertDeliveryOrder): Promise<DeliveryOrder>;
+  updateDeliveryOrder(id: string, tenantId: string, order: Partial<InsertDeliveryOrder>): Promise<DeliveryOrder | undefined>;
+  deleteDeliveryOrder(id: string, tenantId: string): Promise<void>;
+
+  // Delivery Order Items (tenant verified through parent delivery order)
+  getDeliveryOrderItems(deliveryOrderId: string, tenantId: string): Promise<DeliveryOrderItem[]>;
+  createDeliveryOrderItem(item: InsertDeliveryOrderItem, tenantId: string): Promise<DeliveryOrderItem>;
+  updateDeliveryOrderItem(id: string, deliveryOrderId: string, tenantId: string, item: Partial<InsertDeliveryOrderItem>): Promise<DeliveryOrderItem | undefined>;
+
+  // Installation Orders
+  getInstallationOrders(tenantId: string): Promise<InstallationOrder[]>;
+  getInstallationOrder(id: string, tenantId: string): Promise<InstallationOrder | undefined>;
+  createInstallationOrder(order: InsertInstallationOrder): Promise<InstallationOrder>;
+  updateInstallationOrder(id: string, tenantId: string, order: Partial<InsertInstallationOrder>): Promise<InstallationOrder | undefined>;
+
+  // Furniture Sales Orders
+  getFurnitureSalesOrders(tenantId: string): Promise<FurnitureSalesOrder[]>;
+  getFurnitureSalesOrder(id: string, tenantId: string): Promise<FurnitureSalesOrder | undefined>;
+  createFurnitureSalesOrder(order: InsertFurnitureSalesOrder): Promise<FurnitureSalesOrder>;
+  updateFurnitureSalesOrder(id: string, tenantId: string, order: Partial<InsertFurnitureSalesOrder>): Promise<FurnitureSalesOrder | undefined>;
+  deleteFurnitureSalesOrder(id: string, tenantId: string): Promise<void>;
+
+  // Furniture Sales Order Items (tenant verified through parent sales order)
+  getFurnitureSalesOrderItems(salesOrderId: string, tenantId: string): Promise<FurnitureSalesOrderItem[]>;
+  createFurnitureSalesOrderItem(item: InsertFurnitureSalesOrderItem, tenantId: string): Promise<FurnitureSalesOrderItem>;
+  updateFurnitureSalesOrderItem(id: string, salesOrderId: string, tenantId: string, item: Partial<InsertFurnitureSalesOrderItem>): Promise<FurnitureSalesOrderItem | undefined>;
+  deleteFurnitureSalesOrderItem(id: string, salesOrderId: string, tenantId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1772,6 +1875,422 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(customerPortalInvites)
       .where(eq(customerPortalInvites.tenantId, tenantId))
       .orderBy(desc(customerPortalInvites.createdAt));
+  }
+
+  // ============================================
+  // FURNITURE MANUFACTURING MODULE
+  // ============================================
+
+  // Furniture Products
+  async getFurnitureProducts(tenantId: string): Promise<FurnitureProduct[]> {
+    return db.select().from(furnitureProducts)
+      .where(and(eq(furnitureProducts.tenantId, tenantId), sql`${furnitureProducts.deletedAt} IS NULL`))
+      .orderBy(desc(furnitureProducts.createdAt));
+  }
+
+  async getFurnitureProduct(id: string, tenantId: string): Promise<FurnitureProduct | undefined> {
+    const [product] = await db.select().from(furnitureProducts)
+      .where(and(eq(furnitureProducts.id, id), eq(furnitureProducts.tenantId, tenantId)));
+    return product;
+  }
+
+  async createFurnitureProduct(product: InsertFurnitureProduct): Promise<FurnitureProduct> {
+    const [created] = await db.insert(furnitureProducts).values(product).returning();
+    return created;
+  }
+
+  async updateFurnitureProduct(id: string, tenantId: string, product: Partial<InsertFurnitureProduct>): Promise<FurnitureProduct | undefined> {
+    const [updated] = await db.update(furnitureProducts)
+      .set({ ...product, updatedAt: new Date() })
+      .where(and(eq(furnitureProducts.id, id), eq(furnitureProducts.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteFurnitureProduct(id: string, tenantId: string): Promise<void> {
+    await db.update(furnitureProducts)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(furnitureProducts.id, id), eq(furnitureProducts.tenantId, tenantId)));
+  }
+
+  // Raw Material Categories
+  async getRawMaterialCategories(tenantId: string): Promise<RawMaterialCategory[]> {
+    return db.select().from(rawMaterialCategories)
+      .where(eq(rawMaterialCategories.tenantId, tenantId))
+      .orderBy(rawMaterialCategories.sortOrder);
+  }
+
+  async createRawMaterialCategory(category: InsertRawMaterialCategory): Promise<RawMaterialCategory> {
+    const [created] = await db.insert(rawMaterialCategories).values(category).returning();
+    return created;
+  }
+
+  async updateRawMaterialCategory(id: string, tenantId: string, category: Partial<InsertRawMaterialCategory>): Promise<RawMaterialCategory | undefined> {
+    const [updated] = await db.update(rawMaterialCategories)
+      .set({ ...category, updatedAt: new Date() })
+      .where(and(eq(rawMaterialCategories.id, id), eq(rawMaterialCategories.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteRawMaterialCategory(id: string, tenantId: string): Promise<void> {
+    await db.delete(rawMaterialCategories)
+      .where(and(eq(rawMaterialCategories.id, id), eq(rawMaterialCategories.tenantId, tenantId)));
+  }
+
+  // Raw Materials
+  async getRawMaterials(tenantId: string): Promise<RawMaterial[]> {
+    return db.select().from(rawMaterials)
+      .where(and(eq(rawMaterials.tenantId, tenantId), sql`${rawMaterials.deletedAt} IS NULL`))
+      .orderBy(desc(rawMaterials.createdAt));
+  }
+
+  async getRawMaterial(id: string, tenantId: string): Promise<RawMaterial | undefined> {
+    const [material] = await db.select().from(rawMaterials)
+      .where(and(eq(rawMaterials.id, id), eq(rawMaterials.tenantId, tenantId)));
+    return material;
+  }
+
+  async createRawMaterial(material: InsertRawMaterial): Promise<RawMaterial> {
+    const [created] = await db.insert(rawMaterials).values(material).returning();
+    return created;
+  }
+
+  async updateRawMaterial(id: string, tenantId: string, material: Partial<InsertRawMaterial>): Promise<RawMaterial | undefined> {
+    const [updated] = await db.update(rawMaterials)
+      .set({ ...material, updatedAt: new Date() })
+      .where(and(eq(rawMaterials.id, id), eq(rawMaterials.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteRawMaterial(id: string, tenantId: string): Promise<void> {
+    await db.update(rawMaterials)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(rawMaterials.id, id), eq(rawMaterials.tenantId, tenantId)));
+  }
+
+  async getLowStockRawMaterials(tenantId: string): Promise<RawMaterial[]> {
+    return db.select().from(rawMaterials)
+      .where(and(
+        eq(rawMaterials.tenantId, tenantId),
+        sql`${rawMaterials.deletedAt} IS NULL`,
+        sql`CAST(${rawMaterials.currentStock} AS DECIMAL) <= CAST(${rawMaterials.reorderPoint} AS DECIMAL)`
+      ));
+  }
+
+  // Raw Material Stock Movements
+  async createRawMaterialStockMovement(movement: InsertRawMaterialStockMovement): Promise<RawMaterialStockMovement> {
+    const [created] = await db.insert(rawMaterialStockMovements).values(movement).returning();
+    return created;
+  }
+
+  async getRawMaterialStockMovements(tenantId: string, rawMaterialId?: string): Promise<RawMaterialStockMovement[]> {
+    if (rawMaterialId) {
+      return db.select().from(rawMaterialStockMovements)
+        .where(and(eq(rawMaterialStockMovements.tenantId, tenantId), eq(rawMaterialStockMovements.rawMaterialId, rawMaterialId)))
+        .orderBy(desc(rawMaterialStockMovements.createdAt));
+    }
+    return db.select().from(rawMaterialStockMovements)
+      .where(eq(rawMaterialStockMovements.tenantId, tenantId))
+      .orderBy(desc(rawMaterialStockMovements.createdAt));
+  }
+
+  // Bill of Materials
+  async getBillOfMaterials(tenantId: string, productId?: string): Promise<BillOfMaterials[]> {
+    if (productId) {
+      return db.select().from(billOfMaterials)
+        .where(and(eq(billOfMaterials.tenantId, tenantId), eq(billOfMaterials.productId, productId), sql`${billOfMaterials.deletedAt} IS NULL`))
+        .orderBy(desc(billOfMaterials.version));
+    }
+    return db.select().from(billOfMaterials)
+      .where(and(eq(billOfMaterials.tenantId, tenantId), sql`${billOfMaterials.deletedAt} IS NULL`))
+      .orderBy(desc(billOfMaterials.createdAt));
+  }
+
+  async getBillOfMaterial(id: string, tenantId: string): Promise<BillOfMaterials | undefined> {
+    const [bom] = await db.select().from(billOfMaterials)
+      .where(and(eq(billOfMaterials.id, id), eq(billOfMaterials.tenantId, tenantId)));
+    return bom;
+  }
+
+  async createBillOfMaterials(bom: InsertBillOfMaterials): Promise<BillOfMaterials> {
+    const [created] = await db.insert(billOfMaterials).values(bom).returning();
+    return created;
+  }
+
+  async updateBillOfMaterials(id: string, tenantId: string, bom: Partial<InsertBillOfMaterials>): Promise<BillOfMaterials | undefined> {
+    const [updated] = await db.update(billOfMaterials)
+      .set({ ...bom, updatedAt: new Date() })
+      .where(and(eq(billOfMaterials.id, id), eq(billOfMaterials.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteBillOfMaterials(id: string, tenantId: string): Promise<void> {
+    await db.update(billOfMaterials)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(billOfMaterials.id, id), eq(billOfMaterials.tenantId, tenantId)));
+  }
+
+  // BOM Components (tenant verified through parent BOM)
+  async getBomComponents(bomId: string, tenantId: string): Promise<BomComponent[]> {
+    // Verify BOM belongs to tenant
+    const bom = await this.getBillOfMaterial(bomId, tenantId);
+    if (!bom) return [];
+    return db.select().from(bomComponents)
+      .where(eq(bomComponents.bomId, bomId))
+      .orderBy(bomComponents.sortOrder);
+  }
+
+  async createBomComponent(component: InsertBomComponent, tenantId: string): Promise<BomComponent> {
+    // Verify parent BOM belongs to tenant
+    const bom = await this.getBillOfMaterial(component.bomId, tenantId);
+    if (!bom) throw new Error("BOM not found or access denied");
+    const [created] = await db.insert(bomComponents).values(component).returning();
+    return created;
+  }
+
+  async updateBomComponent(id: string, bomId: string, tenantId: string, component: Partial<InsertBomComponent>): Promise<BomComponent | undefined> {
+    // Verify parent BOM belongs to tenant
+    const bom = await this.getBillOfMaterial(bomId, tenantId);
+    if (!bom) return undefined;
+    const [updated] = await db.update(bomComponents)
+      .set({ ...component, updatedAt: new Date() })
+      .where(and(eq(bomComponents.id, id), eq(bomComponents.bomId, bomId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteBomComponent(id: string, bomId: string, tenantId: string): Promise<void> {
+    // Verify parent BOM belongs to tenant
+    const bom = await this.getBillOfMaterial(bomId, tenantId);
+    if (!bom) return;
+    await db.delete(bomComponents).where(and(eq(bomComponents.id, id), eq(bomComponents.bomId, bomId)));
+  }
+
+  // Production Orders
+  async getProductionOrders(tenantId: string): Promise<ProductionOrder[]> {
+    return db.select().from(productionOrders)
+      .where(and(eq(productionOrders.tenantId, tenantId), sql`${productionOrders.deletedAt} IS NULL`))
+      .orderBy(desc(productionOrders.createdAt));
+  }
+
+  async getProductionOrder(id: string, tenantId: string): Promise<ProductionOrder | undefined> {
+    const [order] = await db.select().from(productionOrders)
+      .where(and(eq(productionOrders.id, id), eq(productionOrders.tenantId, tenantId)));
+    return order;
+  }
+
+  async createProductionOrder(order: InsertProductionOrder): Promise<ProductionOrder> {
+    const [created] = await db.insert(productionOrders).values(order).returning();
+    return created;
+  }
+
+  async updateProductionOrder(id: string, tenantId: string, order: Partial<InsertProductionOrder>): Promise<ProductionOrder | undefined> {
+    const [updated] = await db.update(productionOrders)
+      .set({ ...order, updatedAt: new Date() })
+      .where(and(eq(productionOrders.id, id), eq(productionOrders.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteProductionOrder(id: string, tenantId: string): Promise<void> {
+    await db.update(productionOrders)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(productionOrders.id, id), eq(productionOrders.tenantId, tenantId)));
+  }
+
+  // Production Stages (tenant verified through parent production order)
+  async getProductionStages(productionOrderId: string, tenantId: string): Promise<ProductionStage[]> {
+    // Verify production order belongs to tenant
+    const order = await this.getProductionOrder(productionOrderId, tenantId);
+    if (!order) return [];
+    return db.select().from(productionStages)
+      .where(eq(productionStages.productionOrderId, productionOrderId))
+      .orderBy(productionStages.stageOrder);
+  }
+
+  async getProductionStage(id: string, productionOrderId: string, tenantId: string): Promise<ProductionStage | undefined> {
+    // Verify production order belongs to tenant
+    const order = await this.getProductionOrder(productionOrderId, tenantId);
+    if (!order) return undefined;
+    const [stage] = await db.select().from(productionStages)
+      .where(and(eq(productionStages.id, id), eq(productionStages.productionOrderId, productionOrderId)));
+    return stage;
+  }
+
+  async createProductionStage(stage: InsertProductionStage, tenantId: string): Promise<ProductionStage> {
+    // Verify parent production order belongs to tenant
+    const order = await this.getProductionOrder(stage.productionOrderId, tenantId);
+    if (!order) throw new Error("Production order not found or access denied");
+    const [created] = await db.insert(productionStages).values(stage).returning();
+    return created;
+  }
+
+  async updateProductionStage(id: string, productionOrderId: string, tenantId: string, stage: Partial<InsertProductionStage>): Promise<ProductionStage | undefined> {
+    // Verify parent production order belongs to tenant
+    const order = await this.getProductionOrder(productionOrderId, tenantId);
+    if (!order) return undefined;
+    const [updated] = await db.update(productionStages)
+      .set({ ...stage, updatedAt: new Date() })
+      .where(and(eq(productionStages.id, id), eq(productionStages.productionOrderId, productionOrderId)))
+      .returning();
+    return updated;
+  }
+
+  // Delivery Orders
+  async getDeliveryOrders(tenantId: string): Promise<DeliveryOrder[]> {
+    return db.select().from(deliveryOrders)
+      .where(and(eq(deliveryOrders.tenantId, tenantId), sql`${deliveryOrders.deletedAt} IS NULL`))
+      .orderBy(desc(deliveryOrders.createdAt));
+  }
+
+  async getDeliveryOrder(id: string, tenantId: string): Promise<DeliveryOrder | undefined> {
+    const [order] = await db.select().from(deliveryOrders)
+      .where(and(eq(deliveryOrders.id, id), eq(deliveryOrders.tenantId, tenantId)));
+    return order;
+  }
+
+  async createDeliveryOrder(order: InsertDeliveryOrder): Promise<DeliveryOrder> {
+    const [created] = await db.insert(deliveryOrders).values(order).returning();
+    return created;
+  }
+
+  async updateDeliveryOrder(id: string, tenantId: string, order: Partial<InsertDeliveryOrder>): Promise<DeliveryOrder | undefined> {
+    const [updated] = await db.update(deliveryOrders)
+      .set({ ...order, updatedAt: new Date() })
+      .where(and(eq(deliveryOrders.id, id), eq(deliveryOrders.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteDeliveryOrder(id: string, tenantId: string): Promise<void> {
+    await db.update(deliveryOrders)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(deliveryOrders.id, id), eq(deliveryOrders.tenantId, tenantId)));
+  }
+
+  // Delivery Order Items (tenant verified through parent delivery order)
+  async getDeliveryOrderItems(deliveryOrderId: string, tenantId: string): Promise<DeliveryOrderItem[]> {
+    // Verify delivery order belongs to tenant
+    const order = await this.getDeliveryOrder(deliveryOrderId, tenantId);
+    if (!order) return [];
+    return db.select().from(deliveryOrderItems)
+      .where(eq(deliveryOrderItems.deliveryOrderId, deliveryOrderId));
+  }
+
+  async createDeliveryOrderItem(item: InsertDeliveryOrderItem, tenantId: string): Promise<DeliveryOrderItem> {
+    // Verify parent delivery order belongs to tenant
+    const order = await this.getDeliveryOrder(item.deliveryOrderId, tenantId);
+    if (!order) throw new Error("Delivery order not found or access denied");
+    const [created] = await db.insert(deliveryOrderItems).values(item).returning();
+    return created;
+  }
+
+  async updateDeliveryOrderItem(id: string, deliveryOrderId: string, tenantId: string, item: Partial<InsertDeliveryOrderItem>): Promise<DeliveryOrderItem | undefined> {
+    // Verify parent delivery order belongs to tenant
+    const order = await this.getDeliveryOrder(deliveryOrderId, tenantId);
+    if (!order) return undefined;
+    const [updated] = await db.update(deliveryOrderItems)
+      .set(item)
+      .where(and(eq(deliveryOrderItems.id, id), eq(deliveryOrderItems.deliveryOrderId, deliveryOrderId)))
+      .returning();
+    return updated;
+  }
+
+  // Installation Orders
+  async getInstallationOrders(tenantId: string): Promise<InstallationOrder[]> {
+    return db.select().from(installationOrders)
+      .where(and(eq(installationOrders.tenantId, tenantId), sql`${installationOrders.deletedAt} IS NULL`))
+      .orderBy(desc(installationOrders.createdAt));
+  }
+
+  async getInstallationOrder(id: string, tenantId: string): Promise<InstallationOrder | undefined> {
+    const [order] = await db.select().from(installationOrders)
+      .where(and(eq(installationOrders.id, id), eq(installationOrders.tenantId, tenantId)));
+    return order;
+  }
+
+  async createInstallationOrder(order: InsertInstallationOrder): Promise<InstallationOrder> {
+    const [created] = await db.insert(installationOrders).values(order).returning();
+    return created;
+  }
+
+  async updateInstallationOrder(id: string, tenantId: string, order: Partial<InsertInstallationOrder>): Promise<InstallationOrder | undefined> {
+    const [updated] = await db.update(installationOrders)
+      .set({ ...order, updatedAt: new Date() })
+      .where(and(eq(installationOrders.id, id), eq(installationOrders.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  // Furniture Sales Orders
+  async getFurnitureSalesOrders(tenantId: string): Promise<FurnitureSalesOrder[]> {
+    return db.select().from(furnitureSalesOrders)
+      .where(and(eq(furnitureSalesOrders.tenantId, tenantId), sql`${furnitureSalesOrders.deletedAt} IS NULL`))
+      .orderBy(desc(furnitureSalesOrders.createdAt));
+  }
+
+  async getFurnitureSalesOrder(id: string, tenantId: string): Promise<FurnitureSalesOrder | undefined> {
+    const [order] = await db.select().from(furnitureSalesOrders)
+      .where(and(eq(furnitureSalesOrders.id, id), eq(furnitureSalesOrders.tenantId, tenantId)));
+    return order;
+  }
+
+  async createFurnitureSalesOrder(order: InsertFurnitureSalesOrder): Promise<FurnitureSalesOrder> {
+    const [created] = await db.insert(furnitureSalesOrders).values(order).returning();
+    return created;
+  }
+
+  async updateFurnitureSalesOrder(id: string, tenantId: string, order: Partial<InsertFurnitureSalesOrder>): Promise<FurnitureSalesOrder | undefined> {
+    const [updated] = await db.update(furnitureSalesOrders)
+      .set({ ...order, updatedAt: new Date() })
+      .where(and(eq(furnitureSalesOrders.id, id), eq(furnitureSalesOrders.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteFurnitureSalesOrder(id: string, tenantId: string): Promise<void> {
+    await db.update(furnitureSalesOrders)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(furnitureSalesOrders.id, id), eq(furnitureSalesOrders.tenantId, tenantId)));
+  }
+
+  // Furniture Sales Order Items (tenant verified through parent sales order)
+  async getFurnitureSalesOrderItems(salesOrderId: string, tenantId: string): Promise<FurnitureSalesOrderItem[]> {
+    // Verify sales order belongs to tenant
+    const order = await this.getFurnitureSalesOrder(salesOrderId, tenantId);
+    if (!order) return [];
+    return db.select().from(furnitureSalesOrderItems)
+      .where(eq(furnitureSalesOrderItems.salesOrderId, salesOrderId))
+      .orderBy(furnitureSalesOrderItems.sortOrder);
+  }
+
+  async createFurnitureSalesOrderItem(item: InsertFurnitureSalesOrderItem, tenantId: string): Promise<FurnitureSalesOrderItem> {
+    // Verify parent sales order belongs to tenant
+    const order = await this.getFurnitureSalesOrder(item.salesOrderId, tenantId);
+    if (!order) throw new Error("Sales order not found or access denied");
+    const [created] = await db.insert(furnitureSalesOrderItems).values(item).returning();
+    return created;
+  }
+
+  async updateFurnitureSalesOrderItem(id: string, salesOrderId: string, tenantId: string, item: Partial<InsertFurnitureSalesOrderItem>): Promise<FurnitureSalesOrderItem | undefined> {
+    // Verify parent sales order belongs to tenant
+    const order = await this.getFurnitureSalesOrder(salesOrderId, tenantId);
+    if (!order) return undefined;
+    const [updated] = await db.update(furnitureSalesOrderItems)
+      .set({ ...item, updatedAt: new Date() })
+      .where(and(eq(furnitureSalesOrderItems.id, id), eq(furnitureSalesOrderItems.salesOrderId, salesOrderId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteFurnitureSalesOrderItem(id: string, salesOrderId: string, tenantId: string): Promise<void> {
+    // Verify parent sales order belongs to tenant
+    const order = await this.getFurnitureSalesOrder(salesOrderId, tenantId);
+    if (!order) return;
+    await db.delete(furnitureSalesOrderItems).where(and(eq(furnitureSalesOrderItems.id, id), eq(furnitureSalesOrderItems.salesOrderId, salesOrderId)));
   }
 }
 

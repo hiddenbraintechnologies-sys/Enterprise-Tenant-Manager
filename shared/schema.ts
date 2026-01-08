@@ -27,7 +27,8 @@ export const businessTypeEnum = pgEnum("business_type", [
   "tourism",
   "education",
   "logistics",
-  "legal"
+  "legal",
+  "furniture_manufacturing"
 ]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore", "other"]);
@@ -6425,3 +6426,802 @@ export type InsertCustomerPortalSession = z.infer<typeof insertCustomerPortalSes
 
 export type CustomerPortalInvite = typeof customerPortalInvites.$inferSelect;
 export type InsertCustomerPortalInvite = z.infer<typeof insertCustomerPortalInviteSchema>;
+
+// ============================================
+// FURNITURE MANUFACTURING MODULE
+// ============================================
+
+// Furniture product type enum
+export const furnitureProductTypeEnum = pgEnum("furniture_product_type", [
+  "ready_made",      // Ready to sell from inventory
+  "made_to_order",   // Custom manufacturing required
+  "semi_finished"    // Partially completed product
+]);
+
+// Furniture material type enum
+export const furnitureMaterialTypeEnum = pgEnum("furniture_material_type", [
+  "wood",
+  "metal",
+  "fabric",
+  "leather",
+  "glass",
+  "plastic",
+  "composite",
+  "other"
+]);
+
+// Production order status enum
+export const productionOrderStatusEnum = pgEnum("production_order_status", [
+  "draft",
+  "pending",
+  "in_progress",
+  "on_hold",
+  "completed",
+  "cancelled"
+]);
+
+// Production stage type enum
+export const productionStageTypeEnum = pgEnum("production_stage_type", [
+  "cutting",
+  "assembly",
+  "finishing",
+  "quality_check",
+  "ready_for_dispatch",
+  "custom"
+]);
+
+// Production stage status enum
+export const productionStageStatusEnum = pgEnum("production_stage_status", [
+  "pending",
+  "in_progress",
+  "completed",
+  "skipped",
+  "failed"
+]);
+
+// Delivery status enum
+export const deliveryStatusEnum = pgEnum("delivery_status", [
+  "pending",
+  "scheduled",
+  "in_transit",
+  "delivered",
+  "failed",
+  "cancelled"
+]);
+
+// Installation status enum  
+export const installationStatusEnum = pgEnum("installation_status", [
+  "not_required",
+  "pending",
+  "scheduled",
+  "in_progress",
+  "completed",
+  "cancelled"
+]);
+
+// Invoice document type enum for furniture module
+export const furnitureInvoiceTypeEnum = pgEnum("furniture_invoice_type", [
+  "proforma",
+  "tax_invoice",
+  "delivery_challan",
+  "advance_receipt",
+  "final_invoice"
+]);
+
+// ============================================
+// FURNITURE: PRODUCT CATALOG EXTENSION
+// ============================================
+
+// Furniture products table - extends base product catalog
+export const furnitureProducts = pgTable("furniture_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  sku: varchar("sku", { length: 100 }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  productType: furnitureProductTypeEnum("product_type").notNull().default("ready_made"),
+  materialType: furnitureMaterialTypeEnum("material_type").notNull().default("wood"),
+  
+  // Dimensions in CM
+  dimensionLength: decimal("dimension_length", { precision: 10, scale: 2 }),
+  dimensionWidth: decimal("dimension_width", { precision: 10, scale: 2 }),
+  dimensionHeight: decimal("dimension_height", { precision: 10, scale: 2 }),
+  weight: decimal("weight", { precision: 10, scale: 2 }), // in KG
+  
+  // Finish and appearance
+  finish: varchar("finish", { length: 100 }),
+  color: varchar("color", { length: 50 }),
+  
+  // Pricing
+  costPrice: decimal("cost_price", { precision: 12, scale: 2 }).notNull(),
+  sellingPrice: decimal("selling_price", { precision: 12, scale: 2 }).notNull(),
+  wholesalePrice: decimal("wholesale_price", { precision: 12, scale: 2 }),
+  
+  // Tax category
+  hsnCode: varchar("hsn_code", { length: 20 }),
+  gstRate: decimal("gst_rate", { precision: 5, scale: 2 }).default("18"),
+  taxCategory: varchar("tax_category", { length: 50 }),
+  
+  // Inventory
+  currentStock: integer("current_stock").default(0),
+  minStockLevel: integer("min_stock_level").default(0),
+  maxStockLevel: integer("max_stock_level"),
+  reorderPoint: integer("reorder_point").default(5),
+  
+  // Customization
+  allowCustomDimensions: boolean("allow_custom_dimensions").default(false),
+  customizationOptions: jsonb("customization_options").default([]),
+  
+  // Media
+  images: jsonb("images").default([]),
+  
+  // Status
+  isActive: boolean("is_active").default(true),
+  
+  // Manufacturing
+  defaultBomId: varchar("default_bom_id"),
+  manufacturingLeadTime: integer("manufacturing_lead_time"), // in days
+  
+  // Category
+  categoryId: varchar("category_id").references(() => inventoryCategories.id),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_furniture_products_tenant").on(table.tenantId),
+  uniqueIndex("idx_furniture_products_sku").on(table.tenantId, table.sku),
+  index("idx_furniture_products_type").on(table.tenantId, table.productType),
+  index("idx_furniture_products_material").on(table.tenantId, table.materialType),
+  index("idx_furniture_products_category").on(table.categoryId),
+]);
+
+// ============================================
+// FURNITURE: RAW MATERIALS INVENTORY
+// ============================================
+
+// Raw material categories
+export const rawMaterialCategories = pgTable("raw_material_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  parentId: varchar("parent_id"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_raw_material_categories_tenant").on(table.tenantId),
+  index("idx_raw_material_categories_parent").on(table.parentId),
+]);
+
+// Raw materials inventory items
+export const rawMaterials = pgTable("raw_materials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  categoryId: varchar("category_id").references(() => rawMaterialCategories.id),
+  
+  sku: varchar("sku", { length: 100 }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  // Units of measurement
+  unitOfMeasure: varchar("unit_of_measure", { length: 20 }).notNull(), // sqft, pcs, kg, meter, etc.
+  conversionFactor: decimal("conversion_factor", { precision: 10, scale: 4 }).default("1"),
+  
+  // Pricing
+  unitCost: decimal("unit_cost", { precision: 12, scale: 2 }).notNull(),
+  lastPurchasePrice: decimal("last_purchase_price", { precision: 12, scale: 2 }),
+  
+  // Stock levels
+  currentStock: decimal("current_stock", { precision: 12, scale: 4 }).default("0"),
+  minStockLevel: decimal("min_stock_level", { precision: 12, scale: 4 }).default("0"),
+  maxStockLevel: decimal("max_stock_level", { precision: 12, scale: 4 }),
+  reorderPoint: decimal("reorder_point", { precision: 12, scale: 4 }).default("0"),
+  
+  // Location
+  warehouseLocation: varchar("warehouse_location", { length: 100 }),
+  
+  // Supplier info
+  preferredSupplierId: varchar("preferred_supplier_id"),
+  
+  // Batch/Lot tracking
+  enableBatchTracking: boolean("enable_batch_tracking").default(false),
+  
+  // HSN for GST
+  hsnCode: varchar("hsn_code", { length: 20 }),
+  gstRate: decimal("gst_rate", { precision: 5, scale: 2 }).default("18"),
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_raw_materials_tenant").on(table.tenantId),
+  uniqueIndex("idx_raw_materials_sku").on(table.tenantId, table.sku),
+  index("idx_raw_materials_category").on(table.categoryId),
+]);
+
+// Raw material stock movements
+export const rawMaterialStockMovements = pgTable("raw_material_stock_movements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  rawMaterialId: varchar("raw_material_id").notNull().references(() => rawMaterials.id, { onDelete: "cascade" }),
+  
+  movementType: varchar("movement_type", { length: 20 }).notNull(), // in, out, adjustment
+  quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull(),
+  balanceAfter: decimal("balance_after", { precision: 12, scale: 4 }).notNull(),
+  
+  // Reference
+  referenceType: varchar("reference_type", { length: 50 }), // purchase_order, production_order, adjustment
+  referenceId: varchar("reference_id"),
+  
+  // Batch info
+  batchNumber: varchar("batch_number", { length: 100 }),
+  lotNumber: varchar("lot_number", { length: 100 }),
+  
+  // Cost tracking
+  unitCost: decimal("unit_cost", { precision: 12, scale: 2 }),
+  totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
+  
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_raw_material_movements_tenant").on(table.tenantId),
+  index("idx_raw_material_movements_material").on(table.rawMaterialId),
+  index("idx_raw_material_movements_type").on(table.movementType),
+  index("idx_raw_material_movements_created").on(table.createdAt),
+]);
+
+// ============================================
+// FURNITURE: BILL OF MATERIALS (BOM)
+// ============================================
+
+// Bill of Materials header
+export const billOfMaterials = pgTable("bill_of_materials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").notNull().references(() => furnitureProducts.id, { onDelete: "cascade" }),
+  
+  name: varchar("name", { length: 255 }).notNull(),
+  version: integer("version").default(1),
+  description: text("description"),
+  
+  // Calculated costs
+  totalMaterialCost: decimal("total_material_cost", { precision: 12, scale: 2 }).default("0"),
+  laborCost: decimal("labor_cost", { precision: 12, scale: 2 }).default("0"),
+  overheadCost: decimal("overhead_cost", { precision: 12, scale: 2 }).default("0"),
+  totalCost: decimal("total_cost", { precision: 12, scale: 2 }).default("0"),
+  
+  // Yields one unit of the product
+  yieldQuantity: integer("yield_quantity").default(1),
+  
+  isActive: boolean("is_active").default(true),
+  isPrimary: boolean("is_primary").default(false), // Primary BOM for the product
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_bom_tenant").on(table.tenantId),
+  index("idx_bom_product").on(table.productId),
+  uniqueIndex("idx_bom_product_version").on(table.tenantId, table.productId, table.version),
+]);
+
+// BOM components/items
+export const bomComponents = pgTable("bom_components", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bomId: varchar("bom_id").notNull().references(() => billOfMaterials.id, { onDelete: "cascade" }),
+  rawMaterialId: varchar("raw_material_id").notNull().references(() => rawMaterials.id, { onDelete: "cascade" }),
+  
+  quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull(),
+  unitOfMeasure: varchar("unit_of_measure", { length: 20 }).notNull(),
+  
+  // Waste/scrap allowance
+  wastePercentage: decimal("waste_percentage", { precision: 5, scale: 2 }).default("0"),
+  effectiveQuantity: decimal("effective_quantity", { precision: 12, scale: 4 }), // quantity * (1 + wastePercentage/100)
+  
+  // Cost
+  unitCost: decimal("unit_cost", { precision: 12, scale: 2 }),
+  totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
+  
+  notes: text("notes"),
+  sortOrder: integer("sort_order").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_bom_components_bom").on(table.bomId),
+  index("idx_bom_components_material").on(table.rawMaterialId),
+]);
+
+// ============================================
+// FURNITURE: PRODUCTION ORDERS
+// ============================================
+
+// Production orders
+export const productionOrders = pgTable("production_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  orderNumber: varchar("order_number", { length: 50 }).notNull(),
+  
+  // Link to product and BOM
+  productId: varchar("product_id").notNull().references(() => furnitureProducts.id),
+  bomId: varchar("bom_id").references(() => billOfMaterials.id),
+  
+  // Link to sales order (if created from sales order)
+  salesOrderId: varchar("sales_order_id"),
+  
+  // Production details
+  quantity: integer("quantity").notNull().default(1),
+  
+  // Custom dimensions for made-to-order
+  customDimensions: jsonb("custom_dimensions").default({}),
+  customSpecifications: jsonb("custom_specifications").default({}),
+  
+  // Status
+  status: productionOrderStatusEnum("status").default("draft"),
+  
+  // Scheduling
+  scheduledStartDate: date("scheduled_start_date"),
+  scheduledEndDate: date("scheduled_end_date"),
+  actualStartDate: date("actual_start_date"),
+  actualEndDate: date("actual_end_date"),
+  
+  // Assignment
+  assignedToId: varchar("assigned_to_id").references(() => staff.id),
+  
+  // Priority (1-5, 1 being highest)
+  priority: integer("priority").default(3),
+  
+  // Costing
+  estimatedCost: decimal("estimated_cost", { precision: 12, scale: 2 }),
+  actualCost: decimal("actual_cost", { precision: 12, scale: 2 }),
+  
+  // Wastage tracking
+  totalWastage: decimal("total_wastage", { precision: 12, scale: 4 }),
+  wastageNotes: text("wastage_notes"),
+  
+  notes: text("notes"),
+  internalNotes: text("internal_notes"),
+  
+  completedQuantity: integer("completed_quantity").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_production_orders_tenant").on(table.tenantId),
+  uniqueIndex("idx_production_orders_number").on(table.tenantId, table.orderNumber),
+  index("idx_production_orders_product").on(table.productId),
+  index("idx_production_orders_status").on(table.tenantId, table.status),
+  index("idx_production_orders_scheduled").on(table.tenantId, table.scheduledStartDate),
+]);
+
+// Production stages/steps
+export const productionStages = pgTable("production_stages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productionOrderId: varchar("production_order_id").notNull().references(() => productionOrders.id, { onDelete: "cascade" }),
+  
+  stageType: productionStageTypeEnum("stage_type").notNull(),
+  customStageName: varchar("custom_stage_name", { length: 100 }),
+  
+  stageOrder: integer("stage_order").notNull(),
+  
+  status: productionStageStatusEnum("status").default("pending"),
+  
+  // Assignment
+  assignedToId: varchar("assigned_to_id").references(() => staff.id),
+  
+  // Timing
+  scheduledStartTime: timestamp("scheduled_start_time"),
+  scheduledEndTime: timestamp("scheduled_end_time"),
+  actualStartTime: timestamp("actual_start_time"),
+  actualEndTime: timestamp("actual_end_time"),
+  
+  // Tracking
+  wastageRecorded: decimal("wastage_recorded", { precision: 12, scale: 4 }),
+  wastageNotes: text("wastage_notes"),
+  
+  // Quality check
+  qualityCheckPassed: boolean("quality_check_passed"),
+  qualityNotes: text("quality_notes"),
+  
+  notes: text("notes"),
+  
+  completedBy: varchar("completed_by").references(() => users.id),
+  completedAt: timestamp("completed_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_production_stages_order").on(table.productionOrderId),
+  index("idx_production_stages_status").on(table.status),
+  index("idx_production_stages_assigned").on(table.assignedToId),
+]);
+
+// ============================================
+// FURNITURE: DELIVERY & INSTALLATION
+// ============================================
+
+// Delivery orders
+export const deliveryOrders = pgTable("delivery_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  deliveryNumber: varchar("delivery_number", { length: 50 }).notNull(),
+  
+  // Reference to sales order or invoice
+  salesOrderId: varchar("sales_order_id"),
+  invoiceId: varchar("invoice_id").references(() => invoices.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  
+  // Delivery details
+  deliveryStatus: deliveryStatusEnum("delivery_status").default("pending"),
+  
+  // Scheduling
+  scheduledDate: date("scheduled_date"),
+  scheduledTimeSlot: varchar("scheduled_time_slot", { length: 50 }),
+  
+  actualDeliveryDate: date("actual_delivery_date"),
+  actualDeliveryTime: time("actual_delivery_time"),
+  
+  // Address
+  deliveryAddress: text("delivery_address").notNull(),
+  deliveryCity: varchar("delivery_city", { length: 100 }),
+  deliveryState: varchar("delivery_state", { length: 100 }),
+  deliveryPincode: varchar("delivery_pincode", { length: 20 }),
+  deliveryContact: varchar("delivery_contact", { length: 100 }),
+  deliveryPhone: varchar("delivery_phone", { length: 20 }),
+  
+  // Assignment
+  driverId: varchar("driver_id").references(() => staff.id),
+  vehicleNumber: varchar("vehicle_number", { length: 50 }),
+  
+  // Delivery charges
+  deliveryCharges: decimal("delivery_charges", { precision: 10, scale: 2 }).default("0"),
+  
+  // Proof of delivery
+  podSignature: text("pod_signature"), // Base64 signature
+  podPhoto: text("pod_photo"), // Photo URL
+  podNotes: text("pod_notes"),
+  
+  // Tracking
+  trackingUrl: text("tracking_url"),
+  
+  notes: text("notes"),
+  internalNotes: text("internal_notes"),
+  
+  failureReason: text("failure_reason"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_delivery_orders_tenant").on(table.tenantId),
+  uniqueIndex("idx_delivery_orders_number").on(table.tenantId, table.deliveryNumber),
+  index("idx_delivery_orders_customer").on(table.customerId),
+  index("idx_delivery_orders_status").on(table.tenantId, table.deliveryStatus),
+  index("idx_delivery_orders_scheduled").on(table.tenantId, table.scheduledDate),
+]);
+
+// Delivery order items
+export const deliveryOrderItems = pgTable("delivery_order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  deliveryOrderId: varchar("delivery_order_id").notNull().references(() => deliveryOrders.id, { onDelete: "cascade" }),
+  
+  productId: varchar("product_id").references(() => furnitureProducts.id),
+  productionOrderId: varchar("production_order_id").references(() => productionOrders.id),
+  
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  
+  // Dimensions for custom items
+  dimensions: jsonb("dimensions").default({}),
+  
+  isDelivered: boolean("is_delivered").default(false),
+  deliveredAt: timestamp("delivered_at"),
+  
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_delivery_items_order").on(table.deliveryOrderId),
+  index("idx_delivery_items_product").on(table.productId),
+]);
+
+// Installation orders
+export const installationOrders = pgTable("installation_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  installationNumber: varchar("installation_number", { length: 50 }).notNull(),
+  
+  // Link to delivery
+  deliveryOrderId: varchar("delivery_order_id").references(() => deliveryOrders.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  
+  // Status
+  installationStatus: installationStatusEnum("installation_status").default("pending"),
+  
+  // Scheduling
+  scheduledDate: date("scheduled_date"),
+  scheduledTimeSlot: varchar("scheduled_time_slot", { length: 50 }),
+  
+  actualDate: date("actual_date"),
+  actualStartTime: time("actual_start_time"),
+  actualEndTime: time("actual_end_time"),
+  
+  // Assignment
+  installerId: varchar("installer_id").references(() => staff.id),
+  helperIds: jsonb("helper_ids").default([]), // Array of staff IDs
+  
+  // Installation charges
+  installationCharges: decimal("installation_charges", { precision: 10, scale: 2 }).default("0"),
+  
+  // Completion
+  completionPhoto: text("completion_photo"),
+  customerSignature: text("customer_signature"),
+  customerFeedback: text("customer_feedback"),
+  customerRating: integer("customer_rating"), // 1-5
+  
+  notes: text("notes"),
+  internalNotes: text("internal_notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_installation_orders_tenant").on(table.tenantId),
+  uniqueIndex("idx_installation_orders_number").on(table.tenantId, table.installationNumber),
+  index("idx_installation_orders_customer").on(table.customerId),
+  index("idx_installation_orders_delivery").on(table.deliveryOrderId),
+  index("idx_installation_orders_status").on(table.tenantId, table.installationStatus),
+]);
+
+// ============================================
+// FURNITURE: SALES ORDERS EXTENSION
+// ============================================
+
+// Sales orders for furniture (extends existing orders)
+export const furnitureSalesOrders = pgTable("furniture_sales_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  orderNumber: varchar("order_number", { length: 50 }).notNull(),
+  
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  
+  // Order type
+  orderType: varchar("order_type", { length: 20 }).notNull().default("retail"), // retail, wholesale, b2b
+  
+  // Status
+  status: varchar("status", { length: 20 }).notNull().default("draft"), // draft, confirmed, processing, ready, delivered, completed, cancelled
+  
+  // Amounts
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  deliveryCharges: decimal("delivery_charges", { precision: 12, scale: 2 }).default("0"),
+  installationCharges: decimal("installation_charges", { precision: 12, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  
+  // Payments
+  advanceAmount: decimal("advance_amount", { precision: 12, scale: 2 }).default("0"),
+  paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
+  balanceAmount: decimal("balance_amount", { precision: 12, scale: 2 }),
+  
+  // Currency
+  currency: varchar("currency", { length: 5 }).default("INR").notNull(),
+  exchangeRate: decimal("exchange_rate", { precision: 12, scale: 6 }).default("1.000000"),
+  
+  // Delivery
+  expectedDeliveryDate: date("expected_delivery_date"),
+  deliveryAddress: text("delivery_address"),
+  
+  // Delivery order reference
+  deliveryOrderId: varchar("delivery_order_id").references(() => deliveryOrders.id),
+  
+  // Installation required
+  requiresInstallation: boolean("requires_installation").default(false),
+  installationOrderId: varchar("installation_order_id").references(() => installationOrders.id),
+  
+  notes: text("notes"),
+  internalNotes: text("internal_notes"),
+  termsAndConditions: text("terms_and_conditions"),
+  
+  // Sales person
+  salesPersonId: varchar("sales_person_id").references(() => staff.id),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_furniture_sales_orders_tenant").on(table.tenantId),
+  uniqueIndex("idx_furniture_sales_orders_number").on(table.tenantId, table.orderNumber),
+  index("idx_furniture_sales_orders_customer").on(table.customerId),
+  index("idx_furniture_sales_orders_status").on(table.tenantId, table.status),
+]);
+
+// Sales order line items
+export const furnitureSalesOrderItems = pgTable("furniture_sales_order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  salesOrderId: varchar("sales_order_id").notNull().references(() => furnitureSalesOrders.id, { onDelete: "cascade" }),
+  
+  productId: varchar("product_id").references(() => furnitureProducts.id),
+  
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  
+  // Custom dimensions (for made-to-order)
+  customLength: decimal("custom_length", { precision: 10, scale: 2 }),
+  customWidth: decimal("custom_width", { precision: 10, scale: 2 }),
+  customHeight: decimal("custom_height", { precision: 10, scale: 2 }),
+  customSpecifications: jsonb("custom_specifications").default({}),
+  
+  // Pricing
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }).default("0"),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  totalPrice: decimal("total_price", { precision: 12, scale: 2 }).notNull(),
+  
+  // HSN for GST
+  hsnCode: varchar("hsn_code", { length: 20 }),
+  
+  // Link to production order (for made-to-order items)
+  productionOrderId: varchar("production_order_id").references(() => productionOrders.id),
+  
+  // Delivery status per item
+  deliveredQuantity: integer("delivered_quantity").default(0),
+  
+  notes: text("notes"),
+  sortOrder: integer("sort_order").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_furniture_sales_items_order").on(table.salesOrderId),
+  index("idx_furniture_sales_items_product").on(table.productId),
+]);
+
+// ============================================
+// FURNITURE MODULE: INSERT SCHEMAS
+// ============================================
+
+export const insertFurnitureProductSchema = createInsertSchema(furnitureProducts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertRawMaterialCategorySchema = createInsertSchema(rawMaterialCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertRawMaterialSchema = createInsertSchema(rawMaterials).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertRawMaterialStockMovementSchema = createInsertSchema(rawMaterialStockMovements).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertBillOfMaterialsSchema = createInsertSchema(billOfMaterials).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertBomComponentSchema = createInsertSchema(bomComponents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProductionOrderSchema = createInsertSchema(productionOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertProductionStageSchema = createInsertSchema(productionStages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDeliveryOrderSchema = createInsertSchema(deliveryOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertDeliveryOrderItemSchema = createInsertSchema(deliveryOrderItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInstallationOrderSchema = createInsertSchema(installationOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertFurnitureSalesOrderSchema = createInsertSchema(furnitureSalesOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertFurnitureSalesOrderItemSchema = createInsertSchema(furnitureSalesOrderItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// ============================================
+// FURNITURE MODULE: TYPES
+// ============================================
+
+export type FurnitureProduct = typeof furnitureProducts.$inferSelect;
+export type InsertFurnitureProduct = z.infer<typeof insertFurnitureProductSchema>;
+
+export type RawMaterialCategory = typeof rawMaterialCategories.$inferSelect;
+export type InsertRawMaterialCategory = z.infer<typeof insertRawMaterialCategorySchema>;
+
+export type RawMaterial = typeof rawMaterials.$inferSelect;
+export type InsertRawMaterial = z.infer<typeof insertRawMaterialSchema>;
+
+export type RawMaterialStockMovement = typeof rawMaterialStockMovements.$inferSelect;
+export type InsertRawMaterialStockMovement = z.infer<typeof insertRawMaterialStockMovementSchema>;
+
+export type BillOfMaterials = typeof billOfMaterials.$inferSelect;
+export type InsertBillOfMaterials = z.infer<typeof insertBillOfMaterialsSchema>;
+
+export type BomComponent = typeof bomComponents.$inferSelect;
+export type InsertBomComponent = z.infer<typeof insertBomComponentSchema>;
+
+export type ProductionOrder = typeof productionOrders.$inferSelect;
+export type InsertProductionOrder = z.infer<typeof insertProductionOrderSchema>;
+
+export type ProductionStage = typeof productionStages.$inferSelect;
+export type InsertProductionStage = z.infer<typeof insertProductionStageSchema>;
+
+export type DeliveryOrder = typeof deliveryOrders.$inferSelect;
+export type InsertDeliveryOrder = z.infer<typeof insertDeliveryOrderSchema>;
+
+export type DeliveryOrderItem = typeof deliveryOrderItems.$inferSelect;
+export type InsertDeliveryOrderItem = z.infer<typeof insertDeliveryOrderItemSchema>;
+
+export type InstallationOrder = typeof installationOrders.$inferSelect;
+export type InsertInstallationOrder = z.infer<typeof insertInstallationOrderSchema>;
+
+export type FurnitureSalesOrder = typeof furnitureSalesOrders.$inferSelect;
+export type InsertFurnitureSalesOrder = z.infer<typeof insertFurnitureSalesOrderSchema>;
+
+export type FurnitureSalesOrderItem = typeof furnitureSalesOrderItems.$inferSelect;
+export type InsertFurnitureSalesOrderItem = z.infer<typeof insertFurnitureSalesOrderItemSchema>;

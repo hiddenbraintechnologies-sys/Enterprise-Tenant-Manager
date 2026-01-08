@@ -1,0 +1,261 @@
+You are working on an existing enterprise-grade, multi-tenant SaaS platform called MyBizStream.
+
+DO NOT refactor or replace existing architecture.
+EXTEND the current system using feature flags, industry modules, and existing patterns.
+
+GOAL:
+Add a new industry module called:
+FURNITURE_MANUFACTURING_AND_SALES
+
+This module must support:
+• Furniture retail
+• Furniture manufacturing
+• Custom furniture orders
+• Wholesale & B2B sales
+• Advance payments, partial payments, GST invoicing
+
+================================================
+1️⃣ INDUSTRY REGISTRATION & ONBOARDING
+================================================
+
+Extend the initial tenant registration flow:
+
+- Add "Furniture Manufacturing & Sales" to the industry selection list
+- Industry selection happens ONLY during initial registration
+- Store business_type as immutable after onboarding
+- Business type change allowed only via Super Admin override
+
+During onboarding, collect:
+- Business model: Retail / Manufacturing / Both
+- GST registered (yes/no)
+- Custom order support (yes/no)
+- Manufacturing workflow required (yes/no)
+
+Based on answers, auto-enable feature flags.
+
+================================================
+2️⃣ FEATURE FLAGS
+================================================
+
+Introduce feature flags (tenant scoped):
+
+FEATURE_FURNITURE_CORE
+FEATURE_RAW_MATERIAL_INVENTORY
+FEATURE_BOM_MANAGEMENT
+FEATURE_PRODUCTION_TRACKING
+FEATURE_DELIVERY_INSTALLATION
+
+Ensure feature flags integrate with:
+- Subscription tiers
+- Add-on marketplace
+- RBAC permission checks
+
+================================================
+3️⃣ PRODUCT & INVENTORY MODULE
+================================================
+
+Extend product catalog to support furniture products:
+
+Product types:
+- READY_MADE
+- MADE_TO_ORDER
+- SEMI_FINISHED
+
+Product attributes:
+- SKU
+- Material type (wood, metal, fabric)
+- Dimensions (L x W x H)
+- Finish / color
+- Cost price
+- Selling price
+- Tax category (GST slab / VAT)
+
+Add Raw Material Inventory:
+- Raw materials (wood, boards, laminates, hardware)
+- Units of measurement
+- Stock in / out
+- Minimum stock alerts
+- Optional batch/lot tracking
+
+All records must be tenant-isolated.
+
+================================================
+4️⃣ BILL OF MATERIALS (BOM)
+================================================
+
+Add BOM management:
+
+- Each furniture product can have a BOM
+- BOM items reference raw materials
+- Quantity per unit
+- Waste percentage (optional)
+
+BOM used automatically during manufacturing orders.
+
+================================================
+5️⃣ MANUFACTURING / PRODUCTION MODULE
+================================================
+
+Add Production Orders:
+
+- Created from Sales Orders
+- Linked to product + BOM
+- Production stages:
+  - Cutting
+  - Assembly
+  - Finishing
+  - Quality Check
+  - Ready for Dispatch
+
+Track per stage:
+- Assigned worker/staff
+- Start & end time
+- Status
+- Wastage recorded
+
+On completion:
+- Finished goods added to inventory
+- Raw materials deducted
+
+================================================
+6️⃣ SALES & ORDER MANAGEMENT
+================================================
+
+Extend Sales Orders:
+
+- Support custom dimensions per line item
+- Expected delivery date
+- Advance amount
+- Link to production order (if made-to-order)
+
+Support:
+- Partial delivery
+- Multiple invoices per order
+
+================================================
+7️⃣ INVOICING (EXTEND EXISTING)
+================================================
+
+Use existing invoice system, extend with:
+
+Invoice types:
+- Proforma Invoice
+- Tax Invoice
+- Delivery Challan
+- Final Invoice
+
+India-specific:
+- Advance receipt handling
+- GST on advances
+- CGST / SGST / IGST logic
+
+Global:
+- Multi-currency support
+- Exchange rate auto-fetch
+
+================================================
+8️⃣ PAYMENT COLLECTION
+================================================
+
+Extend payment module:
+
+Supported modes:
+- UPI
+- Cash
+- Bank transfer
+- Card
+- Cheque
+- Payment links
+
+Features:
+- Partial payments
+- Advance payments
+- Auto invoice settlement
+- Outstanding balance tracking
+
+Trigger:
+- WhatsApp / SMS payment reminders
+- Invoice sharing links
+
+================================================
+9️⃣ DELIVERY & INSTALLATION (OPTIONAL)
+================================================
+
+Add Delivery module:
+
+- Delivery scheduling
+- Installer assignment
+- Delivery status
+- Proof of delivery (photo/signature)
+
+================================================
+🔟 REPORTING & ANALYTICS
+================================================
+
+Add furniture-specific reports:
+
+- Sales by product
+- Manufacturing cost vs selling price
+- Raw material consumption
+- Wastage analysis
+- Pending deliveries
+- Outstanding payments
+
+================================================
+1️⃣1️⃣ PERMISSIONS (RBAC)
+================================================
+
+Add permissions:
+
+CREATE_PRODUCTION_ORDER
+UPDATE_PRODUCTION_STAGE
+VIEW_BOM
+MANAGE_RAW_MATERIALS
+COLLECT_PAYMENT
+VIEW_MANUFACTURING_REPORTS
+
+Permissions must integrate with existing RBAC system.
+
+================================================
+1️⃣2️⃣ MOBILE APP SUPPORT (FLUTTER)
+================================================
+
+Extend Flutter app:
+
+- Production order viewing
+- Stage updates
+- Delivery confirmation
+- Payment collection view
+
+Ensure:
+- TenantInterceptor applies
+- JWT refresh works
+- Feature flags respected
+
+================================================
+1️⃣3️⃣ COMPLIANCE & AUDIT
+================================================
+
+Ensure:
+- All actions logged in audit logs
+- GST compliance enforced
+- Data masking for financial data
+- Tenant isolation enforced at all layers
+
+================================================
+1️⃣4️⃣ TESTING & MIGRATION SAFETY
+================================================
+
+- Add migration scripts using existing ORM patterns
+- Ensure backward compatibility
+- No breaking changes to existing tenants
+- Add seed data for furniture demo tenant
+
+================================================
+OUTPUT EXPECTED:
+- Prisma/Drizzle schema updates
+- API endpoints
+- UI screens (admin + tenant)
+- Feature flag wiring
+- Mobile support
+- Minimal regression impact
