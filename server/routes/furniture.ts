@@ -20,6 +20,24 @@ import {
 const router = Router();
 
 // ============================================
+// DASHBOARD STATS
+// ============================================
+
+router.get("/dashboard/stats", async (req: Request, res: Response) => {
+  try {
+    const tenantId = req.headers["x-tenant-id"] as string;
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+    const stats = await storage.getFurnitureDashboardStats(tenantId);
+    res.json(stats);
+  } catch (error) {
+    console.error("Error fetching furniture dashboard stats:", error);
+    res.status(500).json({ error: "Failed to fetch dashboard stats" });
+  }
+});
+
+// ============================================
 // FURNITURE PRODUCTS
 // ============================================
 

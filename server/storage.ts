@@ -339,6 +339,16 @@ export interface IStorage {
   // FURNITURE MANUFACTURING MODULE
   // ============================================
 
+  // Dashboard Stats
+  getFurnitureDashboardStats(tenantId: string): Promise<{
+    totalProducts: number;
+    activeProductionOrders: number;
+    pendingDeliveries: number;
+    lowStockMaterials: number;
+    pendingSalesOrders: number;
+    pendingInstallations: number;
+  }>;
+
   // Furniture Products
   getFurnitureProducts(tenantId: string): Promise<FurnitureProduct[]>;
   getFurnitureProduct(id: string, tenantId: string): Promise<FurnitureProduct | undefined>;
@@ -1880,6 +1890,47 @@ export class DatabaseStorage implements IStorage {
   // ============================================
   // FURNITURE MANUFACTURING MODULE
   // ============================================
+
+  // Dashboard Stats
+  async getFurnitureDashboardStats(tenantId: string): Promise<{
+    totalProducts: number;
+    activeProductionOrders: number;
+    pendingDeliveries: number;
+    lowStockMaterials: number;
+    pendingSalesOrders: number;
+    pendingInstallations: number;
+  }> {
+    const [productsResult] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(furnitureProducts)
+      .where(and(eq(furnitureProducts.tenantId, tenantId), sql`${furnitureProducts.deletedAt} IS NULL`));
+
+    const [productionResult] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(productionOrders)
+      .where(and(eq(productionOrders.tenantId, tenantId), eq(productionOrders.status, "in_progress")));
+
+    const [deliveryResult] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(deliveryOrders)
+      .where(and(eq(deliveryOrders.tenantId, tenantId), eq(deliveryOrders.status, "scheduled")));
+
+    const lowStockMaterials = await this.getLowStockRawMaterials(tenantId);
+
+    const [salesResult] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(furnitureSalesOrders)
+      .where(and(eq(furnitureSalesOrders.tenantId, tenantId), eq(furnitureSalesOrders.status, "pending")));
+
+    const [installationResult] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(installationOrders)
+      .where(and(eq(installationOrders.tenantId, tenantId), eq(installationOrders.status, "scheduled")));
+
+    return {
+      totalProducts: productsResult?.count ?? 0,
+      activeProductionOrders: productionResult?.count ?? 0,
+      pendingDeliveries: deliveryResult?.count ?? 0,
+      lowStockMaterials: lowStockMaterials.length,
+      pendingSalesOrders: salesResult?.count ?? 0,
+      pendingInstallations: installationResult?.count ?? 0,
+    };
+  }
 
   // Furniture Products
   async getFurnitureProducts(tenantId: string): Promise<FurnitureProduct[]> {
