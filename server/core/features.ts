@@ -63,9 +63,17 @@ export const FEATURES = {
   TIME_TRACKING: "time_tracking",
   // Customer Portal (controlled by super admin/platform managers)
   CUSTOMER_PORTAL: "customer_portal",
+  // Furniture Manufacturing modules
+  FURNITURE_PRODUCTS: "furniture_products",
+  RAW_MATERIALS: "raw_materials",
+  BILL_OF_MATERIALS: "bill_of_materials",
+  PRODUCTION_ORDERS: "production_orders",
+  DELIVERY_ORDERS: "delivery_orders",
+  INSTALLATION_ORDERS: "installation_orders",
+  FURNITURE_SALES: "furniture_sales",
 } as const;
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing";
 
 export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
   clinic: [
@@ -178,6 +186,24 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
     FEATURES.CUSTOMER_MANAGEMENT,
     FEATURES.NOTIFICATIONS_EMAIL,
     FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  furniture_manufacturing: [
+    FEATURES.FURNITURE_PRODUCTS,
+    FEATURES.RAW_MATERIALS,
+    FEATURES.BILL_OF_MATERIALS,
+    FEATURES.PRODUCTION_ORDERS,
+    FEATURES.DELIVERY_ORDERS,
+    FEATURES.INSTALLATION_ORDERS,
+    FEATURES.FURNITURE_SALES,
+    FEATURES.INVENTORY,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.NOTIFICATIONS_WHATSAPP,
     FEATURES.ANALYTICS_BASIC,
     FEATURES.ANALYTICS_ADVANCED,
   ],
@@ -392,6 +418,16 @@ export class FeatureService {
       { code: FEATURES.ROOMS, name: "Room Management", category: "accommodation", defaultEnabled: false },
       { code: FEATURES.TENANTS_MANAGEMENT, name: "Tenant Management", category: "accommodation", defaultEnabled: false },
       { code: FEATURES.SERVICES, name: "Services", category: "core", defaultEnabled: true },
+      // Real Estate modules
+      { code: FEATURES.PROPERTIES, name: "Property Management", category: "real_estate", defaultEnabled: false },
+      { code: FEATURES.LISTINGS, name: "Property Listings", category: "real_estate", defaultEnabled: false },
+      { code: FEATURES.LEADS, name: "Lead Management", category: "real_estate", defaultEnabled: false },
+      { code: FEATURES.SITE_VISITS, name: "Site Visit Scheduling", category: "real_estate", defaultEnabled: false },
+      { code: FEATURES.AGENTS, name: "Agent Management", category: "real_estate", defaultEnabled: false },
+      // Tourism modules
+      { code: FEATURES.PACKAGES, name: "Tour Packages", category: "tourism", defaultEnabled: false },
+      { code: FEATURES.ITINERARIES, name: "Itinerary Management", category: "tourism", defaultEnabled: false },
+      { code: FEATURES.VENDORS, name: "Vendor Management", category: "tourism", defaultEnabled: false },
       // Education modules
       { code: FEATURES.STUDENTS, name: "Student Management", category: "education", defaultEnabled: false },
       { code: FEATURES.COURSES, name: "Course Management", category: "education", defaultEnabled: false },
@@ -412,6 +448,14 @@ export class FeatureService {
       { code: FEATURES.TIME_TRACKING, name: "Time Tracking", category: "legal", requiredTier: "pro" },
       // Customer Portal (admin controlled)
       { code: FEATURES.CUSTOMER_PORTAL, name: "Customer Portal", category: "customer_experience", defaultEnabled: false, requiredTier: "pro" },
+      // Furniture Manufacturing modules
+      { code: FEATURES.FURNITURE_PRODUCTS, name: "Furniture Products", category: "furniture_manufacturing", defaultEnabled: false },
+      { code: FEATURES.RAW_MATERIALS, name: "Raw Materials Inventory", category: "furniture_manufacturing", defaultEnabled: false },
+      { code: FEATURES.BILL_OF_MATERIALS, name: "Bill of Materials (BOM)", category: "furniture_manufacturing", defaultEnabled: false },
+      { code: FEATURES.PRODUCTION_ORDERS, name: "Production Orders", category: "furniture_manufacturing", defaultEnabled: false },
+      { code: FEATURES.DELIVERY_ORDERS, name: "Delivery Orders", category: "furniture_manufacturing", defaultEnabled: false },
+      { code: FEATURES.INSTALLATION_ORDERS, name: "Installation Orders", category: "furniture_manufacturing", defaultEnabled: false },
+      { code: FEATURES.FURNITURE_SALES, name: "Furniture Sales Orders", category: "furniture_manufacturing", defaultEnabled: false },
     ];
 
     for (const feature of featureDefinitions) {

@@ -329,7 +329,7 @@ export async function seedTestPlatformAdmins(): Promise<number> {
 interface SampleTenantDefinition {
   name: string;
   slug: string;
-  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
+  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing";
   country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
   region: "asia_pacific" | "middle_east" | "europe";
   subscriptionTier: string;
