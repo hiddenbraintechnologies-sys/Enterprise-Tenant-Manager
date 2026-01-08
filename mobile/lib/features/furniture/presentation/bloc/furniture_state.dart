@@ -37,6 +37,17 @@ class FurnitureState extends Equatable {
   final PaginationParams currentProductionOrdersParams;
   final PaginationParams currentSalesOrdersParams;
 
+  final String? productsProductType;
+  final String? productsMaterialType;
+  final bool? productsIsActive;
+
+  final String? rawMaterialsCategoryId;
+  final bool? rawMaterialsLowStock;
+
+  final String? productionOrdersPriority;
+
+  final String? salesOrdersOrderType;
+
   const FurnitureState({
     this.productsStatus = FurnitureStatus.initial,
     this.products = const [],
@@ -61,6 +72,13 @@ class FurnitureState extends Equatable {
     PaginationParams? currentRawMaterialsParams,
     PaginationParams? currentProductionOrdersParams,
     PaginationParams? currentSalesOrdersParams,
+    this.productsProductType,
+    this.productsMaterialType,
+    this.productsIsActive,
+    this.rawMaterialsCategoryId,
+    this.rawMaterialsLowStock,
+    this.productionOrdersPriority,
+    this.salesOrdersOrderType,
   })  : currentProductsParams = currentProductsParams ?? const _DefaultPaginationParams(),
         currentRawMaterialsParams = currentRawMaterialsParams ?? const _DefaultPaginationParams(),
         currentProductionOrdersParams = currentProductionOrdersParams ?? const _DefaultPaginationParams(),
@@ -95,6 +113,13 @@ class FurnitureState extends Equatable {
     PaginationParams? currentRawMaterialsParams,
     PaginationParams? currentProductionOrdersParams,
     PaginationParams? currentSalesOrdersParams,
+    String? productsProductType,
+    String? productsMaterialType,
+    bool? productsIsActive,
+    String? rawMaterialsCategoryId,
+    bool? rawMaterialsLowStock,
+    String? productionOrdersPriority,
+    String? salesOrdersOrderType,
   }) {
     return FurnitureState(
       productsStatus: productsStatus ?? this.productsStatus,
@@ -120,6 +145,13 @@ class FurnitureState extends Equatable {
       currentRawMaterialsParams: currentRawMaterialsParams ?? this.currentRawMaterialsParams,
       currentProductionOrdersParams: currentProductionOrdersParams ?? this.currentProductionOrdersParams,
       currentSalesOrdersParams: currentSalesOrdersParams ?? this.currentSalesOrdersParams,
+      productsProductType: productsProductType ?? this.productsProductType,
+      productsMaterialType: productsMaterialType ?? this.productsMaterialType,
+      productsIsActive: productsIsActive ?? this.productsIsActive,
+      rawMaterialsCategoryId: rawMaterialsCategoryId ?? this.rawMaterialsCategoryId,
+      rawMaterialsLowStock: rawMaterialsLowStock ?? this.rawMaterialsLowStock,
+      productionOrdersPriority: productionOrdersPriority ?? this.productionOrdersPriority,
+      salesOrdersOrderType: salesOrdersOrderType ?? this.salesOrdersOrderType,
     );
   }
 
@@ -144,6 +176,17 @@ class FurnitureState extends Equatable {
         dashboardStatus,
         dashboardStats,
         dashboardError,
+        currentProductsParams,
+        currentRawMaterialsParams,
+        currentProductionOrdersParams,
+        currentSalesOrdersParams,
+        productsProductType,
+        productsMaterialType,
+        productsIsActive,
+        rawMaterialsCategoryId,
+        rawMaterialsLowStock,
+        productionOrdersPriority,
+        salesOrdersOrderType,
       ];
 }
 

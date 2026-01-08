@@ -48,6 +48,9 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
         products: response.data,
         productsPagination: response.pagination,
         currentProductsParams: params,
+        productsProductType: event.productType,
+        productsMaterialType: event.materialType,
+        productsIsActive: event.isActive,
         productsError: null,
       ));
     } catch (e) {
@@ -72,7 +75,12 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
       final nextPage = (state.productsPagination?.page ?? 0) + 1;
       final params = state.currentProductsParams.copyWith(page: nextPage);
 
-      final response = await _repository.getProducts(params);
+      final response = await _repository.getProducts(
+        params,
+        productType: state.productsProductType,
+        materialType: state.productsMaterialType,
+        isActive: state.productsIsActive,
+      );
 
       emit(state.copyWith(
         productsStatus: FurnitureStatus.success,
@@ -114,6 +122,8 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
         rawMaterials: response.data,
         rawMaterialsPagination: response.pagination,
         currentRawMaterialsParams: params,
+        rawMaterialsCategoryId: event.categoryId,
+        rawMaterialsLowStock: event.lowStock,
         rawMaterialsError: null,
       ));
     } catch (e) {
@@ -138,7 +148,11 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
       final nextPage = (state.rawMaterialsPagination?.page ?? 0) + 1;
       final params = state.currentRawMaterialsParams.copyWith(page: nextPage);
 
-      final response = await _repository.getRawMaterials(params);
+      final response = await _repository.getRawMaterials(
+        params,
+        categoryId: state.rawMaterialsCategoryId,
+        lowStock: state.rawMaterialsLowStock,
+      );
 
       emit(state.copyWith(
         rawMaterialsStatus: FurnitureStatus.success,
@@ -180,6 +194,7 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
         productionOrders: response.data,
         productionOrdersPagination: response.pagination,
         currentProductionOrdersParams: params,
+        productionOrdersPriority: event.priority,
         productionOrdersError: null,
       ));
     } catch (e) {
@@ -204,7 +219,10 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
       final nextPage = (state.productionOrdersPagination?.page ?? 0) + 1;
       final params = state.currentProductionOrdersParams.copyWith(page: nextPage);
 
-      final response = await _repository.getProductionOrders(params);
+      final response = await _repository.getProductionOrders(
+        params,
+        priority: state.productionOrdersPriority,
+      );
 
       emit(state.copyWith(
         productionOrdersStatus: FurnitureStatus.success,
@@ -246,6 +264,7 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
         salesOrders: response.data,
         salesOrdersPagination: response.pagination,
         currentSalesOrdersParams: params,
+        salesOrdersOrderType: event.orderType,
         salesOrdersError: null,
       ));
     } catch (e) {
@@ -270,7 +289,10 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
       final nextPage = (state.salesOrdersPagination?.page ?? 0) + 1;
       final params = state.currentSalesOrdersParams.copyWith(page: nextPage);
 
-      final response = await _repository.getSalesOrders(params);
+      final response = await _repository.getSalesOrders(
+        params,
+        orderType: state.salesOrdersOrderType,
+      );
 
       emit(state.copyWith(
         salesOrdersStatus: FurnitureStatus.success,
@@ -312,11 +334,32 @@ class FurnitureBloc extends Bloc<FurnitureEvent, FurnitureState> {
     ClearFilters event,
     Emitter<FurnitureState> emit,
   ) {
-    emit(state.copyWith(
+    emit(FurnitureState(
+      productsStatus: state.productsStatus,
+      products: state.products,
+      productsPagination: state.productsPagination,
+      rawMaterialsStatus: state.rawMaterialsStatus,
+      rawMaterials: state.rawMaterials,
+      rawMaterialsPagination: state.rawMaterialsPagination,
+      productionOrdersStatus: state.productionOrdersStatus,
+      productionOrders: state.productionOrders,
+      productionOrdersPagination: state.productionOrdersPagination,
+      salesOrdersStatus: state.salesOrdersStatus,
+      salesOrders: state.salesOrders,
+      salesOrdersPagination: state.salesOrdersPagination,
+      dashboardStatus: state.dashboardStatus,
+      dashboardStats: state.dashboardStats,
       currentProductsParams: PaginationParams(),
       currentRawMaterialsParams: PaginationParams(),
       currentProductionOrdersParams: PaginationParams(),
       currentSalesOrdersParams: PaginationParams(),
+      productsProductType: null,
+      productsMaterialType: null,
+      productsIsActive: null,
+      rawMaterialsCategoryId: null,
+      rawMaterialsLowStock: null,
+      productionOrdersPriority: null,
+      salesOrdersOrderType: null,
     ));
   }
 

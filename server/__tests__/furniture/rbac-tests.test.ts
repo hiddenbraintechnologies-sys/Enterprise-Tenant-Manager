@@ -57,7 +57,8 @@ describe("Furniture Module RBAC Tests", () => {
         .get("/api/furniture/products/some-product-id")
         .set({ "X-Tenant-ID": "wrong-tenant" });
 
-      expect([404, 200]).toContain(response.status);
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty("error");
     });
   });
 
