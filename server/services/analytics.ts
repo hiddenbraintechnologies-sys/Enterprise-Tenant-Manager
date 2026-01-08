@@ -12,6 +12,15 @@ import {
 } from "@shared/schema";
 import { eq, and, gte, lte, sql, count } from "drizzle-orm";
 import { startOfDay, endOfDay, subDays, format, differenceInDays, differenceInHours } from "date-fns";
+import {
+  type IAnalyticsAdapter,
+  type AnalyticsOverview,
+  type CategoryMetrics,
+  type ModuleAnalyticsConfig,
+  type DateRange as BaseDateRange,
+  baseAnalyticsService,
+  createMetricValue,
+} from "./base-analytics";
 
 interface DateRange {
   startDate: Date;
@@ -56,7 +65,121 @@ interface OverviewMetrics {
   };
 }
 
-export class AnalyticsService {
+export class AnalyticsService implements IAnalyticsAdapter {
+  getModuleName(): string {
+    return "furniture";
+  }
+
+  getConfig(): ModuleAnalyticsConfig {
+    return {
+      moduleName: "furniture",
+      categories: ["production", "sales", "payments", "operations"],
+      supportedMetrics: [
+        "productionOrdersTotal",
+        "productionOrdersCompleted",
+        "salesOrdersTotal",
+        "totalRevenue",
+        "invoicesTotal",
+        "invoicesPaid",
+        "deliveriesTotal",
+        "installationsTotal",
+      ],
+      defaultDateRange: 30,
+    };
+  }
+
+  async getOverviewAdapter(tenantId: string, dateRange: BaseDateRange): Promise<AnalyticsOverview> {
+    const overview = await this.getOverview(tenantId, dateRange);
+    
+    return {
+      summary: {
+        production: {
+          total: createMetricValue(overview.production.total),
+          completed: createMetricValue(overview.production.completed),
+          inProgress: createMetricValue(overview.production.inProgress),
+          avgProductionTimeHours: createMetricValue(overview.production.avgProductionTimeHours, undefined, "hours"),
+          wastagePercentage: createMetricValue(overview.production.wastagePercentage, undefined, "%"),
+        },
+        sales: {
+          totalOrders: createMetricValue(overview.sales.totalOrders),
+          completedOrders: createMetricValue(overview.sales.completedOrders),
+          totalRevenue: createMetricValue(overview.sales.totalRevenue),
+          revenueUsd: createMetricValue(overview.sales.revenueUsd, undefined, "USD"),
+          conversionRate: createMetricValue(overview.sales.conversionRate, undefined, "%"),
+        },
+        payments: {
+          totalInvoices: createMetricValue(overview.payments.totalInvoices),
+          paidInvoices: createMetricValue(overview.payments.paidInvoices),
+          overdueInvoices: createMetricValue(overview.payments.overdueInvoices),
+          totalReceivables: createMetricValue(overview.payments.totalReceivables),
+          totalReceivablesUsd: createMetricValue(overview.payments.totalReceivablesUsd, undefined, "USD"),
+          paymentsReceived: createMetricValue(overview.payments.paymentsReceived),
+        },
+        operations: {
+          totalDeliveries: createMetricValue(overview.operations.totalDeliveries),
+          onTimeDeliveries: createMetricValue(overview.operations.onTimeDeliveries),
+          deliveryOnTimeRate: createMetricValue(overview.operations.deliveryOnTimeRate, undefined, "%"),
+          totalInstallations: createMetricValue(overview.operations.totalInstallations),
+          completedInstallations: createMetricValue(overview.operations.completedInstallations),
+          avgInstallationRating: createMetricValue(overview.operations.avgInstallationRating),
+        },
+      },
+      trends: [],
+    };
+  }
+
+  async getMetricsByCategory(tenantId: string, category: string, dateRange: BaseDateRange): Promise<CategoryMetrics> {
+    switch (category) {
+      case "production": {
+        const metrics = await this.getProductionMetrics(tenantId, dateRange);
+        return {
+          total: createMetricValue(metrics.total),
+          completed: createMetricValue(metrics.completed),
+          inProgress: createMetricValue(metrics.inProgress),
+          avgProductionTimeHours: createMetricValue(metrics.avgProductionTimeHours, undefined, "hours"),
+          wastagePercentage: createMetricValue(metrics.wastagePercentage, undefined, "%"),
+        };
+      }
+      case "sales": {
+        const metrics = await this.getSalesMetrics(tenantId, dateRange);
+        return {
+          totalOrders: createMetricValue(metrics.totalOrders),
+          completedOrders: createMetricValue(metrics.completedOrders),
+          totalRevenue: createMetricValue(metrics.totalRevenue),
+          revenueUsd: createMetricValue(metrics.revenueUsd, undefined, "USD"),
+          conversionRate: createMetricValue(metrics.conversionRate, undefined, "%"),
+        };
+      }
+      case "payments": {
+        const metrics = await this.getPaymentMetrics(tenantId, dateRange);
+        return {
+          totalInvoices: createMetricValue(metrics.totalInvoices),
+          paidInvoices: createMetricValue(metrics.paidInvoices),
+          overdueInvoices: createMetricValue(metrics.overdueInvoices),
+          totalReceivables: createMetricValue(metrics.totalReceivables),
+          paymentsReceived: createMetricValue(metrics.paymentsReceived),
+        };
+      }
+      case "operations": {
+        const metrics = await this.getOperationsMetrics(tenantId, dateRange);
+        return {
+          totalDeliveries: createMetricValue(metrics.totalDeliveries),
+          onTimeDeliveries: createMetricValue(metrics.onTimeDeliveries),
+          deliveryOnTimeRate: createMetricValue(metrics.deliveryOnTimeRate, undefined, "%"),
+          totalInstallations: createMetricValue(metrics.totalInstallations),
+          completedInstallations: createMetricValue(metrics.completedInstallations),
+        };
+      }
+      default:
+        return {};
+    }
+  }
+
+  async getTrends(tenantId: string, metric: string, dateRange: BaseDateRange): Promise<Array<{ date: string; value: number }>> {
+    const data = await this.getTrendData(tenantId, metric, 30);
+    return data.map(d => ({ date: d.date, value: Number(d.value) || 0 }));
+  }
+
   async getOverview(tenantId: string, dateRange: DateRange): Promise<OverviewMetrics> {
     const [production, sales, payments, operations] = await Promise.all([
       this.getProductionMetrics(tenantId, dateRange),
@@ -386,3 +509,5 @@ export class AnalyticsService {
 }
 
 export const analyticsService = new AnalyticsService();
+
+baseAnalyticsService.registerAdapter(analyticsService);
