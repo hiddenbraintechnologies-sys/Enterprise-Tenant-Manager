@@ -7098,8 +7098,360 @@ export const furnitureSalesOrderItems = pgTable("furniture_sales_order_items", {
 ]);
 
 // ============================================
+// FURNITURE MODULE: INVOICES
+// ============================================
+
+// Furniture invoice status enum
+export const furnitureInvoiceStatusEnum = pgEnum("furniture_invoice_status", [
+  "draft",
+  "issued",
+  "partially_paid",
+  "paid",
+  "overdue",
+  "cancelled",
+  "refunded"
+]);
+
+// Furniture invoices table - comprehensive multi-currency and tax support
+export const furnitureInvoices = pgTable("furniture_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Invoice identification
+  invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  invoiceType: furnitureInvoiceTypeEnum("invoice_type").notNull().default("tax_invoice"),
+  status: furnitureInvoiceStatusEnum("status").notNull().default("draft"),
+  
+  // Links
+  salesOrderId: varchar("sales_order_id").references(() => furnitureSalesOrders.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  
+  // Invoice dates
+  invoiceDate: timestamp("invoice_date").notNull().defaultNow(),
+  dueDate: timestamp("due_date"),
+  
+  // Currency - invoice currency (what customer sees)
+  currency: varchar("currency", { length: 5 }).notNull().default("INR"),
+  
+  // Base currency - tenant's base currency for reporting
+  baseCurrency: varchar("base_currency", { length: 5 }).notNull().default("USD"),
+  exchangeRate: decimal("exchange_rate", { precision: 18, scale: 8 }).notNull().default("1.00000000"),
+  exchangeRateId: varchar("exchange_rate_id").references(() => exchangeRates.id),
+  exchangeRateDate: timestamp("exchange_rate_date"),
+  
+  // Amounts in invoice currency
+  subtotal: decimal("subtotal", { precision: 15, scale: 2 }).notNull(),
+  discountAmount: decimal("discount_amount", { precision: 15, scale: 2 }).default("0"),
+  deliveryCharges: decimal("delivery_charges", { precision: 12, scale: 2 }).default("0"),
+  installationCharges: decimal("installation_charges", { precision: 12, scale: 2 }).default("0"),
+  
+  // Tax amounts - supports multiple tax types
+  taxAmount: decimal("tax_amount", { precision: 15, scale: 2 }).default("0"),
+  
+  // Country-specific tax breakdowns (stored in taxMetadata)
+  // India: CGST, SGST, IGST
+  // UAE: VAT
+  // UK: VAT
+  // Malaysia: SST (Sales Tax 10% / Service Tax 6%)
+  // US: State Sales Tax
+  taxMetadata: jsonb("tax_metadata").default({}),
+  
+  // Total amounts
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  
+  // Amounts in base currency (for reporting)
+  baseSubtotal: decimal("base_subtotal", { precision: 15, scale: 2 }),
+  baseTaxAmount: decimal("base_tax_amount", { precision: 15, scale: 2 }),
+  baseTotalAmount: decimal("base_total_amount", { precision: 15, scale: 2 }),
+  
+  // Payment tracking
+  paidAmount: decimal("paid_amount", { precision: 15, scale: 2 }).default("0"),
+  balanceAmount: decimal("balance_amount", { precision: 15, scale: 2 }),
+  paymentStatus: varchar("payment_status", { length: 20 }).default("pending"),
+  lastPaymentDate: timestamp("last_payment_date"),
+  
+  // Customer billing details snapshot
+  billingName: varchar("billing_name", { length: 255 }),
+  billingAddress: text("billing_address"),
+  billingCity: varchar("billing_city", { length: 100 }),
+  billingState: varchar("billing_state", { length: 100 }),
+  billingPostalCode: varchar("billing_postal_code", { length: 20 }),
+  billingCountry: varchar("billing_country", { length: 100 }),
+  billingEmail: varchar("billing_email", { length: 255 }),
+  billingPhone: varchar("billing_phone", { length: 50 }),
+  
+  // Customer tax registration (snapshot at invoice time)
+  customerTaxId: varchar("customer_tax_id", { length: 50 }), // GSTIN, TRN, VAT number, SST number, EIN/TIN
+  customerTaxIdType: varchar("customer_tax_id_type", { length: 20 }), // gstin, trn, vat, sst, ein
+  
+  // Tenant tax registration (snapshot at invoice time)
+  tenantTaxId: varchar("tenant_tax_id", { length: 50 }),
+  tenantTaxIdType: varchar("tenant_tax_id_type", { length: 20 }),
+  tenantBusinessName: varchar("tenant_business_name", { length: 255 }),
+  tenantAddress: text("tenant_address"),
+  
+  // PDF and document storage
+  isLocked: boolean("is_locked").default(false), // Locked after finalization
+  lockedAt: timestamp("locked_at"),
+  pdfStorageKey: varchar("pdf_storage_key", { length: 500 }), // S3/GCS path
+  pdfGeneratedAt: timestamp("pdf_generated_at"),
+  pdfVersion: integer("pdf_version").default(1),
+  
+  // Notes
+  notes: text("notes"),
+  internalNotes: text("internal_notes"),
+  termsAndConditions: text("terms_and_conditions"),
+  
+  // Compliance metadata
+  complianceCountry: varchar("compliance_country", { length: 5 }), // IN, AE, GB, MY, US
+  complianceMetadata: jsonb("compliance_metadata").default({}), // Country-specific compliance data
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+}, (table) => [
+  index("idx_furniture_invoices_tenant").on(table.tenantId),
+  uniqueIndex("idx_furniture_invoices_number").on(table.tenantId, table.invoiceNumber),
+  index("idx_furniture_invoices_customer").on(table.customerId),
+  index("idx_furniture_invoices_sales_order").on(table.salesOrderId),
+  index("idx_furniture_invoices_status").on(table.tenantId, table.status),
+  index("idx_furniture_invoices_date").on(table.tenantId, table.invoiceDate),
+  index("idx_furniture_invoices_currency").on(table.tenantId, table.currency),
+]);
+
+// Furniture invoice items table
+export const furnitureInvoiceItems = pgTable("furniture_invoice_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").notNull().references(() => furnitureInvoices.id, { onDelete: "cascade" }),
+  
+  // Link to original sales order item
+  salesOrderItemId: varchar("sales_order_item_id").references(() => furnitureSalesOrderItems.id),
+  productId: varchar("product_id").references(() => furnitureProducts.id),
+  
+  // Item details
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitOfMeasure: varchar("unit_of_measure", { length: 20 }).default("pcs"),
+  
+  // Pricing in invoice currency
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }).default("0"),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0"),
+  
+  // Tax details per line item
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  taxType: varchar("tax_type", { length: 20 }), // gst, vat, sst, sales_tax
+  
+  // Country-specific tax codes
+  hsnCode: varchar("hsn_code", { length: 20 }), // India HSN/SAC
+  taxCode: varchar("tax_code", { length: 50 }), // Generic tax code
+  
+  // Line total
+  totalPrice: decimal("total_price", { precision: 12, scale: 2 }).notNull(),
+  
+  // Tax breakdown for this item (India: CGST/SGST/IGST split, etc.)
+  taxBreakdown: jsonb("tax_breakdown").default({}),
+  
+  sortOrder: integer("sort_order").default(0),
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_furniture_invoice_items_invoice").on(table.invoiceId),
+  index("idx_furniture_invoice_items_product").on(table.productId),
+]);
+
+// Furniture invoice payments tracking
+export const furnitureInvoicePayments = pgTable("furniture_invoice_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").notNull().references(() => furnitureInvoices.id, { onDelete: "cascade" }),
+  
+  // Payment details
+  paymentNumber: varchar("payment_number", { length: 50 }),
+  paymentDate: timestamp("payment_date").notNull().defaultNow(),
+  
+  // Amount in payment currency
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 5 }).notNull(),
+  
+  // If payment currency differs from invoice currency
+  invoiceAmount: decimal("invoice_amount", { precision: 15, scale: 2 }),
+  exchangeRate: decimal("exchange_rate", { precision: 18, scale: 8 }),
+  
+  // Payment method
+  paymentMethod: varchar("payment_method", { length: 50 }), // cash, card, bank_transfer, upi, cheque
+  paymentReference: varchar("payment_reference", { length: 255 }),
+  
+  // Status
+  status: varchar("status", { length: 20 }).default("completed"), // pending, completed, failed, refunded
+  
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_furniture_invoice_payments_invoice").on(table.invoiceId),
+  index("idx_furniture_invoice_payments_date").on(table.paymentDate),
+]);
+
+// ============================================
+// MALAYSIA SST CONFIGURATION
+// ============================================
+
+export const malaysiaSstConfigurations = pgTable("malaysia_sst_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  
+  // SST Registration
+  sstNumber: varchar("sst_number", { length: 20 }), // SST registration number
+  businessName: varchar("business_name", { length: 255 }).notNull(),
+  businessAddress: text("business_address"),
+  registrationDate: timestamp("registration_date"),
+  
+  // Tax types applicable
+  isSalesTaxRegistered: boolean("is_sales_tax_registered").default(false), // 10% on goods
+  isServiceTaxRegistered: boolean("is_service_tax_registered").default(false), // 6% on services
+  
+  // Default rates
+  defaultSalesTaxRate: decimal("default_sales_tax_rate", { precision: 5, scale: 2 }).default("10.00"),
+  defaultServiceTaxRate: decimal("default_service_tax_rate", { precision: 5, scale: 2 }).default("6.00"),
+  
+  // Tax codes for common furniture categories
+  furnitureTariffCodes: jsonb("furniture_tariff_codes").default([]), // Malaysian tariff codes
+  
+  // Filing details
+  returnFrequency: varchar("return_frequency", { length: 20 }).default("bimonthly"), // bimonthly
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ============================================
+// US STATE SALES TAX CONFIGURATION
+// ============================================
+
+export const usStateSalesTaxConfigurations = pgTable("us_state_sales_tax_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Business registration
+  einNumber: varchar("ein_number", { length: 15 }), // Federal EIN
+  businessName: varchar("business_name", { length: 255 }).notNull(),
+  businessAddress: text("business_address"),
+  
+  // State where tenant has nexus
+  stateCode: varchar("state_code", { length: 2 }).notNull(), // CA, NY, TX, etc.
+  stateName: varchar("state_name", { length: 100 }),
+  
+  // State tax registration
+  stateTaxId: varchar("state_tax_id", { length: 50 }), // State sales tax permit number
+  registrationDate: timestamp("registration_date"),
+  
+  // Tax rates
+  stateTaxRate: decimal("state_tax_rate", { precision: 5, scale: 3 }).notNull(), // e.g., 7.25% for CA
+  countyTaxRate: decimal("county_tax_rate", { precision: 5, scale: 3 }).default("0"),
+  cityTaxRate: decimal("city_tax_rate", { precision: 5, scale: 3 }).default("0"),
+  specialDistrictRate: decimal("special_district_rate", { precision: 5, scale: 3 }).default("0"),
+  combinedRate: decimal("combined_rate", { precision: 5, scale: 3 }), // Total combined rate
+  
+  // Exemptions
+  exemptCategories: jsonb("exempt_categories").default([]), // Categories exempt from sales tax
+  
+  // Filing
+  filingFrequency: varchar("filing_frequency", { length: 20 }).default("quarterly"), // monthly, quarterly, annual
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_us_state_tax_tenant").on(table.tenantId),
+  uniqueIndex("idx_us_state_tax_tenant_state").on(table.tenantId, table.stateCode),
+]);
+
+// ============================================
+// TENANT TAX REGISTRATIONS (Multi-country)
+// ============================================
+
+export const tenantTaxRegistrations = pgTable("tenant_tax_registrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Country and registration type
+  country: varchar("country", { length: 5 }).notNull(), // IN, AE, GB, MY, US
+  taxType: varchar("tax_type", { length: 20 }).notNull(), // gst, vat, sst, sales_tax
+  
+  // Registration details
+  registrationNumber: varchar("registration_number", { length: 50 }).notNull(),
+  registrationName: varchar("registration_name", { length: 255 }),
+  registrationDate: timestamp("registration_date"),
+  expiryDate: timestamp("expiry_date"),
+  
+  // Address for this registration
+  registeredAddress: text("registered_address"),
+  stateOrRegion: varchar("state_or_region", { length: 100 }), // For India state code, US state, etc.
+  
+  // Default tax rate
+  defaultTaxRate: decimal("default_tax_rate", { precision: 5, scale: 2 }),
+  
+  // Additional metadata
+  metadata: jsonb("metadata").default({}),
+  
+  isPrimary: boolean("is_primary").default(false),
+  isActive: boolean("is_active").default(true),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_tax_reg_tenant").on(table.tenantId),
+  index("idx_tenant_tax_reg_country").on(table.tenantId, table.country),
+  uniqueIndex("idx_tenant_tax_reg_number").on(table.tenantId, table.country, table.registrationNumber),
+]);
+
+// ============================================
 // FURNITURE MODULE: INSERT SCHEMAS
 // ============================================
+
+export const insertFurnitureInvoiceSchema = createInsertSchema(furnitureInvoices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertFurnitureInvoiceItemSchema = createInsertSchema(furnitureInvoiceItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFurnitureInvoicePaymentSchema = createInsertSchema(furnitureInvoicePayments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMalaysiaSstConfigurationSchema = createInsertSchema(malaysiaSstConfigurations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUsStateSalesTaxConfigurationSchema = createInsertSchema(usStateSalesTaxConfigurations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTenantTaxRegistrationSchema = createInsertSchema(tenantTaxRegistrations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 export const insertFurnitureProductSchema = createInsertSchema(furnitureProducts).omit({
   id: true,
@@ -7226,3 +7578,21 @@ export type InsertFurnitureSalesOrder = z.infer<typeof insertFurnitureSalesOrder
 
 export type FurnitureSalesOrderItem = typeof furnitureSalesOrderItems.$inferSelect;
 export type InsertFurnitureSalesOrderItem = z.infer<typeof insertFurnitureSalesOrderItemSchema>;
+
+export type FurnitureInvoice = typeof furnitureInvoices.$inferSelect;
+export type InsertFurnitureInvoice = z.infer<typeof insertFurnitureInvoiceSchema>;
+
+export type FurnitureInvoiceItem = typeof furnitureInvoiceItems.$inferSelect;
+export type InsertFurnitureInvoiceItem = z.infer<typeof insertFurnitureInvoiceItemSchema>;
+
+export type FurnitureInvoicePayment = typeof furnitureInvoicePayments.$inferSelect;
+export type InsertFurnitureInvoicePayment = z.infer<typeof insertFurnitureInvoicePaymentSchema>;
+
+export type MalaysiaSstConfiguration = typeof malaysiaSstConfigurations.$inferSelect;
+export type InsertMalaysiaSstConfiguration = z.infer<typeof insertMalaysiaSstConfigurationSchema>;
+
+export type UsStateSalesTaxConfiguration = typeof usStateSalesTaxConfigurations.$inferSelect;
+export type InsertUsStateSalesTaxConfiguration = z.infer<typeof insertUsStateSalesTaxConfigurationSchema>;
+
+export type TenantTaxRegistration = typeof tenantTaxRegistrations.$inferSelect;
+export type InsertTenantTaxRegistration = z.infer<typeof insertTenantTaxRegistrationSchema>;

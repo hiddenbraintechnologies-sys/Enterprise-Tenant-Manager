@@ -7,6 +7,7 @@ import {
   payments,
   invoices,
   furnitureSalesOrders,
+  furnitureSalesOrderItems,
   furnitureProducts,
   rawMaterials,
   rawMaterialCategories,
@@ -14,6 +15,10 @@ import {
   productionOrders,
   deliveryOrders,
   installationOrders,
+  furnitureInvoices,
+  furnitureInvoiceItems,
+  furnitureInvoicePayments,
+  customers,
   insertFurnitureProductSchema,
   insertRawMaterialCategorySchema,
   insertRawMaterialSchema,
@@ -27,6 +32,8 @@ import {
   insertInstallationOrderSchema,
   insertFurnitureSalesOrderSchema,
   insertFurnitureSalesOrderItemSchema,
+  insertFurnitureInvoiceSchema,
+  insertFurnitureInvoiceItemSchema,
 } from "@shared/schema";
 import {
   getPaginationParams,
@@ -43,6 +50,9 @@ import {
   validateFinancialConsistency,
 } from "./furniture-guardrails";
 import { seedFurnitureDemoData } from "../seed/furniture-demo-data";
+import { currencyService } from "../services/currency";
+import { taxCalculatorService } from "../services/tax-calculator";
+import { invoicePDFService } from "../services/invoice-pdf";
 
 const router = Router();
 
@@ -1882,6 +1892,681 @@ router.get("/installation-orders/:deliveryId/can-start", async (req: Request, re
   } catch (error) {
     console.error("Error checking installation permission:", error);
     res.status(500).json({ error: "Failed to check permission" });
+  }
+});
+
+// ============================================
+// FURNITURE INVOICES
+// ============================================
+
+// List invoices with pagination and filtering
+router.get("/invoices", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const pagination = getPaginationParams(req);
+    const filters = getFilterParams(req);
+    const sortBy = (req.query.sortBy as string) || 'invoiceDate';
+    const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    const conditions = [
+      eq(furnitureInvoices.tenantId, tenantId),
+      sql`${furnitureInvoices.deletedAt} IS NULL`
+    ];
+
+    if (filters.status) {
+      conditions.push(eq(furnitureInvoices.status, filters.status as any));
+    }
+    if (filters.currency) {
+      conditions.push(eq(furnitureInvoices.currency, filters.currency as string));
+    }
+    if (filters.customerId) {
+      conditions.push(eq(furnitureInvoices.customerId, filters.customerId as string));
+    }
+    if (filters.search) {
+      conditions.push(
+        or(
+          ilike(furnitureInvoices.invoiceNumber, `%${filters.search}%`),
+          ilike(furnitureInvoices.billingName, `%${filters.search}%`)
+        )!
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    const columnMap: Record<string, any> = {
+      invoiceDate: furnitureInvoices.invoiceDate,
+      invoiceNumber: furnitureInvoices.invoiceNumber,
+      totalAmount: furnitureInvoices.totalAmount,
+      status: furnitureInvoices.status,
+      createdAt: furnitureInvoices.createdAt,
+    };
+    const orderColumn = columnMap[sortBy] || furnitureInvoices.invoiceDate;
+    const orderBy = sortOrder === 'asc' ? asc(orderColumn) : desc(orderColumn);
+
+    const [countResult] = await db.select({ count: count() })
+      .from(furnitureInvoices)
+      .where(whereClause);
+
+    const invoicesList = await db.select()
+      .from(furnitureInvoices)
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(pagination.limit)
+      .offset((pagination.page - 1) * pagination.limit);
+
+    res.json(paginatedResponse(invoicesList, countResult.count, pagination));
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    res.status(500).json({ error: "Failed to fetch invoices" });
+  }
+});
+
+// Get single invoice with items
+router.get("/invoices/:id", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const [invoice] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const items = await db.select()
+      .from(furnitureInvoiceItems)
+      .where(eq(furnitureInvoiceItems.invoiceId, invoice.id))
+      .orderBy(furnitureInvoiceItems.sortOrder);
+
+    const paymentsList = await db.select()
+      .from(furnitureInvoicePayments)
+      .where(eq(furnitureInvoicePayments.invoiceId, invoice.id))
+      .orderBy(desc(furnitureInvoicePayments.paymentDate));
+
+    res.json({ ...invoice, items, payments: paymentsList });
+  } catch (error) {
+    console.error("Error fetching invoice:", error);
+    res.status(500).json({ error: "Failed to fetch invoice" });
+  }
+});
+
+// Create invoice from sales order
+router.post("/invoices/from-sales-order/:salesOrderId", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const { salesOrderId } = req.params;
+    const { currency, invoiceType, notes, termsAndConditions, taxMetadata } = req.body;
+
+    // Fetch sales order
+    const [salesOrder] = await db.select()
+      .from(furnitureSalesOrders)
+      .where(and(
+        eq(furnitureSalesOrders.id, salesOrderId),
+        eq(furnitureSalesOrders.tenantId, tenantId)
+      ));
+
+    if (!salesOrder) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+
+    // Fetch sales order items
+    const orderItems = await db.select()
+      .from(furnitureSalesOrderItems)
+      .where(eq(furnitureSalesOrderItems.salesOrderId, salesOrderId));
+
+    // Fetch customer
+    const [customer] = await db.select()
+      .from(customers)
+      .where(eq(customers.id, salesOrder.customerId));
+
+    // Generate invoice number
+    const invoiceNumber = `INV-${Date.now()}`;
+
+    // Get exchange rate if currency differs from base
+    const invoiceCurrency = currency || salesOrder.currency || "INR";
+    const baseCurrency = "USD";
+    let exchangeRate = "1.00000000";
+    let exchangeRateId = null;
+
+    if (invoiceCurrency !== baseCurrency) {
+      const rate = await currencyService.getExchangeRate(invoiceCurrency, baseCurrency);
+      if (rate) {
+        exchangeRate = rate.rate.toFixed(8);
+        exchangeRateId = rate.id !== "same-currency" ? rate.id : null;
+      }
+    }
+
+    // Calculate totals
+    const subtotal = parseFloat(salesOrder.subtotal);
+    const discountAmount = parseFloat(salesOrder.discountAmount || "0");
+    const deliveryCharges = parseFloat(salesOrder.deliveryCharges || "0");
+    const installationCharges = parseFloat(salesOrder.installationCharges || "0");
+
+    // Calculate tax
+    let taxResult = { totalTaxAmount: 0, breakdown: [], metadata: {} };
+    const complianceCountry = taxMetadata?.country || "IN";
+    
+    if (taxMetadata) {
+      taxResult = await taxCalculatorService.calculateTax(
+        tenantId,
+        complianceCountry,
+        subtotal - discountAmount + deliveryCharges + installationCharges,
+        taxMetadata
+      );
+    }
+
+    const taxAmount = taxResult.totalTaxAmount;
+    const totalAmount = subtotal - discountAmount + deliveryCharges + installationCharges + taxAmount;
+
+    // Calculate base currency amounts
+    const exchangeRateNum = parseFloat(exchangeRate);
+    const baseSubtotal = (subtotal * exchangeRateNum).toFixed(2);
+    const baseTaxAmount = (taxAmount * exchangeRateNum).toFixed(2);
+    const baseTotalAmount = (totalAmount * exchangeRateNum).toFixed(2);
+
+    // Create invoice
+    const [newInvoice] = await db.insert(furnitureInvoices).values({
+      tenantId,
+      invoiceNumber,
+      invoiceType: invoiceType || "tax_invoice",
+      status: "draft",
+      salesOrderId,
+      customerId: salesOrder.customerId,
+      invoiceDate: new Date(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      currency: invoiceCurrency,
+      baseCurrency,
+      exchangeRate,
+      exchangeRateId,
+      exchangeRateDate: new Date(),
+      subtotal: subtotal.toFixed(2),
+      discountAmount: discountAmount.toFixed(2),
+      deliveryCharges: deliveryCharges.toFixed(2),
+      installationCharges: installationCharges.toFixed(2),
+      taxAmount: taxAmount.toFixed(2),
+      totalAmount: totalAmount.toFixed(2),
+      baseSubtotal,
+      baseTaxAmount,
+      baseTotalAmount,
+      paidAmount: "0",
+      balanceAmount: totalAmount.toFixed(2),
+      paymentStatus: "pending",
+      billingName: customer?.name,
+      billingAddress: customer?.address,
+      billingCity: customer?.city,
+      billingState: customer?.state,
+      billingPostalCode: customer?.postalCode,
+      billingCountry: customer?.country,
+      billingEmail: customer?.email,
+      billingPhone: customer?.phone,
+      customerTaxId: customer?.taxId,
+      customerTaxIdType: customer?.taxIdType,
+      notes,
+      termsAndConditions,
+      complianceCountry,
+      taxMetadata: {
+        ...taxResult.metadata,
+        breakdown: taxResult.breakdown,
+      },
+      createdBy: userId,
+    }).returning();
+
+    // Create invoice items
+    for (let i = 0; i < orderItems.length; i++) {
+      const item = orderItems[i];
+      const itemSubtotal = parseFloat(item.unitPrice) * item.quantity;
+      const itemDiscount = parseFloat(item.discountAmount || "0");
+      const itemTaxable = itemSubtotal - itemDiscount;
+      
+      // Calculate item tax
+      let itemTaxResult = { totalTaxAmount: 0, breakdown: [] };
+      if (taxMetadata) {
+        itemTaxResult = await taxCalculatorService.calculateTax(
+          tenantId,
+          complianceCountry,
+          itemTaxable,
+          taxMetadata
+        );
+      }
+
+      const itemTotal = itemTaxable + itemTaxResult.totalTaxAmount;
+
+      await db.insert(furnitureInvoiceItems).values({
+        invoiceId: newInvoice.id,
+        salesOrderItemId: item.id,
+        productId: item.productId,
+        description: item.productName || "Product",
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountAmount: item.discountAmount || "0",
+        taxRate: taxMetadata?.taxRate?.toString() || "0",
+        taxAmount: itemTaxResult.totalTaxAmount.toFixed(2),
+        totalPrice: itemTotal.toFixed(2),
+        hsnCode: item.hsnCode,
+        taxBreakdown: { breakdown: itemTaxResult.breakdown },
+        sortOrder: i,
+      });
+    }
+
+    // Log audit
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "invoice",
+      entityId: newInvoice.id,
+      details: { invoiceNumber, salesOrderId, totalAmount },
+    });
+
+    res.status(201).json(newInvoice);
+  } catch (error) {
+    console.error("Error creating invoice:", error);
+    res.status(500).json({ error: "Failed to create invoice" });
+  }
+});
+
+// Create standalone invoice
+router.post("/invoices", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const validatedData = insertFurnitureInvoiceSchema.parse({
+      ...req.body,
+      tenantId,
+    });
+
+    // Generate invoice number
+    const invoiceNumber = validatedData.invoiceNumber || `INV-${Date.now()}`;
+
+    const [newInvoice] = await db.insert(furnitureInvoices).values({
+      ...validatedData,
+      invoiceNumber,
+      balanceAmount: validatedData.totalAmount,
+      createdBy: userId,
+    }).returning();
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "invoice",
+      entityId: newInvoice.id,
+      details: { invoiceNumber },
+    });
+
+    res.status(201).json(newInvoice);
+  } catch (error) {
+    console.error("Error creating invoice:", error);
+    res.status(500).json({ error: "Failed to create invoice" });
+  }
+});
+
+// Update invoice schema - only allow safe fields
+const updateInvoiceSchema = z.object({
+  notes: z.string().optional(),
+  internalNotes: z.string().optional(),
+  termsAndConditions: z.string().optional(),
+  dueDate: z.string().datetime().optional(),
+  billingName: z.string().max(255).optional(),
+  billingAddress: z.string().optional(),
+  billingCity: z.string().max(100).optional(),
+  billingState: z.string().max(100).optional(),
+  billingPostalCode: z.string().max(20).optional(),
+  billingCountry: z.string().max(100).optional(),
+  billingEmail: z.string().email().optional(),
+  billingPhone: z.string().max(50).optional(),
+});
+
+// Update invoice (only if not locked)
+router.patch("/invoices/:id", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    // Validate request body
+    const validationResult = updateInvoiceSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({ 
+        error: "Validation failed", 
+        details: validationResult.error.errors 
+      });
+    }
+
+    const [existing] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!existing) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (existing.isLocked) {
+      return res.status(400).json({ error: "Invoice is locked and cannot be modified" });
+    }
+
+    const [updated] = await db.update(furnitureInvoices)
+      .set({
+        ...validationResult.data,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      })
+      .where(eq(furnitureInvoices.id, req.params.id))
+      .returning();
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "update",
+      entityType: "invoice",
+      entityId: updated.id,
+      details: validationResult.data,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating invoice:", error);
+    res.status(500).json({ error: "Failed to update invoice" });
+  }
+});
+
+// Issue/finalize invoice
+router.post("/invoices/:id/issue", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const [existing] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!existing) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (existing.status !== "draft") {
+      return res.status(400).json({ error: "Only draft invoices can be issued" });
+    }
+
+    // Generate PDF (validation that it can be generated)
+    await invoicePDFService.generateInvoicePDF(existing.id);
+    const pdfStorageKey = `invoices/${tenantId}/${existing.invoiceNumber}.pdf`;
+
+    const [updated] = await db.update(furnitureInvoices)
+      .set({
+        status: "issued",
+        isLocked: true,
+        lockedAt: new Date(),
+        pdfStorageKey,
+        pdfGeneratedAt: new Date(),
+        updatedAt: new Date(),
+        updatedBy: userId,
+      })
+      .where(eq(furnitureInvoices.id, req.params.id))
+      .returning();
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "update",
+      entityType: "invoice",
+      entityId: updated.id,
+      details: { action: "issued", pdfGenerated: true },
+    });
+
+    res.json({ ...updated, pdfAvailable: true });
+  } catch (error) {
+    console.error("Error issuing invoice:", error);
+    res.status(500).json({ error: "Failed to issue invoice" });
+  }
+});
+
+// Payment schema
+const recordPaymentSchema = z.object({
+  amount: z.number().positive("Amount must be positive"),
+  currency: z.string().length(3, "Currency must be 3 characters").optional(),
+  paymentMethod: z.string().max(50).optional(),
+  paymentReference: z.string().max(255).optional(),
+  notes: z.string().optional(),
+});
+
+// Record payment
+router.post("/invoices/:id/payments", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    // Validate request body
+    const validationResult = recordPaymentSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({ 
+        error: "Validation failed", 
+        details: validationResult.error.errors 
+      });
+    }
+
+    const [invoice] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const { amount, currency, paymentMethod, paymentReference, notes } = validationResult.data;
+
+    // Calculate invoice amount if payment currency differs
+    let invoiceAmount = amount;
+    let exchangeRate = "1.00000000";
+
+    if (currency !== invoice.currency) {
+      const rate = await currencyService.getExchangeRate(currency, invoice.currency);
+      if (rate) {
+        invoiceAmount = amount * rate.rate;
+        exchangeRate = rate.rate.toFixed(8);
+      }
+    }
+
+    const paymentNumber = `PAY-${Date.now()}`;
+
+    const [payment] = await db.insert(furnitureInvoicePayments).values({
+      invoiceId: invoice.id,
+      paymentNumber,
+      paymentDate: new Date(),
+      amount: amount.toString(),
+      currency: currency || invoice.currency,
+      invoiceAmount: invoiceAmount.toString(),
+      exchangeRate,
+      paymentMethod,
+      paymentReference,
+      status: "completed",
+      notes,
+      createdBy: userId,
+    }).returning();
+
+    // Update invoice paid amount
+    const newPaidAmount = parseFloat(invoice.paidAmount || "0") + parseFloat(invoiceAmount.toString());
+    const totalAmount = parseFloat(invoice.totalAmount);
+    const newBalance = totalAmount - newPaidAmount;
+
+    let newStatus = invoice.status;
+    if (newBalance <= 0) {
+      newStatus = "paid";
+    } else if (newPaidAmount > 0) {
+      newStatus = "partially_paid";
+    }
+
+    await db.update(furnitureInvoices)
+      .set({
+        paidAmount: newPaidAmount.toFixed(2),
+        balanceAmount: Math.max(0, newBalance).toFixed(2),
+        paymentStatus: newBalance <= 0 ? "paid" : "partial",
+        status: newStatus,
+        lastPaymentDate: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(furnitureInvoices.id, invoice.id));
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "create",
+      entityType: "invoice_payment",
+      entityId: payment.id,
+      details: { invoiceId: invoice.id, amount, paymentMethod },
+    });
+
+    res.status(201).json(payment);
+  } catch (error) {
+    console.error("Error recording payment:", error);
+    res.status(500).json({ error: "Failed to record payment" });
+  }
+});
+
+// Download invoice PDF
+router.get("/invoices/:id/pdf", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const [invoice] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const pdfBuffer = await invoicePDFService.generateInvoicePDF(invoice.id);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoiceNumber}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    res.status(500).json({ error: "Failed to generate PDF" });
+  }
+});
+
+// Cancel invoice
+router.post("/invoices/:id/cancel", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const [existing] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!existing) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (existing.status === "paid") {
+      return res.status(400).json({ error: "Cannot cancel a paid invoice. Use refund instead." });
+    }
+
+    const [updated] = await db.update(furnitureInvoices)
+      .set({
+        status: "cancelled",
+        updatedAt: new Date(),
+        updatedBy: userId,
+      })
+      .where(eq(furnitureInvoices.id, req.params.id))
+      .returning();
+
+    await logFurnitureAudit({
+      tenantId,
+      userId,
+      action: "update",
+      entityType: "invoice",
+      entityId: updated.id,
+      details: { action: "cancelled", reason: req.body.reason },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error cancelling invoice:", error);
+    res.status(500).json({ error: "Failed to cancel invoice" });
+  }
+});
+
+// Get invoice payments
+router.get("/invoices/:id/payments", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+
+    const [invoice] = await db.select()
+      .from(furnitureInvoices)
+      .where(and(
+        eq(furnitureInvoices.id, req.params.id),
+        eq(furnitureInvoices.tenantId, tenantId)
+      ));
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const paymentsList = await db.select()
+      .from(furnitureInvoicePayments)
+      .where(eq(furnitureInvoicePayments.invoiceId, invoice.id))
+      .orderBy(desc(furnitureInvoicePayments.paymentDate));
+
+    res.json(paymentsList);
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({ error: "Failed to fetch payments" });
   }
 });
 
