@@ -139,9 +139,20 @@ class BaseNotificationService implements INotificationService {
 
   async dispatch(payload: NotificationPayload): Promise<NotificationResult> {
     const channelResults: NotificationResult["channelResults"] = [];
-    const legacyEventType = EVENT_TYPE_MAPPING[payload.eventType] || "custom";
+    
+    const adapter = payload.moduleContext ? this.adapters.get(payload.moduleContext) : undefined;
+    
+    const legacyEventType = adapter 
+      ? adapter.mapEventToLegacyType(payload.eventType)
+      : EVENT_TYPE_MAPPING[payload.eventType] || "custom";
+    
+    const channels = payload.channels.length > 0 
+      ? payload.channels 
+      : adapter 
+        ? adapter.getDefaultChannels(payload.eventType)
+        : ["email"];
 
-    for (const channel of payload.channels) {
+    for (const channel of channels) {
       try {
         if (channel === "email" || channel === "sms") {
           const service = await this.getNotificationService();
