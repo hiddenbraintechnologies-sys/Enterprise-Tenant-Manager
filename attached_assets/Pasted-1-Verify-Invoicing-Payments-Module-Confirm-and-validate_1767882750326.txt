@@ -1,0 +1,196 @@
+1️⃣ Verify Invoicing & Payments Module
+
+Confirm and validate:
+
+Invoice generation only from valid sales order states
+(confirmed, processing, ready, delivered)
+
+Line items copied accurately from sales orders
+
+GST logic correctness:
+
+CGST + SGST for intra-state
+
+IGST for inter-state
+
+GST values stored in invoice metadata (not mutable totals)
+
+Invoice immutability:
+
+Financial fields locked after issuance
+
+Only notes and dueDate editable
+
+Payment recording:
+
+Prevent overpayments beyond outstanding balance
+
+Allow partial payments
+
+Persist audit logs for every payment
+
+Auto-update paymentStatus on SalesOrder:
+
+pending → partial → paid
+
+Add edge-case handling (rounding, zero tax, refunds blocked).
+
+2️⃣ Re-validate Business Guardrails (Regression)
+
+Re-run and confirm all guardrails remain enforced:
+
+Production
+
+Stage sequence enforcement (no skips, no revert)
+
+Stage immutability after completion
+
+Sales Orders
+
+Financial integrity on create/update
+
+Advance payment never exceeds total
+
+Read-only in delivered / cancelled / closed
+
+Deliveries & Installations
+
+Delivery requires scheduled date before completion
+
+Installation only allowed after completed delivery
+
+Read-only enforcement in final states
+
+Attempt invalid operations and confirm:
+
+API blocks them
+
+Correct error messages returned
+
+Audit logs are written
+
+3️⃣ Audit Logging Integrity Check
+
+Verify audit logs for:
+
+Blocked operations
+
+Successful mutations
+
+Payment attempts
+
+Financial validation failures
+
+Ensure logs include:
+
+entityType
+
+entityId
+
+action
+
+beforeState / afterState
+
+reason (if blocked)
+
+userId
+
+timestamp
+
+Add indexes if missing (no schema changes unless already allowed).
+
+4️⃣ Data Consistency & Transaction Safety
+
+Ensure:
+
+All multi-step operations use transactions
+
+No partial writes on failure
+
+Payment + invoice + sales order updates are atomic
+
+Production stage transitions are atomic
+
+Add safeguards for concurrent updates.
+
+5️⃣ UI + API Alignment Check
+
+Confirm:
+
+UI uses correct schema fields
+
+No references to non-existent columns
+
+Error messages from API are surfaced clearly
+
+TanStack Query cache invalidation is correct
+
+No silent failures
+
+6️⃣ Performance & Load Readiness
+
+Perform:
+
+Query optimization review
+
+N+1 query detection
+
+Pagination on all large lists
+
+Index usage verification
+
+Simulate:
+
+High-volume invoices
+
+Rapid payment entries
+
+Concurrent production stage updates
+
+7️⃣ Security & Multi-Tenancy Validation
+
+Ensure:
+
+Tenant isolation is enforced everywhere
+
+Users cannot access other tenants’ data
+
+Role permissions are respected
+
+Audit logs cannot be tampered with
+
+8️⃣ Production Readiness Checklist (FINAL)
+
+Confirm:
+
+No console errors
+
+No TypeScript warnings
+
+No schema mismatches
+
+Dev-only seed endpoint disabled in production
+
+Environment flags respected
+
+Furniture module ready for India / UAE / UK compliance
+
+✅ FINAL OUTPUT REQUIRED
+
+Summary of validation results
+
+List of fixes applied (if any)
+
+Confirmation that module is production-ready
+
+Zero breaking changes
+
+❌ STRICT RULES
+
+Do NOT modify schema
+
+Do NOT remove features
+
+Do NOT add mock logic
+
+Do NOT weaken validations

@@ -1,7 +1,12 @@
 import { Router, Request, Response } from "express";
 import { storage } from "../storage";
+import { db } from "../db";
 import { z } from "zod";
+import { eq, and } from "drizzle-orm";
 import {
+  payments,
+  invoices,
+  furnitureSalesOrders,
   insertFurnitureProductSchema,
   insertRawMaterialCategorySchema,
   insertRawMaterialSchema,
@@ -1192,7 +1197,7 @@ router.post("/sales-orders/:orderId/generate-invoice", async (req: Request, res:
       tenantId,
       customerId: salesOrder.customerId,
       invoiceNumber,
-      status: "sent",
+      status: "pending",
       currency: salesOrder.currency || "INR",
       subtotal: String(subtotal),
       taxAmount: String(taxAmount),
@@ -1300,20 +1305,6 @@ router.post("/sales-orders/:orderId/payments", async (req: Request, res: Respons
       return meta?.salesOrderId === req.params.orderId;
     });
 
-    const payment = await storage.createPayment({
-      tenantId,
-      invoiceId: orderInvoice?.id || null,
-      customerId: salesOrder.customerId,
-      currency: salesOrder.currency || "INR",
-      amount: String(paymentAmount),
-      method: req.body.method || "cash",
-      status: "paid",
-      transactionId: req.body.transactionId || null,
-      notes: req.body.notes || null,
-      paidAt: new Date(),
-      createdBy: userId || null,
-    });
-
     const newPaidAmount = currentPaid + paymentAmount;
     const newBalance = totalAmount - newPaidAmount;
     
@@ -1324,19 +1315,44 @@ router.post("/sales-orders/:orderId/payments", async (req: Request, res: Respons
       newPaymentStatus = "pending";
     }
 
-    await storage.updateFurnitureSalesOrder(salesOrder.id, tenantId, {
-      paidAmount: String(newPaidAmount),
-      balanceAmount: String(newBalance),
-      paymentStatus: newPaymentStatus,
-      status: newPaymentStatus === "paid" && salesOrder.status === "delivered" ? "completed" : salesOrder.status,
-    });
+    let payment: any;
+    
+    await db.transaction(async (tx) => {
+      const [createdPayment] = await tx.insert(payments).values({
+        tenantId,
+        invoiceId: orderInvoice?.id || null,
+        customerId: salesOrder.customerId,
+        currency: salesOrder.currency || "INR",
+        amount: String(paymentAmount),
+        method: req.body.method || "cash",
+        status: "paid",
+        transactionId: req.body.transactionId || null,
+        notes: req.body.notes || null,
+        paidAt: new Date(),
+        createdBy: userId || null,
+      }).returning();
+      payment = createdPayment;
 
-    if (orderInvoice) {
-      await storage.updateInvoice(orderInvoice.id, tenantId, {
-        paidAmount: String(newPaidAmount),
-        status: newPaymentStatus === "paid" ? "paid" : "partial",
-      });
-    }
+      await tx.update(furnitureSalesOrders)
+        .set({
+          paidAmount: String(newPaidAmount),
+          balanceAmount: String(newBalance),
+          paymentStatus: newPaymentStatus,
+          status: newPaymentStatus === "paid" && salesOrder.status === "delivered" ? "completed" : salesOrder.status,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(furnitureSalesOrders.id, salesOrder.id), eq(furnitureSalesOrders.tenantId, tenantId)));
+
+      if (orderInvoice) {
+        await tx.update(invoices)
+          .set({
+            paidAmount: String(newPaidAmount),
+            status: newPaymentStatus === "paid" ? "paid" : "partial",
+            updatedAt: new Date(),
+          })
+          .where(and(eq(invoices.id, orderInvoice.id), eq(invoices.tenantId, tenantId)));
+      }
+    });
 
     await logFurnitureAudit(tenantId, userId, "create", "payment", payment.id, null, payment, {
       salesOrderId: salesOrder.id, paymentAmount, newPaidAmount, newBalance, paymentStatus: newPaymentStatus
