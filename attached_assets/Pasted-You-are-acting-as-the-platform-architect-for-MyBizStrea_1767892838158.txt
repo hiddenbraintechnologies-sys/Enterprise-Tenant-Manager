@@ -1,0 +1,95 @@
+You are acting as the platform architect for MyBizStream.
+
+The Furniture Manufacturing module is now the most complete and production-hardened module on the platform, including:
+- Full CRUD with server-side pagination, filtering, sorting
+- Financial validation & guardrails
+- Multi-currency & multi-country tax compliance
+- Invoice & payment lifecycle
+- PDF generation
+- WhatsApp & email notifications
+- Recurring billing & reminders
+- RBAC & tenant isolation
+- Audit logging
+- Flutter mobile parity
+- Integration tests
+- Analytics & AI insights
+
+TASK:
+Perform a **comprehensive feature parity audit** across ALL other business modules, including but not limited to:
+
+- PG / Hostel Management
+- Co-working Spaces
+- Salons & Beauty Parlours
+- Clinics & Diagnostics
+- Coaching / Education Institutes
+- Gyms & Membership Businesses
+- Logistics & Fleet
+- Real Estate Agencies
+- Tourism
+- Legal & Consulting Firms
+- General Service Businesses
+
+────────────────────────
+1️⃣ Feature Parity Matrix
+────────────────────────
+Create a comparison table:
+- Rows = platform features
+- Columns = business modules
+- Status per cell:
+  ✅ Fully implemented
+  ⚠️ Partially implemented
+  ❌ Missing
+
+Feature categories must include:
+- Core CRUD & pagination
+- Server-side filtering & search
+- Financial validation
+- Invoicing & payments
+- Multi-currency support
+- Country-specific tax logic
+- PDF generation
+- WhatsApp & email notifications
+- Recurring billing
+- RBAC & tenant isolation
+- Audit logging
+- Mobile (Flutter) support
+- Analytics dashboards
+- AI insights
+- Compliance modules
+
+────────────────────────
+2️⃣ Gap Identification
+────────────────────────
+For each module, list:
+- Missing features
+- Partially implemented features
+- Any deviations from Furniture module standards
+- Backend vs Frontend vs Mobile gaps
+
+────────────────────────
+3️⃣ Risk Assessment
+────────────────────────
+Identify:
+- Features that could cause data inconsistency
+- Missing guardrails (financial, lifecycle, RBAC)
+- Mobile/web mismatch risks
+- Compliance exposure by country
+
+────────────────────────
+4️⃣ Normalization Strategy
+────────────────────────
+Propose a **platform-wide normalization plan**:
+- Which features should be abstracted into shared services
+- Which features should remain industry-specific
+- Recommended order to bring all modules to parity
+
+────────────────────────
+5️⃣ Output Required
+────────────────────────
+- Feature parity matrix
+- Written gap analysis per module
+- Recommended remediation roadmap (phased)
+- Confirmation whether Furniture module can be treated as the **platform baseline**
+
+NO code changes required.
+THIS IS AN ARCHITECTURAL & AUDIT EXERCISE ONLY.
