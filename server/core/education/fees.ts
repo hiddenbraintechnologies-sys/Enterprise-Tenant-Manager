@@ -1,12 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "../../db";
-import { fees, feePayments, insertFeeSchema, insertFeePaymentSchema } from "@shared/schema";
+import { fees, feePayments, students, tenants, tenantBranding, insertFeeSchema, insertFeePaymentSchema } from "@shared/schema";
 import { eq, and, desc, asc, sql, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { authenticateJWT, requireMinimumRole } from "../auth-middleware";
 import { requirePermission } from "../context";
 import { tenantIsolationMiddleware, createTenantIsolation } from "../tenant-isolation";
 import { auditService } from "../audit";
+import { baseFinancialService } from "../../services/base-financial";
+import { sendFeeReminder, sendFeePaymentConfirmation } from "../../services/notification-adapters";
 
 export const feesRouter = Router();
 
@@ -269,5 +271,167 @@ feesRouter.delete("/:id", ...middleware, requirePermission("fees:delete"), async
     res.status(204).send();
   } catch (error: any) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+feesRouter.get("/:id/pdf", ...middleware, requirePermission("fees:read"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+
+    const [fee] = await db.select()
+      .from(fees)
+      .where(and(eq(fees.id, id), eq(fees.tenantId, isolation.getTenantId()), isNull(fees.deletedAt)));
+
+    if (!fee) {
+      return res.status(404).json({ message: "Fee record not found" });
+    }
+
+    const [student] = fee.studentId ? await db.select().from(students).where(eq(students.id, fee.studentId)) : [null];
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, isolation.getTenantId()));
+    const [branding] = await db.select().from(tenantBranding).where(eq(tenantBranding.tenantId, isolation.getTenantId()));
+
+    const invoiceNumber = `FEE-${fee.id.substring(0, 8).toUpperCase()}`;
+    const studentName = student ? `${student.firstName} ${student.lastName}` : "Student";
+
+    const pdfBuffer = await baseFinancialService.generateInvoicePDF({
+      invoice: {
+        id: fee.id,
+        invoiceNumber,
+        invoiceType: "tax_invoice",
+        status: fee.status === "paid" ? "paid" : fee.status === "partial" ? "partially_paid" : "issued",
+        invoiceDate: fee.createdAt ?? new Date(),
+        dueDate: fee.dueDate ? new Date(fee.dueDate) : null,
+        currency: fee.currency || "INR",
+        baseCurrency: "INR",
+        exchangeRate: 1,
+        subtotal: parseFloat(fee.amount),
+        discountAmount: parseFloat(fee.discountAmount || "0"),
+        taxAmount: parseFloat(fee.taxAmount || "0"),
+        totalAmount: parseFloat(fee.totalAmount),
+        paidAmount: parseFloat(fee.paidAmount || "0"),
+        balanceAmount: parseFloat(fee.balanceAmount || String(parseFloat(fee.totalAmount) - parseFloat(fee.paidAmount || "0"))),
+        taxMetadata: {},
+        billingName: studentName,
+        billingAddress: student?.address || null,
+        billingCity: student?.city || null,
+        billingState: student?.state || null,
+        billingPostalCode: student?.postalCode || null,
+        billingCountry: student?.country || null,
+        billingEmail: student?.email || null,
+        billingPhone: student?.phone || null,
+        customerTaxId: null,
+        customerTaxIdType: null,
+        tenantTaxId: null,
+        tenantTaxIdType: null,
+        tenantBusinessName: tenant?.name || null,
+        tenantAddress: null,
+        notes: fee.notes,
+        termsAndConditions: null,
+        complianceCountry: "IN",
+      },
+      items: [
+        {
+          description: fee.description || `${fee.feeType || "Tuition"} Fee`,
+          quantity: 1,
+          unitPrice: parseFloat(fee.amount),
+          discountAmount: parseFloat(fee.discountAmount || "0"),
+          taxRate: parseFloat(fee.taxAmount || "0") > 0 ? 18 : 0,
+          hsnCode: "999299",
+        }
+      ],
+      branding: branding ? {
+        logoUrl: branding.logoUrl,
+        primaryColor: branding.primaryColor || "#3B82F6",
+        secondaryColor: branding.secondaryColor || "#1E40AF",
+        fontFamily: branding.fontFamily || "Helvetica",
+        emailFromName: branding.emailFromName,
+        supportEmail: branding.supportEmail,
+        supportPhone: branding.supportPhone,
+      } : null,
+      tenant: {
+        name: tenant?.name || "Educational Institution",
+        address: null,
+      },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="fee-receipt-${invoiceNumber}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+feesRouter.post("/:id/notify", ...middleware, requirePermission("fees:update"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+    const { eventType } = req.body;
+
+    const [fee] = await db.select()
+      .from(fees)
+      .where(and(eq(fees.id, id), eq(fees.tenantId, isolation.getTenantId()), isNull(fees.deletedAt)));
+
+    if (!fee) {
+      return res.status(404).json({ message: "Fee record not found" });
+    }
+
+    const [student] = fee.studentId ? await db.select().from(students).where(eq(students.id, fee.studentId)) : [null];
+
+    if (!student) {
+      return res.status(400).json({ message: "No student associated with this fee" });
+    }
+
+    const studentName = `${student.firstName} ${student.lastName}`;
+    const notificationEventType = eventType || (fee.status === "paid" ? "PAYMENT_RECEIVED" : "PAYMENT_REMINDER");
+
+    if (notificationEventType === "PAYMENT_RECEIVED") {
+      await sendFeePaymentConfirmation(
+        isolation.getTenantId(),
+        {
+          studentName,
+          studentEmail: student.email ?? undefined,
+          studentPhone: student.phone ?? undefined,
+          parentEmail: student.guardianEmail ?? undefined,
+          parentPhone: student.guardianPhone ?? undefined,
+          feeId: fee.id,
+          totalAmount: fee.totalAmount,
+          currency: fee.currency || "INR",
+          paidAmount: fee.paidAmount || "0",
+        }
+      );
+    } else {
+      await sendFeeReminder(
+        isolation.getTenantId(),
+        {
+          studentName,
+          parentName: student.guardianName ?? undefined,
+          studentEmail: student.email ?? undefined,
+          studentPhone: student.phone ?? undefined,
+          parentEmail: student.guardianEmail ?? undefined,
+          parentPhone: student.guardianPhone ?? undefined,
+          feeId: fee.id,
+          feeType: fee.feeType || "Tuition",
+          totalAmount: fee.totalAmount,
+          currency: fee.currency || "INR",
+          dueDate: fee.dueDate ? fee.dueDate.toString() : undefined,
+          balanceAmount: fee.balanceAmount || String(parseFloat(fee.totalAmount) - parseFloat(fee.paidAmount || "0")),
+        }
+      );
+    }
+
+    await auditService.logAsync({
+      tenantId: isolation.getTenantId(),
+      userId: req.context?.user?.id,
+      action: "access",
+      resource: "fee_notification",
+      resourceId: id,
+      metadata: { eventType: notificationEventType, studentEmail: student.email },
+    });
+
+    res.json({ message: "Notification sent successfully" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 });

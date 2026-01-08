@@ -1,0 +1,119 @@
+# MyBizStream Unified Master Prompt
+# Phase 2 + HRMS Module + Mobile Expansion
+
+You are a full-stack developer. Your task is to normalize Tier 1 modules, integrate the HRMS module, and expand mobile support using the shared base services created in Phase 1: BaseFinancialService, BaseNotificationService, BaseAnalyticsAdapter. Use the Furniture module as reference for wiring and patterns. Preserve RBAC, tenant isolation, audit logging, and server-side pagination.
+
+---
+
+## Shared Services
+1. BaseFinancialService - wraps currencyService, taxCalculatorService, invoicePDFService
+2. BaseNotificationService - wraps notificationService, whatsappService, with event abstraction
+3. BaseAnalyticsAdapter - module-specific analytics interface
+
+---
+
+## Phase 2: Tier 1 Module Normalization
+
+### Legal Module
+Files: server/core/legal/invoices.ts, appointments.ts, case-summarization.ts  
+- Replace direct financial/notification/analytics calls with base services  
+- Preserve audit logging, RBAC, tenant isolation, pagination  
+- Commit messages:
+    - refactor(legal): integrate BaseFinancialService for invoices
+    - refactor(legal): integrate BaseNotificationService for appointments
+    - refactor(legal): integrate BaseAnalyticsAdapter for legal module
+
+### Education Module
+Files: server/core/education/fees.ts, students.ts, risk-predictions.ts  
+- Use BaseFinancialService for fees → invoices/PDF  
+- Use BaseNotificationService for fee reminders  
+- Use BaseAnalyticsAdapter for risk prediction analytics  
+- Commit messages:
+    - refactor(education): integrate BaseFinancialService for fees
+    - refactor(education): integrate BaseNotificationService for notifications
+    - refactor(education): integrate BaseAnalyticsAdapter for analytics
+
+### Tourism Module
+Files: server/core/tourism/bookings.ts, packages.ts, itineraries.ts  
+- BaseFinancialService for booking invoices/PDF  
+- BaseNotificationService for booking confirmations  
+- BaseAnalyticsAdapter for tourism analytics  
+- Commit messages:
+    - refactor(tourism): integrate BaseFinancialService
+    - refactor(tourism): integrate BaseNotificationService
+    - refactor(tourism): integrate BaseAnalyticsAdapter
+
+### Logistics Module
+Files: server/core/logistics/shipments.ts, vehicles.ts, drivers.ts, route-optimization.ts  
+- BaseFinancialService for shipment invoices/PDF  
+- BaseNotificationService for shipment updates  
+- BaseAnalyticsAdapter for fleet/route analytics  
+- Commit messages:
+    - refactor(logistics): integrate BaseFinancialService
+    - refactor(logistics): integrate BaseNotificationService
+    - refactor(logistics): integrate BaseAnalyticsAdapter
+
+### Real Estate Module
+Files: server/core/real-estate/listings.ts, site-visits.ts, agents.ts  
+- BaseFinancialService for commissions/invoices  
+- BaseNotificationService for client/agent notifications  
+- BaseAnalyticsAdapter for real-estate metrics  
+- Commit messages:
+    - refactor(real-estate): integrate BaseFinancialService
+    - refactor(real-estate): integrate BaseNotificationService
+    - refactor(real-estate): integrate BaseAnalyticsAdapter
+
+---
+
+## HRMS Module Integration (All Businesses)
+
+### Backend
+- Files: server/core/hrms/*.ts  
+- Models: HrDashboardStats, HrEmployee, HrDepartment, HrAttendance, HrLeave, HrLeaveType, HrPayroll, PaginatedResponse  
+- Repository: HrRepository with full CRUD  
+- BLoCs: HrDashboardBloc, EmployeeBloc, AttendanceBloc, LeaveBloc, PayrollBloc  
+- Services: Use baseNotificationService for onboarding, leave approvals, payroll notifications  
+- Commit messages:
+    - feat(hrms): add Employee CRUD and directory
+    - feat(hrms): add Attendance, Leave, Payroll services
+    - refactor(hrms): integrate BaseNotificationService for notifications
+    - refactor(hrms): integrate BaseFinancialService for payroll processing
+
+### Flutter Mobile HRMS Module
+- Directory: mobile/lib/features/hrms/  
+- Pages: HR Dashboard, Employee Directory, Add/Edit Employee, Attendance, Leave Management, Payroll  
+- Integrate BLoCs and repositories  
+- Commit messages:
+    - feat(mobile-hrms): add HR Dashboard, Employee Directory
+    - feat(mobile-hrms): add Attendance, Leave, Payroll pages
+    - refactor(mobile-hrms): integrate base services for notifications and payroll
+
+---
+
+## Mobile Expansion for Tier 1 Modules
+- Use Furniture module as template for Flutter integration  
+- Create feature directories for: Legal, Education, Tourism, Logistics, Real Estate  
+- Pages: Dashboard, CRUD/Lists, Financial Actions, Notifications  
+- Commit messages:
+    - feat(mobile-legal): integrate base services and analytics
+    - feat(mobile-education): integrate fees/invoices and analytics
+    - feat(mobile-tourism): integrate bookings and notifications
+    - feat(mobile-logistics): integrate shipment and fleet analytics
+    - feat(mobile-real-estate): integrate commissions and client notifications
+
+---
+
+## Testing & Verification
+1. Run unit tests for each module (financial, notifications, analytics, CRUD)  
+2. Run Flutter widget & integration tests  
+3. Verify:
+    - Financial workflows work (invoices, payments, PDFs)  
+    - Notifications (email/WhatsApp) trigger correctly  
+    - Analytics data collected per module  
+    - RBAC + tenant isolation intact  
+    - Pagination functional  
+4. Perform full regression testing for Tier 1 + HRMS modules  
+
+---
+
+# End of Master Prompt

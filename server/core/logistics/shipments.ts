@@ -1,12 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "../../db";
-import { shipments, insertShipmentSchema } from "@shared/schema";
+import { shipments, tenants, tenantBranding, insertShipmentSchema } from "@shared/schema";
 import { eq, and, desc, asc, sql, ilike, or, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { authenticateJWT, requireMinimumRole } from "../auth-middleware";
 import { requirePermission } from "../context";
 import { tenantIsolationMiddleware, createTenantIsolation } from "../tenant-isolation";
 import { auditService } from "../audit";
+import { baseFinancialService } from "../../services/base-financial";
+import { sendShipmentUpdate, sendDeliveryNotification } from "../../services/notification-adapters";
 
 export const shipmentsRouter = Router();
 
@@ -99,8 +101,8 @@ shipmentsRouter.get("/track/:trackingNumber", async (req: Request, res: Response
       senderCity: shipments.senderCity,
       receiverCity: shipments.receiverCity,
       pickupDate: shipments.pickupDate,
-      estimatedDelivery: shipments.estimatedDelivery,
-      actualDelivery: shipments.actualDelivery,
+      expectedDeliveryDate: shipments.expectedDeliveryDate,
+      actualDeliveryDate: shipments.actualDeliveryDate,
       currentLatitude: shipments.currentLatitude,
       currentLongitude: shipments.currentLongitude,
       lastLocationUpdate: shipments.lastLocationUpdate,
@@ -283,5 +285,157 @@ shipmentsRouter.delete("/:id", ...middleware, requirePermission("shipments:delet
     res.status(204).send();
   } catch (error: any) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+shipmentsRouter.get("/:id/pdf", ...middleware, requirePermission("shipments:read"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+
+    const [shipment] = await db.select()
+      .from(shipments)
+      .where(and(eq(shipments.id, id), eq(shipments.tenantId, isolation.getTenantId()), isNull(shipments.deletedAt)));
+
+    if (!shipment) {
+      return res.status(404).json({ message: "Shipment not found" });
+    }
+
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, isolation.getTenantId()));
+    const [branding] = await db.select().from(tenantBranding).where(eq(tenantBranding.tenantId, isolation.getTenantId()));
+
+    const pdfBuffer = await baseFinancialService.generateInvoicePDF({
+      invoice: {
+        id: shipment.id,
+        invoiceNumber: `SHP-${shipment.trackingNumber || shipment.id.substring(0, 8)}`,
+        invoiceType: "tax_invoice",
+        status: shipment.paymentStatus === "paid" ? "paid" : "issued",
+        invoiceDate: shipment.createdAt ?? new Date(),
+        dueDate: shipment.expectedDeliveryDate ? new Date(shipment.expectedDeliveryDate) : null,
+        currency: shipment.currency || "INR",
+        baseCurrency: "INR",
+        exchangeRate: 1,
+        subtotal: parseFloat(shipment.freightCharges || "0"),
+        discountAmount: 0,
+        taxAmount: 0,
+        totalAmount: parseFloat(shipment.totalCharges || shipment.freightCharges || "0"),
+        paidAmount: shipment.paymentStatus === "paid" ? parseFloat(shipment.totalCharges || shipment.freightCharges || "0") : 0,
+        balanceAmount: shipment.paymentStatus === "paid" ? 0 : parseFloat(shipment.totalCharges || shipment.freightCharges || "0"),
+        taxMetadata: {},
+        billingName: shipment.senderName || null,
+        billingAddress: shipment.senderAddress || null,
+        billingCity: shipment.senderCity || null,
+        billingState: shipment.senderState || null,
+        billingPostalCode: shipment.senderPostalCode || null,
+        billingCountry: null,
+        billingEmail: shipment.senderEmail || null,
+        billingPhone: shipment.senderPhone || null,
+        customerTaxId: null,
+        customerTaxIdType: null,
+        tenantTaxId: null,
+        tenantTaxIdType: null,
+        tenantBusinessName: tenant?.name || null,
+        tenantAddress: null,
+        notes: shipment.specialInstructions,
+        termsAndConditions: null,
+        complianceCountry: "IN",
+      },
+      items: [
+        {
+          description: `Shipment: ${shipment.senderCity || "Origin"} to ${shipment.receiverCity || "Destination"} (${shipment.weight || 0}kg)`,
+          quantity: 1,
+          unitPrice: parseFloat(shipment.freightCharges || "0"),
+          discountAmount: 0,
+          taxRate: 0,
+          hsnCode: "996521",
+        }
+      ],
+      branding: branding ? {
+        logoUrl: branding.logoUrl,
+        primaryColor: branding.primaryColor || "#3B82F6",
+        secondaryColor: branding.secondaryColor || "#1E40AF",
+        fontFamily: branding.fontFamily || "Helvetica",
+        emailFromName: branding.emailFromName,
+        supportEmail: branding.supportEmail,
+        supportPhone: branding.supportPhone,
+      } : null,
+      tenant: {
+        name: tenant?.name || "Logistics Company",
+        address: null,
+      },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="shipment-${shipment.trackingNumber}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+shipmentsRouter.post("/:id/notify", ...middleware, requirePermission("shipments:update"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+    const { eventType } = req.body;
+
+    const [shipment] = await db.select()
+      .from(shipments)
+      .where(and(eq(shipments.id, id), eq(shipments.tenantId, isolation.getTenantId()), isNull(shipments.deletedAt)));
+
+    if (!shipment) {
+      return res.status(404).json({ message: "Shipment not found" });
+    }
+
+    if (!shipment.receiverEmail && !shipment.receiverPhone && !shipment.senderEmail && !shipment.senderPhone) {
+      return res.status(400).json({ message: "No contact information for this shipment" });
+    }
+
+    const notificationEventType = eventType || "SHIPMENT_UPDATE";
+
+    if (notificationEventType === "DELIVERY_COMPLETED" || notificationEventType === "DELIVERY_SCHEDULED") {
+      await sendDeliveryNotification(
+        isolation.getTenantId(),
+        {
+          receiverName: shipment.receiverName || "Recipient",
+          receiverEmail: shipment.receiverEmail ?? undefined,
+          receiverPhone: shipment.receiverPhone ?? undefined,
+          senderName: shipment.senderName ?? undefined,
+          senderEmail: shipment.senderEmail ?? undefined,
+          trackingNumber: shipment.trackingNumber ?? "",
+          deliveryDate: shipment.actualDeliveryDate ?? undefined,
+          estimatedDelivery: shipment.expectedDeliveryDate ?? undefined,
+        },
+        notificationEventType as "DELIVERY_SCHEDULED" | "DELIVERY_COMPLETED"
+      );
+    } else {
+      await sendShipmentUpdate(
+        isolation.getTenantId(),
+        {
+          receiverName: shipment.receiverName || "Recipient",
+          receiverEmail: shipment.receiverEmail ?? undefined,
+          receiverPhone: shipment.receiverPhone ?? undefined,
+          senderName: shipment.senderName ?? undefined,
+          trackingNumber: shipment.trackingNumber ?? "",
+          status: shipment.status ?? "pending",
+          senderCity: shipment.senderCity ?? undefined,
+          receiverCity: shipment.receiverCity ?? undefined,
+          estimatedDelivery: shipment.expectedDeliveryDate ?? undefined,
+        }
+      );
+    }
+
+    await auditService.logAsync({
+      tenantId: isolation.getTenantId(),
+      userId: req.context?.user?.id,
+      action: "access",
+      resource: "shipment_notification",
+      resourceId: id,
+      metadata: { eventType: notificationEventType, receiverEmail: shipment.receiverEmail },
+    });
+
+    res.json({ message: "Notification sent successfully" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 });

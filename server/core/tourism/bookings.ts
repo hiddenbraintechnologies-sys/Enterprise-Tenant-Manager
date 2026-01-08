@@ -1,12 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "../../db";
-import { tourBookings, tourPackages, insertTourBookingSchema } from "@shared/schema";
+import { tourBookings, tourPackages, tenants, tenantBranding, customers, insertTourBookingSchema } from "@shared/schema";
 import { eq, and, desc, asc, sql, ilike, or, gte, lte } from "drizzle-orm";
 import { z } from "zod";
 import { authenticateJWT, requireMinimumRole } from "../auth-middleware";
 import { requirePermission } from "../context";
 import { tenantIsolationMiddleware, createTenantIsolation } from "../tenant-isolation";
 import { auditService } from "../audit";
+import { baseFinancialService } from "../../services/base-financial";
+import { sendBookingConfirmation, sendBookingReminder } from "../../services/notification-adapters";
 
 export const bookingsRouter = Router();
 
@@ -250,5 +252,187 @@ bookingsRouter.delete("/:id", ...middleware, requirePermission("bookings:delete"
     res.status(204).send();
   } catch (error: any) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+bookingsRouter.get("/:id/pdf", ...middleware, requirePermission("bookings:read"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+
+    const [result] = await db.select({
+      booking: tourBookings,
+      package: tourPackages,
+      customer: customers,
+    })
+      .from(tourBookings)
+      .leftJoin(tourPackages, eq(tourBookings.packageId, tourPackages.id))
+      .leftJoin(customers, eq(tourBookings.customerId, customers.id))
+      .where(and(eq(tourBookings.id, id), eq(tourBookings.tenantId, isolation.getTenantId())));
+
+    if (!result) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const booking = result.booking;
+    const tourPackage = result.package;
+    const customer = result.customer;
+    const numberOfTravelers = Math.max(1, (booking.adults || 0) + (booking.children || 0) + (booking.infants || 0));
+    const emergencyContact = booking.emergencyContact as { name?: string; phone?: string; email?: string } | null;
+    
+    const contactName = customer?.name || emergencyContact?.name || null;
+    const contactEmail = customer?.email || emergencyContact?.email || null;
+    const contactPhone = customer?.phone || emergencyContact?.phone || null;
+    
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, isolation.getTenantId()));
+    const [branding] = await db.select().from(tenantBranding).where(eq(tenantBranding.tenantId, isolation.getTenantId()));
+
+    const pdfBuffer = await baseFinancialService.generateInvoicePDF({
+      invoice: {
+        id: booking.id,
+        invoiceNumber: booking.bookingNumber,
+        invoiceType: "tax_invoice",
+        status: booking.status === "completed" ? "paid" : booking.status === "partial_paid" ? "partially_paid" : "issued",
+        invoiceDate: booking.createdAt ?? new Date(),
+        dueDate: booking.paymentDueDate ? new Date(booking.paymentDueDate) : null,
+        currency: booking.currency || "INR",
+        baseCurrency: "INR",
+        exchangeRate: 1,
+        subtotal: parseFloat(booking.baseAmount ?? "0"),
+        discountAmount: parseFloat(booking.discountAmount ?? "0"),
+        taxAmount: parseFloat(booking.taxAmount ?? "0"),
+        totalAmount: parseFloat(booking.totalAmount ?? "0"),
+        paidAmount: parseFloat(booking.paidAmount ?? "0"),
+        balanceAmount: parseFloat(booking.balanceAmount ?? String(parseFloat(booking.totalAmount ?? "0") - parseFloat(booking.paidAmount ?? "0"))),
+        taxMetadata: {},
+        billingName: contactName,
+        billingAddress: customer?.address || null,
+        billingCity: null,
+        billingState: null,
+        billingPostalCode: null,
+        billingCountry: null,
+        billingEmail: contactEmail,
+        billingPhone: contactPhone,
+        customerTaxId: null,
+        customerTaxIdType: null,
+        tenantTaxId: null,
+        tenantTaxIdType: null,
+        tenantBusinessName: tenant?.name || null,
+        tenantAddress: null,
+        notes: booking.notes,
+        termsAndConditions: null,
+        complianceCountry: "IN",
+      },
+      items: [
+        {
+          description: tourPackage?.name || "Tour Package",
+          quantity: numberOfTravelers,
+          unitPrice: parseFloat(booking.baseAmount ?? "0") / numberOfTravelers,
+          discountAmount: parseFloat(booking.discountAmount ?? "0"),
+          taxRate: parseFloat(booking.taxAmount ?? "0") > 0 ? 18 : 0,
+          hsnCode: "996311",
+        }
+      ],
+      branding: branding ? {
+        logoUrl: branding.logoUrl,
+        primaryColor: branding.primaryColor || "#3B82F6",
+        secondaryColor: branding.secondaryColor || "#1E40AF",
+        fontFamily: branding.fontFamily || "Helvetica",
+        emailFromName: branding.emailFromName,
+        supportEmail: branding.supportEmail,
+        supportPhone: branding.supportPhone,
+      } : null,
+      tenant: {
+        name: tenant?.name || "Travel Agency",
+        address: null,
+      },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="booking-${booking.bookingNumber}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+bookingsRouter.post("/:id/notify", ...middleware, requirePermission("bookings:update"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+    const { eventType } = req.body;
+
+    const [result] = await db.select({
+      booking: tourBookings,
+      package: tourPackages,
+      customer: customers,
+    })
+      .from(tourBookings)
+      .leftJoin(tourPackages, eq(tourBookings.packageId, tourPackages.id))
+      .leftJoin(customers, eq(tourBookings.customerId, customers.id))
+      .where(and(eq(tourBookings.id, id), eq(tourBookings.tenantId, isolation.getTenantId())));
+
+    if (!result) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const booking = result.booking;
+    const tourPackage = result.package;
+    const customer = result.customer;
+    const emergencyContact = booking.emergencyContact as { name?: string; phone?: string; email?: string } | null;
+    const numberOfTravelers = Math.max(1, (booking.adults || 0) + (booking.children || 0) + (booking.infants || 0));
+
+    const contactName = customer?.name || emergencyContact?.name || "Traveler";
+    const contactEmail = customer?.email || emergencyContact?.email;
+    const contactPhone = customer?.phone || emergencyContact?.phone;
+
+    if (!contactEmail && !contactPhone) {
+      return res.status(400).json({ message: "No contact information for this booking" });
+    }
+
+    const notificationEventType = eventType || (booking.status === "confirmed" ? "ORDER_CREATED" : "APPOINTMENT_REMINDER");
+
+    if (notificationEventType === "ORDER_CREATED" || notificationEventType === "BOOKING_CONFIRMED") {
+      await sendBookingConfirmation(
+        isolation.getTenantId(),
+        {
+          travelerName: contactName,
+          travelerEmail: contactEmail ?? undefined,
+          travelerPhone: contactPhone ?? undefined,
+          bookingNumber: booking.bookingNumber,
+          packageName: tourPackage?.name,
+          totalAmount: booking.totalAmount,
+          currency: booking.currency || "INR",
+          departureDate: booking.departureDate,
+          travelersCount: numberOfTravelers,
+        }
+      );
+    } else {
+      await sendBookingReminder(
+        isolation.getTenantId(),
+        {
+          travelerName: contactName,
+          travelerEmail: contactEmail ?? undefined,
+          travelerPhone: contactPhone ?? undefined,
+          bookingNumber: booking.bookingNumber,
+          packageName: tourPackage?.name,
+          departureDate: booking.departureDate,
+          destination: tourPackage?.destinations ? String(tourPackage.destinations) : undefined,
+        }
+      );
+    }
+
+    await auditService.logAsync({
+      tenantId: isolation.getTenantId(),
+      userId: req.context?.user?.id,
+      action: "access",
+      resource: "booking_notification",
+      resourceId: id,
+      metadata: { eventType: notificationEventType, contactEmail },
+    });
+
+    res.json({ message: "Notification sent successfully" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 });

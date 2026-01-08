@@ -113,20 +113,25 @@ export async function sendShipmentUpdate(
 
 export async function sendDeliveryNotification(
   tenantId: string,
-  eventType: "DELIVERY_SCHEDULED" | "DELIVERY_COMPLETED",
   deliveryData: {
     receiverName: string;
     receiverEmail?: string;
     receiverPhone?: string;
+    senderName?: string;
+    senderEmail?: string;
     trackingNumber: string;
+    deliveryDate?: string;
     estimatedDelivery?: string;
-    actualDelivery?: string;
-  }
+  },
+  eventType: "DELIVERY_SCHEDULED" | "DELIVERY_COMPLETED" = "DELIVERY_COMPLETED"
 ): Promise<void> {
   const variables = logisticsNotificationAdapter.buildVariables({
     receiverName: deliveryData.receiverName,
+    senderName: deliveryData.senderName,
     trackingNumber: deliveryData.trackingNumber,
-    estimatedDelivery: deliveryData.estimatedDelivery || deliveryData.actualDelivery,
+    estimatedDelivery: eventType === "DELIVERY_COMPLETED" 
+      ? deliveryData.deliveryDate 
+      : deliveryData.estimatedDelivery,
   });
 
   await baseNotificationService.dispatch({

@@ -72,13 +72,15 @@ export async function sendFeeReminder(
   tenantId: string,
   feeData: {
     studentName: string;
+    studentEmail?: string;
+    studentPhone?: string;
     parentName?: string;
     parentEmail?: string;
     parentPhone?: string;
     feeId: string;
     totalAmount: string;
     currency: string;
-    dueDate: string;
+    dueDate?: string;
     balanceAmount: string;
     feeType?: string;
   }
@@ -100,8 +102,8 @@ export async function sendFeeReminder(
     channels: educationNotificationAdapter.getDefaultChannels("PAYMENT_REMINDER"),
     recipient: {
       name: feeData.parentName || feeData.studentName,
-      email: feeData.parentEmail,
-      phone: feeData.parentPhone,
+      email: feeData.parentEmail || feeData.studentEmail,
+      phone: feeData.parentPhone || feeData.studentPhone,
     },
     variables,
     referenceId: feeData.feeId,
@@ -114,13 +116,15 @@ export async function sendFeePaymentConfirmation(
   tenantId: string,
   paymentData: {
     studentName: string;
+    studentEmail?: string;
+    studentPhone?: string;
     parentName?: string;
     parentEmail?: string;
     parentPhone?: string;
     feeId: string;
-    paymentAmount: string;
+    paidAmount: string;
     totalAmount: string;
-    balanceAmount: string;
+    balanceAmount?: string;
     currency: string;
   }
 ): Promise<void> {
@@ -129,8 +133,8 @@ export async function sendFeePaymentConfirmation(
     parentName: paymentData.parentName,
     feeId: paymentData.feeId,
     totalAmount: paymentData.totalAmount,
-    paidAmount: paymentData.paymentAmount,
-    balanceAmount: paymentData.balanceAmount,
+    paidAmount: paymentData.paidAmount,
+    balanceAmount: paymentData.balanceAmount || "0",
     currency: paymentData.currency,
   });
 
@@ -140,8 +144,8 @@ export async function sendFeePaymentConfirmation(
     channels: educationNotificationAdapter.getDefaultChannels("PAYMENT_RECEIVED"),
     recipient: {
       name: paymentData.parentName || paymentData.studentName,
-      email: paymentData.parentEmail,
-      phone: paymentData.parentPhone,
+      email: paymentData.parentEmail || paymentData.studentEmail,
+      phone: paymentData.parentPhone || paymentData.studentPhone,
     },
     variables,
     referenceId: paymentData.feeId,
