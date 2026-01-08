@@ -7,6 +7,8 @@ import '../../domain/entities/production_order.dart';
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/furniture_invoice.dart';
 import '../../domain/entities/notification_log.dart';
+import '../../domain/entities/analytics_overview.dart';
+import '../../domain/entities/ai_insight.dart';
 
 class FurnitureRemoteDataSource {
   final ApiClient _apiClient;
@@ -157,5 +159,49 @@ class FurnitureRemoteDataSource {
       data: {'eventType': eventType},
     );
     return NotificationLog.fromJson(response.data['notification'] as Map<String, dynamic>);
+  }
+
+  Future<AnalyticsOverview> getAnalyticsOverview({String period = '30d'}) async {
+    final response = await _apiClient.get(
+      '$_basePath/analytics/overview',
+      queryParameters: {'period': period},
+    );
+    return AnalyticsOverview.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<List<AiInsight>> getInsights({
+    String? category,
+    String? severity,
+    bool includeRead = false,
+    int limit = 20,
+  }) async {
+    final queryParams = <String, dynamic>{
+      'limit': limit.toString(),
+      'includeRead': includeRead.toString(),
+    };
+    if (category != null) queryParams['category'] = category;
+    if (severity != null) queryParams['severity'] = severity;
+
+    final response = await _apiClient.get(
+      '$_basePath/insights',
+      queryParameters: queryParams,
+    );
+    final List<dynamic> data = response.data as List<dynamic>;
+    return data.map((json) => AiInsight.fromJson(json as Map<String, dynamic>)).toList();
+  }
+
+  Future<Map<String, dynamic>> generateInsights() async {
+    final response = await _apiClient.post('$_basePath/insights/generate');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<AiInsight> markInsightRead(String id) async {
+    final response = await _apiClient.patch('$_basePath/insights/$id/read');
+    return AiInsight.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<AiInsight> dismissInsight(String id) async {
+    final response = await _apiClient.patch('$_basePath/insights/$id/dismiss');
+    return AiInsight.fromJson(response.data as Map<String, dynamic>);
   }
 }

@@ -5,6 +5,8 @@ import '../entities/production_order.dart';
 import '../entities/sales_order.dart';
 import '../entities/furniture_invoice.dart';
 import '../entities/notification_log.dart';
+import '../entities/analytics_overview.dart';
+import '../entities/ai_insight.dart';
 
 abstract class FurnitureRepository {
   Future<PaginatedResponse<FurnitureProduct>> getProducts(
@@ -54,4 +56,19 @@ abstract class FurnitureRepository {
     required String channel,
     required String eventType,
   });
+
+  Future<AnalyticsOverview> getAnalyticsOverview({String period = '30d'});
+
+  Future<List<AiInsight>> getInsights({
+    String? category,
+    String? severity,
+    bool includeRead = false,
+    int limit = 20,
+  });
+
+  Future<Map<String, dynamic>> generateInsights();
+
+  Future<AiInsight> markInsightRead(String id);
+
+  Future<AiInsight> dismissInsight(String id);
 }

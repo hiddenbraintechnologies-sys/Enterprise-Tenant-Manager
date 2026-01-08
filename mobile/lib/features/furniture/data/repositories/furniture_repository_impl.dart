@@ -5,6 +5,8 @@ import '../../domain/entities/production_order.dart';
 import '../../domain/entities/sales_order.dart';
 import '../../domain/entities/furniture_invoice.dart';
 import '../../domain/entities/notification_log.dart';
+import '../../domain/entities/analytics_overview.dart';
+import '../../domain/entities/ai_insight.dart';
 import '../../domain/repositories/furniture_repository.dart';
 import '../datasources/furniture_remote_datasource.dart';
 
@@ -117,5 +119,40 @@ class FurnitureRepositoryImpl implements FurnitureRepository {
       channel: channel,
       eventType: eventType,
     );
+  }
+
+  @override
+  Future<AnalyticsOverview> getAnalyticsOverview({String period = '30d'}) {
+    return _remoteDataSource.getAnalyticsOverview(period: period);
+  }
+
+  @override
+  Future<List<AiInsight>> getInsights({
+    String? category,
+    String? severity,
+    bool includeRead = false,
+    int limit = 20,
+  }) {
+    return _remoteDataSource.getInsights(
+      category: category,
+      severity: severity,
+      includeRead: includeRead,
+      limit: limit,
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> generateInsights() {
+    return _remoteDataSource.generateInsights();
+  }
+
+  @override
+  Future<AiInsight> markInsightRead(String id) {
+    return _remoteDataSource.markInsightRead(id);
+  }
+
+  @override
+  Future<AiInsight> dismissInsight(String id) {
+    return _remoteDataSource.dismissInsight(id);
   }
 }
