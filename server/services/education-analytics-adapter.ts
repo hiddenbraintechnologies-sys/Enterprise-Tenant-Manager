@@ -20,7 +20,7 @@ import {
   createMetricValue,
 } from "./base-analytics";
 import { db } from "../db";
-import { eduStudents, eduCourses, eduBatches } from "@shared/schema";
+import { students, courses, batches } from "@shared/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 
 const EDUCATION_ANALYTICS_CONFIG: ModuleAnalyticsConfig = {
@@ -112,8 +112,8 @@ class EducationAnalyticsAdapter implements IAnalyticsAdapter {
         total: sql<number>`count(*)::int`,
         active: sql<number>`count(*) filter (where status = 'active')::int`,
       })
-        .from(eduStudents)
-        .where(and(eq(eduStudents.tenantId, tenantId), isNull(eduStudents.deletedAt)));
+        .from(students)
+        .where(and(eq(students.tenantId, tenantId), isNull(students.deletedAt)));
 
       return result[0] || { total: 0, active: 0 };
     } catch {
@@ -127,8 +127,8 @@ class EducationAnalyticsAdapter implements IAnalyticsAdapter {
         total: sql<number>`count(*)::int`,
         active: sql<number>`count(*) filter (where status = 'active')::int`,
       })
-        .from(eduCourses)
-        .where(and(eq(eduCourses.tenantId, tenantId), isNull(eduCourses.deletedAt)));
+        .from(courses)
+        .where(and(eq(courses.tenantId, tenantId), isNull(courses.deletedAt)));
 
       return result[0] || { total: 0, active: 0 };
     } catch {
@@ -142,8 +142,8 @@ class EducationAnalyticsAdapter implements IAnalyticsAdapter {
         total: sql<number>`count(*)::int`,
         active: sql<number>`count(*) filter (where status = 'active')::int`,
       })
-        .from(eduBatches)
-        .where(and(eq(eduBatches.tenantId, tenantId), isNull(eduBatches.deletedAt)));
+        .from(batches)
+        .where(and(eq(batches.tenantId, tenantId), isNull(batches.deletedAt)));
 
       return result[0] || { total: 0, active: 0 };
     } catch {

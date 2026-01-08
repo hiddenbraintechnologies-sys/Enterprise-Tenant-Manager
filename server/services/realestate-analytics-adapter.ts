@@ -19,7 +19,7 @@ import {
   createMetricValue,
 } from "./base-analytics";
 import { db } from "../db";
-import { realEstateProperties, realEstateLeads, realEstateAgents } from "@shared/schema";
+import { properties, realEstateLeads, agents } from "@shared/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 
 const REALESTATE_ANALYTICS_CONFIG: ModuleAnalyticsConfig = {
@@ -112,8 +112,8 @@ class RealEstateAnalyticsAdapter implements IAnalyticsAdapter {
         available: sql<number>`count(*) filter (where status = 'available')::int`,
         sold: sql<number>`count(*) filter (where status = 'sold')::int`,
       })
-        .from(realEstateProperties)
-        .where(and(eq(realEstateProperties.tenantId, tenantId), isNull(realEstateProperties.deletedAt)));
+        .from(properties)
+        .where(and(eq(properties.tenantId, tenantId), isNull(properties.deletedAt)));
 
       return result[0] || { total: 0, available: 0, sold: 0 };
     } catch {
@@ -128,7 +128,7 @@ class RealEstateAnalyticsAdapter implements IAnalyticsAdapter {
         converted: sql<number>`count(*) filter (where status = 'converted')::int`,
       })
         .from(realEstateLeads)
-        .where(and(eq(realEstateLeads.tenantId, tenantId), isNull(realEstateLeads.deletedAt)));
+        .where(eq(realEstateLeads.tenantId, tenantId));
 
       return result[0] || { total: 0, converted: 0 };
     } catch {
@@ -141,8 +141,8 @@ class RealEstateAnalyticsAdapter implements IAnalyticsAdapter {
       const result = await db.select({
         total: sql<number>`count(*)::int`,
       })
-        .from(realEstateAgents)
-        .where(and(eq(realEstateAgents.tenantId, tenantId), isNull(realEstateAgents.deletedAt)));
+        .from(agents)
+        .where(and(eq(agents.tenantId, tenantId), isNull(agents.deletedAt)));
 
       return result[0] || { total: 0 };
     } catch {
