@@ -102,7 +102,7 @@ class TourismAnalyticsAdapter implements IAnalyticsAdapter {
         cancelled: sql<number>`count(*) filter (where status = 'cancelled')::int`,
       })
         .from(tourBookings)
-        .where(and(eq(tourBookings.tenantId, tenantId), isNull(tourBookings.deletedAt)));
+        .where(eq(tourBookings.tenantId, tenantId));
 
       return result[0] || { total: 0, confirmed: 0, cancelled: 0 };
     } catch {
@@ -117,7 +117,7 @@ class TourismAnalyticsAdapter implements IAnalyticsAdapter {
         active: sql<number>`count(*) filter (where status = 'active')::int`,
       })
         .from(tourPackages)
-        .where(and(eq(tourPackages.tenantId, tenantId), isNull(tourPackages.deletedAt)));
+        .where(eq(tourPackages.tenantId, tenantId));
 
       return result[0] || { total: 0, active: 0 };
     } catch {

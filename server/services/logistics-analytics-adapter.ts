@@ -19,7 +19,7 @@ import {
   createMetricValue,
 } from "./base-analytics";
 import { db } from "../db";
-import { logisticsVehicles, logisticsTrips, logisticsShipments } from "@shared/schema";
+import { vehicles, trips, shipments } from "@shared/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 
 const LOGISTICS_ANALYTICS_CONFIG: ModuleAnalyticsConfig = {
@@ -111,8 +111,8 @@ class LogisticsAnalyticsAdapter implements IAnalyticsAdapter {
         total: sql<number>`count(*)::int`,
         active: sql<number>`count(*) filter (where status = 'active')::int`,
       })
-        .from(logisticsVehicles)
-        .where(and(eq(logisticsVehicles.tenantId, tenantId), isNull(logisticsVehicles.deletedAt)));
+        .from(vehicles)
+        .where(and(eq(vehicles.tenantId, tenantId), isNull(vehicles.deletedAt)));
 
       return result[0] || { total: 0, active: 0 };
     } catch {
@@ -126,8 +126,8 @@ class LogisticsAnalyticsAdapter implements IAnalyticsAdapter {
         total: sql<number>`count(*)::int`,
         completed: sql<number>`count(*) filter (where status = 'completed')::int`,
       })
-        .from(logisticsTrips)
-        .where(and(eq(logisticsTrips.tenantId, tenantId), isNull(logisticsTrips.deletedAt)));
+        .from(trips)
+        .where(and(eq(trips.tenantId, tenantId), isNull(trips.deletedAt)));
 
       return result[0] || { total: 0, completed: 0 };
     } catch {
@@ -141,8 +141,8 @@ class LogisticsAnalyticsAdapter implements IAnalyticsAdapter {
         total: sql<number>`count(*)::int`,
         delivered: sql<number>`count(*) filter (where status = 'delivered')::int`,
       })
-        .from(logisticsShipments)
-        .where(and(eq(logisticsShipments.tenantId, tenantId), isNull(logisticsShipments.deletedAt)));
+        .from(shipments)
+        .where(and(eq(shipments.tenantId, tenantId), isNull(shipments.deletedAt)));
 
       return result[0] || { total: 0, delivered: 0 };
     } catch {

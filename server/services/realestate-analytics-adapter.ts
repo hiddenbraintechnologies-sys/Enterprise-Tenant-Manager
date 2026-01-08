@@ -113,7 +113,7 @@ class RealEstateAnalyticsAdapter implements IAnalyticsAdapter {
         sold: sql<number>`count(*) filter (where status = 'sold')::int`,
       })
         .from(properties)
-        .where(and(eq(properties.tenantId, tenantId), isNull(properties.deletedAt)));
+        .where(eq(properties.tenantId, tenantId));
 
       return result[0] || { total: 0, available: 0, sold: 0 };
     } catch {
@@ -142,7 +142,7 @@ class RealEstateAnalyticsAdapter implements IAnalyticsAdapter {
         total: sql<number>`count(*)::int`,
       })
         .from(agents)
-        .where(and(eq(agents.tenantId, tenantId), isNull(agents.deletedAt)));
+        .where(eq(agents.tenantId, tenantId));
 
       return result[0] || { total: 0 };
     } catch {

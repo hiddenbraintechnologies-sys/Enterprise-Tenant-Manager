@@ -19,7 +19,7 @@ import {
   createMetricValue,
 } from "./base-analytics";
 import { db } from "../db";
-import { legalClients, legalCases } from "@shared/schema";
+import { legalClients, cases } from "@shared/schema";
 import { eq, and, sql, isNull, gte, lte } from "drizzle-orm";
 
 const LEGAL_ANALYTICS_CONFIG: ModuleAnalyticsConfig = {
@@ -101,8 +101,8 @@ class LegalAnalyticsAdapter implements IAnalyticsAdapter {
         active: sql<number>`count(*) filter (where status in ('open', 'in_progress', 'pending'))::int`,
         closed: sql<number>`count(*) filter (where status = 'closed')::int`,
       })
-        .from(legalCases)
-        .where(and(eq(legalCases.tenantId, tenantId), isNull(legalCases.deletedAt)));
+        .from(cases)
+        .where(and(eq(cases.tenantId, tenantId), isNull(cases.deletedAt)));
 
       return result[0] || { total: 0, active: 0, closed: 0 };
     } catch {
