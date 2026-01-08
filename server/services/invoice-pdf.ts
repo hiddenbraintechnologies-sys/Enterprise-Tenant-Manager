@@ -609,6 +609,12 @@ class InvoicePDFService {
     readable.push(null);
     return readable;
   }
+
+  async generatePDFFromData(data: InvoicePDFData): Promise<Buffer> {
+    return this.createPDF(data);
+  }
 }
 
 export const invoicePDFService = new InvoicePDFService();
+
+export type { InvoicePDFData };

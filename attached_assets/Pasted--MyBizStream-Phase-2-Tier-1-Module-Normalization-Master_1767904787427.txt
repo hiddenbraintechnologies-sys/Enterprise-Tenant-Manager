@@ -1,0 +1,101 @@
+# MyBizStream Phase 2 - Tier 1 Module Normalization Master Prompt
+
+You are a full-stack developer. The task is to normalize all Tier 1 modules of MyBizStream by integrating the shared base services created in Phase 1: BaseFinancialService, BaseNotificationService, BaseAnalyticsAdapter. Use the Furniture module as reference for wiring and patterns. Apply proper RBAC, tenant isolation, audit logging, and server-side pagination. Preserve existing module-specific logic.
+
+---
+
+## Shared Services
+1. BaseFinancialService - wrap currencyService, taxCalculatorService, invoicePDFService
+2. BaseNotificationService - wrap notificationService, whatsappService, with event type abstraction
+3. BaseAnalyticsAdapter - provide module-specific analytics interface
+
+---
+
+## Module Tasks
+
+### 1️⃣ Legal Module
+Files: `server/core/legal/invoices.ts`, `appointments.ts`, `case-summarization.ts`
+- Replace direct invoice/payment/currency/tax/PDF calls with BaseFinancialService
+- Replace direct notifications with BaseNotificationService (appointment reminders)
+- Replace analytics calls with BaseAnalyticsAdapter
+- Preserve audit logging and tenant isolation
+- Commit messages:
+    - `refactor(legal): integrate BaseFinancialService for invoices`
+    - `refactor(legal): integrate BaseNotificationService for appointments`
+    - `refactor(legal): integrate BaseAnalyticsAdapter for legal module`
+
+---
+
+### 2️⃣ Education Module
+Files: `server/core/education/fees.ts`, `students.ts`, `risk-predictions.ts`
+- Use BaseFinancialService for fees → invoice + PDF
+- Use BaseNotificationService for fee reminders
+- Use BaseAnalyticsAdapter for risk prediction analytics
+- Commit messages:
+    - `refactor(education): integrate BaseFinancialService for fees and invoices`
+    - `refactor(education): integrate BaseNotificationService for fee reminders`
+    - `refactor(education): integrate BaseAnalyticsAdapter for analytics`
+
+---
+
+### 3️⃣ Tourism Module
+Files: `server/core/tourism/bookings.ts`, `packages.ts`, `itineraries.ts`
+- Use BaseFinancialService for booking invoices + PDF
+- Use BaseNotificationService for booking confirmation reminders
+- Use BaseAnalyticsAdapter for tourism analytics
+- Commit messages:
+    - `refactor(tourism): integrate BaseFinancialService for bookings`
+    - `refactor(tourism): integrate BaseNotificationService for booking notifications`
+    - `refactor(tourism): integrate BaseAnalyticsAdapter for tourism module`
+
+---
+
+### 4️⃣ Logistics Module
+Files: `server/core/logistics/shipments.ts`, `vehicles.ts`, `drivers.ts`, `route-optimization.ts`
+- Use BaseFinancialService for shipment invoices + PDF
+- Use BaseNotificationService for shipment updates
+- Use BaseAnalyticsAdapter for route/fleet analytics
+- Commit messages:
+    - `refactor(logistics): integrate BaseFinancialService for shipments`
+    - `refactor(logistics): integrate BaseNotificationService for shipment notifications`
+    - `refactor(logistics): integrate BaseAnalyticsAdapter for logistics metrics`
+
+---
+
+### 5️⃣ Real Estate Module
+Files: `server/core/real-estate/listings.ts`, `site-visits.ts`, `agents.ts`
+- Use BaseFinancialService for commissions + invoicing
+- Use BaseNotificationService for client/agent notifications
+- Use BaseAnalyticsAdapter for listing/sales analytics
+- Commit messages:
+    - `refactor(real-estate): integrate BaseFinancialService for commissions`
+    - `refactor(real-estate): integrate BaseNotificationService for inquiries`
+    - `refactor(real-estate): integrate BaseAnalyticsAdapter for real-estate metrics`
+
+---
+
+## General Instructions
+1. Preserve existing RBAC (`requireMinimumRole`) and tenant isolation (`tenantIsolationMiddleware`) in all modules.
+2. Preserve audit logging (`auditService`) in all routes.
+3. Ensure server-side pagination remains functional.
+4. Verify each module individually after integration:
+    - Financial workflows (invoice, payment, PDF) work
+    - Notifications fire correctly
+    - Analytics track module-specific metrics
+5. Run full regression tests for Furniture and all Tier 1 modules to ensure no breakage.
+
+---
+
+## Testing & Verification
+- Commit changes for each module separately.
+- Create a test suite to verify:
+    - Invoice generation and PDF creation
+    - Notification sending (email & WhatsApp)
+    - Analytics data reporting
+    - RBAC, tenant isolation, audit logging
+    - Server-side pagination
+- After module testing, run **integration test** for Tier 1 modules together.
+
+---
+
+# End of Phase 2 Prompt

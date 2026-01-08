@@ -1,12 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { db } from "../../db";
-import { legalInvoices, insertLegalInvoiceSchema } from "@shared/schema";
+import { legalInvoices, legalClients, tenants, tenantBranding, insertLegalInvoiceSchema } from "@shared/schema";
 import { eq, and, desc, asc, sql, ilike, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { authenticateJWT, requireMinimumRole } from "../auth-middleware";
 import { requirePermission } from "../context";
 import { tenantIsolationMiddleware, createTenantIsolation } from "../tenant-isolation";
 import { auditService } from "../audit";
+import { baseFinancialService } from "../../services/base-financial";
+import { sendLegalInvoiceNotification } from "../../services/legal-notification-adapter";
 
 export const legalInvoicesRouter = Router();
 
@@ -300,5 +302,143 @@ legalInvoicesRouter.delete("/:id", ...middleware, requirePermission("legal_invoi
     res.status(204).send();
   } catch (error: any) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+legalInvoicesRouter.get("/:id/pdf", ...middleware, requirePermission("legal_invoices:read"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+
+    const [invoice] = await db.select()
+      .from(legalInvoices)
+      .where(and(eq(legalInvoices.id, id), eq(legalInvoices.tenantId, isolation.getTenantId()), isNull(legalInvoices.deletedAt)));
+
+    if (!invoice) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    const [client] = invoice.clientId ? await db.select().from(legalClients).where(eq(legalClients.id, invoice.clientId)) : [null];
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, isolation.getTenantId()));
+    const [branding] = await db.select().from(tenantBranding).where(eq(tenantBranding.tenantId, isolation.getTenantId()));
+
+    const pdfBuffer = await baseFinancialService.generateInvoicePDF({
+      invoice: {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceType: "tax_invoice",
+        status: invoice.status,
+        invoiceDate: invoice.invoiceDate,
+        dueDate: invoice.dueDate,
+        currency: invoice.currency || "INR",
+        baseCurrency: "INR",
+        exchangeRate: 1,
+        subtotal: parseFloat(invoice.subtotal),
+        discountAmount: parseFloat(invoice.discountAmount || "0"),
+        taxAmount: parseFloat(invoice.taxAmount || "0"),
+        totalAmount: parseFloat(invoice.totalAmount),
+        paidAmount: parseFloat(invoice.paidAmount || "0"),
+        balanceAmount: parseFloat(invoice.balanceAmount || "0"),
+        taxMetadata: {},
+        billingName: client?.name || null,
+        billingAddress: client?.address || null,
+        billingCity: null,
+        billingState: null,
+        billingPostalCode: null,
+        billingCountry: null,
+        billingEmail: client?.email || null,
+        billingPhone: client?.phone || null,
+        customerTaxId: null,
+        customerTaxIdType: null,
+        tenantTaxId: null,
+        tenantTaxIdType: null,
+        tenantBusinessName: tenant?.name || null,
+        tenantAddress: null,
+        notes: invoice.notes,
+        termsAndConditions: null,
+        complianceCountry: "IN",
+      },
+      items: [
+        {
+          description: invoice.description || "Legal Services",
+          quantity: 1,
+          unitPrice: parseFloat(invoice.subtotal),
+          discountAmount: parseFloat(invoice.discountAmount || "0"),
+          taxRate: 18,
+          hsnCode: "998231",
+        }
+      ],
+      branding: branding ? {
+        logoUrl: branding.logoUrl,
+        primaryColor: branding.primaryColor || "#3B82F6",
+        secondaryColor: branding.secondaryColor || "#1E40AF",
+        fontFamily: branding.fontFamily || "Helvetica",
+        emailFromName: branding.emailFromName,
+        supportEmail: branding.supportEmail,
+        supportPhone: branding.supportPhone,
+      } : null,
+      tenant: {
+        name: tenant?.name || "Legal Firm",
+        address: null,
+      },
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="invoice-${invoice.invoiceNumber}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+legalInvoicesRouter.post("/:id/notify", ...middleware, requirePermission("legal_invoices:update"), async (req: Request, res: Response) => {
+  try {
+    const isolation = createTenantIsolation(req);
+    const { id } = req.params;
+    const { eventType } = req.body;
+
+    const [invoice] = await db.select()
+      .from(legalInvoices)
+      .where(and(eq(legalInvoices.id, id), eq(legalInvoices.tenantId, isolation.getTenantId()), isNull(legalInvoices.deletedAt)));
+
+    if (!invoice) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    const [client] = invoice.clientId ? await db.select().from(legalClients).where(eq(legalClients.id, invoice.clientId)) : [null];
+
+    if (!client) {
+      return res.status(400).json({ message: "No client associated with this invoice" });
+    }
+
+    await sendLegalInvoiceNotification(
+      isolation.getTenantId(),
+      eventType || "INVOICE_ISSUED",
+      {
+        clientName: client.name,
+        clientEmail: client.email || undefined,
+        clientPhone: client.phone || undefined,
+        invoiceNumber: invoice.invoiceNumber,
+        totalAmount: invoice.totalAmount,
+        currency: invoice.currency || "INR",
+        dueDate: invoice.dueDate?.toISOString(),
+        paidAmount: invoice.paidAmount || "0",
+        balanceAmount: invoice.balanceAmount || "0",
+        invoiceId: invoice.id,
+      }
+    );
+
+    await auditService.logAsync({
+      tenantId: isolation.getTenantId(),
+      userId: req.context?.user?.id,
+      action: "access",
+      resource: "legal_invoice_notification",
+      resourceId: id,
+      metadata: { eventType, clientEmail: client.email },
+    });
+
+    res.json({ message: "Notification sent successfully" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 });

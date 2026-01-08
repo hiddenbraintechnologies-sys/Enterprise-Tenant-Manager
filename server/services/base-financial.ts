@@ -109,7 +109,7 @@ class BaseFinancialService implements IFinancialService {
   }
 
   async convertCurrency(request: CurrencyConversionRequest): Promise<ConversionResult | null> {
-    return currencyService.convertAmount(
+    return currencyService.convert(
       request.amount,
       request.fromCurrency,
       request.toCurrency,
@@ -187,35 +187,61 @@ class BaseFinancialService implements IFinancialService {
 
   async generateInvoicePDF(request: InvoicePDFRequest): Promise<Buffer> {
     const pdfService = await this.getInvoicePDFService();
-    const legacyInvoice = {
-      ...request.invoice,
-      invoiceDate: request.invoice.invoiceDate.toISOString(),
-      dueDate: request.invoice.dueDate?.toISOString() || null,
-      subtotal: String(request.invoice.subtotal),
-      discountAmount: String(request.invoice.discountAmount),
-      taxAmount: String(request.invoice.taxAmount),
-      totalAmount: String(request.invoice.totalAmount),
-      paidAmount: String(request.invoice.paidAmount),
-      balanceAmount: String(request.invoice.balanceAmount),
-      exchangeRate: String(request.invoice.exchangeRate),
+    
+    const pdfData = {
+      invoice: {
+        id: request.invoice.id,
+        invoiceNumber: request.invoice.invoiceNumber,
+        invoiceType: request.invoice.invoiceType,
+        status: request.invoice.status,
+        invoiceDate: request.invoice.invoiceDate,
+        dueDate: request.invoice.dueDate,
+        currency: request.invoice.currency,
+        baseCurrency: request.invoice.baseCurrency,
+        exchangeRate: request.invoice.exchangeRate,
+        subtotal: request.invoice.subtotal,
+        discountAmount: request.invoice.discountAmount,
+        deliveryCharges: 0,
+        installationCharges: 0,
+        taxAmount: request.invoice.taxAmount,
+        totalAmount: request.invoice.totalAmount,
+        paidAmount: request.invoice.paidAmount,
+        balanceAmount: request.invoice.balanceAmount,
+        taxMetadata: request.invoice.taxMetadata,
+        billingName: request.invoice.billingName,
+        billingAddress: request.invoice.billingAddress,
+        billingCity: request.invoice.billingCity,
+        billingState: request.invoice.billingState,
+        billingPostalCode: request.invoice.billingPostalCode,
+        billingCountry: request.invoice.billingCountry,
+        billingEmail: request.invoice.billingEmail,
+        billingPhone: request.invoice.billingPhone,
+        customerTaxId: request.invoice.customerTaxId,
+        customerTaxIdType: request.invoice.customerTaxIdType,
+        tenantTaxId: request.invoice.tenantTaxId,
+        tenantTaxIdType: request.invoice.tenantTaxIdType,
+        tenantBusinessName: request.invoice.tenantBusinessName,
+        tenantAddress: request.invoice.tenantAddress,
+        notes: request.invoice.notes,
+        termsAndConditions: request.invoice.termsAndConditions,
+        complianceCountry: request.invoice.complianceCountry,
+      },
+      items: request.items.map(item => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountAmount: item.discountAmount || 0,
+        taxRate: item.taxRate || 0,
+        taxAmount: (item.quantity * item.unitPrice * (item.taxRate || 0)) / 100,
+        totalPrice: item.quantity * item.unitPrice - (item.discountAmount || 0),
+        hsnCode: item.hsnCode || null,
+        taxBreakdown: {},
+      })),
+      branding: request.branding,
+      tenant: request.tenant,
     };
 
-    const legacyItems = request.items.map(item => ({
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: String(item.unitPrice),
-      discountAmount: item.discountAmount ? String(item.discountAmount) : null,
-      taxAmount: String((item.quantity * item.unitPrice * (item.taxRate || 0)) / 100),
-      totalPrice: String(item.quantity * item.unitPrice - (item.discountAmount || 0)),
-      hsnCode: item.hsnCode || null,
-    }));
-
-    return pdfService.generatePDF(
-      legacyInvoice as Parameters<typeof pdfService.generatePDF>[0],
-      legacyItems as Parameters<typeof pdfService.generatePDF>[1],
-      request.branding as Parameters<typeof pdfService.generatePDF>[2],
-      request.tenant as Parameters<typeof pdfService.generatePDF>[3]
-    );
+    return pdfService.generatePDFFromData(pdfData);
   }
 }
 
