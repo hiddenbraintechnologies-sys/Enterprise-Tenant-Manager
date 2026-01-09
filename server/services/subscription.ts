@@ -81,7 +81,7 @@ export class SubscriptionService {
       .where(
         and(
           eq(tenantSubscriptions.tenantId, tenantId),
-          eq(tenantSubscriptions.status, "active")
+          inArray(tenantSubscriptions.status, ["active", "trialing"])
         )
       )
       .limit(1);
@@ -134,28 +134,33 @@ export class SubscriptionService {
   }
 
   async getTenantActiveAddons(tenantId: string): Promise<string[]> {
-    const activeAddons = await db
-      .select({ 
-        addonId: tenantAddons.addonId,
-        code: addons.code,
-        category: addons.category,
-        status: tenantAddons.status,
-        subscriptionStatus: tenantAddons.subscriptionStatus
-      })
-      .from(tenantAddons)
-      .innerJoin(addons, eq(addons.id, tenantAddons.addonId))
-      .where(eq(tenantAddons.tenantId, tenantId));
-    
-    const validStatuses = ["active"];
-    const invalidSubStatuses = ["cancelled", "past_due", "suspended"];
-    
-    return activeAddons
-      .filter(a => {
-        if (!validStatuses.includes(a.status || "")) return false;
-        if (a.subscriptionStatus && invalidSubStatuses.includes(a.subscriptionStatus)) return false;
-        return true;
-      })
-      .map(a => a.code || a.category || a.addonId);
+    try {
+      const activeAddons = await db
+        .select({ 
+          addonId: tenantAddons.addonId,
+          slug: addons.slug,
+          category: addons.category,
+          status: tenantAddons.status,
+          subscriptionStatus: tenantAddons.subscriptionStatus
+        })
+        .from(tenantAddons)
+        .innerJoin(addons, eq(addons.id, tenantAddons.addonId))
+        .where(eq(tenantAddons.tenantId, tenantId));
+      
+      const validStatuses = ["active"];
+      const invalidSubStatuses = ["cancelled", "past_due", "suspended"];
+      
+      return activeAddons
+        .filter(a => {
+          if (!validStatuses.includes(a.status || "")) return false;
+          if (a.subscriptionStatus && invalidSubStatuses.includes(a.subscriptionStatus)) return false;
+          return true;
+        })
+        .map(a => a.slug || a.category || a.addonId);
+    } catch (error) {
+      console.error("[getTenantActiveAddons] Error:", error);
+      return [];
+    }
   }
 
   hasModuleAddon(moduleId: string, tenantAddons: string[]): boolean {
