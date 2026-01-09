@@ -40,9 +40,12 @@ const tenantSignupSchema = z.object({
 
 const subscriptionSelectSchema = z.object({
   tenantId: z.string().uuid(),
-  planId: z.string().optional(),
+  planId: z.string().min(1).optional(),
   tier: z.enum(["free", "starter", "pro", "enterprise"]).optional(),
-});
+}).refine(
+  (data) => data.planId || data.tier,
+  { message: "Either planId or tier is required" }
+);
 
 router.post("/signup", rateLimit({ windowMs: 60 * 1000, maxRequests: 5 }), async (req: Request, res: Response) => {
   try {
