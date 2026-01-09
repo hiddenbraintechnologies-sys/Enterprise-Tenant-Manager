@@ -83,7 +83,7 @@ import dashboardApiRoutes from "./routes/dashboard-api";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
