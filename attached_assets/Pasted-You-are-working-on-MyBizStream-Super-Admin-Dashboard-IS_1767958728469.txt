@@ -1,0 +1,113 @@
+You are working on MyBizStream Super Admin Dashboard.
+
+ISSUE:
+The "All Countries" dropdown shows only one option (All Countries).
+No other countries appear, so Super Admin cannot filter dashboard metrics by country/region.
+
+ROOT CAUSES TO CHECK:
+- Countries/Regions are not seeded in DB
+- API for countries/regions is missing or returning empty
+- Frontend is calling wrong endpoint
+- Response shape mismatch (id/name/code fields)
+- RBAC blocking the endpoint for SUPER_ADMIN
+- Query is filtering inactive countries unintentionally
+
+GOAL:
+Make the dropdown show all configured countries + regions, and filter dashboard metrics accordingly.
+
+------------------------------------
+STEP 1: CREATE / VERIFY COUNTRIES API
+------------------------------------
+
+Create endpoint (Super Admin only):
+GET /api/super-admin/geo/countries
+
+Response must include:
+[
+  { code: "IN", name: "India", currency: "INR", isActive: true },
+  { code: "AE", name: "UAE", currency: "AED", isActive: true },
+  { code: "GB", name: "United Kingdom", currency: "GBP", isActive: true },
+  { code: "MY", name: "Malaysia", currency: "MYR", isActive: true },
+  { code: "SG", name: "Singapore", currency: "SGD", isActive: true },
+  { code: "US", name: "United States", currency: "USD", isActive: true }
+]
+
+Also create:
+GET /api/super-admin/geo/regions?country=IN
+Return regions if you support them (Asia Pacific, Europe, etc.) OR return empty array safely.
+
+Ensure middleware:
+- require SUPER_ADMIN or PLATFORM_ADMIN (depending on your role design)
+- never tenant-scoped; this is platform-scoped
+
+------------------------------------
+STEP 2: ENSURE DB DATA EXISTS (SEED IF EMPTY)
+------------------------------------
+
+If countries table (or regions table) exists:
+- Seed default countries if table is empty.
+- Ensure isActive=true.
+
+If countries/regions are stored in a config table:
+- Ensure the config includes the 6 launch countries.
+
+Add dev-only seed helper:
+POST /api/super-admin/geo/seed (dev only, disabled in prod)
+so it can populate missing geo data.
+
+------------------------------------
+STEP 3: FIX FRONTEND DROPDOWN DATA LOADING
+------------------------------------
+
+In Super Admin Dashboard UI:
+- On mount, fetch countries from:
+  GET /api/super-admin/geo/countries
+- If response returns empty array:
+  show warning banner:
+  "No countries configured. Please seed geo data in System Settings."
+- Dropdown options must be:
+  - All Countries (default)
+  - each country from API response
+
+Important:
+- Ensure value uses country code (IN, AE, GB etc)
+- Ensure label uses readable name
+
+Fix any response mapping issues:
+- If API returns { id, countryCode, countryName } map correctly.
+
+------------------------------------
+STEP 4: FILTER DASHBOARD METRICS BY COUNTRY/REGION
+------------------------------------
+
+Update dashboard stats API:
+GET /api/super-admin/dashboard/stats?country=IN&region=APAC
+
+Rules:
+- If no country provided => global metrics
+- If country provided => filter tenants/users/billing by that country
+- If region provided => filter further by region
+
+Frontend:
+- When country dropdown changes:
+  refetch stats with selected country
+- Keep selection in URL query params:
+  /super-admin?country=IN
+so refresh persists.
+
+------------------------------------
+STEP 5: TESTS / VERIFICATION
+------------------------------------
+
+1) Countries API returns >= 6 results
+2) Dropdown shows all countries
+3) Selecting a country triggers stats refetch
+4) Dashboard cards change values based on country
+5) No RBAC/tenant middleware blocks this route
+6) Works for SUPER_ADMIN (platform owner)
+
+DELIVERABLE:
+- Working country selector with correct data
+- Working backend APIs for geo + filtered stats
+- Seed mechanism if geo data was missing
+Proceed with implementation now.
