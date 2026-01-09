@@ -1564,6 +1564,17 @@ export async function registerRoutes(
     }
   });
 
+  // Get active countries for dropdown (Super Admin)
+  app.get("/api/platform-admin/countries", authenticateJWT(), requirePlatformAdmin(), async (_req, res) => {
+    try {
+      const countries = await regionLockService.getActiveCountries();
+      res.json(countries);
+    } catch (error) {
+      console.error("Get countries error:", error);
+      res.status(500).json({ message: "Failed to get countries" });
+    }
+  });
+
   // Get single region config
   app.get("/api/platform-admin/region-configs/:id", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {

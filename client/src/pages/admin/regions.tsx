@@ -128,6 +128,25 @@ const TIMEZONES = [
   { value: "Asia/Riyadh", label: "Asia/Riyadh (AST)" },
 ];
 
+interface CountryOption {
+  code: string;
+  name: string;
+  defaultCurrency: string;
+  defaultTimezone: string;
+  regionGroup: string;
+  taxType: string | null;
+  taxRate: string | null;
+}
+
+const REGION_GROUP_MAP: Record<string, string> = {
+  "Asia Pacific": "asia_pacific",
+  "Middle East": "middle_east",
+  "Europe": "europe",
+  "North America": "americas",
+  "South America": "americas",
+  "Africa": "africa",
+};
+
 interface RegionFormProps {
   region?: RegionConfig | null;
   onSuccess: () => void;
@@ -137,6 +156,10 @@ interface RegionFormProps {
 function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
   const { toast } = useToast();
   const isEdit = !!region;
+
+  const { data: countries, isLoading: loadingCountries } = useQuery<CountryOption[]>({
+    queryKey: ["/api/platform-admin/countries"],
+  });
 
   const [formData, setFormData] = useState({
     countryCode: region?.countryCode || "",
@@ -157,6 +180,23 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
     dataResidencyRequired: region?.dataResidencyRequired ?? false,
     dataResidencyRegion: region?.dataResidencyRegion || "",
   });
+
+  const handleCountrySelect = (code: string) => {
+    const country = countries?.find(c => c.code === code);
+    if (country) {
+      const regionValue = REGION_GROUP_MAP[country.regionGroup] || "asia_pacific";
+      setFormData({
+        ...formData,
+        countryCode: country.code,
+        countryName: country.name,
+        defaultCurrency: country.defaultCurrency,
+        defaultTimezone: country.defaultTimezone,
+        region: regionValue as typeof formData.region,
+        taxType: country.taxType || "",
+        taxRate: country.taxRate || "",
+      });
+    }
+  };
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -207,17 +247,29 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="countryCode">Country Code (ISO)</Label>
-          <Input
-            id="countryCode"
-            data-testid="input-country-code"
-            value={formData.countryCode}
-            onChange={(e) => setFormData({ ...formData, countryCode: e.target.value.toUpperCase() })}
-            placeholder="US, IN, GB, AE"
-            maxLength={5}
-            required
-            disabled={isEdit}
-          />
+          <Label>Country</Label>
+          {isEdit ? (
+            <Input
+              data-testid="input-country-code"
+              value={`${formData.countryName} (${formData.countryCode})`}
+              disabled
+            />
+          ) : (
+            <Select
+              value={formData.countryCode}
+              onValueChange={handleCountrySelect}
+              disabled={loadingCountries}
+            >
+              <SelectTrigger data-testid="select-country">
+                <SelectValue placeholder={loadingCountries ? "Loading..." : "Select a country"} />
+              </SelectTrigger>
+              <SelectContent>
+                {countries?.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>{c.name} ({c.code})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="countryName">Country Name</Label>

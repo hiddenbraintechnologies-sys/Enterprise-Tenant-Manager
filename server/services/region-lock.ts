@@ -3,9 +3,11 @@ import {
   platformRegionConfigs, 
   regionAccessLogs,
   compliancePacks,
+  platformCountries,
   type PlatformRegionConfig,
   type InsertPlatformRegionConfig,
   type InsertRegionAccessLog,
+  type PlatformCountry,
 } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { cacheService } from "./cache";
@@ -586,6 +588,95 @@ class RegionLockService {
           createdBy: "system",
           updatedBy: "system",
         });
+      }
+    }
+    
+    await this.seedDefaultCountries();
+  }
+  
+  async getActiveCountries(): Promise<PlatformCountry[]> {
+    return db.select().from(platformCountries).where(eq(platformCountries.isActive, true));
+  }
+  
+  async getAllCountries(): Promise<PlatformCountry[]> {
+    return db.select().from(platformCountries);
+  }
+  
+  async getCountryByCode(code: string): Promise<PlatformCountry | null> {
+    const [country] = await db.select().from(platformCountries)
+      .where(eq(platformCountries.code, code.toUpperCase()))
+      .limit(1);
+    return country || null;
+  }
+  
+  async seedDefaultCountries(): Promise<void> {
+    const defaults = [
+      {
+        code: "IN",
+        name: "India",
+        defaultCurrency: "INR",
+        defaultTimezone: "Asia/Kolkata",
+        regionGroup: "Asia Pacific",
+        taxType: "GST",
+        taxRate: "18.00",
+        isActive: true,
+      },
+      {
+        code: "AE",
+        name: "United Arab Emirates",
+        defaultCurrency: "AED",
+        defaultTimezone: "Asia/Dubai",
+        regionGroup: "Middle East",
+        taxType: "VAT",
+        taxRate: "5.00",
+        isActive: true,
+      },
+      {
+        code: "GB",
+        name: "United Kingdom",
+        defaultCurrency: "GBP",
+        defaultTimezone: "Europe/London",
+        regionGroup: "Europe",
+        taxType: "VAT",
+        taxRate: "20.00",
+        isActive: true,
+      },
+      {
+        code: "MY",
+        name: "Malaysia",
+        defaultCurrency: "MYR",
+        defaultTimezone: "Asia/Kuala_Lumpur",
+        regionGroup: "Asia Pacific",
+        taxType: "SST",
+        taxRate: "6.00",
+        isActive: true,
+      },
+      {
+        code: "SG",
+        name: "Singapore",
+        defaultCurrency: "SGD",
+        defaultTimezone: "Asia/Singapore",
+        regionGroup: "Asia Pacific",
+        taxType: "GST",
+        taxRate: "9.00",
+        isActive: true,
+      },
+      {
+        code: "US",
+        name: "United States",
+        defaultCurrency: "USD",
+        defaultTimezone: "America/New_York",
+        regionGroup: "North America",
+        taxType: "SalesTax",
+        taxRate: "0.00",
+        isActive: true,
+      },
+    ];
+    
+    for (const country of defaults) {
+      const existing = await this.getCountryByCode(country.code);
+      if (!existing) {
+        await db.insert(platformCountries).values(country);
       }
     }
   }

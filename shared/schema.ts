@@ -6170,6 +6170,27 @@ export type AddonReview = typeof addonReviews.$inferSelect;
 export type InsertAddonReview = z.infer<typeof insertAddonReviewSchema>;
 
 // ============================================
+// PLATFORM COUNTRIES (Source of Truth for Country Data)
+// ============================================
+
+export const platformCountries = pgTable("platform_countries", {
+  code: varchar("code", { length: 5 }).primaryKey(), // ISO 3166-1 alpha-2: IN, AE, GB
+  name: varchar("name", { length: 100 }).notNull(),
+  defaultCurrency: varchar("default_currency", { length: 5 }).notNull(), // INR, AED, GBP
+  defaultTimezone: varchar("default_timezone", { length: 50 }).notNull(), // Asia/Kolkata
+  regionGroup: varchar("region_group", { length: 50 }).notNull(), // Asia Pacific, Middle East, Europe
+  taxType: varchar("tax_type", { length: 20 }), // GST, VAT, SST, SalesTax
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }), // 18.00 for 18%
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertPlatformCountrySchema = createInsertSchema(platformCountries);
+export type PlatformCountry = typeof platformCountries.$inferSelect;
+export type InsertPlatformCountry = z.infer<typeof insertPlatformCountrySchema>;
+
+// ============================================
 // PLATFORM REGION CONFIGURATION (Region-Lock System)
 // ============================================
 

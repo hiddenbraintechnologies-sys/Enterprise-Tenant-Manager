@@ -1,0 +1,130 @@
+You are working on MyBizStream Super Admin > Regions page.
+
+ISSUES (CONFIRMED):
+A) Creating a region fails with 401: {"message":"Invalid or expired token","code":"INVALID_TOKEN"}
+B) Countries field has no dropdown; user must type ISO code manually
+C) Super Admin (owner) must be able to create/edit regions smoothly
+
+GOAL:
+1) Make Regions APIs accept valid auth consistently for Super Admin
+2) Fix token handling in frontend (refresh/attach token correctly)
+3) Replace manual country typing with a Countries dropdown sourced from DB
+4) Seed default countries if missing (IN, AE, GB, MY, SG, US)
+
+---------------------------------------
+PART 1: FIX AUTH (401 INVALID_TOKEN)
+---------------------------------------
+
+1) Identify what auth the Super Admin UI uses:
+- If Super Admin UI uses JWT: ensure API requests attach "Authorization: Bearer <accessToken>"
+- If it uses session cookie: ensure endpoints accept session auth and do not require JWT only
+- Many admin screens mix auth modes; standardize.
+
+2) Fix frontend API client:
+- Confirm the Regions create request includes auth headers.
+- Add an axios/fetch interceptor:
+  - If 401 INVALID_TOKEN, attempt refresh using refresh token endpoint
+  - Retry the original request once
+  - If refresh fails, force logout and show "Session expired, please login again"
+
+3) Backend:
+- Ensure super-admin region endpoints are protected by SUPER_ADMIN role
+- But token verification must match your platform standard:
+  - Use the same middleware used in other super-admin APIs (e.g., tenants, billing)
+  - Do not introduce a new auth stack for regions
+
+Acceptance criteria:
+- Creating region succeeds without forcing re-login
+- If token truly expired, refresh happens automatically and succeeds
+
+---------------------------------------
+PART 2: COUNTRIES SOURCE OF TRUTH + DROPDOWN
+---------------------------------------
+
+1) Create/verify a canonical Countries table/source (if exists, use it):
+Fields needed:
+- code (ISO) e.g. IN
+- name e.g. India
+- defaultCurrency e.g. INR
+- defaultTimezone e.g. Asia/Kolkata
+- regionGroup e.g. Asia Pacific
+- taxType e.g. GST/VAT/SST
+- taxRate (number)
+- isActive (boolean)
+
+2) Create API:
+GET /api/super-admin/geo/countries
+- Returns active countries only by default
+- Include at least: code, name, currency, timezone, regionGroup, taxType, taxRate
+
+3) Seed if empty (DEV + PROD SAFE):
+On server start OR via admin action:
+- If countries table is empty, seed:
+  IN India INR Asia/Kolkata Asia Pacific GST 18
+  AE UAE AED Asia/Dubai Middle East VAT 5
+  GB United Kingdom GBP Europe/London Europe VAT 20
+  MY Malaysia MYR Asia/Kuala_Lumpur Asia Pacific SST 10
+  SG Singapore SGD Asia/Singapore Asia Pacific GST 9 (or configured)
+  US United States USD America/New_York North America SalesTax variable (default 0 or config)
+
+---------------------------------------
+PART 3: REGIONS UI — REPLACE MANUAL INPUT WITH DROPDOWN
+---------------------------------------
+
+On "Add Region" modal:
+- Replace "Country Code (ISO)" text input with a dropdown:
+  Label: Country
+  Options: "India (IN)", "UAE (AE)" ...
+
+On selecting a country:
+- Auto-fill these fields (editable):
+  - Country Code
+  - Country Name
+  - Default Currency
+  - Default Timezone
+  - Tax Type
+  - Tax Rate
+  - Region Group
+
+Still allow overriding (for special cases), but default should populate.
+
+Also:
+- Add validation: country must be selected (no empty)
+
+---------------------------------------
+PART 4: BACKEND REGIONS CREATE
+---------------------------------------
+
+Ensure endpoint exists and matches UI payload:
+POST /api/super-admin/regions
+
+Validate with Zod:
+- countryCode required
+- countryName required
+- currency required
+- timezone required
+- enabled status required
+
+Ensure:
+- Uniqueness constraint: only 1 region record per countryCode (or support multi regions per country if intended)
+- Return created region object
+
+Audit log:
+- REGION_CREATED with actorId, countryCode, timestamp
+
+---------------------------------------
+PART 5: TESTS / VERIFICATION
+---------------------------------------
+
+1) Login as SUPER_ADMIN → go to /super-admin/regions
+2) Open Add Region → Countries dropdown loads and shows 6 seeded countries
+3) Select India → auto-fills INR, Asia/Kolkata, GST 18
+4) Click Create Region → succeeds (no 401)
+5) Force token expiry → create region triggers refresh and succeeds
+6) Verify list shows created regions, filters work
+
+DELIVERABLE:
+- Working region creation for Super Admin
+- Countries dropdown populated from DB/API
+- No more INVALID_TOKEN on create region
+Proceed with implementation now.
