@@ -1,0 +1,65 @@
+# MyBizStream UI & Backend Connectivity Verification Script
+# Objective: Validate Web + Flutter UI integration, onboarding, subscriptions, and notifications
+
+1. Modules to Test:
+   - Tier 1: furniture, hrms, legal, education, tourism, logistics, real-estate
+   - Tier 2: clinic, coworking, pg, salon, gym
+
+2. Verify Dashboards:
+   - Load module dashboards
+   - Check stats, charts, and lists populate with API data
+
+3. CRUD Screens:
+   - For each module, test create, read, update, delete
+   - Confirm changes reflect in backend via API response
+
+4. Forms & Validation:
+   - Test form validation errors
+   - Test multi-step flows (e.g., employee onboarding, leave request, sales order creation)
+
+5. Subscription & Feature Gating:
+   - For each tenant, verify module access matches subscription tier
+   - Confirm premium features (multi-currency, AI insights, white-label) are gated appropriately
+
+6. Onboarding Flow:
+   - Register new tenant
+   - Create admin user
+   - Invite users and verify role-based access (RBAC)
+   - Test OTP/email verification flow
+   - Confirm onboarding triggers notifications (email, WhatsApp, in-app)
+
+7. Pagination / Filtering / Search:
+   - Test server-side pagination on tables
+   - Verify multi-field filtering works correctly
+   - Confirm search queries return correct results
+
+8. Mobile (Flutter) Screens:
+   - Load Flutter screens for Tier 1 modules
+   - Confirm live data displays correctly via API
+   - Validate BLoC/state management updates UI as expected
+
+9. Notifications:
+   - Trigger sample actions (employee onboarding, leave approval, invoice generated)
+   - Verify in-app, email, and WhatsApp notifications appear correctly
+
+10. Error Handling:
+   - Simulate failed API responses
+   - Confirm proper UI messages and fallbacks
+
+11. Logging & Audit:
+   - Confirm all actions are logged in audit_logs table
+   - Verify tenant-specific logging works
+
+12. Output / Report:
+   - Generate table with:
+       Module | Screen | Test Result | Issue (if any)
+   - Highlight failures or missing integration points
+   - Confirm Web + Flutter status for each module
+
+# Success Criteria:
+# ✅ All module screens populate real data correctly
+# ✅ Onboarding works for tenants/users
+# ✅ Subscription gating enforced
+# ✅ Notifications triggered and visible
+# ✅ Tier 1 Flutter screens fully integrated
+# ✅ Tier 2 modules scaffolded correctly

@@ -1,0 +1,36 @@
+Generate complete Flutter mobile modules for MyBizStream SaaS Phase 2, including all Tier 2 business modules (Clinic/Healthcare, Coworking, PG/Hostel, Salon/Spa, Gym/Fitness) plus Tenant & User Onboarding, fully integrated with BLoC pattern, Repository layer, and APIs.
+
+Requirements:
+
+1. Modules & Screens:
+   - Clinic/Healthcare: Patient Management, Appointments, EMR/Medical Records, Billing
+   - Coworking: Spaces, Desks, Desk Bookings, Memberships
+   - PG/Hostel: Room Management, Tenants, Bookings, Payments
+   - Salon/Spa: Services, Staff, Appointments, Payments
+   - Gym/Fitness: Membership Plans, Customer Memberships, Attendance, Payments
+   - Tenant & User Onboarding: Multi-step tenant signup, admin/user creation, subscription selection, OTP verification, RBAC enforcement, audit logging
+
+2. Architecture:
+   - BLoC for state management (separate Blocs per module)
+   - Repository layer integrated with APIs (/tenants, /users, /subscriptions, /customers, /payments, /exchange_rates, /audit_logs)
+   - Offline support with Hive or local DB for caching
+   - Error handling, retries, and network fallback
+
+3. UI & UX:
+   - Fully responsive, material design + Tailwind-inspired components
+   - Screens: Dashboards, CRUD forms, Pagination, Filters, Tab Navigation
+   - Onboarding: Progress indicators, inline validation, save & continue later
+   - Subscription gating: Features enabled/disabled based on tenant plan
+   - Notifications: In-App, Email, WhatsApp integration via adapters
+
+4. Features & Enhancements:
+   - Multi-currency support for payments where applicable
+   - Audit logs for all mutations
+   - Modular reusable widgets across all modules
+   - BLoC flow diagrams, widget tree diagrams, repository integration tables
+   - Success/failure states, empty screens, loading indicators
+
+5. Delivery:
+   - Each module fully Flutter-ready, connected to backend APIs
+   - Include code comments, testing notes, and integration examples
+   - Highlight where Tier 1 vs Tier 2 modules differ in capabilities
