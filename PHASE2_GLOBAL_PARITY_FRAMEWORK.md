@@ -328,6 +328,43 @@
 
 ---
 
+## Consolidated Module × Feature × Sprint Matrix
+
+### Legend
+- ✅ = Complete (no work needed)
+- S1-S12 = Sprint when feature will be completed
+- ⚪ = N/A for this module
+
+| Feature | Furniture | HRMS | Legal | Education | Tourism | Logistics | Real Estate | PG/Hostel | Coworking | Clinic | Salon | Gym |
+|---------|-----------|------|-------|-----------|---------|-----------|-------------|-----------|-----------|--------|-------|-----|
+| **Server-side Pagination** | ✅ | ✅ | S1 | S1 | S1 | S1 | S1 | S5 | S6 | S6 | S7 | S8 |
+| **Server-side Search** | ✅ | S1 | S1 | S1 | S1 | S1 | S1 | S5 | S6 | S6 | S7 | S8 |
+| **Multi-field Filtering** | ✅ | S2 | S2 | S2 | S2 | S2 | S2 | S5 | S6 | S6 | S7 | S8 |
+| **CSV Export** | S1 | S1 | S1 | S1 | S1 | S1 | S1 | S1 | S1 | S1 | S1 | S1 |
+| **Activity Timeline** | S2 | S2 | S2 | S2 | S2 | S2 | S2 | S5 | S6 | S6 | S7 | S8 |
+| **Attachment Storage** | S2 | ✅ | ✅ | S2 | S2 | S2 | S2 | S5 | S6 | S6 | S7 | S8 |
+| **Multi-Currency** | ✅ | S9 | S3 | S3 | S4 | S4 | S4 | S5 | S6 | S6 | S7 | S8 |
+| **Multi-Tax Engine** | ✅ | ⚪ | S3 | S3 | S4 | S4 | S4 | S5 | S6 | S6 | S7 | S8 |
+| **Refunds/Credit Notes** | ✅ | ⚪ | S4 | S4 | S4 | S4 | S4 | S5 | S6 | S6 | S7 | S8 |
+| **Notification Adapter** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | S5 | S6 | S6 | S7 | S8 |
+| **Analytics Adapter** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | S5 | S6 | S6 | S7 | S8 |
+| **AI Insights** | ✅ | S10 | ✅ | ✅ | S10 | ✅ | S10 | S10 | S10 | S10 | S10 | S10 |
+| **Flutter Complete** | ✅ | ✅ | ✅ | ✅ | S11 | S11 | S11 | S11 | S11 | S11 | S12 | S12 |
+| **Offline Sync** | ✅ | ✅ | S12 | S12 | S12 | S12 | S12 | S12 | S12 | S12 | S12 | S12 |
+
+### Sprint Completion Summary
+
+| Sprint | Focus Area | Modules Affected | Features Added | GA Impact |
+|--------|------------|------------------|----------------|-----------|
+| S1-S2 | Core Infrastructure | ALL (12) | Pagination, CSV, Search, Filter, Activity | Tier 1 → more robust |
+| S3-S4 | Financial Parity | Legal, Education, Tourism, Logistics, Real Estate (5) | Multi-currency, Tax, Refunds | All Tier 1 → Growth Ready |
+| S5-S6 | Tier 2 Build-out | PG/Hostel, Coworking, Clinic (3) | Full financial, notifications, analytics | Move to SMB Ready |
+| S7-S8 | Tier 2 Completion | Salon, Gym (2) | Full module build | Move to SMB Ready |
+| S9-S10 | HRMS + AI | HRMS + 4 modules | Payroll PDF, AI insights | HRMS → Growth Ready |
+| S11-S12 | Mobile + Polish | ALL (12) | Flutter completion, offline sync | All modules mobile-ready |
+
+---
+
 # PART 3: MODULE MATURITY SCORING MODEL
 
 ## Scoring Dimensions
@@ -446,6 +483,75 @@
 | PG/Hostel | 37 | 72 | S6 |
 | Salon | 37 | 72 | S8 |
 | Gym | 30 | 70 | S8 |
+
+---
+
+## GA-Ready Classification & Sales Eligibility
+
+### Module Classification Matrix
+
+| Module | Current Score | GA Status | Sales Status | Restrictions | Revenue Impact |
+|--------|--------------|-----------|--------------|--------------|----------------|
+| **Furniture** | 94 | ✅ GA-Ready | **Premium Sales** | None | High (Enterprise tier) |
+| **HRMS** | 73 | ✅ GA-Ready | Standard Sales | Multi-currency pending | Medium |
+| **Legal** | 71 | ✅ GA-Ready | Standard Sales | INR-only billing | Medium |
+| **Education** | 71 | ✅ GA-Ready | Standard Sales | INR-only billing | Medium |
+| **Tourism** | 66 | ✅ GA-Ready | Standard Sales | INR-only, no pagination | Medium |
+| **Logistics** | 68 | ✅ GA-Ready | Standard Sales | INR-only, no pagination | Medium |
+| **Real Estate** | 66 | ✅ GA-Ready | Standard Sales | No currency conversion | Medium |
+| **Clinic** | 41 | ⚠️ Restricted | Pilot Only | No financial integration | Low |
+| **Coworking** | 41 | ⚠️ Restricted | Pilot Only | No financial integration | Low |
+| **PG/Hostel** | 37 | 🔒 Internal | Not for Sale | Incomplete module | None |
+| **Salon** | 37 | 🔒 Internal | Not for Sale | Incomplete module | None |
+| **Gym** | 30 | 🔒 Internal | Not for Sale | No Web UI, no analytics | None |
+
+### Sales Eligibility Rules
+
+```
+IF module.score >= 60:
+    status = "GA-Ready"
+    sales = "Standard" if score < 90 else "Premium"
+ELIF module.score >= 40:
+    status = "Restricted"
+    sales = "Pilot Only (max 5 tenants, internal approval required)"
+ELSE:
+    status = "Internal"
+    sales = "Not for Sale (dev/QA only)"
+```
+
+### Pricing & Sales Impact
+
+| Tier | Module Count | Addressable Revenue | Sales Approach |
+|------|--------------|---------------------|----------------|
+| Enterprise Ready (90+) | 1 | ₹499+/user/month | Direct enterprise sales |
+| Growth Ready (75-89) | 0 | ₹299/user/month | Partner channel + direct |
+| SMB Ready (60-74) | 6 | ₹199/user/month | Self-serve + inside sales |
+| Starter (40-59) | 2 | ₹99/user/month | Pilot with support |
+| Beta (<40) | 3 | Free | Internal/development |
+
+### Recommendations
+
+#### Immediately Saleable (GA-Ready)
+1. **Furniture Manufacturing** - Enterprise customers, premium pricing, full feature set
+2. **HRMS** - Any business needing HR management, cross-sell to all modules
+3. **Legal/Education/Tourism/Logistics/Real Estate** - SMB customers, standard pricing
+
+#### Restricted (Pilot Only)
+1. **Clinic** - Accept only with explicit expectation setting, max 5 pilot tenants
+2. **Coworking** - Accept only with explicit expectation setting, max 5 pilot tenants
+
+#### Not for Sale
+1. **PG/Hostel, Salon, Gym** - Decline sales inquiries, target Sprint 8 for GA
+
+### Sales Enablement Requirements
+
+| Requirement | Furniture | Tier 1 | Tier 2 (Restricted) | Tier 2 (Internal) |
+|-------------|-----------|--------|---------------------|-------------------|
+| Sales deck | ✅ Ready | ✅ Ready | 🟡 Limited | ❌ None |
+| Demo environment | ✅ Ready | ✅ Ready | 🟡 Basic | ❌ None |
+| Pricing approved | ✅ Yes | ✅ Yes | 🟡 Pilot only | ❌ No |
+| Support SLA | ✅ 4hr | ✅ 8hr | 🟡 24hr | ❌ N/A |
+| Onboarding playbook | ✅ Yes | ✅ Yes | 🟡 Partial | ❌ None |
 
 ---
 

@@ -1,0 +1,108 @@
+Phase 2 Execution (Global Parity & Maturity)
+
+You are working on MyBizStream, a multi-tenant SaaS platform with multiple business modules (Furniture, HRMS, Clinic, Coworking, PG/Hostel, Salon, Gym, Legal, Education, etc.) built with a shared backend and Flutter mobile app (BLoC + Dio + Hive + Firebase).
+
+Objective
+
+Before proceeding further with Phase 2 development, perform a comprehensive parity audit and execution plan across all business modules.
+
+1️⃣ Feature Parity Verification (Global Scope)
+
+Treat ALL features as global (no optional features).
+
+Compare Furniture + HRMS (Tier-1) modules against all other business modules.
+
+Identify:
+
+Features implemented in Furniture/HRMS but missing in other modules
+
+Features implemented in other modules but missing in Furniture/HRMS
+
+Cover:
+
+Backend APIs
+
+Business rules & guardrails
+
+Financials (invoicing, payments, taxes, currency)
+
+Notifications
+
+Audit logging
+
+Analytics
+
+Pagination & server-side filtering
+
+RBAC & tenant isolation
+
+Flutter mobile parity (models, repositories, BLoCs, UI)
+
+2️⃣ Vice-Versa Comparison (Mandatory)
+
+Produce a two-way comparison:
+
+Furniture/HRMS → Other Modules (what must be rolled out globally)
+
+Other Modules → Furniture/HRMS (what must be back-ported)
+
+No assumptions. Use implementation evidence only.
+
+3️⃣ Phase 2 Parity Rollout Plan
+
+Create a Module × Feature × Sprint matrix:
+
+Rows: All modules
+
+Columns: Global features
+
+Cells: Existing / Missing / Partial
+
+Define sprint-wise rollout order to achieve 100% parity
+
+4️⃣ Define Module Maturity Score (For Sales & Pricing)
+
+Design a Module Maturity Score (0–100) based on:
+
+Backend completeness
+
+Business guardrails
+
+Financial readiness
+
+Audit & compliance
+
+Mobile (Flutter) parity
+
+Notifications & analytics
+
+Production hardening
+
+Classify modules into:
+
+MVP
+
+Growth Ready
+
+Enterprise Ready
+
+5️⃣ Output Required
+
+Parity gap report
+
+Vice-versa comparison table
+
+Phase 2 rollout matrix
+
+Module maturity scoring framework
+
+Clear recommendation on:
+
+Which modules are GA-ready
+
+Which are restricted / internal
+
+Pricing & sales eligibility impact
+
+Use existing codebase and documentation as source of truth.
+Do not design new features — only normalize and execute parity.
