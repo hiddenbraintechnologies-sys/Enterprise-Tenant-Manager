@@ -1,0 +1,126 @@
+Phase 2 Global Parity + Subscription & Pricing Control
+
+You are working on MyBizStream, a multi-tenant SaaS platform with multiple business modules (Furniture, HRMS, Clinic, Coworking, PG/Hostel, Salon, Gym, Legal, Education, etc.) built with a shared backend and Flutter mobile app (BLoC + Dio + Hive + Firebase).
+
+Objective
+
+Perform a comprehensive parity audit and execution plan across all business modules, while enabling subscription-based feature access with per-country pricing and platform-owner control.
+
+1️⃣ Feature Parity Verification (Global Scope)
+
+Treat ALL features as global, but control access via subscriptions.
+
+Compare Furniture + HRMS (Tier-1) modules against all other business modules.
+
+Identify:
+
+Features implemented in Furniture/HRMS but missing in other modules
+
+Features implemented in other modules but missing in Furniture/HRMS
+
+Cover:
+
+Backend APIs
+
+Business rules & guardrails
+
+Financials (invoicing, payments, taxes, currency)
+
+Notifications
+
+Audit logging
+
+Analytics
+
+Pagination & server-side filtering
+
+RBAC & tenant isolation
+
+Flutter mobile parity (models, repositories, BLoCs, UI)
+
+2️⃣ Subscription & Pricing Control
+
+Feature access controlled via subscription packages:
+
+Platform Owners can create new subscription cards/packages
+
+Managers can assign modules/features to tenants based on subscriptions
+
+Pricing can be individual per country and adjustable by platform owners
+
+All modules must support subscription-based gating
+
+E.g., Furniture, HRMS, Legal, Education, Tourism, Logistics, Real Estate, PG/Hostel, Coworking, Clinic, Salon, Gym
+
+Track active subscription per tenant, enforce feature access in backend & mobile
+
+3️⃣ Phase 2 Parity Rollout Plan
+
+Create a Module × Feature × Sprint × Subscription matrix:
+
+Rows: All modules
+
+Columns: Global features
+
+Cells: Existing / Missing / Partial / Subscription Gated
+
+Define sprint-wise rollout order to achieve 100% parity
+
+Include subscription package creation, assignment, and country pricing setup in plan
+
+4️⃣ Module Maturity Score (Sales & Pricing)
+
+Design Module Maturity Score (0–100) based on:
+
+Backend completeness
+
+Business guardrails
+
+Financial readiness
+
+Audit & compliance
+
+Mobile (Flutter) parity
+
+Notifications & analytics
+
+Subscription support
+
+Production hardening
+
+Classify modules into:
+
+MVP
+
+Growth Ready
+
+Enterprise Ready
+
+5️⃣ Output Required
+
+Parity gap report
+
+Vice-versa comparison table
+
+Phase 2 rollout matrix including subscription gating
+
+Module maturity scoring framework
+
+Subscription management framework:
+
+Platform owner control for creating new subscription cards/packages
+
+Pricing per country
+
+Feature assignment per subscription
+
+Clear recommendation on:
+
+Which modules are GA-ready
+
+Which are subscription gated
+
+Pricing & sales eligibility impact
+
+Use existing codebase and documentation as source of truth.
+Do not design new features — only normalize, implement parity, and enable subscription-based access.

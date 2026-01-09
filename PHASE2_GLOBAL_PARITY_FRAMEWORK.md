@@ -1,8 +1,8 @@
 # PHASE 2: GLOBAL PARITY & MATURITY FRAMEWORK
 
 **Document Status:** Source of Truth  
-**Version:** 1.0.0  
-**Generated:** January 8, 2026  
+**Version:** 1.1.0  
+**Generated:** January 9, 2026  
 **Sprint Duration:** 2 weeks
 
 > **"Any deviation from this document is a bug."**
@@ -13,8 +13,9 @@
 1. [Global Feature Canonical List](#part-1-global-feature-canonical-list)
 2. [Phase 2 Parity Rollout Plan](#part-2-phase-2-parity-rollout-plan)
 3. [Module Maturity Scoring Model](#part-3-module-maturity-scoring-model)
-4. [Business + Tech Stack Document](#part-4-business--tech-stack-document)
-5. [Phase 2 Actionable TODO List](#part-5-phase-2-actionable-todo-list)
+4. [Subscription & Pricing Control](#part-4-subscription--pricing-control)
+5. [Business + Tech Stack Document](#part-5-business--tech-stack-document)
+6. [Phase 2 Actionable TODO List](#part-6-phase-2-actionable-todo-list)
 
 ---
 
@@ -555,7 +556,271 @@ ELSE:
 
 ---
 
-# PART 4: BUSINESS + TECH STACK DOCUMENT
+# PART 4: SUBSCRIPTION & PRICING CONTROL
+
+## Overview
+
+All MyBizStream features are globally available, but **access is controlled via subscription packages**. Platform Owners create subscription cards/packages, Managers assign them to tenants, and pricing is configurable per country.
+
+---
+
+## Existing Infrastructure (Schema)
+
+The following subscription tables exist in `shared/schema.ts`:
+
+| Table | Purpose | Status |
+|-------|---------|--------|
+| `globalPricingPlans` | Platform-level subscription tiers | ✅ Exists |
+| `countryPricingConfigs` | Country-specific pricing, tax, gateway | ✅ Exists |
+| `planLocalPrices` | Local currency prices per plan/country | ✅ Exists |
+| `tenantSubscriptions` | Tenant subscription tracking | ✅ Exists |
+| `subscriptionInvoices` | Billing invoices for subscriptions | ✅ Exists |
+| `exchangeRates` | Multi-currency exchange rates | ✅ Exists |
+
+---
+
+## Subscription Tiers
+
+| Tier | Code | Base Price (USD) | Max Users | Max Customers | Modules |
+|------|------|------------------|-----------|---------------|---------|
+| **Free** | `free` | $0 | 1 | 25 | 1 module |
+| **Starter** | `starter` | $19 | 5 | 100 | 2 modules |
+| **Pro** | `pro` | $49 | 25 | 500 | 5 modules |
+| **Enterprise** | `enterprise` | $149+ | Unlimited | Unlimited | All modules |
+
+---
+
+## Module-to-Subscription Matrix
+
+### Legend
+- ✅ = Included in tier
+- 💰 = Add-on available
+- ❌ = Not available
+
+| Module | Free | Starter | Pro | Enterprise |
+|--------|------|---------|-----|------------|
+| **Furniture** | ❌ | 💰 | ✅ | ✅ |
+| **HRMS** | ❌ | ✅ | ✅ | ✅ |
+| **Legal** | ❌ | 💰 | ✅ | ✅ |
+| **Education** | ❌ | 💰 | ✅ | ✅ |
+| **Tourism** | ❌ | 💰 | ✅ | ✅ |
+| **Logistics** | ❌ | 💰 | ✅ | ✅ |
+| **Real Estate** | ❌ | 💰 | ✅ | ✅ |
+| **PG/Hostel** | ✅ | ✅ | ✅ | ✅ |
+| **Coworking** | ✅ | ✅ | ✅ | ✅ |
+| **Clinic** | ❌ | ❌ | 💰 | ✅ |
+| **Salon** | ✅ | ✅ | ✅ | ✅ |
+| **Gym** | ✅ | ✅ | ✅ | ✅ |
+| **Multi-Currency** | ❌ | ❌ | 💰 | ✅ |
+| **AI Insights** | ❌ | ❌ | ❌ | ✅ |
+| **White-Label** | ❌ | ❌ | ❌ | ✅ |
+
+---
+
+## Country-Specific Pricing
+
+| Country | Currency | Tax Type | Tax Rate | Price Multiplier | Gateway |
+|---------|----------|----------|----------|------------------|---------|
+| **India** | INR | GST | 18% | 0.15x | Razorpay |
+| **UAE** | AED | VAT | 5% | 0.60x | PayTabs |
+| **UK** | GBP | VAT | 20% | 1.20x | Stripe |
+| **Malaysia** | MYR | SST | 6% | 0.30x | Billplz |
+| **US** | USD | Sales Tax | Varies | 1.00x | Stripe |
+| **Singapore** | SGD | GST | 9% | 0.80x | Stripe |
+
+### Price Calculation
+
+```
+Local Price = Base Price (USD) × Price Multiplier × Exchange Rate
+Total Price = Local Price + (Local Price × Tax Rate)
+```
+
+---
+
+## Platform Owner Controls
+
+### 1. Subscription Package Management
+
+Platform owners can:
+- Create new subscription packages
+- Set features/modules per package
+- Configure user/customer limits
+- Set pricing per country
+- Activate/deactivate packages
+
+### 2. Country Pricing Management
+
+Platform owners can:
+- Configure local currency pricing
+- Set tax rates and names
+- Select payment gateways
+- Update exchange rates
+- Override individual plan prices per country
+
+### 3. Tenant Assignment
+
+Managers can:
+- Assign subscriptions to tenants
+- Upgrade/downgrade plans
+- Apply trial periods
+- Handle subscription lifecycle
+
+---
+
+## Subscription Gating Implementation
+
+### Backend Enforcement
+
+```typescript
+// Middleware: server/middleware/subscription-gate.ts
+export async function requireSubscription(
+  requiredTier: string[],
+  requiredModules?: string[]
+) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = req.headers['x-tenant-id'];
+    const subscription = await getActiveSubscription(tenantId);
+    
+    if (!subscription) {
+      return res.status(402).json({ error: 'No active subscription' });
+    }
+    
+    const plan = await getPlan(subscription.planId);
+    
+    if (!requiredTier.includes(plan.tier)) {
+      return res.status(403).json({ 
+        error: 'Upgrade required',
+        requiredTier,
+        currentTier: plan.tier
+      });
+    }
+    
+    if (requiredModules) {
+      const allowed = plan.features.modules || [];
+      const missing = requiredModules.filter(m => !allowed.includes(m));
+      if (missing.length > 0) {
+        return res.status(403).json({
+          error: 'Module not included in plan',
+          missingModules: missing
+        });
+      }
+    }
+    
+    next();
+  };
+}
+```
+
+### Flutter Enforcement
+
+```dart
+// mobile/lib/core/subscription/subscription_guard.dart
+class SubscriptionGuard {
+  static Future<bool> canAccessModule(String moduleId) async {
+    final subscription = await SubscriptionService.getActive();
+    if (subscription == null) return false;
+    
+    final plan = await PlanService.getPlan(subscription.planId);
+    return plan.modules.contains(moduleId) || plan.tier == 'enterprise';
+  }
+  
+  static Future<void> guardRoute(String moduleId, BuildContext context) async {
+    if (!await canAccessModule(moduleId)) {
+      Navigator.pushNamed(context, '/upgrade', arguments: moduleId);
+    }
+  }
+}
+```
+
+---
+
+## Required APIs
+
+### Platform Admin APIs (TODO)
+
+| Endpoint | Method | Purpose | Status |
+|----------|--------|---------|--------|
+| `/api/admin/pricing-plans` | GET | List all plans | ❌ |
+| `/api/admin/pricing-plans` | POST | Create new plan | ❌ |
+| `/api/admin/pricing-plans/:id` | PUT | Update plan | ❌ |
+| `/api/admin/pricing-plans/:id` | DELETE | Delete plan | ❌ |
+| `/api/admin/country-pricing` | GET | List country configs | ❌ |
+| `/api/admin/country-pricing/:country` | PUT | Update country pricing | ❌ |
+| `/api/admin/tenants/:id/subscription` | PUT | Assign subscription | ❌ |
+
+### Tenant APIs (TODO)
+
+| Endpoint | Method | Purpose | Status |
+|----------|--------|---------|--------|
+| `/api/subscription` | GET | Current subscription | ❌ |
+| `/api/subscription/plans` | GET | Available plans | ❌ |
+| `/api/subscription/upgrade` | POST | Request upgrade | ❌ |
+| `/api/subscription/invoices` | GET | Billing history | ❌ |
+
+---
+
+## Phase 2 Subscription TODOs
+
+| ID | Sprint | Task | Owner |
+|----|--------|------|-------|
+| **TODO-048** | S1 | Create subscription middleware | Backend |
+| **TODO-049** | S1 | Create pricing plans CRUD API | Backend |
+| **TODO-050** | S1 | Create country pricing API | Backend |
+| **TODO-051** | S2 | Create tenant subscription assignment API | Backend |
+| **TODO-052** | S2 | Create subscription guard for Flutter | Mobile |
+| **TODO-053** | S2 | Add subscription check to all module routes | Backend |
+| **TODO-054** | S3 | Create upgrade/downgrade flow | Full-stack |
+| **TODO-055** | S3 | Add billing history API | Backend |
+| **TODO-056** | S4 | Payment gateway integration (Stripe) | Backend |
+| **TODO-057** | S4 | Payment gateway integration (Razorpay) | Backend |
+| **TODO-058** | S5 | Create subscription management UI | Frontend |
+| **TODO-059** | S5 | Add upgrade prompts in gated features | Frontend |
+| **TODO-060** | S6 | Implement trial period logic | Backend |
+
+---
+
+## Updated Module × Feature × Subscription Matrix
+
+| Feature | Free | Starter | Pro | Enterprise | Gating Method |
+|---------|------|---------|-----|------------|---------------|
+| Basic CRUD | ✅ | ✅ | ✅ | ✅ | None |
+| Server-side Pagination | ❌ | ✅ | ✅ | ✅ | Middleware |
+| CSV Export | ❌ | ✅ | ✅ | ✅ | Middleware |
+| Multi-Currency | ❌ | ❌ | 💰 | ✅ | Middleware |
+| Multi-Tax Engine | ❌ | ❌ | 💰 | ✅ | Middleware |
+| AI Insights | ❌ | ❌ | ❌ | ✅ | Feature Flag |
+| White-Label | ❌ | ❌ | ❌ | ✅ | Tenant Config |
+| API Access | 100/day | 1000/day | 10000/day | Unlimited | Rate Limit |
+| Support | Community | Email | Priority | Dedicated | External |
+
+---
+
+## Maturity Score Update
+
+Add subscription support to maturity scoring:
+
+| Category | Old Weight | New Weight | Max Points |
+|----------|------------|------------|------------|
+| Feature Parity | 30% | 25% | 25 |
+| Financial | 20% | 18% | 18 |
+| HRMS | 15% | 12% | 12 |
+| Analytics | 15% | 12% | 12 |
+| Mobile | 10% | 10% | 10 |
+| Stability | 10% | 8% | 8 |
+| **Subscription Support** | 0% | **15%** | **15** |
+
+### Subscription Scoring Breakdown
+
+| Metric | Points |
+|--------|--------|
+| Subscription middleware integrated | 5 |
+| Plan-based feature gating | 4 |
+| Upgrade prompts in UI | 3 |
+| Flutter subscription guard | 3 |
+
+---
+
+# PART 5: BUSINESS + TECH STACK DOCUMENT
 
 ## Business View
 
@@ -714,7 +979,7 @@ interface IAnalyticsAdapter {
 
 ---
 
-# PART 5: PHASE 2 ACTIONABLE TODO LIST
+# PART 6: PHASE 2 ACTIONABLE TODO LIST
 
 ## Priority 1: Critical Infrastructure (Sprint 1-2)
 
@@ -781,6 +1046,22 @@ interface IAnalyticsAdapter {
 - [ ] **TODO-046**: Add E2E offline sync test suite
 - [ ] **TODO-047**: Add module-specific push notification templates
 
+## Priority 7: Subscription & Pricing Control (Sprint 1-6)
+
+- [ ] **TODO-048**: Create subscription middleware (`server/middleware/subscription-gate.ts`)
+- [ ] **TODO-049**: Create pricing plans CRUD API (`/api/admin/pricing-plans`)
+- [ ] **TODO-050**: Create country pricing API (`/api/admin/country-pricing`)
+- [ ] **TODO-051**: Create tenant subscription assignment API
+- [ ] **TODO-052**: Create subscription guard for Flutter (`mobile/lib/core/subscription/`)
+- [ ] **TODO-053**: Add subscription check to all module routes
+- [ ] **TODO-054**: Create upgrade/downgrade flow
+- [ ] **TODO-055**: Add billing history API (`/api/subscription/invoices`)
+- [ ] **TODO-056**: Payment gateway integration (Stripe)
+- [ ] **TODO-057**: Payment gateway integration (Razorpay)
+- [ ] **TODO-058**: Create subscription management UI (Admin Panel)
+- [ ] **TODO-059**: Add upgrade prompts in gated features
+- [ ] **TODO-060**: Implement trial period logic
+
 ## Bug Fixes (Immediate)
 
 - [ ] **BUG-001**: Fix LSP errors in `server/routes/furniture.ts` (34 diagnostics)
@@ -803,6 +1084,23 @@ interface IAnalyticsAdapter {
 | Flutter Tier 2 Complete | 🟡 | ✅ | Sprint 12 |
 | CSV Export Available | 0% | 100% | Sprint 1 |
 | Pagination Available | 17% | 100% | Sprint 2 |
+| Subscription Middleware | ❌ | ✅ | Sprint 1 |
+| Pricing Plans API | ❌ | ✅ | Sprint 1 |
+| Payment Gateway Integration | ❌ | ✅ | Sprint 4 |
+| Subscription Gating (All Modules) | ❌ | ✅ | Sprint 6 |
+
+### TODO Count Summary
+
+| Category | Count | Sprint Range |
+|----------|-------|--------------|
+| Infrastructure | 9 | S1-S2 |
+| Financial Parity | 11 | S3-S4 |
+| Tier 2 Build-out | 14 | S5-S8 |
+| HRMS Enhancement | 3 | S9 |
+| AI Parity | 3 | S10 |
+| Mobile Completion | 7 | S11-S12 |
+| Subscription Control | 13 | S1-S6 |
+| **TOTAL** | **60** | S1-S12 |
 
 ---
 
