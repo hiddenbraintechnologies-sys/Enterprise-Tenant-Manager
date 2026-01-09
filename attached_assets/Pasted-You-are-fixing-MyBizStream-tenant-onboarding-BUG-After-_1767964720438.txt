@@ -1,0 +1,129 @@
+You are fixing MyBizStream tenant onboarding.
+
+BUG:
+After new tenant signup, the user lands directly on dashboard instead of subscription selection page.
+
+GOAL:
+New tenant signup must always redirect to subscription selection page before dashboard.
+Dashboard must be gated until subscription is activated (or Free plan selected).
+
+TARGET FLOW:
+1) User registers (name, email, password, country, business type)
+2) Tenant + owner user created
+3) User is authenticated (JWT/session created)
+4) Redirect to /subscription/select (or /subscribe)
+5) User selects plan
+6) Subscription activated
+7) Redirect to correct business dashboard with module gating
+
+---------------------------------------------------------
+STEP 1: STOP AUTO-ACTIVATING A PLAN ON SIGNUP
+---------------------------------------------------------
+
+Locate signup handler:
+- POST /api/auth/register OR /api/public/signup OR /api/tenants/signup
+
+Check if code does any of the following:
+- Creates tenantSubscription automatically
+- Assigns "Free" plan by default
+- Marks subscription status as ACTIVE immediately
+
+Change behavior:
+- Create tenant with subscriptionStatus = "PENDING"
+- Do NOT create active tenantSubscriptions automatically
+- Store tenantId + userId + selectedCountry + businessType
+
+Return response:
+{
+  token,
+  tenantId,
+  subscriptionStatus: "PENDING"
+}
+
+---------------------------------------------------------
+STEP 2: FRONTEND REDIRECT RULE AFTER SIGNUP
+---------------------------------------------------------
+
+In Register page submit success handler:
+
+If subscriptionStatus !== "ACTIVE":
+  router.replace(`/subscription/select?tenantId=${tenantId}`)
+Else:
+  go to dashboard
+
+Make this logic the single source of truth.
+
+---------------------------------------------------------
+STEP 3: CREATE/VERIFY SUBSCRIPTION SELECT PAGE IS THE MIDDLE STEP
+---------------------------------------------------------
+
+Ensure page exists:
+- /subscription/select  (public after login, but tenant-scoped)
+
+It should:
+- load available plans by country
+- allow selecting bundle/package
+- call activate subscription endpoint
+
+---------------------------------------------------------
+STEP 4: ADD HARD GUARDS TO BLOCK DASHBOARD UNTIL SUBSCRIPTION ACTIVE
+---------------------------------------------------------
+
+Backend:
+Add middleware for all tenant dashboard routes:
+- requireSubscriptionActive()
+
+If tenant subscription is PENDING / NONE:
+Return:
+402 Payment Required
+{
+  code: "SUBSCRIPTION_REQUIRED",
+  redirectUrl: "/subscription/select"
+}
+
+Frontend:
+Update DashboardGuard / ModuleGuard:
+If API returns SUBSCRIPTION_REQUIRED:
+  router.replace("/subscription/select")
+
+IMPORTANT:
+Allow access to subscription routes even if subscription is not active.
+
+Whitelist routes:
+- /subscription/*
+- /logout
+- /support (optional)
+
+---------------------------------------------------------
+STEP 5: SUBSCRIPTION ACTIVATION ENDPOINT
+---------------------------------------------------------
+
+Create/verify:
+POST /api/subscriptions/activate
+
+Payload:
+{ tenantId, planId, countryCode }
+
+On success:
+- create tenantSubscriptions row
+- set status ACTIVE
+- store plan info
+- return { status: "ACTIVE" }
+
+After activation:
+Frontend redirects to dashboard based on business type
+
+---------------------------------------------------------
+STEP 6: TEST CASES (MUST PASS)
+---------------------------------------------------------
+
+1) New signup -> MUST land on subscription select page
+2) Directly opening /dashboard -> MUST redirect to /subscription/select
+3) After selecting plan -> goes to correct dashboard
+4) Tenant without subscription -> all module APIs return 402 with redirectUrl
+5) Free plan selection -> should activate and then allow dashboard
+
+DELIVERABLE:
+Signup flow always forces subscription selection before dashboard.
+No tenant can use dashboard without an active plan.
+Proceed with implementation now.

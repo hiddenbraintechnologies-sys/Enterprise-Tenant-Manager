@@ -87,12 +87,22 @@ interface TenantsResponse {
   filters: Record<string, string | undefined>;
 }
 
-const COUNTRIES = [
+interface ActiveCountry {
+  code: string;
+  name: string;
+  region: string;
+  currency: string;
+  timezone: string;
+}
+
+// Static list used only for filters (showing all possible countries)
+const ALL_COUNTRIES = [
   { value: "india", label: "India", flag: "IN" },
   { value: "uae", label: "UAE", flag: "AE" },
   { value: "uk", label: "UK", flag: "GB" },
   { value: "malaysia", label: "Malaysia", flag: "MY" },
   { value: "singapore", label: "Singapore", flag: "SG" },
+  { value: "us", label: "United States", flag: "US" },
 ];
 
 const REGIONS = [
@@ -184,6 +194,12 @@ function TenantsContent() {
   const { data, isLoading } = useQuery<TenantsResponse>({
     queryKey: [buildQueryUrl()],
     staleTime: 30 * 1000,
+  });
+
+  // Fetch active countries for the Add Tenant form
+  const { data: activeCountries, isLoading: loadingActiveCountries } = useQuery<ActiveCountry[]>({
+    queryKey: ["/api/platform-admin/countries"],
+    staleTime: 60 * 1000,
   });
 
   const changeStatusMutation = useMutation({
@@ -455,7 +471,7 @@ function TenantsContent() {
   };
 
   const getCountryLabel = (country: string) => {
-    return COUNTRIES.find((c) => c.value === country)?.label || country;
+    return ALL_COUNTRIES.find((c) => c.value === country)?.label || country;
   };
 
   const getRegionLabel = (region: string) => {
@@ -531,7 +547,7 @@ function TenantsContent() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Countries</SelectItem>
-                {COUNTRIES.map((country) => (
+                {ALL_COUNTRIES.map((country) => (
                   <SelectItem key={country.value} value={country.value}>
                     {country.label}
                   </SelectItem>
@@ -1006,17 +1022,19 @@ function TenantsContent() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-country">Country *</Label>
-                <Select value={addCountry} onValueChange={setAddCountry}>
+                <Select value={addCountry} onValueChange={setAddCountry} disabled={loadingActiveCountries}>
                   <SelectTrigger id="add-country" data-testid="select-add-country">
-                    <SelectValue placeholder="Select country" />
+                    <SelectValue placeholder={loadingActiveCountries ? "Loading..." : "Select country"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {COUNTRIES.map((country) => (
-                      <SelectItem key={country.value} value={country.value}>
-                        {country.label}
+                    {activeCountries?.map((country) => (
+                      <SelectItem key={country.code} value={country.code.toLowerCase()}>
+                        {country.name}
                       </SelectItem>
                     ))}
-                    <SelectItem value="us">United States</SelectItem>
+                    {(!activeCountries || activeCountries.length === 0) && !loadingActiveCountries && (
+                      <SelectItem value="" disabled>No active countries</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
