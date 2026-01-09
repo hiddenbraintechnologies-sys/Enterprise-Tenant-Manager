@@ -86,9 +86,9 @@ export function requireTenant() {
       );
       
       if (!tenantById) {
-        return res.status(400).json({
+        return res.status(404).json({
           error: "Tenant not found",
-          code: "TENANT_NOT_FOUND"
+          code: "TENANT_NOT_EXIST"
         });
       }
       

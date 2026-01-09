@@ -391,7 +391,7 @@ export async function registerRoutes(
 
       const tenant = req.context?.tenant;
       if (!tenant) {
-        return res.status(400).json({ message: "Tenant not found" });
+        return res.status(404).json({ message: "Tenant not found", code: "TENANT_NOT_EXIST" });
       }
 
       const businessType = tenant.businessType || "service";
@@ -642,7 +642,7 @@ export async function registerRoutes(
         }
         
         if (!tenant) {
-          return res.status(400).json({ message: "Tenant not found" });
+          return res.status(404).json({ message: "Tenant not found", code: "TENANT_NOT_EXIST" });
         }
 
         const [userTenantAccess] = await db.select()
