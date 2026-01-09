@@ -66,6 +66,8 @@ import {
   type InstallationOrder, type InsertInstallationOrder,
   type FurnitureSalesOrder, type InsertFurnitureSalesOrder,
   type FurnitureSalesOrderItem, type InsertFurnitureSalesOrderItem,
+  inAppNotifications,
+  type InAppNotification, type InsertInAppNotification,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -133,6 +135,14 @@ export interface IStorage {
   getNotificationLogs(tenantId: string, limit?: number): Promise<NotificationLog[]>;
   createNotificationLog(log: InsertNotificationLog): Promise<NotificationLog>;
   updateNotificationLog(id: string, tenantId: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined>;
+
+  // In-App Notifications
+  getInAppNotifications(userId: string, options?: { limit?: number; offset?: number; unreadOnly?: boolean }): Promise<InAppNotification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  createInAppNotification(notification: InsertInAppNotification): Promise<InAppNotification>;
+  markNotificationAsRead(id: string, userId: string): Promise<InAppNotification | undefined>;
+  markAllNotificationsAsRead(userId: string): Promise<number>;
+  deleteNotification(id: string, userId: string): Promise<void>;
 
   // Invoices
   getInvoices(tenantId: string): Promise<Invoice[]>;
@@ -788,6 +798,52 @@ export class DatabaseStorage implements IStorage {
   async updateNotificationLog(id: string, tenantId: string, log: Partial<InsertNotificationLog>): Promise<NotificationLog | undefined> {
     const [updated] = await db.update(notificationLogs).set(log).where(and(eq(notificationLogs.id, id), eq(notificationLogs.tenantId, tenantId))).returning();
     return updated;
+  }
+
+  // In-App Notifications
+  async getInAppNotifications(userId: string, options: { limit?: number; offset?: number; unreadOnly?: boolean } = {}): Promise<InAppNotification[]> {
+    const { limit = 50, offset = 0, unreadOnly = false } = options;
+    const conditions = [eq(inAppNotifications.userId, userId)];
+    if (unreadOnly) {
+      conditions.push(eq(inAppNotifications.isRead, false));
+    }
+    return db.select()
+      .from(inAppNotifications)
+      .where(and(...conditions))
+      .orderBy(desc(inAppNotifications.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const [result] = await db.select({ count: count() })
+      .from(inAppNotifications)
+      .where(and(eq(inAppNotifications.userId, userId), eq(inAppNotifications.isRead, false)));
+    return result?.count || 0;
+  }
+
+  async createInAppNotification(notification: InsertInAppNotification): Promise<InAppNotification> {
+    const [created] = await db.insert(inAppNotifications).values(notification).returning();
+    return created;
+  }
+
+  async markNotificationAsRead(id: string, userId: string): Promise<InAppNotification | undefined> {
+    const [updated] = await db.update(inAppNotifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(eq(inAppNotifications.id, id), eq(inAppNotifications.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<number> {
+    const result = await db.update(inAppNotifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(eq(inAppNotifications.userId, userId), eq(inAppNotifications.isRead, false)));
+    return result.rowCount || 0;
+  }
+
+  async deleteNotification(id: string, userId: string): Promise<void> {
+    await db.delete(inAppNotifications).where(and(eq(inAppNotifications.id, id), eq(inAppNotifications.userId, userId)));
   }
 
   // Invoices

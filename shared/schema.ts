@@ -8198,3 +8198,56 @@ export type InsertAnalyticsSnapshot = z.infer<typeof insertAnalyticsSnapshotSche
 
 export type AiInsight = typeof aiInsights.$inferSelect;
 export type InsertAiInsight = z.infer<typeof insertAiInsightSchema>;
+
+// ============================================
+// IN-APP NOTIFICATIONS
+// ============================================
+
+export const inAppNotificationTypeEnum = pgEnum("in_app_notification_type", [
+  "system",       // Platform-wide announcements
+  "alert",        // Important alerts requiring attention
+  "info",         // Informational messages
+  "success",      // Success confirmations
+  "warning",      // Warnings
+  "action",       // Action required by user
+  "reminder",     // Reminders
+]);
+
+export const inAppNotificationSeverityEnum = pgEnum("in_app_notification_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+export const inAppNotifications = pgTable("in_app_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  type: inAppNotificationTypeEnum("type").default("info"),
+  severity: inAppNotificationSeverityEnum("severity").default("low"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  actionUrl: text("action_url"),
+  actionLabel: text("action_label"),
+  metadata: jsonb("metadata").default({}),
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_in_app_notifications_tenant_id").on(table.tenantId),
+  index("idx_in_app_notifications_user_id").on(table.userId),
+  index("idx_in_app_notifications_is_read").on(table.isRead),
+  index("idx_in_app_notifications_created_at").on(table.createdAt),
+  index("idx_in_app_notifications_user_unread").on(table.userId, table.isRead),
+]);
+
+export const insertInAppNotificationSchema = createInsertSchema(inAppNotifications).omit({
+  id: true,
+  createdAt: true,
+  readAt: true,
+});
+
+export type InAppNotification = typeof inAppNotifications.$inferSelect;
+export type InsertInAppNotification = z.infer<typeof insertInAppNotificationSchema>;
