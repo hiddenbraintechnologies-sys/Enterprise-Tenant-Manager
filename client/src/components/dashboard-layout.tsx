@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CountrySelector } from "@/components/country-selector";
+import { NotificationBell } from "@/components/notification-bell";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { HelpCircle } from "lucide-react";
@@ -80,6 +81,7 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
                   {hasCompletedDashboardTour ? "Replay tour" : "Take a tour"}
                 </TooltipContent>
               </Tooltip>
+              <NotificationBell />
               <ThemeToggle />
             </div>
           </header>

@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import { AdminProvider } from "@/contexts/admin-context";
 
 interface AdminLayoutProps {
@@ -24,7 +25,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 <SidebarTrigger data-testid="button-admin-sidebar-toggle" />
                 <span className="text-sm font-medium text-muted-foreground">Admin Panel</span>
               </div>
-              <ThemeToggle />
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <ThemeToggle />
+              </div>
             </header>
             <main className="flex-1 overflow-auto bg-muted/30">
               {children}
