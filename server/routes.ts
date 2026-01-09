@@ -3568,6 +3568,80 @@ export async function registerRoutes(
 
   // ==================== SUPER ADMIN TENANT MANAGEMENT ROUTES ====================
   
+  // Create new tenant - Super Admin only
+  app.post("/api/super-admin/tenants", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { name, businessType, country, email, phone, subscriptionTier, maxUsers } = req.body;
+
+      if (!name || !businessType || !country) {
+        return res.status(400).json({ message: "Name, business type, and country are required" });
+      }
+
+      const validBusinessTypes = ["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism", "education", "logistics", "legal", "furniture"];
+      if (!validBusinessTypes.includes(businessType)) {
+        return res.status(400).json({ message: "Invalid business type" });
+      }
+
+      const validCountries = ["india", "uae", "uk", "malaysia", "singapore", "us"];
+      if (!validCountries.includes(country)) {
+        return res.status(400).json({ message: "Invalid country" });
+      }
+
+      const regionMap: Record<string, string> = {
+        india: "asia_pacific",
+        malaysia: "asia_pacific",
+        singapore: "asia_pacific",
+        uae: "middle_east",
+        uk: "europe",
+        us: "americas",
+      };
+
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const existingTenant = await db.select().from(tenants).where(eq(tenants.slug, slug));
+      if (existingTenant.length > 0) {
+        return res.status(400).json({ message: "A tenant with a similar name already exists" });
+      }
+
+      const newTenant = await storage.createTenant({
+        name,
+        slug,
+        businessType,
+        country,
+        region: regionMap[country] || "asia_pacific",
+        email: email || null,
+        phone: phone || null,
+        subscriptionTier: subscriptionTier || "free",
+        maxUsers: maxUsers ? parseInt(maxUsers, 10) : 5,
+        status: "active",
+        isActive: true,
+      });
+
+      auditService.logAsync({
+        tenantId: newTenant.id,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "create",
+        resource: "TENANT_CREATED_BY_ADMIN",
+        resourceId: newTenant.id,
+        newValue: { name, businessType, country, subscriptionTier },
+        metadata: {
+          accessType: "super_admin",
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.status(201).json({
+        success: true,
+        tenant: newTenant,
+        message: "Tenant created successfully",
+      });
+    } catch (error) {
+      console.error("Super admin create tenant error:", error);
+      res.status(500).json({ message: "Failed to create tenant" });
+    }
+  });
+
   // Get single tenant details for Super Admin
   app.get("/api/super-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
     try {

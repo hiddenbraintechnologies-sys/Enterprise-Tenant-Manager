@@ -160,6 +160,16 @@ function TenantsContent() {
   const [selectedTenantIds, setSelectedTenantIds] = useState<Set<string>>(new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
+  // Add tenant dialog state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addBusinessType, setAddBusinessType] = useState("");
+  const [addCountry, setAddCountry] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [addPhone, setAddPhone] = useState("");
+  const [addSubscriptionTier, setAddSubscriptionTier] = useState("free");
+  const [addMaxUsers, setAddMaxUsers] = useState("5");
+
   const buildQueryUrl = () => {
     const params = new URLSearchParams();
     if (countryFilter !== "all") params.set("country", countryFilter);
@@ -310,6 +320,60 @@ function TenantsContent() {
     },
   });
 
+  const createTenantMutation = useMutation({
+    mutationFn: async (data: { name: string; businessType: string; country: string; email: string; phone: string; subscriptionTier: string; maxUsers: string }) => {
+      const response = await apiRequest("POST", "/api/super-admin/tenants", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.startsWith('/api/platform-admin/tenants');
+      }});
+      toast({
+        title: "Tenant Created",
+        description: "New tenant has been created successfully.",
+      });
+      setAddDialogOpen(false);
+      resetAddForm();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create tenant",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetAddForm = () => {
+    setAddName("");
+    setAddBusinessType("");
+    setAddCountry("");
+    setAddEmail("");
+    setAddPhone("");
+    setAddSubscriptionTier("free");
+    setAddMaxUsers("5");
+  };
+
+  const handleAddTenant = () => {
+    resetAddForm();
+    setAddDialogOpen(true);
+  };
+
+  const confirmAddTenant = () => {
+    if (!addName.trim() || !addBusinessType || !addCountry) return;
+    createTenantMutation.mutate({
+      name: addName,
+      businessType: addBusinessType,
+      country: addCountry,
+      email: addEmail,
+      phone: addPhone,
+      subscriptionTier: addSubscriptionTier,
+      maxUsers: addMaxUsers,
+    });
+  };
+
   const handleDeleteTenant = (tenant: Tenant) => {
     setDeletingTenant(tenant);
     setDeleteDialogOpen(true);
@@ -439,7 +503,7 @@ function TenantsContent() {
           </p>
         </div>
         {isSuperAdmin && (
-          <Button data-testid="button-add-tenant">
+          <Button onClick={handleAddTenant} data-testid="button-add-tenant">
             <Plus className="h-4 w-4 mr-2" />
             Add Tenant
           </Button>
@@ -899,6 +963,122 @@ function TenantsContent() {
               data-testid="button-confirm-bulk-delete"
             >
               {bulkDeleteMutation.isPending ? "Deleting..." : `Delete ${selectedTenantIds.size} Tenant${selectedTenantIds.size !== 1 ? 's' : ''}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Tenant Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New Tenant</DialogTitle>
+            <DialogDescription>
+              Create a new business tenant on the platform.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="add-name">Business Name *</Label>
+              <Input
+                id="add-name"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder="Enter business name"
+                data-testid="input-add-tenant-name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-business-type">Business Type *</Label>
+                <Select value={addBusinessType} onValueChange={setAddBusinessType}>
+                  <SelectTrigger id="add-business-type" data-testid="select-add-business-type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BUSINESS_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-country">Country *</Label>
+                <Select value={addCountry} onValueChange={setAddCountry}>
+                  <SelectTrigger id="add-country" data-testid="select-add-country">
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((country) => (
+                      <SelectItem key={country.value} value={country.value}>
+                        {country.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="us">United States</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-email">Email</Label>
+              <Input
+                id="add-email"
+                type="email"
+                value={addEmail}
+                onChange={(e) => setAddEmail(e.target.value)}
+                placeholder="contact@business.com"
+                data-testid="input-add-tenant-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-phone">Phone</Label>
+              <Input
+                id="add-phone"
+                value={addPhone}
+                onChange={(e) => setAddPhone(e.target.value)}
+                placeholder="+1 234 567 8900"
+                data-testid="input-add-tenant-phone"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-tier">Subscription Tier</Label>
+                <Select value={addSubscriptionTier} onValueChange={setAddSubscriptionTier}>
+                  <SelectTrigger id="add-tier" data-testid="select-add-tenant-tier">
+                    <SelectValue placeholder="Select tier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="pro">Pro</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-max-users">Max Users</Label>
+                <Input
+                  id="add-max-users"
+                  type="number"
+                  min="1"
+                  value={addMaxUsers}
+                  onChange={(e) => setAddMaxUsers(e.target.value)}
+                  data-testid="input-add-tenant-max-users"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmAddTenant}
+              disabled={!addName.trim() || !addBusinessType || !addCountry || createTenantMutation.isPending}
+              data-testid="button-confirm-add-tenant"
+            >
+              {createTenantMutation.isPending ? "Creating..." : "Create Tenant"}
             </Button>
           </DialogFooter>
         </DialogContent>
