@@ -12,6 +12,7 @@ class LoginUseCase {
     return _repository.login(
       email: params.email,
       password: params.password,
+      tenantId: params.tenantId,
     );
   }
 }
@@ -19,9 +20,11 @@ class LoginUseCase {
 class LoginParams {
   final String email;
   final String password;
+  final String? tenantId;
 
   const LoginParams({
     required this.email,
     required this.password,
+    this.tenantId,
   });
 }

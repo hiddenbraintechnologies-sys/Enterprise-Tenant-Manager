@@ -88,6 +88,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final result = await _loginUseCase(LoginParams(
       email: event.email,
       password: event.password,
+      tenantId: event.tenantId,
     ));
 
     result.fold(

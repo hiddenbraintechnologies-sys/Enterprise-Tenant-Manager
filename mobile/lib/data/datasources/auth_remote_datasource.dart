@@ -2,18 +2,24 @@ import '../../core/network/api_client.dart';
 import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {
-  Future<LoginResponse> login({required String email, required String password});
+  Future<LoginResponse> login({
+    required String email, 
+    required String password,
+    String? tenantId,
+  });
   Future<LoginResponse> register({
     required String email,
     required String password,
     String? firstName,
     String? lastName,
+    String? tenantId,
   });
   Future<TokenResponse> refreshToken(String refreshToken);
   Future<void> logout();
   Future<UserModel> getCurrentUser();
   Future<void> forgotPassword(String email);
   Future<void> resetPassword({required String token, required String newPassword});
+  Future<List<TenantInfo>> getAvailableTenants();
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -25,13 +31,22 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<LoginResponse> login({
     required String email,
     required String password,
+    String? tenantId,
   }) async {
     final response = await _apiClient.post('/api/auth/login', data: {
       'email': email,
       'password': password,
+      if (tenantId != null) 'tenantId': tenantId,
     });
 
     return LoginResponse.fromJson(response.data);
+  }
+  
+  @override
+  Future<List<TenantInfo>> getAvailableTenants() async {
+    final response = await _apiClient.get('/api/auth/tenants');
+    final List<dynamic> data = response.data['tenants'] ?? [];
+    return data.map((t) => TenantInfo.fromJson(t)).toList();
   }
 
   @override
@@ -123,6 +138,26 @@ class TokenResponse {
     return TokenResponse(
       accessToken: json['accessToken'] as String,
       refreshToken: json['refreshToken'] as String?,
+    );
+  }
+}
+
+class TenantInfo {
+  final String id;
+  final String name;
+  final String? slug;
+
+  TenantInfo({
+    required this.id,
+    required this.name,
+    this.slug,
+  });
+
+  factory TenantInfo.fromJson(Map<String, dynamic> json) {
+    return TenantInfo(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      slug: json['slug'] as String?,
     );
   }
 }

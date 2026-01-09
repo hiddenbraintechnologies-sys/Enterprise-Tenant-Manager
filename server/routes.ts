@@ -79,6 +79,7 @@ import furnitureRoutes from "./routes/furniture";
 import hrmsRoutes from "./routes/hrms";
 import subscriptionRoutes from "./routes/subscriptions";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
+import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 
@@ -381,7 +382,7 @@ export async function registerRoutes(
 
   // ==================== DASHBOARD ACCESS VALIDATION ====================
 
-  app.get("/api/dashboard/access", isAuthenticated, async (req, res) => {
+  app.get("/api/dashboard/access", authenticateJWT({ required: true }), tenantResolutionMiddleware(), enforceTenantBoundary(), requireDashboardAccess(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -407,7 +408,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/dashboard/validate-route", isAuthenticated, async (req, res) => {
+  app.post("/api/dashboard/validate-route", authenticateJWT({ required: true }), tenantResolutionMiddleware(), enforceTenantBoundary(), requireDashboardAccess(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -602,7 +603,16 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", authRateLimit, async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, tenantId, subdomain } = req.body;
+      const headerTenantId = req.headers["x-tenant-id"] as string;
+      
+      // Extract tenant from host subdomain (e.g., tenant1.payodsoft.co.uk)
+      const host = req.headers.host || "";
+      const hostParts = host.split(".");
+      let hostSubdomain: string | undefined;
+      if (hostParts.length >= 3 && hostParts[0] !== "www" && hostParts[0] !== "api") {
+        hostSubdomain = hostParts[0];
+      }
       
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -611,26 +621,95 @@ export async function registerRoutes(
       const [existingUser] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
       
       if (!existingUser || !existingUser.passwordHash) {
-        return res.status(401).json({ message: "Invalid email or password" });
+        return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const isValidPassword = await bcrypt.compare(password, existingUser.passwordHash);
       if (!isValidPassword) {
-        return res.status(401).json({ message: "Invalid email or password" });
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Priority: body tenantId > body subdomain > header > host subdomain
+      const requestedTenantIdentifier = tenantId || subdomain || headerTenantId || hostSubdomain;
+      let targetTenantId: string | undefined;
+      let tenantData: typeof tenants.$inferSelect | undefined;
+
+      if (requestedTenantIdentifier) {
+        let [tenant] = await db.select().from(tenants).where(eq(tenants.id, requestedTenantIdentifier));
+        
+        if (!tenant) {
+          [tenant] = await db.select().from(tenants).where(eq(tenants.slug, requestedTenantIdentifier));
+        }
+        
+        if (!tenant) {
+          return res.status(400).json({ message: "Tenant not found" });
+        }
+
+        const [userTenantAccess] = await db.select()
+          .from(userTenants)
+          .where(and(
+            eq(userTenants.userId, existingUser.id),
+            eq(userTenants.tenantId, tenant.id)
+          ));
+
+        if (!userTenantAccess) {
+          return res.status(403).json({ message: "User does not have access to this tenant" });
+        }
+
+        targetTenantId = tenant.id;
+        tenantData = tenant;
+      } else {
+        const [userTenantRecord] = await db.select()
+          .from(userTenants)
+          .where(and(
+            eq(userTenants.userId, existingUser.id),
+            eq(userTenants.isDefault, true)
+          ));
+
+        if (!userTenantRecord) {
+          const allUserTenants = await db.select()
+            .from(userTenants)
+            .where(eq(userTenants.userId, existingUser.id));
+          
+          if (allUserTenants.length === 0) {
+            return res.status(401).json({ message: "No tenant associated with this account" });
+          }
+          
+          if (allUserTenants.length > 1) {
+            const tenantOptions = await Promise.all(
+              allUserTenants.map(async (ut) => {
+                const [t] = await db.select().from(tenants).where(eq(tenants.id, ut.tenantId));
+                return t ? { id: t.id, name: t.name, slug: t.slug } : null;
+              })
+            );
+            
+            return res.status(400).json({
+              message: "Multiple tenants available. Please specify tenantId.",
+              code: "TENANT_SELECTION_REQUIRED",
+              tenants: tenantOptions.filter(Boolean)
+            });
+          }
+          
+          targetTenantId = allUserTenants[0].tenantId;
+        } else {
+          targetTenantId = userTenantRecord.tenantId;
+        }
       }
 
       const [userTenantRecord] = await db.select()
         .from(userTenants)
         .where(and(
           eq(userTenants.userId, existingUser.id),
-          eq(userTenants.isDefault, true)
+          eq(userTenants.tenantId, targetTenantId!)
         ));
 
       if (!userTenantRecord) {
         return res.status(401).json({ message: "No tenant associated with this account" });
       }
 
-      const [tenantData] = await db.select().from(tenants).where(eq(tenants.id, userTenantRecord.tenantId));
+      if (!tenantData) {
+        [tenantData] = await db.select().from(tenants).where(eq(tenants.id, userTenantRecord.tenantId));
+      }
 
       const tokens = await jwtAuthService.generateTokenPair(
         existingUser.id,

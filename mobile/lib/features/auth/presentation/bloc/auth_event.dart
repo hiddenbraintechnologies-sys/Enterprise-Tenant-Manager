@@ -14,14 +14,16 @@ class AuthCheckRequested extends AuthEvent {
 class AuthLoginRequested extends AuthEvent {
   final String email;
   final String password;
+  final String? tenantId;
 
   const AuthLoginRequested({
     required this.email,
     required this.password,
+    this.tenantId,
   });
 
   @override
-  List<Object?> get props => [email, password];
+  List<Object?> get props => [email, password, tenantId];
 }
 
 class AuthLogoutRequested extends AuthEvent {

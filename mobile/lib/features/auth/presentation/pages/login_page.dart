@@ -17,6 +17,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  String? _selectedTenantId;
 
   @override
   void dispose() {
@@ -25,11 +26,18 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  void _setTenantId(String? tenantId) {
+    setState(() {
+      _selectedTenantId = tenantId;
+    });
+  }
+
   void _onSubmit() {
     if (_formKey.currentState?.validate() ?? false) {
       context.read<AuthBloc>().add(AuthLoginRequested(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+        tenantId: _selectedTenantId,
       ));
     }
   }
