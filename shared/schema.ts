@@ -35,7 +35,7 @@ export const businessTypeEnum = pgEnum("business_type", [
 ]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore", "other"]);
-export const tenantStatusEnum = pgEnum("tenant_status", ["active", "suspended", "cancelled"]);
+export const tenantStatusEnum = pgEnum("tenant_status", ["active", "suspended", "cancelled", "deleted"]);
 export const tenantRegionEnum = pgEnum("tenant_region", ["asia_pacific", "middle_east", "europe", "americas", "africa"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp", "push"]);
 export const notificationStatusEnum = pgEnum("notification_status", ["pending", "sent", "delivered", "failed", "retrying"]);

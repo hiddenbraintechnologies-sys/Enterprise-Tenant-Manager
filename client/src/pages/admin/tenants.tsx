@@ -241,6 +241,46 @@ function TenantsContent() {
     setEditDialogOpen(true);
   };
 
+  const deleteTenantMutation = useMutation({
+    mutationFn: async ({ tenantId, reason }: { tenantId: string; reason: string }) => {
+      const response = await apiRequest("DELETE", `/api/super-admin/tenants/${tenantId}`, { reason });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.startsWith('/api/platform-admin/tenants');
+      }});
+      toast({
+        title: "Tenant Deleted",
+        description: "Tenant has been soft-deleted. Data is retained for audit purposes.",
+      });
+      setDeleteDialogOpen(false);
+      setDeletingTenant(null);
+      setDeleteReason("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete tenant",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteTenant = (tenant: Tenant) => {
+    setDeletingTenant(tenant);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTenant = () => {
+    if (!deletingTenant || !deleteReason.trim()) return;
+    deleteTenantMutation.mutate({
+      tenantId: deletingTenant.id,
+      reason: deleteReason,
+    });
+  };
+
   const confirmEditTenant = () => {
     if (!editingTenant || !editName.trim()) return;
     updateTenantMutation.mutate({
@@ -650,6 +690,51 @@ function TenantsContent() {
               data-testid="button-confirm-edit-tenant"
             >
               {updateTenantMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Tenant</DialogTitle>
+            <DialogDescription>
+              {deletingTenant && (
+                <>
+                  You are about to delete <strong>{deletingTenant.name}</strong>. This will permanently disable the tenant.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+              <AlertCircle className="h-4 w-4 inline mr-2" />
+              This will permanently disable the tenant. Data will be retained for audit purposes.
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delete-reason">Reason for deletion</Label>
+              <Textarea
+                id="delete-reason"
+                placeholder="Enter the reason for deleting this tenant..."
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                rows={3}
+                data-testid="textarea-delete-reason"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteTenant}
+              disabled={!deleteReason.trim() || deleteTenantMutation.isPending}
+              data-testid="button-confirm-delete-tenant"
+            >
+              {deleteTenantMutation.isPending ? "Deleting..." : "Delete Tenant"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -11,7 +11,7 @@ import {
   insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
-  tenants, userTenants, users, roles,
+  tenants, userTenants, users, roles, refreshTokens,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates,
   insertInvoiceTemplateSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
@@ -3506,6 +3506,139 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Support user status update error:", error);
       res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+
+  // ==================== SUPER ADMIN TENANT MANAGEMENT ROUTES ====================
+  
+  // Get single tenant details for Super Admin
+  app.get("/api/super-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const tenantUsers = await db.select({
+        userId: userTenants.userId,
+        roleId: userTenants.roleId,
+      }).from(userTenants).where(eq(userTenants.tenantId, tenantId));
+
+      let owner = null;
+      for (const tu of tenantUsers) {
+        const [role] = await db.select().from(roles).where(eq(roles.id, tu.roleId));
+        if (role?.name?.toLowerCase() === "owner" || role?.name?.toLowerCase() === "admin") {
+          const [user] = await db.select().from(users).where(eq(users.id, tu.userId));
+          if (user) {
+            owner = {
+              id: user.id,
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+            };
+            break;
+          }
+        }
+      }
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "super_admin_tenant_details",
+        resourceId: tenantId,
+        metadata: { 
+          accessType: "super_admin",
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        businessType: tenant.businessType,
+        country: tenant.country,
+        region: tenant.region,
+        status: tenant.status,
+        subscriptionTier: tenant.subscriptionTier,
+        email: tenant.email,
+        phone: tenant.phone,
+        timezone: tenant.timezone,
+        currency: tenant.currency || "USD",
+        createdAt: tenant.createdAt,
+        owner,
+        userCount: tenantUsers.length,
+      });
+    } catch (error) {
+      console.error("Super admin tenant details error:", error);
+      res.status(500).json({ message: "Failed to get tenant details" });
+    }
+  });
+
+  // Soft delete tenant - Super Admin only
+  app.delete("/api/super-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const { reason } = req.body;
+
+      if (!reason || reason.trim().length < 5) {
+        return res.status(400).json({ message: "A reason is required (at least 5 characters)" });
+      }
+
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      if (tenant.status === "deleted") {
+        return res.status(400).json({ message: "Tenant is already deleted" });
+      }
+
+      await db.update(tenants).set({
+        status: "deleted",
+        isActive: false,
+        updatedAt: new Date(),
+      }).where(eq(tenants.id, tenantId));
+
+      const tenantUserRecords = await db.select().from(userTenants).where(eq(userTenants.tenantId, tenantId));
+      for (const tu of tenantUserRecords) {
+        await db.delete(refreshTokens).where(and(
+          eq(refreshTokens.userId, tu.userId),
+          eq(refreshTokens.tenantId, tenantId)
+        ));
+      }
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "delete",
+        resource: "TENANT_DELETED",
+        resourceId: tenantId,
+        oldValue: { status: tenant.status },
+        newValue: { status: "deleted" },
+        metadata: { 
+          accessType: "super_admin",
+          tenantName: tenant.name,
+          reason: reason,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+          superAdminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Tenant deleted successfully. Data retained for audit purposes.",
+      });
+    } catch (error) {
+      console.error("Super admin tenant delete error:", error);
+      res.status(500).json({ message: "Failed to delete tenant" });
     }
   });
 
