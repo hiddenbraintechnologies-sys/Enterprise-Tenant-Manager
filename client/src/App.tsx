@@ -52,6 +52,7 @@ import SuperAdminFeatureRegistry from "@/pages/super-admin-feature-registry";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import TenantUsers from "@/pages/admin/tenant-users";
+import TenantDetails from "@/pages/admin/tenant-details";
 import AdminPlatformAdmins from "@/pages/admin/platform-admins";
 import AdminBilling from "@/pages/admin/billing";
 import AdminExchangeRates from "@/pages/admin/exchange-rates";
@@ -288,6 +289,7 @@ function SuperAdminRoutes() {
       <Switch>
         <Route path="/super-admin" component={SuperAdminDashboard} />
         <Route path="/super-admin/tenants" component={AdminTenants} />
+        <Route path="/super-admin/tenants/:tenantId" component={TenantDetails} />
         <Route path="/super-admin/tenants/:tenantId/users" component={TenantUsers} />
         <Route path="/super-admin/admins" component={AdminPlatformAdmins} />
         <Route path="/super-admin/business-registry" component={SuperAdminBusinessRegistry} />

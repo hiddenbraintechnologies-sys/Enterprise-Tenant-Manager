@@ -26,6 +26,7 @@ import {
   PauseCircle,
   PlayCircle,
   Ban,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -67,7 +68,7 @@ interface Tenant {
   businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
   country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
   region: "asia_pacific" | "middle_east" | "europe";
-  status: "active" | "suspended" | "cancelled";
+  status: "active" | "suspended" | "cancelled" | "deleted";
   email: string | null;
   phone: string | null;
   subscriptionTier: string;
@@ -138,6 +139,10 @@ function TenantsContent() {
   const [editPhone, setEditPhone] = useState("");
   const [editSubscriptionTier, setEditSubscriptionTier] = useState("");
   const [editMaxUsers, setEditMaxUsers] = useState("");
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingTenant, setDeletingTenant] = useState<Tenant | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
 
   const buildQueryUrl = () => {
     const params = new URLSearchParams();
@@ -469,14 +474,16 @@ function TenantsContent() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setLocation(`/admin/tenants/${tenant.id}`)}>
+                          <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}`)}>
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}/users`)}>
-                            <Users className="h-4 w-4 mr-2" />
-                            Manage Users
-                          </DropdownMenuItem>
-                          {isSuperAdmin && (
+                          {tenant.status !== "deleted" && (
+                            <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}/users`)}>
+                              <Users className="h-4 w-4 mr-2" />
+                              Manage Users
+                            </DropdownMenuItem>
+                          )}
+                          {isSuperAdmin && tenant.status !== "deleted" && (
                             <>
                               <DropdownMenuItem onClick={() => handleEditTenant(tenant)}>Edit Tenant</DropdownMenuItem>
                               <DropdownMenuSeparator />
@@ -486,21 +493,20 @@ function TenantsContent() {
                                   Activate
                                 </DropdownMenuItem>
                               )}
-                              {tenant.status !== "suspended" && (
+                              {tenant.status === "active" && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(tenant, "suspended")}>
                                   <PauseCircle className="h-4 w-4 mr-2 text-yellow-600" />
                                   Suspend
                                 </DropdownMenuItem>
                               )}
-                              {tenant.status !== "cancelled" && (
-                                <DropdownMenuItem 
-                                  onClick={() => handleStatusChange(tenant, "cancelled")}
-                                  className="text-destructive"
-                                >
-                                  <Ban className="h-4 w-4 mr-2" />
-                                  Cancel
-                                </DropdownMenuItem>
-                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteTenant(tenant)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Tenant
+                              </DropdownMenuItem>
                             </>
                           )}
                         </DropdownMenuContent>

@@ -1,0 +1,161 @@
+You are fixing the Super Admin tenant management in MyBizStream.
+
+CURRENT ISSUES (CONFIRMED):
+1) "View Details" navigates to /admin/tenants/${tenant.id} which does not exist → 404
+2) No Tenant Details page implemented
+3) Super Admin cannot delete tenant or manage tenant users from UI
+
+------------------------------------------------
+STEP 1: FIX FRONTEND ROUTING (CRITICAL)
+------------------------------------------------
+
+Update the action menu route:
+
+OLD:
+router.push(`/admin/tenants/${tenant.id}`)
+
+NEW:
+router.push(`/super-admin/tenants/${tenant.id}`)
+
+Ensure ALL tenant navigation uses:
+ /super-admin/tenants/[tenantId]
+
+------------------------------------------------
+STEP 2: CREATE TENANT DETAILS PAGE
+------------------------------------------------
+
+Create:
+app/super-admin/tenants/[tenantId]/page.tsx
+
+Page must display:
+- Tenant Name
+- Slug
+- Business Type
+- Country + Region
+- Subscription Plan
+- Status (ACTIVE / SUSPENDED / DELETED)
+- Created Date
+- Primary Owner
+
+Add action buttons (Super Admin only):
+- Manage Users → /super-admin/tenants/[tenantId]/users
+- Suspend / Activate (based on status)
+- Delete Tenant (soft delete)
+
+------------------------------------------------
+STEP 3: BACKEND – TENANT DETAILS API
+------------------------------------------------
+
+Create API:
+GET /api/super-admin/tenants/:tenantId
+
+Return:
+{
+  id,
+  name,
+  slug,
+  businessType,
+  country,
+  region,
+  plan,
+  status,
+  createdAt,
+  owner
+}
+
+Return 404 only if tenant truly does not exist.
+
+------------------------------------------------
+STEP 4: ENABLE TENANT DELETE (SOFT DELETE)
+------------------------------------------------
+
+Create API:
+DELETE /api/super-admin/tenants/:tenantId
+
+Rules:
+- Only SUPER_ADMIN can delete
+- Do NOT hard delete
+- Set:
+  status = "DELETED"
+  deletedAt = timestamp
+- Invalidate tenant sessions
+- Prevent login after deletion
+- Log action in audit_logs
+
+------------------------------------------------
+STEP 5: FRONTEND – DELETE TENANT UI
+------------------------------------------------
+
+Show "Delete Tenant" option ONLY IF:
+- role === SUPER_ADMIN
+- tenant.status !== "DELETED"
+
+On click:
+- Confirmation modal:
+  "This will permanently disable the tenant. Data will be retained for audit."
+
+On success:
+- Redirect to tenant list
+- Show toast: "Tenant deleted successfully"
+
+------------------------------------------------
+STEP 6: TENANT USER MANAGEMENT
+------------------------------------------------
+
+Create route:
+ /super-admin/tenants/[tenantId]/users
+
+Features:
+- List tenant users
+- View roles
+- Suspend / Activate user
+- Remove user from tenant
+- Reset password / resend invite
+
+------------------------------------------------
+STEP 7: STATUS ACTION RULES
+------------------------------------------------
+
+ACTIVE:
+- Suspend
+- Delete
+
+SUSPENDED:
+- Activate
+- Delete
+
+DELETED:
+- Read-only
+- No actions
+
+Ensure:
+- Cancel subscription ≠ Delete tenant
+- Cancel affects billing only
+
+------------------------------------------------
+STEP 8: AUDIT & SECURITY
+------------------------------------------------
+
+Log all actions:
+- TENANT_DELETED
+- TENANT_SUSPENDED
+- TENANT_ACTIVATED
+
+Include:
+- superAdminId
+- tenantId
+- timestamp
+- IP
+
+------------------------------------------------
+DELIVERABLES
+------------------------------------------------
+
+✔ View Details no longer 404s
+✔ Tenant details page loads correctly
+✔ Super Admin can manage users
+✔ Super Admin can delete tenant
+✔ Tenant lifecycle correctly enforced
+✔ No breaking changes
+
+Proceed with implementation.
