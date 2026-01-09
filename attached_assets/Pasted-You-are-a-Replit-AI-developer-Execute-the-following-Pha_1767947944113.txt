@@ -1,0 +1,70 @@
+You are a Replit AI developer. Execute the following Phase 3 workflow for MyBizStream:
+
+1️⃣ **Tenant Signup Flow**
+- Create a new tenant via `/api/tenants/signup` with fields:
+  - Tenant Name
+  - Business Type
+  - Country
+  - Admin User Name & Email & Password
+- Validate tenant creation response, store `tenantId` and admin JWT
+- Ensure tenant context is registered in DB tables: tenants, tenant_settings, tenant_features
+
+2️⃣ **Subscription Selection**
+- Query country-specific packages via `/api/subscription/country-pricing?country=COUNTRY_CODE`
+- Display packages with local price, tax, currency, and included modules
+- Tenant selects a package → call `/api/subscription/assign` with `tenantId` and `packageId`
+- Validate assigned modules reflect in tenant_subscriptions table
+
+3️⃣ **Module Gating Enforcement**
+- Ensure all dashboard routes `/api/dashboard/*` enforce middleware:
+  - `authenticateJWT`
+  - `tenantResolutionMiddleware`
+  - `enforceTenantBoundary`
+  - `requireDashboardAccess`
+  - `requireModule(moduleName)` for feature gating
+- Verify that tenants cannot access modules outside their subscription
+- Block public domain access (`www.payodsoft.co.uk/dashboard`) without JWT
+
+4️⃣ **Flutter Mobile Integration**
+- Ensure `LoginPage` and `AuthBloc` support optional `tenantId`
+- Ensure `SubscriptionPage` fetches country-specific packages from API
+- Ensure `DashboardPage` displays only modules assigned in tenant subscription
+- Verify BLoC / Repository patterns:
+  - `DashboardRepository.getTenantModules()`
+  - `DashboardBloc` filters displayed modules
+
+5️⃣ **Validation & Tests**
+- Tenant login via:
+  - TenantId in body ✅
+  - Subdomain in body ✅
+  - X-Tenant-ID header ✅
+  - Host subdomain ✅
+- Dashboard access:
+  - Correct tenant JWT ✅
+  - Wrong tenant JWT blocked ✅
+  - No JWT blocked ✅
+  - Public domain bypass blocked ✅
+- Flutter:
+  - Package selection → dashboard modules match subscription ✅
+  - TenantId forwarded through AuthBloc → LoginUseCase → Repository ✅
+
+6️⃣ **Success Metrics**
+- Signup → Tenant creation ✅
+- Subscription → Assign modules ✅
+- Dashboard → Only subscribed modules visible ✅
+- Cross-tenant access blocked ✅
+- Country-specific pricing applied ✅
+- Flutter mobile integration ✅
+
+7️⃣ **Edge Cases**
+- Attempt login with wrong password → 401 ✅
+- Attempt login with non-existent tenant → 400 ⚠️
+- Attempt dashboard access without JWT → 401 ✅
+- Attempt module access not in subscription → 403 ✅
+
+8️⃣ **Output**
+- Print created `tenantId`, assigned subscription, and list of modules available
+- Print Flutter dashboard module list for the tenant
+- Print test results summary (PASS / FAIL per scenario)
+
+**Execute all steps automatically** and ensure tenant signup → subscription → dashboard module gating works end-to-end for both web and Flutter mobile.
