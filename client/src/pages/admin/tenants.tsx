@@ -355,6 +355,8 @@ function TenantsContent() {
     }
   };
 
+  const tenants = data?.tenants || [];
+
   // Bulk selection helpers
   const selectableTenants = tenants.filter(t => normalizeStatus(t.status) !== "deleted");
   const allSelectableSelected = selectableTenants.length > 0 && 
@@ -399,8 +401,6 @@ function TenantsContent() {
   const getBusinessTypeLabel = (type: string) => {
     return BUSINESS_TYPES.find((t) => t.value === type)?.label || type;
   };
-
-  const tenants = data?.tenants || [];
 
   if (isLoading) {
     return (
