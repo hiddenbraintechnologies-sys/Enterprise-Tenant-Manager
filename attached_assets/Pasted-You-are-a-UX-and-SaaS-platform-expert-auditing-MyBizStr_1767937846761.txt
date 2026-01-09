@@ -1,0 +1,60 @@
+You are a UX and SaaS platform expert auditing MyBizStream. Your task is to **design, validate, and optimize the onboarding and registration flow** for tenants, customers, and users, ensuring a smooth, frictionless experience in both Web and Flutter mobile app.
+
+Requirements:
+
+1. **Onboarding Categories**:
+   - Tenant (Business Owner / Platform Tenant)
+   - Customers (End-users of tenant’s services)
+   - Users (Employees / Staff)
+
+2. **Flow Requirements**:
+   - Tenant Registration:
+     - Sign-up form with business details (Name, Industry, Address, Country)
+     - Select subscription tier
+     - Optional add-ons
+     - Payment integration
+     - Email & WhatsApp verification
+     - Admin account creation
+   - Customer Registration:
+     - Sign-up via tenant portal
+     - Basic profile (Name, Email, Phone)
+     - Optional auto-assignment to tenant services
+     - OTP/email verification
+   - User Registration:
+     - HR/Admin invites employee or self-registration
+     - Role assignment & department selection
+     - Email/WhatsApp notification
+     - Profile setup with documents upload
+
+3. **UI/UX Enhancements**:
+   - Step-by-step progressive forms with validations
+   - Tooltips and hints for mandatory fields
+   - Error handling and instant feedback
+   - Mobile-friendly and responsive design
+   - Inline notifications via baseNotificationService
+   - Smooth navigation between steps
+   - Auto-save form state in case of interruption
+   - Multi-language support placeholders
+
+4. **Backend & Integration**:
+   - Use existing **tenant, user, customer tables**
+   - Integrate subscription checks during tenant onboarding
+   - Use **OTP/email/WhatsApp** for verification
+   - Ensure RBAC permissions assigned correctly
+   - Log all onboarding events in audit table
+   - Support API-based onboarding for Flutter mobile app
+
+5. **Validation & Testing**:
+   - Ensure registration completes successfully for all user types
+   - Test for edge cases (duplicate email, missing required fields)
+   - Verify UI displays correct status messages
+   - Confirm notifications are sent to email/WhatsApp correctly
+   - Track completion metrics and onboarding drop-off
+
+6. **Output**:
+   - Generate a **step-by-step onboarding map** for tenants, customers, and users
+   - Include **screens and UI components** needed for each step
+   - Highlight backend integration points
+   - Add **success metrics and test scenarios** for verification
+
+Goal: Produce a **ready-to-implement plan** for smooth onboarding that is consistent across Web and Flutter mobile app, ensuring **tenant registration, user creation, and customer onboarding** work seamlessly.
