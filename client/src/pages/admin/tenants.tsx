@@ -469,7 +469,7 @@ function TenantsContent() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}`)}>
+                          <DropdownMenuItem onClick={() => setLocation(`/admin/tenants/${tenant.id}`)}>
                             View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}/users`)}>
