@@ -14,6 +14,8 @@ import '../offline/sync_service.dart';
 import '../notifications/notification_service.dart';
 import '../notifications/notification_preferences.dart';
 import '../notifications/deep_link_handler.dart';
+import '../analytics/analytics_service.dart';
+import '../subscription/subscription_gating_service.dart';
 import '../../presentation/routes/app_router.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/datasources/tenant_remote_datasource.dart';
@@ -117,6 +119,20 @@ void _registerNetwork() {
       tenantStorage: getIt<TenantStorage>(),
       deepLinkHandler: getIt<DeepLinkHandler>(),
       preferences: getIt<NotificationPreferences>(),
+    ),
+  );
+  
+  getIt.registerLazySingleton<AnalyticsService>(
+    () => AnalyticsService(
+      apiClient: getIt<ApiClient>(),
+      tenantStorage: getIt<TenantStorage>(),
+    ),
+  );
+  
+  getIt.registerLazySingleton<SubscriptionGatingService>(
+    () => SubscriptionGatingService(
+      apiClient: getIt<ApiClient>(),
+      tenantStorage: getIt<TenantStorage>(),
     ),
   );
 }
