@@ -1,0 +1,96 @@
+We have an existing multi-tenant SaaS platform (MyBizStream) with:
+- Express + TS backend, Postgres + Drizzle
+- Tenant isolation via tenant_id + JWT + X-Tenant-ID
+- RBAC + audit logs
+- Feature flags tied to plans/add-ons
+- Invoicing/payments/PDF already implemented (multi-country)
+- Mobile app (Flutter) uses TenantInterceptor and JWT refresh
+
+GOAL:
+Add TWO new business types:
+- SOFTWARE_SERVICES
+- CONSULTING
+
+STRICT RULES:
+- Do NOT refactor existing architecture
+- Do NOT break existing tenants
+- All data must be tenant-scoped
+- RBAC + audit logging must apply to all new endpoints
+- Use feature flags to enable modules per tenant
+- Keep scope billing-centric (do NOT build a Jira competitor)
+
+A) BusinessType + Onboarding
+1) Add SOFTWARE_SERVICES and CONSULTING to BusinessType list.
+2) During tenant onboarding, business type is selected once and is immutable after onboarding.
+3) Auto-enable these feature flags when business type is SOFTWARE_SERVICES or CONSULTING:
+   FEATURE_PROJECTS
+   FEATURE_TASKS
+   FEATURE_TIMESHEETS
+   FEATURE_CLIENT_PORTAL (reuse existing portal)
+
+B) Database (Drizzle schema + migrations)
+Create tenant-scoped tables:
+- projects
+- project_tasks (tasks + milestones)
+- timesheets
+- engagements (optional; if too much, create later)
+- invoice_project_links (tie invoices to projects/timesheets without duplicating invoice logic)
+
+Include standard audit fields and indexes on tenant_id, status, customer_id, user_id.
+
+C) Backend APIs (REST)
+Create CRUD endpoints with pagination + server-side filtering + sorting (reuse the same pagination utility pattern):
+- /api/services/projects
+- /api/services/tasks
+- /api/services/timesheets
+- /api/services/engagements (optional)
+Filtering examples:
+  Projects: status, customerId, billingModel, search
+  Tasks: projectId, status, assignee, priority, search
+  Timesheets: projectId, userId, date range, status, billable
+
+D) Billing Integration (Reuse existing invoice system)
+Add endpoints to generate invoices from timesheets:
+- POST /api/services/projects/:id/invoices/from-timesheets
+  Inputs: date range, billableOnly, grouping (by task / by user / flat)
+  Output: create Invoice + InvoiceItems using existing invoice service, then link via invoice_project_links.
+DO NOT duplicate invoice or payment logic.
+
+E) RBAC + Audit
+Add permissions:
+- VIEW_PROJECTS, MANAGE_PROJECTS
+- VIEW_TASKS, MANAGE_TASKS
+- LOG_TIME, SUBMIT_TIMESHEETS, APPROVE_TIMESHEETS (approval can be phase-2, but permission scaffolding should exist)
+- GENERATE_INVOICE_FROM_TIMESHEETS
+Enforce permissions in API and log all mutations + blocked actions.
+
+F) Frontend (React)
+Add dashboards:
+- /dashboard/software-services
+- /dashboard/consulting
+Pages:
+- Projects list + details
+- Tasks (by project)
+- Timesheets (my timesheets + team timesheets if permitted)
+- “Generate invoice from timesheets” flow
+Use TanStack Query with cache invalidation and the existing DataTablePagination component + server-side filters.
+
+G) Flutter Mobile
+Add lightweight screens:
+- Projects list
+- My Timesheets (log time, submit)
+Keep it simple: no complex charts.
+
+H) Tests
+Add integration tests:
+- Tenant isolation (404 for cross-tenant)
+- RBAC blocked operations
+- Pagination/filtering correctness
+- Invoice generation from timesheets correctness (totals, currency, tax metadata passthrough)
+
+Deliverables:
+- Migrations + schema updates
+- APIs + validations
+- UI pages wired
+- Mobile minimal support
+- Tests passing

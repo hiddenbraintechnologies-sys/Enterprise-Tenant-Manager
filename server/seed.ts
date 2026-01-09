@@ -329,9 +329,9 @@ export async function seedTestPlatformAdmins(): Promise<number> {
 interface SampleTenantDefinition {
   name: string;
   slug: string;
-  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing";
+  businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
   country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
-  region: "asia_pacific" | "middle_east" | "europe";
+  region: "asia_pacific" | "middle_east" | "europe" | "americas";
   subscriptionTier: string;
   email: string;
 }
@@ -462,6 +462,42 @@ const SAMPLE_TENANTS: SampleTenantDefinition[] = [
     region: "middle_east",
     subscriptionTier: "pro",
     email: "info@modernlivinguae.example.com",
+  },
+  {
+    name: "TechFlow Solutions",
+    slug: "techflow-solutions",
+    businessType: "software_services",
+    country: "india",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "projects@techflow.example.com",
+  },
+  {
+    name: "CloudPeak Software",
+    slug: "cloudpeak-software",
+    businessType: "software_services",
+    country: "uk",
+    region: "europe",
+    subscriptionTier: "enterprise",
+    email: "hello@cloudpeak.example.com",
+  },
+  {
+    name: "Strategy Partners",
+    slug: "strategy-partners",
+    businessType: "consulting",
+    country: "uae",
+    region: "middle_east",
+    subscriptionTier: "enterprise",
+    email: "consulting@strategypartners.example.com",
+  },
+  {
+    name: "Innovation Consultants",
+    slug: "innovation-consultants",
+    businessType: "consulting",
+    country: "singapore",
+    region: "asia_pacific",
+    subscriptionTier: "pro",
+    email: "engage@innovationconsultants.example.com",
   },
 ];
 

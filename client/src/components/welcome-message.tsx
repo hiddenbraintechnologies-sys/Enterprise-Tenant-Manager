@@ -58,6 +58,16 @@ const WELCOME_CONFIG: Record<BusinessType, { title: string; subtitle: string; gr
     subtitle: "Manage production, inventory, and sales with efficiency",
     gradient: "from-amber-500/10 to-yellow-500/10 dark:from-amber-500/20 dark:to-yellow-500/20",
   },
+  software_services: {
+    title: "Welcome to Your Software Services Dashboard",
+    subtitle: "Manage projects, timesheets, and client billing efficiently",
+    gradient: "from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20",
+  },
+  consulting: {
+    title: "Welcome to Your Consulting Dashboard",
+    subtitle: "Manage engagements, timesheets, and client relationships with precision",
+    gradient: "from-purple-500/10 to-violet-500/10 dark:from-purple-500/20 dark:to-violet-500/20",
+  },
 };
 
 interface WelcomeMessageProps {

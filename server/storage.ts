@@ -68,6 +68,11 @@ import {
   type FurnitureSalesOrderItem, type InsertFurnitureSalesOrderItem,
   inAppNotifications,
   type InAppNotification, type InsertInAppNotification,
+  projects, projectTasks, timesheets, invoiceProjectLinks,
+  type Project, type InsertProject,
+  type ProjectTask, type InsertProjectTask,
+  type Timesheet, type InsertTimesheet,
+  type InvoiceProjectLink, type InsertInvoiceProjectLink,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
@@ -440,6 +445,31 @@ export interface IStorage {
   createFurnitureSalesOrderItem(item: InsertFurnitureSalesOrderItem, tenantId: string): Promise<FurnitureSalesOrderItem>;
   updateFurnitureSalesOrderItem(id: string, salesOrderId: string, tenantId: string, item: Partial<InsertFurnitureSalesOrderItem>): Promise<FurnitureSalesOrderItem | undefined>;
   deleteFurnitureSalesOrderItem(id: string, salesOrderId: string, tenantId: string): Promise<void>;
+
+  // Projects (Software Services & Consulting)
+  getProjects(tenantId: string): Promise<Project[]>;
+  getProject(id: string, tenantId: string): Promise<Project | undefined>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: string, tenantId: string, project: Partial<InsertProject>): Promise<Project | undefined>;
+  deleteProject(id: string, tenantId: string): Promise<void>;
+
+  // Project Tasks
+  getProjectTasks(projectId: string, tenantId: string): Promise<ProjectTask[]>;
+  getProjectTask(id: string, tenantId: string): Promise<ProjectTask | undefined>;
+  createProjectTask(task: InsertProjectTask): Promise<ProjectTask>;
+  updateProjectTask(id: string, tenantId: string, task: Partial<InsertProjectTask>): Promise<ProjectTask | undefined>;
+  deleteProjectTask(id: string, tenantId: string): Promise<void>;
+
+  // Timesheets
+  getTimesheets(tenantId: string, filters?: { projectId?: string; userId?: string; startDate?: string; endDate?: string; status?: string }): Promise<Timesheet[]>;
+  getTimesheet(id: string, tenantId: string): Promise<Timesheet | undefined>;
+  createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet>;
+  updateTimesheet(id: string, tenantId: string, timesheet: Partial<InsertTimesheet>): Promise<Timesheet | undefined>;
+  deleteTimesheet(id: string, tenantId: string): Promise<void>;
+
+  // Invoice Project Links
+  getInvoiceProjectLinks(invoiceId: string, tenantId: string): Promise<InvoiceProjectLink[]>;
+  createInvoiceProjectLink(link: InsertInvoiceProjectLink): Promise<InvoiceProjectLink>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2398,6 +2428,143 @@ export class DatabaseStorage implements IStorage {
     const order = await this.getFurnitureSalesOrder(salesOrderId, tenantId);
     if (!order) return;
     await db.delete(furnitureSalesOrderItems).where(and(eq(furnitureSalesOrderItems.id, id), eq(furnitureSalesOrderItems.salesOrderId, salesOrderId)));
+  }
+
+  // Projects (Software Services & Consulting)
+  async getProjects(tenantId: string): Promise<Project[]> {
+    return db.select().from(projects)
+      .where(eq(projects.tenantId, tenantId))
+      .orderBy(desc(projects.createdAt));
+  }
+
+  async getProject(id: string, tenantId: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects.id, id), eq(projects.tenantId, tenantId)));
+    return project;
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const [created] = await db.insert(projects).values(project).returning();
+    return created;
+  }
+
+  async updateProject(id: string, tenantId: string, project: Partial<InsertProject>): Promise<Project | undefined> {
+    const [updated] = await db.update(projects)
+      .set({ ...project, updatedAt: new Date() })
+      .where(and(eq(projects.id, id), eq(projects.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteProject(id: string, tenantId: string): Promise<void> {
+    await db.update(projects)
+      .set({ archivedAt: new Date(), status: "archived" })
+      .where(and(eq(projects.id, id), eq(projects.tenantId, tenantId)));
+  }
+
+  // Project Tasks
+  async getProjectTasks(projectId: string, tenantId: string): Promise<ProjectTask[]> {
+    // Verify project belongs to tenant
+    const project = await this.getProject(projectId, tenantId);
+    if (!project) return [];
+    return db.select().from(projectTasks)
+      .where(eq(projectTasks.projectId, projectId))
+      .orderBy(projectTasks.sortOrder);
+  }
+
+  async getProjectTask(id: string, tenantId: string): Promise<ProjectTask | undefined> {
+    const [task] = await db.select().from(projectTasks)
+      .where(and(eq(projectTasks.id, id), eq(projectTasks.tenantId, tenantId)));
+    return task;
+  }
+
+  async createProjectTask(task: InsertProjectTask): Promise<ProjectTask> {
+    const [created] = await db.insert(projectTasks).values(task).returning();
+    return created;
+  }
+
+  async updateProjectTask(id: string, tenantId: string, task: Partial<InsertProjectTask>): Promise<ProjectTask | undefined> {
+    const [updated] = await db.update(projectTasks)
+      .set({ ...task, updatedAt: new Date() })
+      .where(and(eq(projectTasks.id, id), eq(projectTasks.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteProjectTask(id: string, tenantId: string): Promise<void> {
+    await db.delete(projectTasks)
+      .where(and(eq(projectTasks.id, id), eq(projectTasks.tenantId, tenantId)));
+  }
+
+  // Timesheets
+  async getTimesheets(tenantId: string, filters?: { projectId?: string; userId?: string; startDate?: string; endDate?: string; status?: string }): Promise<Timesheet[]> {
+    const conditions = [eq(timesheets.tenantId, tenantId)];
+    
+    if (filters?.projectId) {
+      conditions.push(eq(timesheets.projectId, filters.projectId));
+    }
+    if (filters?.userId) {
+      conditions.push(eq(timesheets.userId, filters.userId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(timesheets.status, filters.status as any));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(timesheets.date, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(timesheets.date, filters.endDate));
+    }
+    
+    return db.select().from(timesheets)
+      .where(and(...conditions))
+      .orderBy(desc(timesheets.date));
+  }
+
+  async getTimesheet(id: string, tenantId: string): Promise<Timesheet | undefined> {
+    const [timesheet] = await db.select().from(timesheets)
+      .where(and(eq(timesheets.id, id), eq(timesheets.tenantId, tenantId)));
+    return timesheet;
+  }
+
+  async createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet> {
+    // Calculate total amount if hourly rate is provided
+    const totalAmount = timesheet.hourlyRate && timesheet.hours 
+      ? (parseFloat(timesheet.hourlyRate.toString()) * parseFloat(timesheet.hours.toString())).toString()
+      : null;
+    
+    const [created] = await db.insert(timesheets)
+      .values({ ...timesheet, totalAmount })
+      .returning();
+    return created;
+  }
+
+  async updateTimesheet(id: string, tenantId: string, timesheet: Partial<InsertTimesheet>): Promise<Timesheet | undefined> {
+    const [updated] = await db.update(timesheets)
+      .set({ ...timesheet, updatedAt: new Date() })
+      .where(and(eq(timesheets.id, id), eq(timesheets.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteTimesheet(id: string, tenantId: string): Promise<void> {
+    // Only delete draft timesheets
+    const existing = await this.getTimesheet(id, tenantId);
+    if (existing?.status === "draft") {
+      await db.delete(timesheets)
+        .where(and(eq(timesheets.id, id), eq(timesheets.tenantId, tenantId)));
+    }
+  }
+
+  // Invoice Project Links
+  async getInvoiceProjectLinks(invoiceId: string, tenantId: string): Promise<InvoiceProjectLink[]> {
+    return db.select().from(invoiceProjectLinks)
+      .where(and(eq(invoiceProjectLinks.invoiceId, invoiceId), eq(invoiceProjectLinks.tenantId, tenantId)));
+  }
+
+  async createInvoiceProjectLink(link: InsertInvoiceProjectLink): Promise<InvoiceProjectLink> {
+    const [created] = await db.insert(invoiceProjectLinks).values(link).returning();
+    return created;
   }
 }
 

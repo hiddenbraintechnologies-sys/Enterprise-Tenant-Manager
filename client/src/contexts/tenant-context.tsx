@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
 
 export interface ModuleConfig {
   id: string;
@@ -29,6 +29,8 @@ const FEATURE_FLAGS: FeatureFlagConfig = {
   logistics: [],
   legal: ["hrms_it_extensions"],
   furniture_manufacturing: ["hrms_it_extensions", "multi_currency"],
+  software_services: ["hrms_it_extensions", "multi_currency"],
+  consulting: ["hrms_it_extensions", "multi_currency"],
 };
 
 const HRMS_MODULE: ModuleConfig = {
@@ -141,6 +143,26 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
+  software_services: [
+    { id: "projects", name: "Projects", enabled: true, routes: ["/software-services/projects", "/software-services/projects/new", "/software-services/projects/:id"] },
+    { id: "tasks", name: "Tasks", enabled: true, routes: ["/software-services/tasks", "/software-services/tasks/:id"] },
+    { id: "timesheets", name: "Timesheets", enabled: true, routes: ["/software-services/timesheets", "/software-services/timesheets/new"] },
+    { id: "invoices", name: "Invoices", enabled: true, routes: ["/software-services/invoices", "/software-services/invoices/new"] },
+    { id: "customers", name: "Clients", enabled: true, routes: ["/customers", "/customers/new"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  consulting: [
+    { id: "projects", name: "Engagements", enabled: true, routes: ["/consulting/projects", "/consulting/projects/new", "/consulting/projects/:id"] },
+    { id: "tasks", name: "Tasks", enabled: true, routes: ["/consulting/tasks", "/consulting/tasks/:id"] },
+    { id: "timesheets", name: "Timesheets", enabled: true, routes: ["/consulting/timesheets", "/consulting/timesheets/new"] },
+    { id: "invoices", name: "Invoices", enabled: true, routes: ["/consulting/invoices", "/consulting/invoices/new"] },
+    { id: "customers", name: "Clients", enabled: true, routes: ["/customers", "/customers/new"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
@@ -155,6 +177,8 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   logistics: "/dashboard/logistics",
   legal: "/dashboard/legal",
   furniture_manufacturing: "/dashboard/furniture",
+  software_services: "/dashboard/software-services",
+  consulting: "/dashboard/consulting",
 };
 
 

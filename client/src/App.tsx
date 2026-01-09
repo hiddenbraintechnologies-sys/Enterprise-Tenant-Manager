@@ -26,6 +26,8 @@ import LegalDashboard from "@/pages/legal-dashboard";
 import FurnitureDashboard from "@/pages/furniture-dashboard";
 import FurnitureInvoices from "@/pages/furniture/invoices";
 import FurnitureAnalytics from "@/pages/furniture/analytics";
+import SoftwareServicesDashboard from "@/pages/software-services-dashboard";
+import ConsultingDashboard from "@/pages/consulting-dashboard";
 import HrDashboard from "@/pages/hr-dashboard";
 import HrEmployees from "@/pages/hr/employees";
 import HrAttendance from "@/pages/hr/attendance";
@@ -155,6 +157,16 @@ function AuthenticatedRoutes() {
       <Route path="/dashboard/furniture/analytics">
         <DashboardGuard allowedBusinessType="furniture_manufacturing">
           <FurnitureAnalytics />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/software-services">
+        <DashboardGuard allowedBusinessType="software_services">
+          <SoftwareServicesDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/consulting">
+        <DashboardGuard allowedBusinessType="consulting">
+          <ConsultingDashboard />
         </DashboardGuard>
       </Route>
       

@@ -31,7 +31,9 @@ export const businessTypeEnum = pgEnum("business_type", [
   "education",
   "logistics",
   "legal",
-  "furniture_manufacturing"
+  "furniture_manufacturing",
+  "software_services",
+  "consulting"
 ]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore", "other"]);
@@ -8251,3 +8253,279 @@ export const insertInAppNotificationSchema = createInsertSchema(inAppNotificatio
 
 export type InAppNotification = typeof inAppNotifications.$inferSelect;
 export type InsertInAppNotification = z.infer<typeof insertInAppNotificationSchema>;
+
+// ============================================
+// SOFTWARE SERVICES & CONSULTING MODULES
+// ============================================
+
+// Project status enum
+export const projectStatusEnum = pgEnum("project_status", [
+  "draft",
+  "planning",
+  "active",
+  "on_hold",
+  "completed",
+  "cancelled",
+  "archived"
+]);
+
+// Project billing model enum
+export const projectBillingModelEnum = pgEnum("project_billing_model", [
+  "fixed_price",
+  "time_and_materials",
+  "retainer",
+  "milestone_based",
+  "hybrid"
+]);
+
+// Task status enum
+export const taskStatusEnum = pgEnum("task_status", [
+  "backlog",
+  "todo",
+  "in_progress",
+  "in_review",
+  "blocked",
+  "completed",
+  "cancelled"
+]);
+
+// Task priority enum
+export const taskPriorityEnum = pgEnum("task_priority", [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+  "critical"
+]);
+
+// Timesheet status enum
+export const timesheetStatusEnum = pgEnum("timesheet_status", [
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "billed"
+]);
+
+// Projects table - tenant-scoped project management
+export const projects = pgTable("projects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  
+  // Project details
+  name: text("name").notNull(),
+  code: varchar("code", { length: 50 }),
+  description: text("description"),
+  status: projectStatusEnum("status").default("draft"),
+  
+  // Billing configuration
+  billingModel: projectBillingModelEnum("billing_model").default("time_and_materials"),
+  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
+  fixedBudget: decimal("fixed_budget", { precision: 15, scale: 2 }),
+  currency: text("currency").default("USD"),
+  
+  // Timeline
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  estimatedHours: decimal("estimated_hours", { precision: 10, scale: 2 }),
+  actualHours: decimal("actual_hours", { precision: 10, scale: 2 }).default("0"),
+  
+  // Team assignment
+  projectManagerId: varchar("project_manager_id").references(() => users.id),
+  teamMemberIds: jsonb("team_member_ids").default([]),
+  
+  // Metadata
+  tags: jsonb("tags").default([]),
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit fields
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  archivedAt: timestamp("archived_at"),
+}, (table) => [
+  index("idx_projects_tenant_id").on(table.tenantId),
+  index("idx_projects_customer_id").on(table.customerId),
+  index("idx_projects_status").on(table.status),
+  index("idx_projects_billing_model").on(table.billingModel),
+  index("idx_projects_manager").on(table.projectManagerId),
+  uniqueIndex("idx_projects_tenant_code").on(table.tenantId, table.code),
+]);
+
+// Project Tasks table - tasks and milestones within projects
+export const projectTasks = pgTable("project_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  parentTaskId: varchar("parent_task_id"),
+  
+  // Task details
+  title: text("title").notNull(),
+  description: text("description"),
+  status: taskStatusEnum("status").default("backlog"),
+  priority: taskPriorityEnum("priority").default("medium"),
+  isMilestone: boolean("is_milestone").default(false),
+  
+  // Assignment
+  assigneeId: varchar("assignee_id").references(() => users.id),
+  reviewerId: varchar("reviewer_id").references(() => users.id),
+  
+  // Effort tracking
+  estimatedHours: decimal("estimated_hours", { precision: 10, scale: 2 }),
+  loggedHours: decimal("logged_hours", { precision: 10, scale: 2 }).default("0"),
+  
+  // Timeline
+  dueDate: date("due_date"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Billing
+  isBillable: boolean("is_billable").default(true),
+  hourlyRateOverride: decimal("hourly_rate_override", { precision: 10, scale: 2 }),
+  
+  // Ordering
+  sortOrder: integer("sort_order").default(0),
+  
+  // Metadata
+  tags: jsonb("tags").default([]),
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit fields
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_project_tasks_tenant_id").on(table.tenantId),
+  index("idx_project_tasks_project_id").on(table.projectId),
+  index("idx_project_tasks_parent").on(table.parentTaskId),
+  index("idx_project_tasks_status").on(table.status),
+  index("idx_project_tasks_assignee").on(table.assigneeId),
+  index("idx_project_tasks_priority").on(table.priority),
+  index("idx_project_tasks_due_date").on(table.dueDate),
+]);
+
+// Timesheets table - time tracking for projects/tasks
+export const timesheets = pgTable("timesheets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  taskId: varchar("task_id").references(() => projectTasks.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  
+  // Time entry details
+  date: date("date").notNull(),
+  hours: decimal("hours", { precision: 5, scale: 2 }).notNull(),
+  description: text("description"),
+  
+  // Status and approval
+  status: timesheetStatusEnum("status").default("draft"),
+  submittedAt: timestamp("submitted_at"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  rejectedBy: varchar("rejected_by").references(() => users.id),
+  rejectedAt: timestamp("rejected_at"),
+  rejectionReason: text("rejection_reason"),
+  
+  // Billing
+  isBillable: boolean("is_billable").default(true),
+  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }),
+  invoiceId: varchar("invoice_id"),
+  billedAt: timestamp("billed_at"),
+  
+  // Metadata
+  metadata: jsonb("metadata").default({}),
+  
+  // Audit fields
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_timesheets_tenant_id").on(table.tenantId),
+  index("idx_timesheets_project_id").on(table.projectId),
+  index("idx_timesheets_task_id").on(table.taskId),
+  index("idx_timesheets_user_id").on(table.userId),
+  index("idx_timesheets_date").on(table.date),
+  index("idx_timesheets_status").on(table.status),
+  index("idx_timesheets_billable").on(table.isBillable),
+  index("idx_timesheets_invoice").on(table.invoiceId),
+  index("idx_timesheets_user_date").on(table.userId, table.date),
+]);
+
+// Invoice Project Links - connects invoices to projects/timesheets without duplicating invoice logic
+export const invoiceProjectLinks = pgTable("invoice_project_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  invoiceId: varchar("invoice_id").notNull(),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  
+  // Link details
+  totalHours: decimal("total_hours", { precision: 10, scale: 2 }),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }),
+  dateRangeStart: date("date_range_start"),
+  dateRangeEnd: date("date_range_end"),
+  
+  // Grouping info for billing
+  groupingType: varchar("grouping_type", { length: 20 }).default("flat"),
+  timesheetIds: jsonb("timesheet_ids").default([]),
+  
+  // Metadata
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_invoice_project_links_tenant_id").on(table.tenantId),
+  index("idx_invoice_project_links_invoice_id").on(table.invoiceId),
+  index("idx_invoice_project_links_project_id").on(table.projectId),
+  uniqueIndex("idx_invoice_project_links_unique").on(table.invoiceId, table.projectId),
+]);
+
+// Insert schemas for new tables
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  archivedAt: true,
+  actualHours: true,
+});
+
+export const insertProjectTaskSchema = createInsertSchema(projectTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  loggedHours: true,
+  startedAt: true,
+  completedAt: true,
+});
+
+export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+  approvedAt: true,
+  approvedBy: true,
+  rejectedAt: true,
+  rejectedBy: true,
+  billedAt: true,
+  totalAmount: true,
+});
+
+export const insertInvoiceProjectLinkSchema = createInsertSchema(invoiceProjectLinks).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Type exports
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+
+export type ProjectTask = typeof projectTasks.$inferSelect;
+export type InsertProjectTask = z.infer<typeof insertProjectTaskSchema>;
+
+export type Timesheet = typeof timesheets.$inferSelect;
+export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
+
+export type InvoiceProjectLink = typeof invoiceProjectLinks.$inferSelect;
+export type InsertInvoiceProjectLink = z.infer<typeof insertInvoiceProjectLinkSchema>;

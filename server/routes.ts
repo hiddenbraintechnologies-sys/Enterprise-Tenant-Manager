@@ -77,6 +77,7 @@ import regionLockRoutes from "./routes/region-lock";
 import { regionLockService } from "./services/region-lock";
 import furnitureRoutes from "./routes/furniture";
 import hrmsRoutes from "./routes/hrms";
+import servicesRoutes from "./routes/services";
 import subscriptionRoutes from "./routes/subscriptions";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
@@ -176,10 +177,12 @@ export async function registerRoutes(
     logistics: "logistics",
     legal: "legal",
     furniture_manufacturing: "furniture_manufacturing",
+    software_services: "software_services",
+    consulting: "consulting",
   };
 
   // Module-protected middleware stack (includes tenant context resolution + subscription gating)
-  const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing") => [
+  const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting") => [
     authenticateJWT({ required: true }),
     tenantResolutionMiddleware(),
     enforceTenantBoundary(),
@@ -205,6 +208,12 @@ export async function registerRoutes(
 
   // Register Furniture Manufacturing module routes (protected)
   app.use('/api/furniture', ...moduleProtectedMiddleware("furniture_manufacturing"), furnitureRoutes);
+
+  // Register Software Services module routes (protected)
+  app.use('/api/services/software', ...moduleProtectedMiddleware("software_services"), servicesRoutes);
+
+  // Register Consulting module routes (protected)
+  app.use('/api/services/consulting', ...moduleProtectedMiddleware("consulting"), servicesRoutes);
 
   // Register HRMS module routes (protected, cross-business horizontal module)
   app.use('/api/hr', isAuthenticated, requireModule("hrms"), hrmsRoutes);
@@ -3577,7 +3586,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Name, business type, and country are required" });
       }
 
-      const validBusinessTypes = ["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism", "education", "logistics", "legal", "furniture"];
+      const validBusinessTypes = ["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism", "education", "logistics", "legal", "furniture", "furniture_manufacturing", "software_services", "consulting"];
       if (!validBusinessTypes.includes(businessType)) {
         return res.status(400).json({ message: "Invalid business type" });
       }

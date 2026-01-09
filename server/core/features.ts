@@ -71,9 +71,14 @@ export const FEATURES = {
   DELIVERY_ORDERS: "delivery_orders",
   INSTALLATION_ORDERS: "installation_orders",
   FURNITURE_SALES: "furniture_sales",
+  // Software Services & Consulting modules
+  PROJECTS: "projects",
+  PROJECT_TASKS: "project_tasks",
+  TIMESHEETS: "timesheets",
+  CLIENT_PORTAL: "client_portal",
 } as const;
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing";
+export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
 
 export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
   clinic: [
@@ -204,6 +209,32 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
     FEATURES.NOTIFICATIONS_EMAIL,
     FEATURES.NOTIFICATIONS_SMS,
     FEATURES.NOTIFICATIONS_WHATSAPP,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  software_services: [
+    FEATURES.PROJECTS,
+    FEATURES.PROJECT_TASKS,
+    FEATURES.TIMESHEETS,
+    FEATURES.CLIENT_PORTAL,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  consulting: [
+    FEATURES.PROJECTS,
+    FEATURES.PROJECT_TASKS,
+    FEATURES.TIMESHEETS,
+    FEATURES.CLIENT_PORTAL,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
     FEATURES.ANALYTICS_BASIC,
     FEATURES.ANALYTICS_ADVANCED,
   ],
@@ -456,6 +487,11 @@ export class FeatureService {
       { code: FEATURES.DELIVERY_ORDERS, name: "Delivery Orders", category: "furniture_manufacturing", defaultEnabled: false },
       { code: FEATURES.INSTALLATION_ORDERS, name: "Installation Orders", category: "furniture_manufacturing", defaultEnabled: false },
       { code: FEATURES.FURNITURE_SALES, name: "Furniture Sales Orders", category: "furniture_manufacturing", defaultEnabled: false },
+      // Software Services & Consulting modules
+      { code: FEATURES.PROJECTS, name: "Project Management", category: "software_services", defaultEnabled: false },
+      { code: FEATURES.PROJECT_TASKS, name: "Task Management", category: "software_services", defaultEnabled: false },
+      { code: FEATURES.TIMESHEETS, name: "Timesheet Tracking", category: "software_services", defaultEnabled: false },
+      { code: FEATURES.CLIENT_PORTAL, name: "Client Portal", category: "software_services", defaultEnabled: false, requiredTier: "pro" },
     ];
 
     for (const feature of featureDefinitions) {

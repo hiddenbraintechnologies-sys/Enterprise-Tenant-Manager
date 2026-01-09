@@ -122,6 +122,8 @@ const BUSINESS_TYPES = [
   { value: "education", label: "Education", icon: "graduation" },
   { value: "logistics", label: "Logistics", icon: "truck" },
   { value: "legal", label: "Legal", icon: "scale" },
+  { value: "software_services", label: "Software Services", icon: "code" },
+  { value: "consulting", label: "Consulting", icon: "users" },
 ];
 
 const STATUSES = [
