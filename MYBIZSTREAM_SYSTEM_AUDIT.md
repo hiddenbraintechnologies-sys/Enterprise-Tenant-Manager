@@ -33,7 +33,7 @@
 | **Workflows** | ✅ Complete | Production lifecycle (draft→pending→in_progress→completed), Delivery scheduling, Installation tracking |
 | **Validations** | ✅ Complete | Zod schemas, financial consistency guards, tenant scope enforcement |
 | **Web UI** | ✅ Complete | Dashboard, Products, BOM, Sales Orders, Production Orders, Deliveries, Invoices, Raw Materials, Analytics, Reports |
-| **Mobile (Flutter)** | ❌ Not started | Mobile API infrastructure exists but no Flutter implementation |
+| **Mobile (Flutter)** | ✅ Complete | Full BLoC/Repository implementation in `mobile/lib/features/furniture/` with Products, Invoices, Analytics pages |
 | **Financial - Invoicing** | ✅ Complete | Multi-country invoicing with lifecycle management |
 | **Financial - Payments** | ✅ Complete | Multi-currency, partial payments, payment tracking |
 | **Financial - PDF** | ✅ Complete | Branded PDF invoice generation with tenant branding |
@@ -57,7 +57,7 @@
 | **Workflows** | ✅ Complete | Leave approval workflow, payroll processing |
 | **Validations** | ✅ Complete | Zod schemas, role-based access |
 | **Web UI** | ✅ Complete | HR Dashboard, Employees, Attendance, Leaves, Payroll, Projects, Timesheets, Allocations |
-| **Mobile (Flutter)** | ❌ Not started | API ready but no Flutter app |
+| **Mobile (Flutter)** | ✅ Complete | Full BLoC/Repository in `mobile/lib/features/hrms/` with Dashboard, Employees, Attendance, Leave, Payroll pages |
 | **Financial - Invoicing** | ⚪ N/A | Internal HR - no customer invoicing |
 | **Financial - Payments** | 🟡 Partial | Payroll processing exists |
 | **Financial - PDF** | ❌ Not started | No payslip PDF generation |
@@ -81,7 +81,7 @@
 | **Workflows** | ✅ Complete | Case lifecycle, hearing scheduling |
 | **Validations** | ✅ Complete | Zod schemas, soft-delete support |
 | **Web UI** | ✅ Complete | Legal Dashboard with stats |
-| **Mobile (Flutter)** | ❌ Not started | API ready |
+| **Mobile (Flutter)** | ✅ Complete | BLoC/Repository in `mobile/lib/features/legal/` with Dashboard, Cases pages |
 | **Financial - Invoicing** | ✅ Complete | BaseFinancialService integrated |
 | **Financial - Payments** | 🟡 Partial | Payment tracking exists |
 | **Financial - PDF** | ✅ Complete | `/api/legal/invoices/:id/pdf` route |
@@ -105,7 +105,7 @@
 | **Workflows** | ✅ Complete | Enrollment, fee collection, exam scheduling |
 | **Validations** | ✅ Complete | Zod schemas, soft-delete |
 | **Web UI** | ✅ Complete | Education Dashboard |
-| **Mobile (Flutter)** | ❌ Not started | API ready |
+| **Mobile (Flutter)** | ✅ Complete | BLoC/Repository in `mobile/lib/features/education/` with Dashboard |
 | **Financial - Invoicing** | ✅ Complete | Fee receipts via BaseFinancialService |
 | **Financial - Payments** | ✅ Complete | Fee payment tracking |
 | **Financial - PDF** | ✅ Complete | `/api/education/fees/:id/pdf` route |
@@ -129,7 +129,7 @@
 | **Workflows** | ✅ Complete | Booking lifecycle, itinerary management |
 | **Validations** | ✅ Complete | Zod schemas |
 | **Web UI** | ✅ Complete | Tourism Dashboard |
-| **Mobile (Flutter)** | ❌ Not started | API ready |
+| **Mobile (Flutter)** | 🟡 Partial | Repository in `mobile/lib/features/tourism/`, models exist, BLoC partial |
 | **Financial - Invoicing** | ✅ Complete | Booking invoices via BaseFinancialService |
 | **Financial - Payments** | ✅ Complete | Advance payments, balance tracking |
 | **Financial - PDF** | ✅ Complete | `/api/tourism/bookings/:id/pdf` route |
@@ -153,7 +153,7 @@
 | **Workflows** | ✅ Complete | Trip lifecycle, delivery tracking |
 | **Validations** | ✅ Complete | Zod schemas, soft-delete |
 | **Web UI** | ✅ Complete | Logistics Dashboard |
-| **Mobile (Flutter)** | ❌ Not started | API ready |
+| **Mobile (Flutter)** | 🟡 Partial | Models in `mobile/lib/features/logistics/`, BLoC/Repository partial |
 | **Financial - Invoicing** | ✅ Complete | Shipment invoices via BaseFinancialService |
 | **Financial - Payments** | ✅ Complete | Payment tracking |
 | **Financial - PDF** | ✅ Complete | `/api/logistics/shipments/:id/pdf` route |
@@ -177,7 +177,7 @@
 | **Workflows** | ✅ Complete | Lead lifecycle, commission tracking |
 | **Validations** | ✅ Complete | Zod schemas |
 | **Web UI** | ✅ Complete | Real Estate Dashboard |
-| **Mobile (Flutter)** | ❌ Not started | API ready |
+| **Mobile (Flutter)** | 🟡 Partial | Models in `mobile/lib/features/real_estate/`, BLoC/Repository partial |
 | **Financial - Invoicing** | ✅ Complete | Commission statements via BaseFinancialService |
 | **Financial - Payments** | ✅ Complete | Commission payment tracking |
 | **Financial - PDF** | ✅ Complete | `/api/real-estate/commissions/:id/pdf` route |
@@ -201,7 +201,7 @@
 | **Workflows** | 🟡 Partial | Basic booking flow |
 | **Validations** | 🟡 Partial | Generic service validations |
 | **Web UI** | ✅ Complete | PG Dashboard |
-| **Mobile (Flutter)** | ❌ Not started | No implementation |
+| **Mobile (Flutter)** | 🟡 Scaffold | Models in `mobile/lib/features/pg_hostel/`, needs BLoC/Repository |
 | **Financial - Invoicing** | ❌ Not started | Uses generic invoices table |
 | **Financial - Payments** | ❌ Not started | Uses generic payments |
 | **Financial - PDF** | ❌ Not started | No module-specific PDF |
@@ -225,7 +225,7 @@
 | **Workflows** | 🟡 Partial | Basic booking flow |
 | **Validations** | 🟡 Partial | Generic validations |
 | **Web UI** | ✅ Complete | Coworking Dashboard, Spaces page |
-| **Mobile (Flutter)** | ❌ Not started | No implementation |
+| **Mobile (Flutter)** | 🟡 Scaffold | Entry file in `mobile/lib/features/coworking/`, needs BLoC/Repository |
 | **Financial - Invoicing** | ❌ Not started | Uses generic invoices |
 | **Financial - Payments** | ❌ Not started | Uses generic payments |
 | **Financial - PDF** | ❌ Not started | No module-specific PDF |
@@ -249,7 +249,7 @@
 | **Workflows** | 🟡 Partial | Appointment scheduling |
 | **Validations** | 🟡 Partial | Generic validations |
 | **Web UI** | ✅ Complete | Clinic Dashboard |
-| **Mobile (Flutter)** | ❌ Not started | No implementation |
+| **Mobile (Flutter)** | 🟡 Scaffold | Entry file in `mobile/lib/features/clinic/`, needs BLoC/Repository |
 | **Financial - Invoicing** | ❌ Not started | Uses generic invoices |
 | **Financial - Payments** | ❌ Not started | Uses generic payments |
 | **Financial - PDF** | ❌ Not started | No module-specific PDF |
@@ -273,7 +273,7 @@
 | **Workflows** | 🟡 Partial | Appointment booking |
 | **Validations** | 🟡 Partial | Generic validations |
 | **Web UI** | ✅ Complete | Salon Dashboard, Service Dashboard |
-| **Mobile (Flutter)** | ❌ Not started | No implementation |
+| **Mobile (Flutter)** | 🟡 Scaffold | Models in `mobile/lib/features/salon/`, needs BLoC/Repository |
 | **Financial - Invoicing** | ❌ Not started | Uses generic invoices |
 | **Financial - Payments** | ❌ Not started | Uses generic payments |
 | **Financial - PDF** | ❌ Not started | No module-specific PDF |
@@ -297,7 +297,7 @@
 | **Workflows** | 🟡 Partial | Membership lifecycle |
 | **Validations** | 🟡 Partial | Generic validations |
 | **Web UI** | ❌ Not started | No dedicated dashboard |
-| **Mobile (Flutter)** | ❌ Not started | No implementation |
+| **Mobile (Flutter)** | 🟡 Scaffold | Entry file in `mobile/lib/features/gym/`, needs full implementation |
 | **Financial - Invoicing** | ❌ Not started | Uses generic invoices |
 | **Financial - Payments** | ❌ Not started | Uses generic payments |
 | **Financial - PDF** | ❌ Not started | No module-specific PDF |
@@ -596,7 +596,9 @@ hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "fu
 | **Input Validation** | Zod schemas on all endpoints |
 | **SQL Injection** | Parameterized queries via Drizzle |
 
-### 4.6 Mobile Architecture (API Ready)
+### 4.6 Mobile Architecture (Flutter App Implemented)
+
+**Flutter App Location:** `mobile/` directory
 
 | Component | Status | Details |
 |-----------|--------|---------|
@@ -604,8 +606,31 @@ hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "fu
 | **Device Registration** | ✅ Implemented | Platform detection, push tokens |
 | **Token Management** | ✅ Implemented | Access/refresh tokens |
 | **Sync Infrastructure** | ✅ Implemented | Delta sync, conflict resolution |
-| **Offline Support** | ✅ Designed | Pending sync queue |
-| **Flutter App** | ❌ Not Started | API ready, no client implementation |
+| **Offline Support** | ✅ Implemented | `SyncService` with `DatabaseHelper` (Hive) |
+| **Flutter App** | ✅ Implemented | Clean Architecture with BLoC pattern |
+
+#### Flutter App Architecture
+- **State Management:** Flutter BLoC
+- **HTTP Client:** Dio with interceptors (TenantInterceptor, AuthInterceptor, ErrorInterceptor)
+- **Local Storage:** Hive for offline caching
+- **Notifications:** Firebase Cloud Messaging + Local Notifications
+- **Routing:** GoRouter with auth guards
+
+#### Flutter Module Status
+| Module | Status | Location |
+|--------|--------|----------|
+| Furniture | ✅ Complete | `mobile/lib/features/furniture/` (Products, Invoices, Analytics) |
+| HRMS | ✅ Complete | `mobile/lib/features/hrms/` (Dashboard, Employees, Attendance, Leave, Payroll) |
+| Legal | ✅ Complete | `mobile/lib/features/legal/` (Dashboard, Cases) |
+| Education | ✅ Complete | `mobile/lib/features/education/` (Dashboard) |
+| Tourism | 🟡 Partial | `mobile/lib/features/tourism/` (Models, Repository partial) |
+| Logistics | 🟡 Partial | `mobile/lib/features/logistics/` (Models, BLoC partial) |
+| Real Estate | 🟡 Partial | `mobile/lib/features/real_estate/` (Models, BLoC partial) |
+| Clinic | 🟡 Scaffold | `mobile/lib/features/clinic/` (Entry only) |
+| Coworking | 🟡 Scaffold | `mobile/lib/features/coworking/` (Entry only) |
+| PG/Hostel | 🟡 Scaffold | `mobile/lib/features/pg_hostel/` (Models only) |
+| Salon | 🟡 Scaffold | `mobile/lib/features/salon/` (Models only) |
+| Gym | 🟡 Scaffold | `mobile/lib/features/gym/` (Entry only) |
 
 ### 4.7 Deployment Architecture
 
@@ -639,11 +664,12 @@ hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "fu
 5. 🟡 **Gym/Fitness** - Membership exists, needs full module
 
 ### Critical Gaps
-1. **Mobile (Flutter)**: API infrastructure ready, no client implementation
+1. **Flutter Tier 2 Modules**: Scaffold only, need complete BLoC/Repository implementation
 2. **Multi-Currency**: Only Furniture has full implementation
-3. **Server-Side Pagination**: Only Furniture has full implementation
+3. **Server-Side Pagination**: Only Furniture/HRMS have full implementation
 4. **Analytics Adapters**: Missing for Tier 2 modules
 5. **Notification Adapters**: Missing for Tier 2 modules
+6. **CSV Export**: Missing across ALL modules
 
 ---
 

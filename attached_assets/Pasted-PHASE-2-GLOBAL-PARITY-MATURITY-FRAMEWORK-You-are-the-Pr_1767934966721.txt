@@ -1,0 +1,227 @@
+PHASE 2 GLOBAL PARITY & MATURITY FRAMEWORK
+
+You are the Principal Architect & Auditor for a multi-tenant SaaS platform supporting multiple business modules (Furniture Manufacturing, Retail, Services, IT/HRMS, etc.).
+
+🎯 OBJECTIVE
+
+Create a Phase 2 execution plan to:
+
+Ensure 100% feature parity across all business modules
+
+Define global vs optional features (ALL features are GLOBAL)
+
+Design a Module Maturity Score usable for sales, pricing, and roadmap tracking
+
+Produce a Business + Tech Stack comprehensive document as source of truth
+
+🧩 PART 1: GLOBAL FEATURE CANONICAL LIST (SOURCE OF TRUTH)
+
+Audit the entire codebase and produce a canonical master feature registry that includes:
+
+A. Core Platform (Mandatory for ALL modules)
+
+Multi-tenant isolation
+
+Role-based access control (RBAC)
+
+Region & country availability control
+
+Subscription & plan enforcement
+
+Audit logs
+
+Feature flags
+
+Pagination on all list endpoints
+
+Search, filter, export (CSV/PDF)
+
+B. Financial & Commercial
+
+Invoicing (draft → issued → paid → cancelled)
+
+Tax engine (GST/VAT configurable)
+
+Multi-currency support
+
+Payment collection (transactional & idempotent)
+
+Refunds & adjustments
+
+Financial reports
+
+C. Operations (Business-agnostic)
+
+Inventory / resource tracking (where applicable)
+
+Order / job lifecycle
+
+Status transitions with validations
+
+Attachments & document storage
+
+Notes & activity timelines
+
+D. HRMS (GLOBAL across ALL businesses)
+
+Employee directory
+
+Attendance
+
+Leave management
+
+Payroll
+
+Departments & roles
+
+HR analytics
+
+E. Analytics & AI
+
+Module analytics adapter
+
+Cross-module dashboards
+
+AI insights hooks (forecasting, alerts, summaries)
+
+F. Notifications
+
+Email
+
+WhatsApp
+
+In-app notifications
+
+Event-based dispatch via BaseNotificationService
+
+🚨 Rule:
+
+If a feature exists in any module, it MUST exist in all modules (unless technically impossible, which must be documented).
+
+🧩 PART 2: PHASE 2 PARITY ROLLOUT PLAN
+(Module × Feature × Sprint Matrix)
+
+Generate a table with:
+
+Sprint	Module	Missing Feature	Source Module	Action	Owner	Risk
+
+Rules:
+
+Furniture + HRMS act as reference gold standards
+
+Other modules must be upgraded to match them
+
+Include backend + frontend + mobile parity
+
+Identify shared services vs module adapters
+
+Also output:
+
+Sprint duration (2 weeks)
+
+Dependencies
+
+Regression checkpoints
+
+🧩 PART 3: MODULE MATURITY SCORE (FOR SALES & PRICING)
+
+Design a Module Maturity Score (0–100) based on:
+
+Scoring Dimensions
+Category	Weight
+Feature Parity	30
+Financial Completeness	20
+HRMS Coverage	15
+Analytics & AI	15
+Mobile Readiness	10
+Stability & Test Coverage	10
+Output Per Module
+
+Maturity Score
+
+Tier mapping:
+
+90–100 → Enterprise Ready
+
+75–89 → Growth Ready
+
+60–74 → SMB Ready
+
+<60 → Beta
+
+Use this score to:
+
+Drive pricing tiers
+
+Enable/disable sales eligibility
+
+Prioritize roadmap investment
+
+🧩 PART 4: BUSINESS + TECH STACK COMPREHENSIVE DOCUMENT
+
+Generate a single authoritative document containing:
+
+Business View
+
+Supported industries
+
+Global feature guarantees
+
+Compliance readiness (SOC2, ISO future)
+
+Pricing logic tied to maturity score
+
+Technical View
+
+Backend architecture
+
+Base services (financial, notification, analytics)
+
+Module adapter pattern
+
+Database schema standards
+
+API conventions
+
+Mobile (Flutter) parity rules
+
+Mark this document as:
+
+“Source of Truth — Any deviation is a bug.”
+
+🧩 PART 5: OUTPUT FORMAT REQUIREMENTS
+
+Produce:
+
+Feature Parity Audit Report
+
+Phase 2 Sprint Plan (table)
+
+Module Maturity Scoring Model
+
+Business + Tech Stack Document
+
+Actionable TODO list for Phase 2 execution
+
+Be strict, opinionated, and production-grade.
+Do not assume — verify from codebase.
+
+🚀 SUCCESS CRITERIA
+
+No module ships without global parity
+
+Sales can price using maturity score
+
+Engineering has zero ambiguity
+
+Platform scales to 100+ industries without rewrites
+
+If you want, next I can also:
+
+Convert this into JIRA epics
+
+Generate sales enablement decks
+
+Create automated parity CI checks
+
+Map maturity score → pricing (₹99 / ₹199 / Enterprise)

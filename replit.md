@@ -253,12 +253,23 @@ MyBizStream is an enterprise-grade, multi-tenant SaaS platform designed to strea
 - Connection pooling
 
 ### Mobile (Flutter)
+**Location:** `mobile/` directory with full implementation
+
 - Clean Architecture (presentation, domain, data layers)
 - Flutter BLoC for state management
-- Dio HTTP client with interceptors
-- Secure storage for tokens
+- Dio HTTP client with interceptors (TenantInterceptor, AuthInterceptor, ErrorInterceptor)
+- Hive for offline caching with SyncService
+- Firebase Cloud Messaging + Local notifications
 - GoRouter with authentication guards
 - Multi-tenant support via TenantInterceptor
+
+**Implemented Modules:**
+- Furniture (✅ Complete): Products, Invoices, Analytics pages
+- HRMS (✅ Complete): Dashboard, Employees, Attendance, Leave, Payroll
+- Legal (✅ Complete): Dashboard, Cases
+- Education (✅ Complete): Dashboard
+- Tourism, Logistics, Real Estate (🟡 Partial): Models + partial BLoC
+- Clinic, Coworking, PG/Hostel, Salon, Gym (🟡 Scaffold): Entry files only
 
 ### Deployment
 - Global deployment on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore)
@@ -300,6 +311,8 @@ MyBizStream is an enterprise-grade, multi-tenant SaaS platform designed to strea
 - **TESTING_WORKFLOW.md**: Testing strategy, tools, and CI/CD guidelines
 - **TEST_SCENARIOS.md**: Detailed test scenarios (200+ test cases)
 - **design_guidelines.md**: Frontend design guidelines
+- **PHASE2_GLOBAL_PARITY_FRAMEWORK.md**: Phase 2 global parity plan with 47 TODO items
+- **MYBIZSTREAM_SYSTEM_AUDIT.md**: Detailed system audit of all 12 modules
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
