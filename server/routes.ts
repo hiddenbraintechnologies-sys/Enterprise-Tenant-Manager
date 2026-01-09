@@ -3667,11 +3667,39 @@ export async function registerRoutes(
       }).where(eq(tenants.id, tenantId));
 
       const tenantUserRecords = await db.select().from(userTenants).where(eq(userTenants.tenantId, tenantId));
+      
+      // Clean up refresh tokens and user associations
       for (const tu of tenantUserRecords) {
+        // Delete refresh tokens for this user-tenant combination
         await db.delete(refreshTokens).where(and(
           eq(refreshTokens.userId, tu.userId),
           eq(refreshTokens.tenantId, tenantId)
         ));
+        
+        // Check if user belongs to other tenants
+        const otherTenants = await db.select()
+          .from(userTenants)
+          .where(and(
+            eq(userTenants.userId, tu.userId),
+            sql`${userTenants.tenantId} != ${tenantId}`
+          ));
+        
+        // If user only belonged to this tenant, delete their user record
+        if (otherTenants.length === 0) {
+          // Delete user_tenants record first
+          await db.delete(userTenants).where(and(
+            eq(userTenants.userId, tu.userId),
+            eq(userTenants.tenantId, tenantId)
+          ));
+          // Delete the user record
+          await db.delete(users).where(eq(users.id, tu.userId));
+        } else {
+          // User has other tenants, just remove from this one
+          await db.delete(userTenants).where(and(
+            eq(userTenants.userId, tu.userId),
+            eq(userTenants.tenantId, tenantId)
+          ));
+        }
       }
 
       auditService.logAsync({
@@ -3743,13 +3771,36 @@ export async function registerRoutes(
             updatedAt: new Date(),
           }).where(eq(tenants.id, tenantId));
 
-          // Invalidate all sessions for tenant users
+          // Clean up user associations and invalidate sessions
           const tenantUserRecords = await db.select().from(userTenants).where(eq(userTenants.tenantId, tenantId));
           for (const tu of tenantUserRecords) {
+            // Delete refresh tokens for this user-tenant combination
             await db.delete(refreshTokens).where(and(
               eq(refreshTokens.userId, tu.userId),
               eq(refreshTokens.tenantId, tenantId)
             ));
+            
+            // Check if user belongs to other tenants
+            const otherTenants = await db.select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, tu.userId),
+                sql`${userTenants.tenantId} != ${tenantId}`
+              ));
+            
+            // If user only belonged to this tenant, delete their user record
+            if (otherTenants.length === 0) {
+              await db.delete(userTenants).where(and(
+                eq(userTenants.userId, tu.userId),
+                eq(userTenants.tenantId, tenantId)
+              ));
+              await db.delete(users).where(eq(users.id, tu.userId));
+            } else {
+              await db.delete(userTenants).where(and(
+                eq(userTenants.userId, tu.userId),
+                eq(userTenants.tenantId, tenantId)
+              ));
+            }
           }
 
           deletedTenants.push(tenantId);
