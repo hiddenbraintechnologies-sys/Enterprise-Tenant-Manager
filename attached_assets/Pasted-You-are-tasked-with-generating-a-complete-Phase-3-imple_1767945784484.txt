@@ -1,0 +1,93 @@
+You are tasked with generating a complete Phase 3 implementation for MyBizStream SaaS platform with the following requirements. Generate the backend, mobile (Flutter), and test code in a structure suitable for Replit deployment. Provide all necessary files, folders, and starter code. Ensure everything is connected and ready for deployment.
+
+---
+
+## 1️⃣ Backend (Node.js + TypeScript + Express + Drizzle ORM + Zod)
+
+**Requirements:**
+
+1. Tenant Signup API
+   - POST /api/auth/signup
+   - Accepts tenant details (name, slug, business type, admin user details)
+   - Creates tenant in tenants table, creates admin user in users table
+   - Sends confirmation email and WhatsApp via `notificationService`
+   - Returns JWT token including `tnt` claim
+
+2. Subscription Selection API
+   - POST /api/subscription/select
+   - Accepts tenantId (from JWT), subscription plan selection
+   - Validates against `globalPricingPlans` + `countryPricingConfigs`
+   - Assigns subscription in `tenantSubscriptions` table
+   - Returns assigned modules and allowed features
+
+3. Dashboard Access API
+   - GET /api/dashboard/access
+   - Middleware stack: authenticateJWT → tenantResolutionMiddleware → subscriptionCheckMiddleware → requireDashboardAccess
+   - Returns allowed modules, features, and dashboard route for the tenant
+
+4. Middleware
+   - authenticateJWT: verifies JWT, extracts tenantId
+   - tenantResolutionMiddleware: resolves tenantId from body, header, subdomain, or host
+   - subscriptionCheckMiddleware: ensures tenant has active subscription
+   - requireDashboardAccess: ensures user has access to requested dashboard route
+
+5. Services + Repositories
+   - tenantService + tenantRepo
+   - subscriptionService + subscriptionRepo
+   - notificationService (email/WhatsApp)
+   - Include all necessary Zod schemas for validation
+
+6. Database
+   - Tables: tenants, users, tenantSubscriptions, globalPricingPlans, countryPricingConfigs, planLocalPrices, subscriptionInvoices, exchangeRates
+   - Include migrations or Drizzle schema definitions
+
+---
+
+## 2️⃣ Flutter Mobile
+
+**Requirements:**
+
+1. Pages:
+   - SignupPage: form for tenant + admin user creation
+   - SubscriptionPage: selection of plan (Free, Starter, Pro, Enterprise)
+   - DashboardPage: dynamically renders modules/features based on assigned subscription
+
+2. BLoC / State Management:
+   - AuthBloc: handles signup, login, tenantId propagation
+   - SubscriptionBloc: handles subscription selection, validation
+   - DashboardBloc: handles dashboard module loading
+
+3. Models:
+   - Tenant, User, Subscription, Module
+   - Include serialization/deserialization from API responses
+
+4. Repositories:
+   - AuthRepository: signup + login endpoints
+   - SubscriptionRepository: subscription selection endpoints
+   - DashboardRepository: fetch dashboard modules/features
+
+5. Services:
+   - NotificationService: handles in-app notification display
+
+6. Utilities:
+   - Validators for forms
+   - ApiClient: injects tenantId in headers/body automatically
+
+---
+
+## 3️⃣ Tests
+
+1. Backend:
+   - auth.test.ts: signup + login flow including tenantId propagation
+   - subscription.test.ts: select subscription, verify assigned modules
+   - dashboard.test.ts: dashboard access + subscription validation
+
+2. Mobile (Flutter):
+   - signup_page_test.dart: form validation + signup submission
+   - subscription_page_test.dart: plan selection, validation, BLoC events
+   - dashboard_page_test.dart: module rendering based on subscription
+
+---
+
+## 4️⃣ Folder Structure
+

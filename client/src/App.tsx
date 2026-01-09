@@ -74,6 +74,9 @@ import TechSupportDashboard from "@/pages/admin/tech-support";
 import PortalLogin from "@/pages/portal/login";
 import PortalRegister from "@/pages/portal/register";
 import PortalDashboard from "@/pages/portal/dashboard";
+import TenantSignup from "@/pages/tenant-signup";
+import SubscriptionSelect from "@/pages/subscription-select";
+import SubscriptionDashboard from "@/pages/subscription-dashboard";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -224,6 +227,8 @@ function AuthenticatedRoutes() {
       <Route path="/settings" component={Settings} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />
+      <Route path="/subscription/select" component={SubscriptionSelect} />
+      <Route path="/subscription-dashboard" component={SubscriptionDashboard} />
       
       <Route path="/hr">
         <ModuleGuard moduleId="hrms">
@@ -428,6 +433,9 @@ function AppRouter() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
+        <Route path="/signup" component={TenantSignup} />
+        <Route path="/subscription/select" component={SubscriptionSelect} />
+        <Route path="/subscription-dashboard" component={SubscriptionDashboard} />
         <Route path="/onboarding" component={Onboarding} />
         <Route component={Landing} />
       </Switch>

@@ -78,6 +78,8 @@ import { regionLockService } from "./services/region-lock";
 import furnitureRoutes from "./routes/furniture";
 import hrmsRoutes from "./routes/hrms";
 import subscriptionRoutes from "./routes/subscriptions";
+import phase3OnboardingRoutes from "./routes/phase3-onboarding";
+import dashboardApiRoutes from "./routes/dashboard-api";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
@@ -218,6 +220,11 @@ export async function registerRoutes(
 
   // Subscription & Pricing routes
   app.use('/api/subscriptions', subscriptionRoutes);
+
+  // Phase 3: Onboarding, Subscription Selection & Dashboard APIs
+  app.use('/api/auth', phase3OnboardingRoutes);
+  app.use('/api/subscription', phase3OnboardingRoutes);
+  app.use('/api/dashboard', dashboardApiRoutes);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
   app.use('/api/feature-flags', isAuthenticated, featureFlagsRoutes);
