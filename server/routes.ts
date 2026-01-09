@@ -77,6 +77,8 @@ import regionLockRoutes from "./routes/region-lock";
 import { regionLockService } from "./services/region-lock";
 import furnitureRoutes from "./routes/furniture";
 import hrmsRoutes from "./routes/hrms";
+import subscriptionRoutes from "./routes/subscriptions";
+import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 
@@ -163,12 +165,23 @@ export async function registerRoutes(
   // Register AI Audit routes (compliance-safe logging)
   app.use('/api/ai/audit', aiAuditRoutes);
 
-  // Module-protected middleware stack (includes tenant context resolution)
+  // Module ID mapping for subscription gating
+  const moduleIdMap: Record<string, string> = {
+    real_estate: "real_estate",
+    tourism: "tourism", 
+    education: "education",
+    logistics: "logistics",
+    legal: "legal",
+    furniture_manufacturing: "furniture_manufacturing",
+  };
+
+  // Module-protected middleware stack (includes tenant context resolution + subscription gating)
   const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing") => [
     authenticateJWT({ required: true }),
     tenantResolutionMiddleware(),
     enforceTenantBoundary(),
     tenantIsolationMiddleware(),
+    requireModule(moduleIdMap[businessType] || businessType),
     validateModuleAccess(businessType as any),
   ];
 
@@ -191,7 +204,7 @@ export async function registerRoutes(
   app.use('/api/furniture', ...moduleProtectedMiddleware("furniture_manufacturing"), furnitureRoutes);
 
   // Register HRMS module routes (protected, cross-business horizontal module)
-  app.use('/api/hr', isAuthenticated, hrmsRoutes);
+  app.use('/api/hr', isAuthenticated, requireModule("hrms"), hrmsRoutes);
 
   // Register Reseller/White-label routes
   app.use('/api/resellers', authenticateJWT({ required: true }), resellerRoutes);
@@ -201,6 +214,9 @@ export async function registerRoutes(
 
   // Register Add-on Marketplace routes
   app.use('/api/addons', addonRoutes);
+
+  // Subscription & Pricing routes
+  app.use('/api/subscriptions', subscriptionRoutes);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
   app.use('/api/feature-flags', isAuthenticated, featureFlagsRoutes);

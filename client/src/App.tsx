@@ -62,6 +62,7 @@ import AdminCompliance from "@/pages/admin/compliance";
 import AdminSettings from "@/pages/admin/settings";
 import AdminSso from "@/pages/admin/sso";
 import AdminRegions from "@/pages/admin/regions";
+import SubscriptionManagement from "@/pages/admin/subscription-management";
 import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
 import AiPermissions from "@/pages/ai-permissions";
@@ -295,6 +296,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/sso" component={AdminSso} />
         <Route path="/super-admin/settings" component={AdminSettings} />
         <Route path="/super-admin/regions" component={AdminRegions} />
+        <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
         <Route component={NotFound} />
       </Switch>
     </SuperAdminRouteGuard>
@@ -316,6 +318,7 @@ function PlatformAdminRoutes() {
       <Route path="/admin/sso" component={AdminSso} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/regions" component={AdminRegions} />
+      <Route path="/admin/subscriptions" component={SubscriptionManagement} />
       <Route component={NotFound} />
     </Switch>
   );

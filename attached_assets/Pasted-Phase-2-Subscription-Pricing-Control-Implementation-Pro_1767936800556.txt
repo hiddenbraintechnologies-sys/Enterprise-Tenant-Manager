@@ -1,0 +1,62 @@
+Phase 2 Subscription & Pricing Control Implementation
+
+Project: MyBizStream — Multi-Tenant SaaS Platform (Web + Flutter Mobile)
+Goal: Implement and verify subscription & pricing control across modules, tiers, and countries with platform-owner management.
+
+Instructions to AI/Automation:
+
+Backend Implementation
+
+Build subscription middleware enforcing access per tenant subscription.
+
+Implement APIs for:
+
+Create/manage subscription packages (globalPricingPlans)
+
+Set country-specific pricing (countryPricingConfigs + planLocalPrices)
+
+Assign subscriptions to tenants (tenantSubscriptions)
+
+Track invoices/payments (subscriptionInvoices)
+
+Ensure tier-based module access (✅ included, 💰 add-on, ❌ unavailable).
+
+Integrate premium feature gating for Enterprise-only modules (Multi-Currency, AI Insights, White-Label).
+
+Apply tax rates and country-specific payment gateways per tenant location.
+
+Update Maturity Score computation to include subscription support (+15%).
+
+Flutter Mobile App
+
+Add guard BLoC/middleware to enforce module access per tenant subscription.
+
+Ensure tier-based features display correctly: hide unavailable modules, show add-on options, mark Enterprise-only features.
+
+Show country-specific pricing in subscription selection screens.
+
+Admin / Platform Owner UI
+
+Enable creation and editing of subscription plans.
+
+Configure per-country pricing, tax rates, and exchange rates.
+
+Assign tenants to subscription tiers and monitor usage limits (max users, modules).
+
+Audit & Verification
+
+Test module access enforcement for all tiers.
+
+Verify country-specific prices and tax handling are applied correctly.
+
+Confirm notifications for subscription changes and invoices are sent via all channels (Email, WhatsApp, In-App).
+
+Check analytics adapters report subscription usage metrics correctly.
+
+Output
+
+Table: Tenant × Module × Subscription Access × Country Pricing × Premium Features
+
+List of blocked or misconfigured modules per tier/country
+
+Recommendations for fixes or optimization
