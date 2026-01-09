@@ -130,7 +130,7 @@ export function NotificationBell() {
 
         <ScrollArea className="h-80">
           {isLoading ? (
-            <div className="flex items-center justify-center p-8">
+            <div className="flex items-center justify-center p-8" data-testid="loading-notifications">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : notifications && notifications.length > 0 ? (
@@ -152,21 +152,33 @@ export function NotificationBell() {
                     </div>
                     <div className="flex-1 space-y-1">
                       <div className="flex items-start justify-between gap-2">
-                        <p className={cn("text-sm font-medium leading-tight", !notification.isRead && "font-semibold")}>
+                        <p 
+                          className={cn("text-sm font-medium leading-tight", !notification.isRead && "font-semibold")}
+                          data-testid={`text-notification-title-${notification.id}`}
+                        >
                           {notification.title}
                         </p>
                         {!notification.isRead && (
                           <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
+                      <p 
+                        className="text-xs text-muted-foreground line-clamp-2"
+                        data-testid={`text-notification-message-${notification.id}`}
+                      >
                         {notification.message}
                       </p>
-                      <p className="text-[10px] text-muted-foreground/70">
+                      <p 
+                        className="text-[10px] text-muted-foreground/70"
+                        data-testid={`text-notification-time-${notification.id}`}
+                      >
                         {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                       </p>
                       {notification.actionUrl && notification.actionLabel && (
-                        <span className="text-xs font-medium text-primary">
+                        <span 
+                          className="text-xs font-medium text-primary"
+                          data-testid={`link-notification-action-${notification.id}`}
+                        >
                           {notification.actionLabel}
                         </span>
                       )}
@@ -176,9 +188,12 @@ export function NotificationBell() {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
+            <div 
+              className="flex flex-col items-center justify-center gap-2 p-8 text-muted-foreground"
+              data-testid="empty-notifications"
+            >
               <Bell className="h-8 w-8 opacity-50" />
-              <p className="text-sm">No notifications</p>
+              <p className="text-sm" data-testid="text-no-notifications">No notifications</p>
             </div>
           )}
         </ScrollArea>
