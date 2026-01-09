@@ -69,7 +69,7 @@ export default function Landing() {
           <div className="flex items-center gap-4">
             <ThemeToggle />
             <Button asChild data-testid="button-login">
-              <a href="/api/login">
+              <a href="/login">
                 Sign In
                 <ArrowRight className="ml-2 h-4 w-4" />
               </a>
@@ -97,7 +97,7 @@ export default function Landing() {
               </a>
             </Button>
             <Button size="lg" variant="outline" asChild data-testid="button-learn-more">
-              <a href="/api/login">
+              <a href="/login">
                 Sign In
               </a>
             </Button>
@@ -162,7 +162,7 @@ export default function Landing() {
             Join thousands of businesses already using MyBizStream to streamline their operations.
           </p>
           <Button size="lg" className="mt-8" asChild data-testid="button-cta-signup">
-            <a href="/api/login">
+            <a href="/register">
               Start Your Free Trial
               <ArrowRight className="ml-2 h-4 w-4" />
             </a>
