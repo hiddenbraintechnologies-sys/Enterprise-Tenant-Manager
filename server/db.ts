@@ -18,9 +18,10 @@ function getPool(): pg.Pool {
     
     _pool = new Pool({ 
       connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: 10000, // 10 second timeout to prevent hanging
+      connectionTimeoutMillis: 30000, // 30 second timeout to prevent hanging
       idleTimeoutMillis: 30000,
       max: 20,
+      ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
     });
     
     // Handle pool errors gracefully
