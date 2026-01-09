@@ -1,0 +1,173 @@
+1️⃣ Tenant Onboarding & Authentication Flow Audit
+
+Validate the full signup → activation → dashboard journey:
+
+New Tenant Signup
+
+Verify /signup UI:
+
+Tenant name
+
+Business type selection
+
+Country selection
+
+Admin user creation
+
+Ensure tenant record is created correctly
+
+Ensure tenant is marked status=pending_subscription
+
+Subscription Selection
+
+After signup, user must be redirected to /subscriptions
+
+Validate:
+
+Country-specific pricing displayed
+
+Currency & tax applied correctly
+
+Plan cards rendered from backend (not hardcoded)
+
+On plan selection:
+
+Subscription record created
+
+Tenant status updated to active
+
+Feature flags assigned based on plan
+
+Post-Subscription Redirect
+
+User must land on correct dashboard:
+
+Business-specific dashboard
+
+Only modules allowed by subscription visible
+
+Block dashboard access if subscription incomplete
+
+2️⃣ Login & Tenant Resolution UI Validation
+
+Verify login behavior across domains:
+
+Public domain login (www.payodsoft.co.uk/login)
+
+Tenant subdomain login (tenant1.payodsoft.co.uk/login)
+
+Login with:
+
+Email + password
+
+Tenant selector (if multiple tenants)
+
+Confirm:
+
+No password prompt loops
+
+Correct tenant dashboard loads
+
+Cross-tenant access is blocked
+
+3️⃣ UI → API Wiring Validation (Web)
+
+For every visible UI page:
+
+Verify data loads from backend (no mock data)
+
+Check:
+
+Empty states
+
+Loading skeletons
+
+Error messages
+
+Validate sidebar and routing:
+
+Menu items align with enabled modules
+
+Disabled modules are hidden or locked with CTA
+
+Confirm server-side pagination, filters, and search are active
+
+4️⃣ Subscription-Based Feature Gating Audit
+
+Ensure feature enforcement is consistent:
+
+Sidebar hides unavailable modules
+
+Direct URL access returns 403 SUBSCRIPTION_REQUIRED
+
+API middleware enforces subscription checks
+
+Upgrade CTA appears when accessing locked features
+
+Flutter guards mirror web behavior
+
+5️⃣ Flutter Mobile UI Connectivity Check
+
+For all 12 Flutter modules:
+
+Verify:
+
+API endpoints connected
+
+BLoC → Repository → API chain works
+
+Pagination & filters load data
+
+Validate:
+
+Login → Tenant resolution
+
+Dashboard routing
+
+Feature visibility matches subscription
+
+Ensure no hardcoded tenant or module IDs
+
+6️⃣ Visual & UX Consistency Review
+
+Perform a human usability pass:
+
+Empty states copy
+
+Error messages clarity
+
+Currency formatting
+
+Country-specific labels
+
+Mobile spacing & responsiveness
+
+7️⃣ Report Required (Structured Output)
+
+Generate a Platform UI Readiness Report with:
+
+✅ Passed flows
+
+❌ Broken flows (with screenshots / file refs)
+
+⚠️ UX improvements
+
+🔒 Security or gating risks
+
+📋 Fix list (priority ordered)
+
+8️⃣ Success Criteria
+
+The platform should allow:
+
+A brand-new tenant to sign up without help
+
+Correct pricing per country
+
+Correct modules per plan
+
+Clean dashboard experience
+
+Zero cross-tenant leakage
+
+Identical behavior on Web & Flutter

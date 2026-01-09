@@ -405,12 +405,11 @@ async function sendWelcomeNotification(tenantId: string, userId: string, email: 
       userId,
       channel: "email",
       eventType: "custom",
-      recipient: { email, name: tenantName },
-      templateCode: "welcome",
+      recipient: email,
       subject: `Welcome to MyBizStream, ${tenantName}!`,
       body: `Your tenant account has been created successfully. Start by selecting a subscription plan to unlock all features.`,
       status: "pending",
-      metadata: { type: "welcome_notification" },
+      metadata: { type: "welcome_notification", tenantName },
     });
     console.log(`[notification] Welcome notification queued for ${email}`);
   } catch (error) {
