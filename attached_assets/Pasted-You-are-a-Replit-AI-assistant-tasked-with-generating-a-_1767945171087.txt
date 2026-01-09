@@ -1,0 +1,69 @@
+You are a Replit AI assistant tasked with generating a complete **Phase 3 onboarding, subscription, and dashboard flow** for the multi-tenant SaaS platform **MyBizStream**.
+
+Requirements:
+
+1️⃣ **Backend (Node.js + TypeScript + Express + Drizzle ORM + Zod)**
+- **Tenant Sign-Up API**: `/api/auth/signup`
+  - Accept tenant details (name, domain/subdomain, business type)
+  - Create tenant in `tenants` table
+  - Create admin user in `users` table linked to tenant
+  - Return temporary JWT including tenantId (`tnt` claim)
+  - Validate inputs using Zod
+- **Subscription Selection API**: `/api/subscription/select`
+  - Accept tenantId and selected subscription tier
+  - Store in `tenantSubscriptions` table
+  - Compute country-specific pricing using `countryPricingConfigs` and `planLocalPrices`
+  - Map subscription → enabled modules
+  - Middleware: `subscriptionCheckMiddleware` for dashboard access
+- **Dashboard API**: `/api/dashboard`
+  - Return enabled modules for tenant based on subscription
+  - Ensure `authenticateJWT → tenantResolutionMiddleware → enforceTenantBoundary → subscriptionCheckMiddleware → requireDashboardAccess`
+- **Edge Cases & Security**:
+  - Block cross-tenant access
+  - Redirect tenants without subscription to subscription page
+  - Return proper 401/403 for invalid/missing JWT
+- **Notifications**:
+  - Send welcome notification to tenant admin
+  - Notify platform owner of new tenant signup
+
+2️⃣ **Flutter Mobile (Dart + BLoC + Dio + Hive + Firebase)**
+- **Sign-Up Page**: `SignupPage`
+  - Collect tenant info + admin info
+  - Validate inputs
+  - Call `/api/auth/signup` API
+  - Store tenantId locally for auth
+- **Subscription Page**: `SubscriptionPage`
+  - Display available tiers with modules, country-specific pricing, taxes
+  - Select tier → call `/api/subscription/select` API
+- **Dashboard Page**: `DashboardPage`
+  - Dynamically display modules enabled per subscription
+  - Guard features according to subscription
+  - Redirect from subscription page to dashboard post-selection
+- **BLoC Integration**
+  - `AuthBloc` handles SignUp event with tenantId
+  - `SubscriptionBloc` handles tier selection
+  - `DashboardBloc` fetches enabled modules per tenant
+- **Notifications**
+  - Trigger welcome notification
+  - Optional in-app message for new subscription
+
+3️⃣ **Database**
+- Tables: `tenants`, `users`, `tenantSubscriptions`, `globalPricingPlans`, `countryPricingConfigs`, `planLocalPrices`, `subscriptionInvoices`, `exchangeRates`
+- Insert default subscription tiers: Free, Starter, Pro, Enterprise
+- Map modules to tiers
+
+4️⃣ **Features & Constraints**
+- **Global features only**, but subscription-based
+- **Country-specific pricing** with tax rates per country
+- Platform owners can **create/update subscription tiers** and **assign tenants**
+- Ensure smooth tenant onboarding flow: **Sign-Up → Subscription → Dashboard → Modules Enabled**
+- Success metrics: tenant creation, subscription completion, dashboard module gating
+
+5️⃣ **Deliverables**
+- Complete backend code scaffolds + routes + middleware
+- Flutter pages: `SignupPage`, `SubscriptionPage`, `DashboardPage`
+- BLoC classes: `AuthBloc`, `SubscriptionBloc`, `DashboardBloc`
+- Notification services
+- Integration and unit test scaffolds for each component
+
+Generate all code, folder structure, and necessary files to run this as a full **Phase 3 onboarding + subscription system** ready for Replit deployment.
