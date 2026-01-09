@@ -40,7 +40,7 @@ const tenantSignupSchema = z.object({
 
 const subscriptionSelectSchema = z.object({
   tenantId: z.string().uuid(),
-  planId: z.string().uuid().optional(),
+  planId: z.string().optional(),
   tier: z.enum(["free", "starter", "pro", "enterprise"]).optional(),
 });
 
