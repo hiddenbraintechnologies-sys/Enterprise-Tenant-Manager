@@ -23,15 +23,25 @@ export interface AuditLogEntry {
 
 export class AuditService {
   async log(entry: AuditLogEntry): Promise<AuditLog> {
+    // Handle platform admin IDs (they start with 'pa_' and aren't in users table)
+    // Store them in metadata instead of userId to avoid foreign key constraint
+    let userId = entry.userId;
+    let metadata = entry.metadata || {};
+    
+    if (userId && userId.startsWith('pa_')) {
+      metadata = { ...metadata, platformAdminId: userId };
+      userId = null;
+    }
+    
     const [created] = await db.insert(auditLogs).values({
       tenantId: entry.tenantId,
-      userId: entry.userId,
+      userId: userId,
       action: entry.action,
       resource: entry.resource,
       resourceId: entry.resourceId,
       oldValue: entry.oldValue,
       newValue: entry.newValue,
-      metadata: entry.metadata || {},
+      metadata: metadata,
       ipAddress: entry.ipAddress,
       userAgent: entry.userAgent,
       correlationId: entry.correlationId,

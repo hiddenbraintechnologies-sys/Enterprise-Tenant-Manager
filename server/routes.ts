@@ -649,7 +649,10 @@ export async function registerRoutes(
         }
         
         if (!tenant) {
-          return res.status(404).json({ message: "Tenant not found", code: "TENANT_NOT_EXIST" });
+          return res.status(404).json({ 
+            message: "Tenant not found. Check the tenant URL or select a tenant.", 
+            code: "TENANT_NOT_EXIST" 
+          });
         }
 
         const [userTenantAccess] = await db.select()
@@ -660,7 +663,10 @@ export async function registerRoutes(
           ));
 
         if (!userTenantAccess) {
-          return res.status(403).json({ message: "User does not have access to this tenant" });
+          return res.status(403).json({ 
+            message: "No tenant access found for this account", 
+            code: "NO_TENANT_ACCESS" 
+          });
         }
 
         targetTenantId = tenant.id;
@@ -679,25 +685,34 @@ export async function registerRoutes(
             .where(eq(userTenants.userId, existingUser.id));
           
           if (allUserTenants.length === 0) {
-            return res.status(401).json({ message: "No tenant associated with this account" });
-          }
-          
-          if (allUserTenants.length > 1) {
-            const tenantOptions = await Promise.all(
-              allUserTenants.map(async (ut) => {
-                const [t] = await db.select().from(tenants).where(eq(tenants.id, ut.tenantId));
-                return t ? { id: t.id, name: t.name, slug: t.slug } : null;
-              })
-            );
-            
-            return res.status(400).json({
-              message: "Multiple tenants available. Please specify tenantId.",
-              code: "TENANT_SELECTION_REQUIRED",
-              tenants: tenantOptions.filter(Boolean)
+            return res.status(404).json({ 
+              message: "No tenant membership found for this user", 
+              code: "NO_TENANT_MEMBERSHIP" 
             });
           }
           
-          targetTenantId = allUserTenants[0].tenantId;
+          if (allUserTenants.length === 1) {
+            targetTenantId = allUserTenants[0].tenantId;
+          } else {
+            const tenantOptions = await Promise.all(
+              allUserTenants.map(async (ut) => {
+                const [t] = await db.select().from(tenants).where(eq(tenants.id, ut.tenantId));
+                return t ? { 
+                  id: t.id, 
+                  name: t.name, 
+                  slug: t.slug,
+                  country: t.country,
+                  businessType: t.businessType
+                } : null;
+              })
+            );
+            
+            return res.status(409).json({
+              message: "Select a tenant to continue",
+              code: "MULTI_TENANT_SELECT_REQUIRED",
+              tenants: tenantOptions.filter(Boolean)
+            });
+          }
         } else {
           targetTenantId = userTenantRecord.tenantId;
         }

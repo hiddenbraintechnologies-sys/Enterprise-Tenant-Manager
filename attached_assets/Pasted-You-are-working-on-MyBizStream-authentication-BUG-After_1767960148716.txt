@@ -1,0 +1,106 @@
+You are working on MyBizStream authentication.
+
+BUG:
+After a tenant logs out and tries to log in again, login fails with:
+"tenant not found"
+
+This indicates tenant resolution is failing on re-login.
+
+GOAL:
+Make login resilient by resolving tenant context using a safe priority order and fallback.
+
+-------------------------------------------------------
+STEP 1: DEFINE TENANT RESOLUTION ORDER (LOGIN ONLY)
+-------------------------------------------------------
+
+In /api/auth/login (or equivalent), resolve tenant context in this order:
+
+1) body.tenantId (explicit selection)
+2) body.tenantSlug (explicit selection)
+3) X-Tenant-ID header (mobile / deep links)
+4) subdomain from Host header (tenant1.payodsoft.co.uk)
+5) if still missing:
+   - resolve tenant(s) by user email membership (fallback)
+
+IMPORTANT:
+Public domain login (www.payodsoft.co.uk/login) must still work.
+
+-------------------------------------------------------
+STEP 2: ADD FALLBACK - RESOLVE TENANTS BY EMAIL
+-------------------------------------------------------
+
+If tenant is still unresolved after steps 1-4:
+
+- Query user by email
+- Find all tenant memberships for that user (user_tenants join)
+- If 0 tenants:
+   return 404 with message:
+   "No tenant membership found for this user"
+- If exactly 1 tenant:
+   auto-select that tenantId and proceed with login
+- If multiple tenants:
+   return 409 with payload:
+   {
+     code: "MULTI_TENANT_SELECT_REQUIRED",
+     tenants: [{id, name, slug, country, businessType}],
+     message: "Select a tenant to continue"
+   }
+
+-------------------------------------------------------
+STEP 3: FRONTEND LOGIN UX FIX (WEB)
+-------------------------------------------------------
+
+Update /login page behavior:
+
+- On login submit:
+  - call /api/auth/login with { email, password, tenantId? }
+- If response is 409 MULTI_TENANT_SELECT_REQUIRED:
+  - Show tenant picker modal/dropdown
+  - User selects tenant
+  - Retry login with tenantId included
+
+Also:
+- Store lastTenantId in localStorage after successful login
+- But NEVER fail login if localStorage tenantId is missing or stale
+- If stored tenantId is invalid for that user, clear it and prompt selection
+
+-------------------------------------------------------
+STEP 4: FRONTEND LOGIN UX FIX (FLUTTER)
+-------------------------------------------------------
+
+In Flutter Login flow:
+- If API returns MULTI_TENANT_SELECT_REQUIRED:
+  - display tenant selection screen
+  - persist selected tenantId
+  - retry login with tenantId
+
+Ensure tenantId is optional but supported end-to-end (already partially done).
+
+-------------------------------------------------------
+STEP 5: ERROR MESSAGE QUALITY
+-------------------------------------------------------
+
+Replace generic "tenant not found" with correct messages:
+
+- If tenant truly doesn't exist:
+  "Tenant not found. Check the tenant URL or select a tenant."
+- If user has no membership:
+  "No tenant access found for this account."
+- If multiple tenants:
+  "Select a tenant to continue."
+
+-------------------------------------------------------
+STEP 6: TEST CASES (MUST PASS)
+-------------------------------------------------------
+
+1) Login from tenant subdomain with no tenantId -> PASS
+2) Login from public domain with tenantId missing but user has 1 tenant -> PASS (auto)
+3) Login from public domain with user in multiple tenants -> PASS (returns 409 + list)
+4) Login with stale tenantId -> PASS (clear stale, prompt select)
+5) Wrong password -> PASS (401)
+6) Cross-tenant access -> PASS (403)
+
+DELIVERABLE:
+- Login never fails with "tenant not found" after logout unless truly no membership exists.
+- Public domain login supports tenant selection.
+Proceed with implementation now.

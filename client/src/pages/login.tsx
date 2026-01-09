@@ -15,12 +15,20 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Building2, ArrowLeft, Loader2, Mail, Lock } from "lucide-react";
+import { Building2, ArrowLeft, Loader2, Mail, Lock, Check } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import { queryClient } from "@/lib/queryClient";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email format"),
@@ -29,9 +37,21 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
+interface TenantOption {
+  id: string;
+  name: string;
+  slug: string | null;
+  country: string | null;
+  businessType: string | null;
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [showTenantPicker, setShowTenantPicker] = useState(false);
+  const [availableTenants, setAvailableTenants] = useState<TenantOption[]>([]);
+  const [pendingCredentials, setPendingCredentials] = useState<LoginForm | null>(null);
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -41,24 +61,92 @@ export default function Login() {
     },
   });
 
+  const performLogin = async (data: LoginForm, tenantId?: string, isRetry?: boolean): Promise<any> => {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, tenantId }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      if (result.code === "MULTI_TENANT_SELECT_REQUIRED" && result.tenants) {
+        setAvailableTenants(result.tenants);
+        setPendingCredentials(data);
+        setSelectedTenantId(null);
+        setShowTenantPicker(true);
+        return null;
+      }
+      
+      if (!isRetry && tenantId && (
+        result.code === "NO_TENANT_ACCESS" || 
+        result.code === "TENANT_NOT_EXIST"
+      )) {
+        localStorage.removeItem("lastTenantId");
+        return performLogin(data, undefined, true);
+      }
+      
+      throw new Error(result.message || "Login failed");
+    }
+
+    return result;
+  };
+
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Login failed");
-      }
-
-      return response.json();
+      const storedTenantId = localStorage.getItem("lastTenantId");
+      return performLogin(data, storedTenantId || undefined, false);
     },
     onSuccess: (data) => {
+      if (!data) return;
+      
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
+      if (data.tenant?.id) {
+        localStorage.setItem("lastTenantId", data.tenant.id);
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      
+      toast({
+        title: "Welcome back!",
+        description: `Signed in as ${data.user.email}`,
+      });
+
+      const businessType = data.tenant?.businessType || "service";
+      const dashboardRoute = `/dashboard/${businessType}`;
+      
+      setTimeout(() => {
+        setLocation(dashboardRoute);
+      }, 100);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const tenantSelectMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      if (!pendingCredentials) throw new Error("No pending credentials");
+      return performLogin(pendingCredentials, tenantId);
+    },
+    onSuccess: (data) => {
+      if (!data) return;
+      
+      setShowTenantPicker(false);
+      setPendingCredentials(null);
+      setAvailableTenants([]);
+      
+      localStorage.setItem("accessToken", data.accessToken);
+      localStorage.setItem("refreshToken", data.refreshToken);
+      if (data.tenant?.id) {
+        localStorage.setItem("lastTenantId", data.tenant.id);
+      }
       
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       
@@ -87,8 +175,23 @@ export default function Login() {
     loginMutation.mutate(data);
   };
 
+  const handleTenantSelect = (tenantId: string) => {
+    setSelectedTenantId(tenantId);
+  };
+
+  const confirmTenantSelection = () => {
+    if (selectedTenantId) {
+      tenantSelectMutation.mutate(selectedTenantId);
+    }
+  };
+
   const handleSocialLogin = (provider: string) => {
     window.location.href = `/api/login?provider=${provider}`;
+  };
+
+  const formatBusinessType = (type: string | null) => {
+    if (!type) return "";
+    return type.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   };
 
   return (
@@ -236,6 +339,75 @@ export default function Login() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showTenantPicker} onOpenChange={setShowTenantPicker}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select a Business</DialogTitle>
+            <DialogDescription>
+              Your account has access to multiple businesses. Please select one to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[300px]">
+            <div className="space-y-2 p-1">
+              {availableTenants.map((tenant) => (
+                <button
+                  key={tenant.id}
+                  onClick={() => handleTenantSelect(tenant.id)}
+                  className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                    selectedTenantId === tenant.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/50"
+                  }`}
+                  data-testid={`button-tenant-${tenant.id}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{tenant.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatBusinessType(tenant.businessType)}
+                        {tenant.country && ` • ${tenant.country.toUpperCase()}`}
+                      </p>
+                    </div>
+                    {selectedTenantId === tenant.id && (
+                      <Check className="h-5 w-5 text-primary" />
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+          <div className="flex gap-2 pt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setShowTenantPicker(false);
+                setPendingCredentials(null);
+                setSelectedTenantId(null);
+              }}
+              data-testid="button-cancel-tenant-select"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={!selectedTenantId || tenantSelectMutation.isPending}
+              onClick={confirmTenantSelection}
+              data-testid="button-confirm-tenant-select"
+            >
+              {tenantSelectMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Continue"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
