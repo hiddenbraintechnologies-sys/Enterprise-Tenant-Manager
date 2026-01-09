@@ -27,7 +27,9 @@ import {
   PlayCircle,
   Ban,
   Trash2,
+  MinusCircle,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,7 +70,7 @@ interface Tenant {
   businessType: "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
   country: "india" | "uae" | "uk" | "malaysia" | "singapore" | "other";
   region: "asia_pacific" | "middle_east" | "europe";
-  status: "active" | "suspended" | "cancelled" | "deleted";
+  status: "active" | "suspended" | "cancelled" | "deleted" | "deleting";
   email: string | null;
   phone: string | null;
   subscriptionTier: string;
@@ -76,6 +78,7 @@ interface Tenant {
   isActive: boolean;
   createdAt: string;
   userCount?: number;
+  deletedAt?: string | null;
 }
 
 interface TenantsResponse {
@@ -115,7 +118,16 @@ const STATUSES = [
   { value: "active", label: "Active" },
   { value: "suspended", label: "Suspended" },
   { value: "cancelled", label: "Cancelled" },
+  { value: "deleted", label: "Deleted" },
 ];
+
+// Normalize any "DELETING" status to "deleted" for UI consistency
+const normalizeStatus = (status: string): Tenant["status"] => {
+  if (status === "deleting" || status === "DELETING") {
+    return "deleted";
+  }
+  return status as Tenant["status"];
+};
 
 function TenantsContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
@@ -143,6 +155,10 @@ function TenantsContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingTenant, setDeletingTenant] = useState<Tenant | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
+
+  // Bulk selection state
+  const [selectedTenantIds, setSelectedTenantIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
   const buildQueryUrl = () => {
     const params = new URLSearchParams();
@@ -268,6 +284,32 @@ function TenantsContent() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (tenantIds: string[]) => {
+      const response = await apiRequest("POST", "/api/super-admin/tenants/bulk-delete", { tenantIds });
+      return response.json();
+    },
+    onSuccess: (data: { deletedCount: number }) => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.startsWith('/api/platform-admin/tenants');
+      }});
+      toast({
+        title: "Tenants Deleted",
+        description: `${data.deletedCount} tenant(s) deleted successfully.`,
+      });
+      setBulkDeleteDialogOpen(false);
+      setSelectedTenantIds(new Set());
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete tenants",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleDeleteTenant = (tenant: Tenant) => {
     setDeletingTenant(tenant);
     setDeleteDialogOpen(true);
@@ -296,14 +338,54 @@ function TenantsContent() {
   };
 
   const getStatusBadge = (status: Tenant["status"]) => {
-    switch (status) {
+    // Normalize DELETING to deleted
+    const normalizedStatus = normalizeStatus(status);
+    switch (normalizedStatus) {
       case "active":
         return <Badge variant="default" className="gap-1"><CheckCircle className="h-3 w-3" />Active</Badge>;
       case "suspended":
         return <Badge variant="secondary" className="gap-1"><PauseCircle className="h-3 w-3" />Suspended</Badge>;
       case "cancelled":
         return <Badge variant="destructive" className="gap-1"><Ban className="h-3 w-3" />Cancelled</Badge>;
+      case "deleted":
+      case "deleting":
+        return <Badge variant="outline" className="gap-1 text-muted-foreground"><MinusCircle className="h-3 w-3" />Deleted</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  // Bulk selection helpers
+  const selectableTenants = tenants.filter(t => normalizeStatus(t.status) !== "deleted");
+  const allSelectableSelected = selectableTenants.length > 0 && 
+    selectableTenants.every(t => selectedTenantIds.has(t.id));
+  const someSelected = selectedTenantIds.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allSelectableSelected) {
+      setSelectedTenantIds(new Set());
+    } else {
+      setSelectedTenantIds(new Set(selectableTenants.map(t => t.id)));
+    }
+  };
+
+  const toggleSelectTenant = (tenantId: string) => {
+    const newSet = new Set(selectedTenantIds);
+    if (newSet.has(tenantId)) {
+      newSet.delete(tenantId);
+    } else {
+      newSet.add(tenantId);
+    }
+    setSelectedTenantIds(newSet);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedTenantIds.size === 0) return;
+    setBulkDeleteDialogOpen(true);
+  };
+
+  const confirmBulkDelete = () => {
+    bulkDeleteMutation.mutate(Array.from(selectedTenantIds));
   };
 
   const getCountryLabel = (country: string) => {
@@ -455,6 +537,26 @@ function TenantsContent() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Bulk action toolbar - visible when tenants are selected */}
+          {isSuperAdmin && someSelected && (
+            <div className="flex items-center justify-between p-3 mb-4 bg-muted rounded-md">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">
+                  {selectedTenantIds.size} tenant{selectedTenantIds.size !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                data-testid="button-bulk-delete"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+            </div>
+          )}
+          
           {tenants.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -464,6 +566,15 @@ function TenantsContent() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isSuperAdmin && (
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={allSelectableSelected}
+                        onCheckedChange={toggleSelectAll}
+                        data-testid="checkbox-select-all"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Tenant</TableHead>
                   <TableHead>Business Type</TableHead>
                   <TableHead>Country / Region</TableHead>
@@ -474,86 +585,107 @@ function TenantsContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tenants.map((tenant) => (
-                  <TableRow key={tenant.id} data-testid={`row-tenant-${tenant.id}`}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-                          <Building2 className="h-5 w-5 text-primary" />
+                {tenants.map((tenant) => {
+                  const isDeleted = normalizeStatus(tenant.status) === "deleted";
+                  return (
+                    <TableRow 
+                      key={tenant.id} 
+                      data-testid={`row-tenant-${tenant.id}`}
+                      className={isDeleted ? "opacity-50" : ""}
+                    >
+                      {isSuperAdmin && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedTenantIds.has(tenant.id)}
+                            onCheckedChange={() => toggleSelectTenant(tenant.id)}
+                            disabled={isDeleted}
+                            data-testid={`checkbox-tenant-${tenant.id}`}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-md ${isDeleted ? "bg-muted" : "bg-primary/10"}`}>
+                            <Building2 className={`h-5 w-5 ${isDeleted ? "text-muted-foreground" : "text-primary"}`} />
+                          </div>
+                          <div>
+                            <p className="font-medium">{tenant.name}</p>
+                            <p className="text-xs text-muted-foreground">{tenant.slug || tenant.id.slice(0, 8)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{tenant.name}</p>
-                          <p className="text-xs text-muted-foreground">{tenant.slug || tenant.id.slice(0, 8)}</p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{getBusinessTypeLabel(tenant.businessType)}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm">{getCountryLabel(tenant.country)}</span>
+                          <span className="text-xs text-muted-foreground">{getRegionLabel(tenant.region)}</span>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getBusinessTypeLabel(tenant.businessType)}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm">{getCountryLabel(tenant.country)}</span>
-                        <span className="text-xs text-muted-foreground">{getRegionLabel(tenant.region)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="capitalize">{tenant.subscriptionTier}</Badge>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(tenant.status)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(tenant.createdAt).toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" data-testid={`button-tenant-menu-${tenant.id}`}>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="capitalize">{tenant.subscriptionTier}</Badge>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(tenant.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(tenant.createdAt).toLocaleDateString()}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isDeleted ? (
+                          <Button variant="ghost" size="icon" disabled>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}`)}>
-                            View Details
-                          </DropdownMenuItem>
-                          {tenant.status !== "deleted" && (
-                            <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}/users`)}>
-                              <Users className="h-4 w-4 mr-2" />
-                              Manage Users
-                            </DropdownMenuItem>
-                          )}
-                          {isSuperAdmin && tenant.status !== "deleted" && (
-                            <>
-                              <DropdownMenuItem onClick={() => handleEditTenant(tenant)}>Edit Tenant</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              {tenant.status !== "active" && (
-                                <DropdownMenuItem onClick={() => handleStatusChange(tenant, "active")}>
-                                  <PlayCircle className="h-4 w-4 mr-2 text-green-600" />
-                                  Activate
-                                </DropdownMenuItem>
-                              )}
-                              {tenant.status === "active" && (
-                                <DropdownMenuItem onClick={() => handleStatusChange(tenant, "suspended")}>
-                                  <PauseCircle className="h-4 w-4 mr-2 text-yellow-600" />
-                                  Suspend
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteTenant(tenant)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Tenant
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" data-testid={`button-tenant-menu-${tenant.id}`}>
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}`)}>
+                                View Details
                               </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                              <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}/users`)}>
+                                <Users className="h-4 w-4 mr-2" />
+                                Manage Users
+                              </DropdownMenuItem>
+                              {isSuperAdmin && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleEditTenant(tenant)}>Edit Tenant</DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  {tenant.status !== "active" && (
+                                    <DropdownMenuItem onClick={() => handleStatusChange(tenant, "active")}>
+                                      <PlayCircle className="h-4 w-4 mr-2 text-green-600" />
+                                      Activate
+                                    </DropdownMenuItem>
+                                  )}
+                                  {tenant.status === "active" && (
+                                    <DropdownMenuItem onClick={() => handleStatusChange(tenant, "suspended")}>
+                                      <PauseCircle className="h-4 w-4 mr-2 text-yellow-600" />
+                                      Suspend
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDeleteTenant(tenant)}
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Tenant
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -735,6 +867,38 @@ function TenantsContent() {
               data-testid="button-confirm-delete-tenant"
             >
               {deleteTenantMutation.isPending ? "Deleting..." : "Delete Tenant"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Selected Tenants</DialogTitle>
+            <DialogDescription>
+              You are about to delete <strong>{selectedTenantIds.size}</strong> tenant{selectedTenantIds.size !== 1 ? 's' : ''}. 
+              This will permanently disable the selected tenants.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+              <AlertCircle className="h-4 w-4 inline mr-2" />
+              This will permanently disable selected tenants. This cannot be undone.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-confirm-bulk-delete"
+            >
+              {bulkDeleteMutation.isPending ? "Deleting..." : `Delete ${selectedTenantIds.size} Tenant${selectedTenantIds.size !== 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>

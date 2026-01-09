@@ -1,0 +1,126 @@
+You are fixing Super Admin tenant deletion lifecycle and adding bulk delete support.
+
+CURRENT ISSUES:
+1) Deleted tenants remain visible in tenant list
+2) Status shows "Deleting" but tenant name still appears
+3) No bulk delete option for Super Admin
+
+------------------------------------------------
+STEP 1: STANDARDIZE TENANT DELETE STATE
+------------------------------------------------
+
+On DELETE tenant API:
+- Set status = "DELETED"
+- Set deletedAt = now()
+- NEVER use "DELETING" as final state
+
+------------------------------------------------
+STEP 2: FIX TENANT LIST API FILTERING
+------------------------------------------------
+
+Update:
+GET /api/super-admin/tenants
+
+Default behavior:
+- Exclude tenants where status = "DELETED"
+
+Support optional query:
+?includeDeleted=true → includes deleted tenants
+
+------------------------------------------------
+STEP 3: UI – DELETED TENANT VISIBILITY
+------------------------------------------------
+
+In tenant list UI:
+- Deleted tenants should NOT appear by default
+- If includeDeleted=true:
+  - Show row as disabled/greyed
+  - Show badge: "Deleted"
+  - Disable all row actions
+
+------------------------------------------------
+STEP 4: REMOVE "DELETING" FROM UI STATES
+------------------------------------------------
+
+Ensure UI only supports:
+- ACTIVE
+- SUSPENDED
+- DELETED
+
+If backend returns "DELETING":
+- Normalize to "DELETED" on frontend
+
+------------------------------------------------
+STEP 5: ADD BULK SELECTION (SUPER ADMIN ONLY)
+------------------------------------------------
+
+UI changes:
+- Checkbox column on tenant table
+- “Select all” checkbox
+- Visible ONLY if role === SUPER_ADMIN
+
+------------------------------------------------
+STEP 6: BULK DELETE ACTION
+------------------------------------------------
+
+Add bulk action toolbar:
+- Appears when ≥1 tenant selected
+- Action: "Delete Selected"
+
+Confirmation modal:
+"This will permanently disable selected tenants. This cannot be undone."
+
+------------------------------------------------
+STEP 7: BULK DELETE API
+------------------------------------------------
+
+Create API:
+POST /api/super-admin/tenants/bulk-delete
+
+Payload:
+{
+  tenantIds: string[]
+}
+
+Rules:
+- Super Admin only
+- Soft delete all tenants
+- Invalidate all sessions
+- Return count of deleted tenants
+
+------------------------------------------------
+STEP 8: AUDIT LOGGING (MANDATORY)
+------------------------------------------------
+
+Log events:
+- TENANT_DELETED
+- TENANT_BULK_DELETED
+
+Include:
+- actorId (superAdmin)
+- tenantId(s)
+- timestamp
+- IP
+
+------------------------------------------------
+STEP 9: POST-DELETE UI BEHAVIOR
+------------------------------------------------
+
+After delete:
+- Refresh tenant list
+- Deleted tenants disappear immediately
+- Show toast:
+  "Tenant deleted successfully"
+  "X tenants deleted successfully" (bulk)
+
+------------------------------------------------
+DELIVERABLES
+------------------------------------------------
+
+✔ Deleted tenants hidden by default
+✔ No more "Deleting" zombie state
+✔ Bulk delete for Super Admin
+✔ Audit-safe soft deletes
+✔ Enterprise-grade tenant lifecycle
+
+Proceed with implementation.

@@ -2031,7 +2031,7 @@ export async function registerRoutes(
   // List all tenants with filtering
   app.get("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
     try {
-      const { country, region, status, businessType, search } = req.query;
+      const { country, region, status, businessType, search, includeDeleted } = req.query;
       
       let query = db.select().from(tenants);
       
@@ -2039,6 +2039,12 @@ export async function registerRoutes(
       
       // Filter in memory for flexibility (can be optimized with drizzle where clauses)
       let filtered = allTenants;
+      
+      // Exclude deleted tenants by default unless includeDeleted=true
+      const shouldIncludeDeleted = includeDeleted === 'true';
+      if (!shouldIncludeDeleted) {
+        filtered = filtered.filter(t => t.status !== 'deleted');
+      }
       
       if (country && typeof country === 'string') {
         filtered = filtered.filter(t => t.country === country);
@@ -3602,6 +3608,10 @@ export async function registerRoutes(
       await db.update(tenants).set({
         status: "deleted",
         isActive: false,
+        deletedAt: new Date(),
+        statusChangedAt: new Date(),
+        statusChangedBy: req.platformAdminContext?.platformAdmin.id,
+        statusChangeReason: reason,
         updatedAt: new Date(),
       }).where(eq(tenants.id, tenantId));
 
@@ -3639,6 +3649,92 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Super admin tenant delete error:", error);
       res.status(500).json({ message: "Failed to delete tenant" });
+    }
+  });
+
+  // Bulk delete tenants - Super Admin only
+  app.post("/api/super-admin/tenants/bulk-delete", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantIds } = req.body;
+
+      if (!Array.isArray(tenantIds) || tenantIds.length === 0) {
+        return res.status(400).json({ message: "tenantIds array is required" });
+      }
+
+      if (tenantIds.length > 50) {
+        return res.status(400).json({ message: "Maximum 50 tenants can be deleted at once" });
+      }
+
+      const deletedTenants: string[] = [];
+      const errors: { tenantId: string; error: string }[] = [];
+
+      for (const tenantId of tenantIds) {
+        try {
+          const tenant = await storage.getTenant(tenantId);
+          if (!tenant) {
+            errors.push({ tenantId, error: "Tenant not found" });
+            continue;
+          }
+
+          if (tenant.status === "deleted") {
+            errors.push({ tenantId, error: "Tenant is already deleted" });
+            continue;
+          }
+
+          // Soft delete the tenant
+          await db.update(tenants).set({
+            status: "deleted",
+            isActive: false,
+            deletedAt: new Date(),
+            statusChangedAt: new Date(),
+            statusChangedBy: req.platformAdminContext?.platformAdmin.id,
+            statusChangeReason: "Bulk deletion by Super Admin",
+            updatedAt: new Date(),
+          }).where(eq(tenants.id, tenantId));
+
+          // Invalidate all sessions for tenant users
+          const tenantUserRecords = await db.select().from(userTenants).where(eq(userTenants.tenantId, tenantId));
+          for (const tu of tenantUserRecords) {
+            await db.delete(refreshTokens).where(and(
+              eq(refreshTokens.userId, tu.userId),
+              eq(refreshTokens.tenantId, tenantId)
+            ));
+          }
+
+          deletedTenants.push(tenantId);
+        } catch (err) {
+          errors.push({ tenantId, error: "Failed to delete tenant" });
+        }
+      }
+
+      // Log bulk delete action
+      auditService.logAsync({
+        tenantId: undefined,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "delete",
+        resource: "TENANT_BULK_DELETED",
+        metadata: { 
+          accessType: "super_admin",
+          deletedTenantIds: deletedTenants,
+          deletedCount: deletedTenants.length,
+          errorCount: errors.length,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+          superAdminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ 
+        success: true, 
+        deletedCount: deletedTenants.length,
+        deletedTenantIds: deletedTenants,
+        errors: errors.length > 0 ? errors : undefined,
+        message: `${deletedTenants.length} tenant(s) deleted successfully.`,
+      });
+    } catch (error) {
+      console.error("Super admin bulk tenant delete error:", error);
+      res.status(500).json({ message: "Failed to bulk delete tenants" });
     }
   });
 
