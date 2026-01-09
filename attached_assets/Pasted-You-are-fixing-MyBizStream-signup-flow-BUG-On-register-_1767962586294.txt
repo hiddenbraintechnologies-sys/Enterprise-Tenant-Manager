@@ -1,0 +1,118 @@
+You are fixing MyBizStream signup flow. 
+
+BUG:
+On /register, the Country/Region dropdown shows only India and United Kingdom.
+Other countries that are active/enabled in Super Admin do NOT appear.
+
+GOAL:
+Signup dropdown must show ALL countries that are enabled + registration-enabled in the Regions/Countries config.
+It must match what Super Admin configures.
+
+------------------------------------------------------------
+STEP 1: IDENTIFY WHICH API SIGNUP PAGE USES
+------------------------------------------------------------
+
+Find the /register page code and locate the query fetching countries.
+Examples:
+- GET /api/public/countries
+- GET /api/public/regions
+- GET /api/countries
+- GET /api/pricing/countries
+
+Confirm which endpoint is returning only 2 items.
+
+------------------------------------------------------------
+STEP 2: CREATE A SINGLE SOURCE OF TRUTH FOR "SIGNUP COUNTRIES"
+------------------------------------------------------------
+
+Use the Regions/Country config table as the source of truth.
+
+Definition:
+A country should appear on signup IF:
+- isActive/enabled = true
+- registrationEnabled = true   (or equivalent flag)
+- (optional) billingEnabled can be false; do NOT hide country if billing is disabled unless required
+
+Create/standardize public endpoint:
+GET /api/public/registration/countries
+
+Return format:
+[
+  {
+    countryCode: "IN",
+    countryName: "India",
+    currency: "INR",
+    region: "Asia Pacific",
+    timezone: "Asia/Kolkata",
+    taxType: "GST",
+    taxRate: 18,
+    taxInclusive: true
+  },
+  ...
+]
+
+Sort by countryName ASC.
+
+IMPORTANT:
+- Do not require JWT for this endpoint
+- Do not use tenant middleware
+- This is safe public metadata
+
+------------------------------------------------------------
+STEP 3: FIX FILTERING LOGIC (MOST LIKELY ROOT CAUSE)
+------------------------------------------------------------
+
+If the current query is filtering too hard, loosen it:
+
+- If it filters by billingEnabled=true, remove that from signup list
+- If it filters by wrong column names (active vs enabled), correct mapping
+- If it accidentally filters to a hardcoded allowlist (IN, GB), remove it
+
+The only gating required for signup list is:
+enabled=true AND registrationEnabled=true
+
+------------------------------------------------------------
+STEP 4: ENSURE DATA IS ACTUALLY ENABLED IN DB
+------------------------------------------------------------
+
+In the Super Admin Regions UI you have toggles:
+- Status = Enabled
+- Registration Enabled toggle
+
+Ensure those values are persisted correctly in DB.
+
+Add DB migration or seed fix if missing:
+- Ensure default countries (IN, AE, GB, MY, SG, US) exist
+- Ensure registrationEnabled=true for the countries you want visible
+- Ensure enabled=true
+
+If needed, create a one-time admin action:
+POST /api/super-admin/geo/seed-default-countries
+so Super Admin can seed and enable all launch countries.
+
+------------------------------------------------------------
+STEP 5: UPDATE SIGNUP UI TO USE THE NEW PUBLIC ENDPOINT
+------------------------------------------------------------
+
+Update /register page:
+- Replace existing fetch with GET /api/public/registration/countries
+- Populate dropdown with:
+  "India (INR)", "UAE (AED)", "Malaysia (MYR)", "Singapore (SGD)", "United Kingdom (GBP)", "United States (USD)"
+
+Add empty-state message:
+"If you don't see your country, contact support."
+
+------------------------------------------------------------
+STEP 6: TESTS (MUST PASS)
+------------------------------------------------------------
+
+1) Enable Malaysia + Singapore in Super Admin Regions with registrationEnabled=true
+2) Open /register in Incognito
+3) Verify dropdown shows Malaysia and Singapore immediately
+4) Disable a country’s registrationEnabled -> it disappears from signup dropdown
+5) Disable a country (enabled=false) -> it disappears
+6) Endpoint works without auth (200 OK)
+
+DELIVERABLE:
+Signup country dropdown correctly reflects active/registration-enabled countries from Admin configuration.
+Proceed with implementation now.
