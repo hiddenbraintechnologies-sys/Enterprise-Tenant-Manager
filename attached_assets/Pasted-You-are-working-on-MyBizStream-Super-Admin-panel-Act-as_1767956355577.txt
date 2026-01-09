@@ -1,0 +1,133 @@
+You are working on MyBizStream Super Admin panel.
+Act as a senior full-stack engineer.
+
+PROBLEM STATEMENT:
+1) Clicking "View Details" on a tenant navigates to 404
+2) Super Admin cannot delete a tenant even after previous implementation
+
+------------------------------------
+PART 1: FIX "VIEW DETAILS" ROUTE (404)
+------------------------------------
+
+Frontend Fix:
+- Ensure the action menu routes to:
+  /super-admin/tenants/[tenantId]
+
+Verify or create:
+- File: app/super-admin/tenants/[tenantId]/page.tsx (Next.js)
+  OR equivalent router file
+
+Tenant Details Page must show:
+- Tenant basic info (name, slug, business type)
+- Country / region
+- Subscription plan
+- Status (ACTIVE / SUSPENDED / DELETED)
+- Created date
+- Primary owner
+- Quick actions:
+  - Suspend
+  - Reactivate
+  - Delete (Super Admin only)
+  - Manage Users (navigate)
+
+If route already exists:
+- Fix param mismatch (id vs tenantId)
+- Ensure router.push() uses correct param
+
+------------------------------------
+PART 2: BACKEND – TENANT FETCH API
+------------------------------------
+
+Ensure API exists:
+GET /api/super-admin/tenants/:tenantId
+
+Response:
+{
+  id,
+  name,
+  slug,
+  businessType,
+  country,
+  region,
+  status,
+  plan,
+  createdAt,
+  owner
+}
+
+Return 404 only if tenant truly does not exist.
+
+------------------------------------
+PART 3: ENABLE DELETE TENANT (SOFT DELETE)
+------------------------------------
+
+Backend:
+Ensure DELETE API exists:
+DELETE /api/super-admin/tenants/:tenantId
+
+Behavior:
+- DO NOT hard delete
+- Update tenant.status = "DELETED"
+- Set deletedAt timestamp
+- Invalidate sessions
+- Log action in audit_logs
+
+Authorization:
+- Only SUPER_ADMIN allowed
+
+------------------------------------
+PART 4: FRONTEND – SHOW DELETE OPTION
+------------------------------------
+
+Update tenant action menu rules:
+
+Show "Delete Tenant" if:
+- role === SUPER_ADMIN
+- tenant.status !== "DELETED"
+
+On click:
+- Show confirmation modal:
+  "This will permanently disable the tenant. Data will be retained for audit."
+
+On confirm:
+- Call DELETE /api/super-admin/tenants/:tenantId
+- On success:
+  - Refresh tenant list
+  - Show toast: "Tenant deleted successfully"
+
+------------------------------------
+PART 5: FIX STATUS ACTION LOGIC
+------------------------------------
+
+Action visibility rules:
+- ACTIVE → Show Suspend, Delete
+- SUSPENDED → Show Activate, Delete
+- DELETED → No actions (read-only)
+
+Ensure Cancel ≠ Delete
+Cancel = subscription cancellation
+Delete = tenant lifecycle removal
+
+------------------------------------
+PART 6: SAFETY & AUDIT
+------------------------------------
+
+- Log all tenant lifecycle actions:
+  action_type: TENANT_SUSPENDED | TENANT_DELETED | TENANT_RESTORED
+- Capture:
+  - superAdminId
+  - tenantId
+  - timestamp
+  - IP
+
+------------------------------------
+DELIVERABLES
+------------------------------------
+
+1) View Details page no longer returns 404
+2) Tenant details page renders correctly
+3) Delete Tenant visible & working
+4) Status transitions enforced
+5) No breaking changes
+
+Proceed with fixes.
