@@ -83,6 +83,31 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Track initialization state
+let isInitialized = false;
+let initPromise: Promise<void> | null = null;
+
+// Early catch-all for frontend routes during initialization
+// This prevents "Cannot GET" errors when the server is still starting
+app.use((req, res, next) => {
+  // Skip if already initialized or if it's an API/metrics/health route
+  if (isInitialized || req.path.startsWith('/api') || req.path === '/health' || req.path === '/metrics' || req.path.startsWith('/metrics/')) {
+    return next();
+  }
+  
+  // For frontend routes during init, wait for initialization then retry
+  if (initPromise && !isInitialized) {
+    initPromise.then(() => {
+      // Initialization complete, let the request continue through the normal middleware
+      next();
+    }).catch(() => {
+      res.status(503).json({ message: 'Server is starting up, please retry' });
+    });
+  } else {
+    next();
+  }
+});
+
 (async () => {
   // IMPORTANT: Start server FIRST for Replit health check, then run migrations
   // This prevents provisioning timeout on large applications
@@ -97,6 +122,8 @@ app.get('/health', (_req, res) => {
     });
   });
   
+  // Create and store initialization promise so early requests can wait
+  initPromise = (async () => {
   // Wrap all initialization in try-catch to prevent crashes
   try {
     // Now run migrations in the background (server is already responding)
@@ -224,10 +251,16 @@ app.get('/health', (_req, res) => {
     await setupVite(httpServer, app);
   }
 
+  // Mark initialization complete
+  isInitialized = true;
+  log("Server fully initialized");
+  
   // Server is already listening (started at the top of this async block)
   // This ensures Replit health checks pass immediately
   } catch (error) {
     console.error("[startup] Fatal initialization error:", error);
     // Don't exit - keep server running so health checks pass
+    isInitialized = true; // Still mark as initialized to unblock waiting requests
   }
+  })(); // End of initPromise async function
 })();
