@@ -98,7 +98,7 @@ export default function SubscriptionSelectPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
   const tenantId = localStorage.getItem("tenantId");
-  const country = "india";
+  const country = localStorage.getItem("tenantCountry") || "india";
 
   const { data: plansData, isLoading } = useQuery<PlansResponse>({
     queryKey: ["/api/subscription/plans-with-pricing", { country }],
