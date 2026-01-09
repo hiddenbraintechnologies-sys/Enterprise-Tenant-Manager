@@ -143,7 +143,8 @@ export function requireDashboardAccess() {
       });
     }
 
-    const tokenTenantId = req.tokenPayload?.tenantId;
+    // JWT uses 'tnt' claim for tenant ID (check both for compatibility)
+    const tokenTenantId = (req.tokenPayload as any)?.tnt || req.tokenPayload?.tenantId;
     const requestTenantId = req.context.tenant.id;
     
     if (tokenTenantId && tokenTenantId !== requestTenantId) {

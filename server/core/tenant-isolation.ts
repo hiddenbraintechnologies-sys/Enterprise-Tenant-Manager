@@ -407,6 +407,21 @@ export function tenantResolutionMiddleware(config?: Partial<TenantResolutionConf
     try {
       const tenant = await resolver.resolve(req);
       
+      // CRITICAL: Check if X-Tenant-ID header explicitly requests a different tenant
+      // This prevents cross-tenant access attempts where JWT is for one tenant
+      // but request tries to access another
+      const headerName = mergedConfig.headerName || "X-Tenant-ID";
+      const headerTenantId = req.get(headerName);
+      const jwtPayload = (req as any).jwtPayload || (req as any).tokenPayload;
+      const jwtTenantId = jwtPayload?.tnt || jwtPayload?.tenantId;
+      
+      if (headerTenantId && jwtTenantId && headerTenantId !== jwtTenantId) {
+        return res.status(403).json({
+          message: "Cross-tenant access denied - JWT tenant does not match requested tenant",
+          code: "TENANT_MISMATCH",
+        });
+      }
+      
       if (req.context) {
         if (tenant && req.context.tenant && req.context.tenant.id !== tenant.id) {
           return res.status(403).json({
