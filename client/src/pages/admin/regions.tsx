@@ -156,9 +156,11 @@ interface RegionFormProps {
 function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
   const { toast } = useToast();
   const isEdit = !!region;
+  const [manualEntry, setManualEntry] = useState(false);
 
-  const { data: countries, isLoading: loadingCountries } = useQuery<CountryOption[]>({
+  const { data: countries, isLoading: loadingCountries, isError: countriesError } = useQuery<CountryOption[]>({
     queryKey: ["/api/platform-admin/countries"],
+    retry: 1,
   });
 
   const [formData, setFormData] = useState({
@@ -243,16 +245,41 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
+  const showManualEntry = manualEntry || countriesError || (!loadingCountries && (!countries || countries.length === 0));
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Country</Label>
+          <div className="flex items-center justify-between">
+            <Label>Country</Label>
+            {!isEdit && !showManualEntry && countries && countries.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-1 text-xs text-muted-foreground"
+                onClick={() => setManualEntry(true)}
+                data-testid="button-manual-entry"
+              >
+                Enter manually
+              </Button>
+            )}
+          </div>
           {isEdit ? (
             <Input
               data-testid="input-country-code"
               value={`${formData.countryName} (${formData.countryCode})`}
               disabled
+            />
+          ) : showManualEntry ? (
+            <Input
+              data-testid="input-country-code"
+              value={formData.countryCode}
+              onChange={(e) => setFormData({ ...formData, countryCode: e.target.value.toUpperCase() })}
+              placeholder="US, IN, GB, AE"
+              maxLength={5}
+              required
             />
           ) : (
             <Select
