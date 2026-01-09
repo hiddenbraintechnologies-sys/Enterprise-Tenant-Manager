@@ -102,7 +102,7 @@ function DashboardContent() {
   const [selectedCountry, setSelectedCountry] = useState<string>("");
 
   const { data: regions } = useQuery<PlatformRegionConfig[]>({
-    queryKey: ["/api/region-configs"],
+    queryKey: ["/api/region-configs/active"],
     staleTime: 60 * 1000,
   });
 
