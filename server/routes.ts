@@ -8188,5 +8188,126 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== IN-APP NOTIFICATIONS ====================
+
+  // Get notifications for current user
+  app.get("/api/notifications", authenticateJWT(), async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const unreadOnly = req.query.unreadOnly === "true";
+
+      const notifications = await storage.getInAppNotifications(userId, { limit, offset, unreadOnly });
+      res.json(notifications);
+    } catch (error) {
+      console.error("Get notifications error:", error);
+      res.status(500).json({ message: "Failed to get notifications" });
+    }
+  });
+
+  // Get unread notification count
+  app.get("/api/notifications/unread-count", authenticateJWT(), async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const count = await storage.getUnreadNotificationCount(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Get unread count error:", error);
+      res.status(500).json({ message: "Failed to get unread count" });
+    }
+  });
+
+  // Mark single notification as read
+  app.post("/api/notifications/:id/read", authenticateJWT(), async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const notification = await storage.markNotificationAsRead(req.params.id, userId);
+      if (!notification) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      res.json(notification);
+    } catch (error) {
+      console.error("Mark notification read error:", error);
+      res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.post("/api/notifications/mark-all-read", authenticateJWT(), async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const count = await storage.markAllNotificationsAsRead(userId);
+      res.json({ success: true, updatedCount: count });
+    } catch (error) {
+      console.error("Mark all read error:", error);
+      res.status(500).json({ message: "Failed to mark all as read" });
+    }
+  });
+
+  // Delete notification
+  app.delete("/api/notifications/:id", authenticateJWT(), async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      await storage.deleteNotification(req.params.id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete notification error:", error);
+      res.status(500).json({ message: "Failed to delete notification" });
+    }
+  });
+
+  // Create notification (internal/admin use)
+  app.post("/api/notifications", authenticateJWT(), async (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { type, severity, title, message, actionUrl, actionLabel, targetUserId, tenantId } = req.body;
+      
+      if (!title || !message) {
+        return res.status(400).json({ message: "Title and message are required" });
+      }
+
+      const notification = await storage.createInAppNotification({
+        userId: targetUserId || userId,
+        tenantId: tenantId || (req as any).tenantId,
+        type: type || "info",
+        severity: severity || "low",
+        title,
+        message,
+        actionUrl,
+        actionLabel,
+      });
+
+      res.status(201).json(notification);
+    } catch (error) {
+      console.error("Create notification error:", error);
+      res.status(500).json({ message: "Failed to create notification" });
+    }
+  });
+
   return httpServer;
 }
