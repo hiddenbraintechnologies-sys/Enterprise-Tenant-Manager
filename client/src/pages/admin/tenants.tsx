@@ -472,6 +472,10 @@ function TenantsContent() {
                           <DropdownMenuItem onClick={() => setLocation(`/admin/tenants/${tenant.id}`)}>
                             View Details
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setLocation(`/super-admin/tenants/${tenant.id}/users`)}>
+                            <Users className="h-4 w-4 mr-2" />
+                            Manage Users
+                          </DropdownMenuItem>
                           {isSuperAdmin && (
                             <>
                               <DropdownMenuItem onClick={() => handleEditTenant(tenant)}>Edit Tenant</DropdownMenuItem>

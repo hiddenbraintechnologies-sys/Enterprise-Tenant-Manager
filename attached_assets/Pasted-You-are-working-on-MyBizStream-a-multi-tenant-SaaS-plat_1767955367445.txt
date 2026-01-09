@@ -1,0 +1,143 @@
+You are working on MyBizStream, a multi-tenant SaaS platform.
+Act as a senior full-stack engineer.
+
+GOAL:
+Enhance the Super Admin panel to allow full tenant lifecycle management
+and user control.
+
+CURRENT ISSUE:
+- Super Admin can view tenants but cannot:
+  1) Remove / deactivate tenants
+  2) View or manage users inside a tenant
+
+-----------------------------------
+PART 1: TENANT MANAGEMENT CONTROLS
+-----------------------------------
+
+1. Add Super Admin actions to Global Tenant Registry list:
+
+UI:
+- Add a 3-dot action menu per tenant row
+- Actions:
+  - View Tenant
+  - Manage Users
+  - Suspend Tenant
+  - Reactivate Tenant
+  - Delete Tenant (soft delete)
+
+Rules:
+- Delete = soft delete only
+- Suspended tenants cannot login or access APIs
+- Deleted tenants are hidden from normal views
+
+Status changes:
+ACTIVE → SUSPENDED → DELETED
+
+-----------------------------------
+PART 2: BACKEND – TENANT APIs
+-----------------------------------
+
+Create / verify APIs:
+
+POST   /api/super-admin/tenants/:tenantId/suspend
+POST   /api/super-admin/tenants/:tenantId/reactivate
+DELETE /api/super-admin/tenants/:tenantId
+
+Behavior:
+- Suspend:
+  - Set tenant.status = "SUSPENDED"
+  - Invalidate active JWT sessions
+- Reactivate:
+  - Restore tenant.status = "ACTIVE"
+- Delete:
+  - tenant.status = "DELETED"
+  - Keep data for audit & recovery
+
+Middleware:
+- Require SUPER_ADMIN role
+- Log all actions in audit_logs
+
+-----------------------------------
+PART 3: TENANT USER MANAGEMENT
+-----------------------------------
+
+Create a new Super Admin page:
+Route:
+  /super-admin/tenants/:tenantId/users
+
+UI:
+- List all users in tenant
+- Columns:
+  - Name
+  - Email
+  - Role (Owner, Admin, Staff)
+  - Status (Active / Locked)
+  - Last Login
+  - Actions
+
+Actions per user:
+- Lock User
+- Unlock User
+- Remove User from Tenant
+- Reset Password
+- Change Role
+
+-----------------------------------
+PART 4: USER MANAGEMENT APIs
+-----------------------------------
+
+Create APIs:
+
+GET    /api/super-admin/tenants/:tenantId/users
+POST   /api/super-admin/users/:userId/lock
+POST   /api/super-admin/users/:userId/unlock
+DELETE /api/super-admin/tenants/:tenantId/users/:userId
+POST   /api/super-admin/users/:userId/reset-password
+POST   /api/super-admin/users/:userId/change-role
+
+Rules:
+- Cannot delete the tenant OWNER
+- Locking user blocks login immediately
+- All actions audited
+
+-----------------------------------
+PART 5: SECURITY & AUDIT
+-----------------------------------
+
+- Enforce SUPER_ADMIN role at API level
+- Log:
+  - who performed action
+  - target tenant/user
+  - timestamp
+  - IP address
+- Show audit trail in Admin → Audit Logs
+
+-----------------------------------
+PART 6: UI/UX REQUIREMENTS
+-----------------------------------
+
+- Confirmation modal for:
+  - Suspend tenant
+  - Delete tenant
+  - Remove user
+- Warning banners on suspended tenants
+- Disabled login with clear message:
+  "Your account is suspended. Contact support."
+
+-----------------------------------
+DELIVERABLES
+-----------------------------------
+
+1. Updated Super Admin Tenant Registry UI
+2. New Tenant User Management page
+3. Secure backend APIs with audit logging
+4. Proper role enforcement
+5. No breaking changes to existing tenants
+
+Implement following MyBizStream architecture patterns:
+- Clean architecture
+- Middleware-based authorization
+- Soft deletes only
+- Consistent status enums
+
+Proceed with implementation.

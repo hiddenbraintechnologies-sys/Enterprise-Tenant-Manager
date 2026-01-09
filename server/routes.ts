@@ -3509,6 +3509,351 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== SUPER ADMIN USER MANAGEMENT ROUTES ====================
+  
+  // Get tenant users for Super Admin management
+  app.get("/api/super-admin/tenants/:tenantId/users", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const tenantUsers = await db.select({
+        userId: userTenants.userId,
+        roleId: userTenants.roleId,
+        isDefault: userTenants.isDefault,
+        createdAt: userTenants.createdAt,
+      }).from(userTenants).where(eq(userTenants.tenantId, tenantId));
+
+      const usersData = await Promise.all(tenantUsers.map(async (tu) => {
+        const [user] = await db.select().from(users).where(eq(users.id, tu.userId));
+        const [role] = await db.select().from(roles).where(eq(roles.id, tu.roleId));
+        return {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: role?.name || "unknown",
+          isActive: user.isActive,
+          isLocked: user.loginAttempts >= 5,
+          lastLoginAt: user.lastLoginAt,
+          createdAt: tu.createdAt,
+        };
+      }));
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "access",
+        resource: "super_admin_tenant_users",
+        resourceId: tenantId,
+        metadata: { 
+          accessType: "super_admin",
+          userCount: usersData.length,
+          adminRole: req.platformAdminContext?.platformAdmin.role,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        users: usersData,
+        total: usersData.length,
+        tenant: {
+          id: tenant.id,
+          name: tenant.name,
+          slug: tenant.slug,
+          businessType: tenant.businessType,
+          status: tenant.status,
+        },
+      });
+    } catch (error) {
+      console.error("Super admin tenant users error:", error);
+      res.status(500).json({ message: "Failed to get tenant users" });
+    }
+  });
+
+  // Lock user - Super Admin
+  app.post("/api/super-admin/users/:userId/lock", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { reason, tenantId } = req.body;
+
+      if (!reason || reason.trim().length < 5) {
+        return res.status(400).json({ message: "A reason is required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      await storage.updateUser(userId, { loginAttempts: 999 });
+
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId));
+
+      auditService.logAsync({
+        tenantId: tenantId || user.tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "super_admin_user_lock",
+        resourceId: userId,
+        oldValue: { isLocked: false },
+        newValue: { isLocked: true },
+        metadata: { 
+          accessType: "super_admin",
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          reason: reason,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ success: true, message: "User locked successfully" });
+    } catch (error) {
+      console.error("Super admin lock user error:", error);
+      res.status(500).json({ message: "Failed to lock user" });
+    }
+  });
+
+  // Unlock user - Super Admin
+  app.post("/api/super-admin/users/:userId/unlock", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { reason, tenantId } = req.body;
+
+      if (!reason || reason.trim().length < 5) {
+        return res.status(400).json({ message: "A reason is required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      await storage.updateUser(userId, { loginAttempts: 0 });
+
+      auditService.logAsync({
+        tenantId: tenantId || user.tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "super_admin_user_unlock",
+        resourceId: userId,
+        oldValue: { isLocked: true },
+        newValue: { isLocked: false },
+        metadata: { 
+          accessType: "super_admin",
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          reason: reason,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ success: true, message: "User unlocked successfully" });
+    } catch (error) {
+      console.error("Super admin unlock user error:", error);
+      res.status(500).json({ message: "Failed to unlock user" });
+    }
+  });
+
+  // Reset password - Super Admin
+  app.post("/api/super-admin/users/:userId/reset-password", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { reason, tenantId } = req.body;
+
+      if (!reason || reason.trim().length < 5) {
+        return res.status(400).json({ message: "A reason is required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const temporaryPassword = `Temp${Math.random().toString(36).slice(2, 8)}!${Math.floor(Math.random() * 100)}`;
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
+
+      await storage.updateUser(userId, { passwordHash: hashedPassword });
+
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId));
+
+      auditService.logAsync({
+        tenantId: tenantId || user.tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "super_admin_password_reset",
+        resourceId: userId,
+        metadata: { 
+          accessType: "super_admin",
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          reason: reason,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Password reset successfully",
+        temporaryPassword,
+      });
+    } catch (error) {
+      console.error("Super admin password reset error:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // Change user role - Super Admin
+  app.post("/api/super-admin/users/:userId/change-role", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { role, tenantId } = req.body;
+
+      if (!role || !tenantId) {
+        return res.status(400).json({ message: "Role and tenantId are required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const [tenantRole] = await db.select().from(roles)
+        .where(and(
+          eq(roles.tenantId, tenantId),
+          sql`LOWER(${roles.name}) = LOWER(${role})`
+        ));
+
+      if (!tenantRole) {
+        return res.status(404).json({ message: `Role '${role}' not found in tenant` });
+      }
+
+      const [existingUserTenant] = await db.select().from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, tenantId)
+        ));
+
+      if (!existingUserTenant) {
+        return res.status(404).json({ message: "User not found in this tenant" });
+      }
+
+      const oldRoleId = existingUserTenant.roleId;
+
+      await db.update(userTenants)
+        .set({ roleId: tenantRole.id })
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, tenantId)
+        ));
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "super_admin_role_change",
+        resourceId: userId,
+        oldValue: { roleId: oldRoleId },
+        newValue: { roleId: tenantRole.id, roleName: role },
+        metadata: { 
+          accessType: "super_admin",
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ success: true, message: "Role changed successfully" });
+    } catch (error) {
+      console.error("Super admin role change error:", error);
+      res.status(500).json({ message: "Failed to change role" });
+    }
+  });
+
+  // Remove user from tenant - Super Admin
+  app.delete("/api/super-admin/tenants/:tenantId/users/:userId", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId, userId } = req.params;
+      const { reason } = req.body;
+
+      if (!reason || reason.trim().length < 5) {
+        return res.status(400).json({ message: "A reason is required" });
+      }
+
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const [userTenantRecord] = await db.select().from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, tenantId)
+        ));
+
+      if (!userTenantRecord) {
+        return res.status(404).json({ message: "User not found in this tenant" });
+      }
+
+      const [userRole] = await db.select().from(roles).where(eq(roles.id, userTenantRecord.roleId));
+      if (userRole?.name?.toLowerCase() === "owner") {
+        return res.status(403).json({ message: "Cannot remove tenant owner. Transfer ownership first." });
+      }
+
+      await db.delete(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, tenantId)
+        ));
+
+      await db.delete(refreshTokens)
+        .where(and(
+          eq(refreshTokens.userId, userId),
+          eq(refreshTokens.tenantId, tenantId)
+        ));
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "delete",
+        resource: "super_admin_user_removal",
+        resourceId: userId,
+        metadata: { 
+          accessType: "super_admin",
+          targetUserId: userId,
+          targetUserEmail: user.email,
+          reason: reason,
+          adminId: req.platformAdminContext?.platformAdmin.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ success: true, message: "User removed from tenant successfully" });
+    } catch (error) {
+      console.error("Super admin remove user error:", error);
+      res.status(500).json({ message: "Failed to remove user" });
+    }
+  });
+
   // ==================== TENANT MANAGEMENT ROUTES ====================
   
   const tenantProtectedMiddleware = [
