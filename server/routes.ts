@@ -1564,6 +1564,31 @@ export async function registerRoutes(
     }
   });
 
+  // Public endpoint for registration countries (no auth required)
+  app.get("/api/public/registration/countries", async (_req, res) => {
+    try {
+      const configs = await storage.getActiveRegionConfigs();
+      // Filter to only countries with registration enabled
+      const registrationCountries = configs
+        .filter(c => c.registrationEnabled)
+        .map(c => ({
+          countryCode: c.countryCode,
+          countryName: c.countryName,
+          currency: c.defaultCurrency,
+          region: c.region,
+          timezone: c.defaultTimezone,
+          taxType: c.taxType,
+          taxRate: c.taxRate ? parseFloat(c.taxRate) : null,
+          taxInclusive: c.taxInclusive,
+        }))
+        .sort((a, b) => a.countryName.localeCompare(b.countryName));
+      res.json(registrationCountries);
+    } catch (error) {
+      console.error("Get registration countries error:", error);
+      res.status(500).json({ message: "Failed to get registration countries" });
+    }
+  });
+
   // Get active countries for dropdown (Super Admin)
   app.get("/api/platform-admin/countries", authenticateJWT(), requirePlatformAdmin(), async (_req, res) => {
     try {
