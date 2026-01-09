@@ -1,0 +1,108 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:mybizstream/main.dart' as app;
+import 'package:flutter/material.dart';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  group('MyBizStream Flutter Platform UI Tests', () {
+    
+    // Modules to test
+    final modules = [
+      'Furniture',
+      'HRMS',
+      'Legal',
+      'Education',
+      'Tourism',
+      'Logistics',
+      'Real Estate',
+      'Clinic',
+      'Coworking',
+      'PG',
+      'Salon',
+      'Gym',
+    ];
+
+    testWidgets('Check all module dashboards and screens', (WidgetTester tester) async {
+      // Launch the app
+      app.main();
+      await tester.pumpAndSettle();
+
+      for (var module in modules) {
+        // Navigate to module dashboard
+        final dashboardFinder = find.text('$module Dashboard');
+        expect(dashboardFinder, findsOneWidget, reason: '$module Dashboard should exist');
+
+        // Tap to open dashboard
+        await tester.tap(dashboardFinder);
+        await tester.pumpAndSettle();
+
+        // Check CRUD screens exist
+        final crudFinder = find.text('Manage $module');
+        expect(crudFinder, findsWidgets, reason: '$module CRUD screens should render');
+
+        // Check forms (Add/Edit)
+        final addButton = find.byIcon(Icons.add);
+        if (addButton.evaluate().isNotEmpty) {
+          await tester.tap(addButton);
+          await tester.pumpAndSettle();
+          expect(find.text('Save'), findsOneWidget, reason: '$module Add Form should render');
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+        }
+
+        // Check pagination/search if present
+        final searchField = find.byType(TextField);
+        if (searchField.evaluate().isNotEmpty) {
+          await tester.enterText(searchField.first, 'demo');
+          await tester.pumpAndSettle();
+        }
+
+        // Go back to main dashboard
+        final backButton = find.byTooltip('Back');
+        if (backButton.evaluate().isNotEmpty) {
+          await tester.tap(backButton.first);
+          await tester.pumpAndSettle();
+        }
+      }
+    });
+
+    testWidgets('Check onboarding & registration flows', (WidgetTester tester) async {
+      // Launch app
+      app.main();
+      await tester.pumpAndSettle();
+
+      // Onboarding screen
+      final onboardingFinder = find.text('Welcome to MyBizStream');
+      expect(onboardingFinder, findsOneWidget, reason: 'Onboarding screen should render');
+
+      // Register Tenant/User
+      final registerButton = find.text('Register');
+      await tester.tap(registerButton);
+      await tester.pumpAndSettle();
+
+      // Fill form
+      await tester.enterText(find.byKey(Key('tenantName')), 'Demo Tenant');
+      await tester.enterText(find.byKey(Key('userEmail')), 'demo@tenant.com');
+      await tester.enterText(find.byKey(Key('password')), 'DemoPass123!');
+      await tester.tap(find.text('Submit'));
+      await tester.pumpAndSettle();
+
+      // Check confirmation
+      expect(find.text('Registration Successful'), findsOneWidget, reason: 'Registration should succeed');
+    });
+
+    testWidgets('Check subscription gating UI', (WidgetTester tester) async {
+      app.main();
+      await tester.pumpAndSettle();
+
+      final subscriptionButton = find.text('Subscriptions');
+      await tester.tap(subscriptionButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Available Modules'), findsOneWidget, reason: 'Subscription screen should render');
+      expect(find.byType(ListView), findsWidgets, reason: 'Modules list should appear');
+    });
+  });
+}
