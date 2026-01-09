@@ -1,0 +1,51 @@
+You are a Replit AI developer. For MyBizStream, execute the following tasks to complete Tier 2 Flutter modules with full BLoC/Repository patterns and mobile UI integration.
+
+1️⃣ **Modules to Complete**
+- Clinic
+- Coworking
+- PG/Hostel
+- Salon
+- Gym
+- Tourism
+- Logistics
+- Real Estate
+
+2️⃣ **Implementation Requirements**
+- Flutter UI Pages: Dashboard, Listings, Detail View, Add/Edit forms
+- BLoCs: Full event/state handling for CRUD + workflows
+- Repository: API integration for backend endpoints
+- Models: Define all required data classes (e.g., ClinicPatient, CoworkingDesk, PGRoom, etc.)
+- Flutter Routing: Ensure pages integrate with existing app routing
+- State Management: Use BLoC for all module state
+- Validation: Form validation using zodResolver/Flutter equivalents
+- Pagination/Filtering/Search: Server-side integration
+- Notifications: Email/WhatsApp/In-App hooks via adapters
+- Analytics: Hook into existing AnalyticsAdapter
+- Subscription gating: Enforce module visibility per tenant subscription
+
+3️⃣ **Task List per Module**
+- Scaffold Flutter pages (Dashboard, Listings, Details, Add/Edit)
+- Implement BLoC classes (Events, States, Logic)
+- Implement Repository classes (API calls, error handling)
+- Connect UI → BLoC → Repository → API
+- Add form validation & input guards
+- Add pagination/filter/search functionality
+- Integrate notification triggers where applicable
+- Integrate analytics events
+- Verify subscription gating works
+
+4️⃣ **Success Criteria**
+- UI fully navigable
+- CRUD operations work via BLoC → Repository → API
+- Pagination, filtering, search functional
+- Notifications trigger correctly
+- Analytics events logged
+- Module only visible if tenant subscription allows
+- Test all edge cases (missing data, network failures, unauthorized access)
+
+5️⃣ **Output**
+- Print completed files and class list per module
+- Print BLoC event/state flow per module
+- Print Repository method list per module
+- Print integration checklist for UI, notifications, analytics, subscription gating
+- Print test summary (PASS/FAIL per functionality)
