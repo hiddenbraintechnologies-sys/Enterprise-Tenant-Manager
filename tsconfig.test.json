@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["server/__tests__/**/*", "server/tests/**/*", "shared/**/*", "server/**/*"],
+  "exclude": ["node_modules", "build", "dist"],
+  "compilerOptions": {
+    "types": ["node", "jest"]
+  }
+}
