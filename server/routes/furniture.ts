@@ -67,6 +67,31 @@ const getUserId = (req: Request): string | undefined => {
   return req.context?.user?.id;
 };
 
+// Convenience wrapper for object-style audit logging
+interface AuditLogParams {
+  tenantId: string;
+  userId?: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  details?: Record<string, any>;
+  oldValue?: Record<string, any> | null;
+  newValue?: Record<string, any> | null;
+}
+
+async function logAudit(params: AuditLogParams): Promise<void> {
+  await logFurnitureAudit(
+    params.tenantId,
+    params.userId,
+    params.action as any,
+    params.entityType,
+    params.entityId,
+    params.oldValue ?? null,
+    params.newValue ?? params.details ?? null,
+    undefined
+  );
+}
+
 // ============================================
 // DASHBOARD STATS
 // ============================================
@@ -1923,11 +1948,11 @@ router.get("/invoices", async (req: Request, res: Response) => {
     if (filters.status) {
       conditions.push(eq(furnitureInvoices.status, filters.status as any));
     }
-    if (filters.currency) {
-      conditions.push(eq(furnitureInvoices.currency, filters.currency as string));
+    if ((filters as any).currency) {
+      conditions.push(eq(furnitureInvoices.currency, (filters as any).currency as string));
     }
-    if (filters.customerId) {
-      conditions.push(eq(furnitureInvoices.customerId, filters.customerId as string));
+    if ((filters as any).customerId) {
+      conditions.push(eq(furnitureInvoices.customerId, (filters as any).customerId as string));
     }
     if (filters.search) {
       conditions.push(
@@ -2062,16 +2087,17 @@ router.post("/invoices/from-sales-order/:salesOrderId", async (req: Request, res
     const installationCharges = parseFloat(salesOrder.installationCharges || "0");
 
     // Calculate tax
-    let taxResult = { totalTaxAmount: 0, breakdown: [], metadata: {} };
+    let taxResult: { totalTaxAmount: number; breakdown: any[]; metadata: any } = { totalTaxAmount: 0, breakdown: [], metadata: {} };
     const complianceCountry = taxMetadata?.country || "IN";
     
     if (taxMetadata) {
-      taxResult = await taxCalculatorService.calculateTax(
+      const calcResult = await taxCalculatorService.calculateTax(
         tenantId,
         complianceCountry,
         subtotal - discountAmount + deliveryCharges + installationCharges,
         taxMetadata
       );
+      taxResult = { totalTaxAmount: calcResult.totalTaxAmount, breakdown: calcResult.breakdown, metadata: calcResult.metadata };
     }
 
     const taxAmount = taxResult.totalTaxAmount;
@@ -2112,14 +2138,8 @@ router.post("/invoices/from-sales-order/:salesOrderId", async (req: Request, res
       paymentStatus: "pending",
       billingName: customer?.name,
       billingAddress: customer?.address,
-      billingCity: customer?.city,
-      billingState: customer?.state,
-      billingPostalCode: customer?.postalCode,
-      billingCountry: customer?.country,
       billingEmail: customer?.email,
       billingPhone: customer?.phone,
-      customerTaxId: customer?.taxId,
-      customerTaxIdType: customer?.taxIdType,
       notes,
       termsAndConditions,
       complianceCountry,
@@ -2138,14 +2158,15 @@ router.post("/invoices/from-sales-order/:salesOrderId", async (req: Request, res
       const itemTaxable = itemSubtotal - itemDiscount;
       
       // Calculate item tax
-      let itemTaxResult = { totalTaxAmount: 0, breakdown: [] };
+      let itemTaxResult: { totalTaxAmount: number; breakdown: any[] } = { totalTaxAmount: 0, breakdown: [] };
       if (taxMetadata) {
-        itemTaxResult = await taxCalculatorService.calculateTax(
+        const calcResult = await taxCalculatorService.calculateTax(
           tenantId,
           complianceCountry,
           itemTaxable,
           taxMetadata
         );
+        itemTaxResult = { totalTaxAmount: calcResult.totalTaxAmount, breakdown: calcResult.breakdown };
       }
 
       const itemTotal = itemTaxable + itemTaxResult.totalTaxAmount;
@@ -2154,7 +2175,7 @@ router.post("/invoices/from-sales-order/:salesOrderId", async (req: Request, res
         invoiceId: newInvoice.id,
         salesOrderItemId: item.id,
         productId: item.productId,
-        description: item.productName || "Product",
+        description: item.description || "Product",
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discountAmount: item.discountAmount || "0",
@@ -2168,7 +2189,7 @@ router.post("/invoices/from-sales-order/:salesOrderId", async (req: Request, res
     }
 
     // Log audit
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -2208,7 +2229,7 @@ router.post("/invoices", async (req: Request, res: Response) => {
       createdBy: userId,
     }).returning();
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -2229,7 +2250,7 @@ const updateInvoiceSchema = z.object({
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
   termsAndConditions: z.string().optional(),
-  dueDate: z.string().datetime().optional(),
+  dueDate: z.string().datetime().optional().transform((val) => val ? new Date(val) : undefined),
   billingName: z.string().max(255).optional(),
   billingAddress: z.string().optional(),
   billingCity: z.string().max(100).optional(),
@@ -2282,7 +2303,7 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
       .where(eq(furnitureInvoices.id, req.params.id))
       .returning();
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "update",
@@ -2339,7 +2360,7 @@ router.post("/invoices/:id/issue", async (req: Request, res: Response) => {
       .where(eq(furnitureInvoices.id, req.params.id))
       .returning();
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "update",
@@ -2399,8 +2420,8 @@ router.post("/invoices/:id/payments", async (req: Request, res: Response) => {
     let invoiceAmount = amount;
     let exchangeRate = "1.00000000";
 
-    if (currency !== invoice.currency) {
-      const rate = await currencyService.getExchangeRate(currency, invoice.currency);
+    if (currency && currency !== invoice.currency) {
+      const rate = await currencyService.getExchangeRate(currency, invoice.currency!);
       if (rate) {
         invoiceAmount = amount * rate.rate;
         exchangeRate = rate.rate.toFixed(8);
@@ -2447,7 +2468,7 @@ router.post("/invoices/:id/payments", async (req: Request, res: Response) => {
       })
       .where(eq(furnitureInvoices.id, invoice.id));
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -2526,7 +2547,7 @@ router.post("/invoices/:id/cancel", async (req: Request, res: Response) => {
       .where(eq(furnitureInvoices.id, req.params.id))
       .returning();
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "update",
@@ -2611,7 +2632,7 @@ router.post("/invoices/:id/notify", async (req: Request, res: Response) => {
       userId
     );
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -2718,7 +2739,7 @@ router.post("/invoices/bulk-reminders", async (req: Request, res: Response) => {
       });
     }
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -2809,7 +2830,7 @@ router.post("/invoices/:id/recurring", async (req: Request, res: Response) => {
       createdBy: userId,
     });
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -2890,7 +2911,7 @@ router.patch("/recurring-schedules/:id/status", async (req: Request, res: Respon
       return res.status(404).json({ error: "Schedule not found" });
     }
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "update",
@@ -2962,7 +2983,7 @@ router.post("/reminder-schedules", async (req: Request, res: Response) => {
       createdBy: userId,
     });
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -3013,7 +3034,7 @@ router.patch("/reminder-schedules/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Schedule not found" });
     }
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "update",
@@ -3041,7 +3062,7 @@ router.delete("/reminder-schedules/:id", async (req: Request, res: Response) => 
 
     await autoReminderService.deleteReminderSchedule(scheduleId, tenantId);
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "delete",
@@ -3084,7 +3105,7 @@ router.post("/invoices/:id/reminder", async (req: Request, res: Response) => {
 
     const result = await autoReminderService.sendManualReminder(tenantId, invoiceId, channel);
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -3155,7 +3176,7 @@ router.post("/billing-jobs", async (req: Request, res: Response) => {
       ...parsed.data,
     });
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -3211,7 +3232,7 @@ router.patch("/billing-jobs/:id/toggle", async (req: Request, res: Response) => 
       return res.status(404).json({ error: "Job not found" });
     }
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "update",
@@ -3256,7 +3277,7 @@ router.post("/billing-jobs/run-due", async (req: Request, res: Response) => {
 
     const result = await scheduledBillingService.runAllDueJobs();
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -3469,7 +3490,7 @@ router.post("/analytics/snapshots/generate", async (req: Request, res: Response)
     const date = req.body.date ? parseISO(req.body.date) : new Date();
     const snapshot = await analyticsService.createDailySnapshot(tenantId, date);
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",
@@ -3541,7 +3562,7 @@ router.post("/insights/generate", async (req: Request, res: Response) => {
 
     const result = await aiInsightsService.generateInsights(tenantId);
 
-    await logFurnitureAudit({
+    await logAudit({
       tenantId,
       userId,
       action: "create",

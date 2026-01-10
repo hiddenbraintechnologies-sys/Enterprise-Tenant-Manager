@@ -114,6 +114,7 @@ function BookingDialog({
   onSuccess: () => void;
 }) {
   const { toast } = useToast();
+  const { formatCurrency } = useCountry();
 
   const { data: customers } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],

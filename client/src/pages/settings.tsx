@@ -45,7 +45,7 @@ interface PortalSettings {
 export default function Settings() {
   const { user, tenant } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { activeTenant } = useTenant();
+  const { businessType } = useTenant();
   const { toast } = useToast();
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
@@ -57,7 +57,7 @@ export default function Settings() {
   // Customer Portal settings
   const { data: portalSettings, isLoading: portalLoading } = useQuery<PortalSettings>({
     queryKey: ["/api/customer-portal/settings"],
-    enabled: !!activeTenant,
+    enabled: !!tenant,
   });
 
   const updatePortalMutation = useMutation({

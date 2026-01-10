@@ -222,7 +222,7 @@ class BaseNotificationService implements INotificationService {
         }
       } catch (error: any) {
         channelResults.push({
-          channel,
+          channel: channel as NotificationChannel,
           success: false,
           error: error.message,
         });

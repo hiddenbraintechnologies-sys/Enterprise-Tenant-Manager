@@ -93,6 +93,24 @@ const BUSINESS_SPECIFIC_STEPS: Record<BusinessType, OnboardingStepConfig[]> = {
     { stepKey: "lawyer_staff", title: "Lawyers & Staff", description: "Add attorneys and support staff", component: "LawyerStaffStep", isSkippable: true },
     { stepKey: "case_templates", title: "Case Templates", description: "Create reusable case templates", component: "CaseTemplatesStep", isSkippable: true },
   ],
+  furniture_manufacturing: [
+    { stepKey: "workshop_setup", title: "Workshop Setup", description: "Configure your manufacturing facility", component: "WorkshopSetupStep", isRequired: true },
+    { stepKey: "product_catalog", title: "Product Catalog", description: "Add your furniture products", component: "ProductCatalogStep", isRequired: true },
+    { stepKey: "raw_materials", title: "Raw Materials", description: "Set up your material inventory", component: "RawMaterialsStep", isRequired: true },
+    { stepKey: "production_stages", title: "Production Stages", description: "Define your production workflow", component: "ProductionStagesStep", isSkippable: true },
+  ],
+  software_services: [
+    { stepKey: "company_profile", title: "Company Profile", description: "Enter your software company details", component: "CompanyProfileStep", isRequired: true },
+    { stepKey: "services_setup", title: "Services", description: "Define your service offerings", component: "ServicesSetupStep", isRequired: true },
+    { stepKey: "project_templates", title: "Project Templates", description: "Create project templates", component: "ProjectTemplatesStep", isSkippable: true },
+    { stepKey: "team_setup", title: "Team Setup", description: "Add your team members", component: "TeamSetupStep", isSkippable: true },
+  ],
+  consulting: [
+    { stepKey: "firm_profile", title: "Firm Profile", description: "Enter your consulting firm details", component: "FirmProfileStep", isRequired: true },
+    { stepKey: "services_setup", title: "Services", description: "Define your consulting services", component: "ServicesSetupStep", isRequired: true },
+    { stepKey: "project_templates", title: "Project Templates", description: "Create project templates", component: "ProjectTemplatesStep", isSkippable: true },
+    { stepKey: "consultant_setup", title: "Consultants", description: "Add your consulting team", component: "ConsultantSetupStep", isSkippable: true },
+  ],
 };
 
 const COMPLETION_STEP: OnboardingStepConfig = {
