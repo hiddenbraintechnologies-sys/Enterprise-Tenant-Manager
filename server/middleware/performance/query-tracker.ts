@@ -68,6 +68,41 @@ class QueryTracker {
       timestamp: Date.now(),
       signature,
     });
+
+    // Log slow queries (>500ms) without PII
+    const SLOW_QUERY_THRESHOLD = parseInt(process.env.SLOW_QUERY_THRESHOLD || "500", 10);
+    if (duration > SLOW_QUERY_THRESHOLD) {
+      const operation = this.extractOperation(sql);
+      const table = this.extractTable(sql);
+      console.warn(`[slow-query] ${operation} on ${table} took ${duration}ms (threshold: ${SLOW_QUERY_THRESHOLD}ms) [${this.requestId}]`);
+    }
+  }
+
+  /**
+   * Extract operation type from SQL (sanitized)
+   */
+  private extractOperation(sql: string): string {
+    const match = sql.match(/^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)/i);
+    return match ? match[1].toUpperCase() : "QUERY";
+  }
+
+  /**
+   * Extract table name from SQL (sanitized)
+   */
+  private extractTable(sql: string): string {
+    const patterns = [
+      /FROM\s+["']?(\w+)["']?/i,
+      /INTO\s+["']?(\w+)["']?/i,
+      /UPDATE\s+["']?(\w+)["']?/i,
+      /TABLE\s+["']?(\w+)["']?/i,
+    ];
+    for (const pattern of patterns) {
+      const match = sql.match(pattern);
+      if (match) {
+        return match[1].substring(0, 50);
+      }
+    }
+    return "unknown";
   }
 
   /**

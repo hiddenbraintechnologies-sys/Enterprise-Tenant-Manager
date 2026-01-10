@@ -51,7 +51,7 @@ export function requestLoggerMiddleware(req: Request, res: Response, next: NextF
     const latencyMs = Date.now() - (req.requestStartTime || Date.now());
     
     // Skip logging for health checks and static assets to reduce noise
-    if (req.path === "/health" || req.path === "/health/db" || !req.path.startsWith("/api")) {
+    if (req.path === "/health" || req.path === "/health/db" || req.path === "/metrics" || !req.path.startsWith("/api")) {
       return;
     }
 
@@ -64,9 +64,11 @@ export function requestLoggerMiddleware(req: Request, res: Response, next: NextF
       timestamp: new Date().toISOString(),
     };
 
-    // Log slow requests with more detail
+    // Log ALL API requests with method, route, status, latency, and correlation ID
     if (latencyMs > 1000) {
       console.warn(`[request] SLOW ${entry.method} ${entry.path} ${entry.status} ${latencyMs}ms [${entry.correlationId}]`);
+    } else {
+      console.log(`[request] ${entry.method} ${entry.path} ${entry.status} ${latencyMs}ms [${entry.correlationId}]`);
     }
   });
 
