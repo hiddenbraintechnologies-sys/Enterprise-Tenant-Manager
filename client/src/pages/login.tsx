@@ -45,6 +45,26 @@ interface TenantOption {
   businessType: string | null;
 }
 
+const DASHBOARD_ROUTES: Record<string, string> = {
+  clinic: "/dashboard/clinic",
+  salon: "/dashboard/salon",
+  pg: "/dashboard/pg",
+  coworking: "/dashboard/coworking",
+  service: "/dashboard/service",
+  real_estate: "/dashboard/real-estate",
+  tourism: "/dashboard/tourism",
+  education: "/dashboard/education",
+  logistics: "/dashboard/logistics",
+  legal: "/dashboard/legal",
+  furniture_manufacturing: "/dashboard/furniture",
+  software_services: "/dashboard/software-services",
+  consulting: "/dashboard/consulting",
+};
+
+function getDashboardRoute(businessType: string): string {
+  return DASHBOARD_ROUTES[businessType] || DASHBOARD_ROUTES.service;
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -115,7 +135,7 @@ export default function Login() {
       });
 
       const businessType = data.tenant?.businessType || "service";
-      const dashboardRoute = `/dashboard/${businessType}`;
+      const dashboardRoute = getDashboardRoute(businessType);
       
       setTimeout(() => {
         setLocation(dashboardRoute);
@@ -156,7 +176,7 @@ export default function Login() {
       });
 
       const businessType = data.tenant?.businessType || "service";
-      const dashboardRoute = `/dashboard/${businessType}`;
+      const dashboardRoute = getDashboardRoute(businessType);
       
       setTimeout(() => {
         setLocation(dashboardRoute);

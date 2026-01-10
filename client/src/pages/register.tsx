@@ -50,7 +50,10 @@ const registrationSchema = z.object({
   confirmPassword: z.string(),
   countryCode: z.string().min(1, "Please select your country"),
   businessName: z.string().min(1, "Business name is required").max(200),
-  businessType: z.enum(["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism"]),
+  businessType: z.enum([
+    "clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism",
+    "education", "logistics", "legal", "furniture_manufacturing", "software_services", "consulting"
+  ]),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -66,7 +69,33 @@ const businessTypeOptions = [
   { value: "service", label: "General Service Business" },
   { value: "real_estate", label: "Real Estate / Property" },
   { value: "tourism", label: "Tourism / Travel Agency" },
+  { value: "education", label: "Education / Training" },
+  { value: "logistics", label: "Logistics / Delivery" },
+  { value: "legal", label: "Legal Services" },
+  { value: "furniture_manufacturing", label: "Furniture Manufacturing" },
+  { value: "software_services", label: "Software Services / IT" },
+  { value: "consulting", label: "Consulting / Professional Services" },
 ];
+
+const DASHBOARD_ROUTES: Record<string, string> = {
+  clinic: "/dashboard/clinic",
+  salon: "/dashboard/salon",
+  pg: "/dashboard/pg",
+  coworking: "/dashboard/coworking",
+  service: "/dashboard/service",
+  real_estate: "/dashboard/real-estate",
+  tourism: "/dashboard/tourism",
+  education: "/dashboard/education",
+  logistics: "/dashboard/logistics",
+  legal: "/dashboard/legal",
+  furniture_manufacturing: "/dashboard/furniture",
+  software_services: "/dashboard/software-services",
+  consulting: "/dashboard/consulting",
+};
+
+function getDashboardRoute(businessType: string): string {
+  return DASHBOARD_ROUTES[businessType] || DASHBOARD_ROUTES.service;
+}
 
 export default function Register() {
   const [, setLocation] = useLocation();
@@ -129,7 +158,7 @@ export default function Register() {
       });
 
       const businessType = data.tenant.businessType || "service";
-      const dashboardRoute = `/dashboard/${businessType}`;
+      const dashboardRoute = getDashboardRoute(businessType);
       
       setTimeout(() => {
         setLocation(dashboardRoute);

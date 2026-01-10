@@ -1,0 +1,104 @@
+We have UI workflow issues in production. Specifically:
+- On the signup page, business types like SOFTWARE_SERVICES / CONSULTING are not displaying (and possibly other types).
+- Multiple workflows are not working end-to-end.
+
+Do NOT add new features. Focus only on fixing UI/workflow issues and preventing regressions.
+
+================================================
+1) Diagnose Signup Business Type Missing Issue
+================================================
+Find where the signup business type list is populated.
+Check all of these likely causes and fix accordingly:
+
+A) Static enum mismatch:
+- UI list is hardcoded and not updated with new business types.
+- Fix: source the list from a single shared enum or API response.
+
+B) Backend contract mismatch:
+- Signup API returns business types but UI expects a different shape.
+- Fix: align API + UI typing and mapping.
+
+C) Feature-flag gating hiding options:
+- Business types are hidden due to country, plan, feature flags, or environment checks.
+- Fix: Ensure business type list shows correctly for India/global launch rules.
+- Ensure the logic is intentional and documented.
+
+D) Sorting/label mapping missing:
+- UI uses a label map; missing keys causes items to not render.
+- Fix: add label + description + icon mapping for SOFTWARE_SERVICES and CONSULTING.
+
+Deliverable:
+- Signup page shows ALL intended business types including SOFTWARE_SERVICES and CONSULTING.
+
+================================================
+2) Fix Broken Workflows (UI → API → DB)
+================================================
+Run a workflow audit for the following critical paths:
+
+A) Signup → Tenant created → Dashboard redirect
+- Ensure user lands on correct dashboard for their chosen business type.
+- Ensure business type is immutable after onboarding.
+
+B) Software Services Dashboard
+- Create Project
+- Create Task
+- Create Timesheet
+- List pages load with pagination & server-side filters
+
+C) Furniture Flow
+- Create Sales Order
+- Create Invoice from Sales Order
+- Issue/Lock invoice
+- Download PDF
+- Record partial payment then final payment
+- Ensure UI updates statuses correctly after mutations
+
+D) Deliveries & Installations
+- Delivery list loads correctly
+- Installation creation enforces completed delivery rule
+- Tab switching does not break filters/pagination
+
+For each broken workflow:
+- Identify whether it’s UI state, route path, auth/tenant header, API contract, or backend validation.
+- Fix the root cause with minimal changes.
+
+================================================
+3) Fix Common UI Root Causes (Must Check)
+================================================
+Specifically check and fix:
+- Wrong API endpoint paths in frontend config (basePath mismatches)
+- Missing X-Tenant-ID injection on some frontend requests
+- TanStack Query cache invalidation missing after mutations
+- Form schema mismatch (Zod) causing silent failures
+- Role/RBAC incorrectly hiding buttons for Admin users
+- Feature flags hiding pages or buttons unintentionally
+
+================================================
+4) Add UI Smoke Tests (Prevent Regression)
+================================================
+Add Playwright E2E tests for:
+
+Test 1: Signup page shows SOFTWARE_SERVICES and CONSULTING business types
+- Assert both options exist on page.
+
+Test 2: Create Software Services tenant and land on correct dashboard
+- Create a project successfully.
+
+Test 3: Furniture invoice flow
+- Sales order -> invoice -> PDF -> payment updates status.
+
+Test 4: Tenant isolation sanity
+- Attempt cross-tenant access returns 404.
+
+Keep tests stable and fast.
+Use existing test app helpers/seed endpoints in dev only.
+
+================================================
+5) Output Required
+================================================
+Provide:
+- List of exact issues found (root cause per issue)
+- Files changed
+- Confirmation that signup business types now display correctly
+- Confirmation all workflows pass manually
+- E2E tests pass in CI

@@ -34,7 +34,7 @@ const tenantSignupSchema = z.object({
   businessType: z.enum([
     "clinic", "salon", "pg", "coworking", "service",
     "real_estate", "tourism", "education", "logistics",
-    "legal", "furniture_manufacturing"
+    "legal", "furniture_manufacturing", "software_services", "consulting"
   ]),
   adminFirstName: z.string().min(1, "First name is required").max(100),
   adminLastName: z.string().min(1, "Last name is required").max(100),
@@ -66,6 +66,8 @@ const businessTypeOptions = [
   { value: "logistics", label: "Logistics / Delivery" },
   { value: "legal", label: "Legal Services" },
   { value: "furniture_manufacturing", label: "Furniture Manufacturing" },
+  { value: "software_services", label: "Software Services / IT" },
+  { value: "consulting", label: "Consulting / Professional Services" },
 ];
 
 const countryOptions = [

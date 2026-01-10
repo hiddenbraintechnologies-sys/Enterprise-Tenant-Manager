@@ -129,19 +129,17 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
   software_services: [
-    { title: "Dashboard", url: "/dashboard/software", icon: LayoutDashboard },
-    { title: "Projects", url: "/services/projects", icon: Package },
-    { title: "Tasks", url: "/services/tasks", icon: Package },
-    { title: "Timesheets", url: "/services/timesheets", icon: Calendar },
+    { title: "Dashboard", url: "/dashboard/software-services", icon: LayoutDashboard },
+    { title: "Projects", url: "/hr/projects", icon: Package },
+    { title: "Timesheets", url: "/hr/timesheets", icon: Calendar },
     { title: "Clients", url: "/customers", icon: Users },
     { title: "Invoices", url: "/invoices", icon: Package },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
   consulting: [
     { title: "Dashboard", url: "/dashboard/consulting", icon: LayoutDashboard },
-    { title: "Projects", url: "/services/projects", icon: Package },
-    { title: "Tasks", url: "/services/tasks", icon: Package },
-    { title: "Timesheets", url: "/services/timesheets", icon: Calendar },
+    { title: "Projects", url: "/hr/projects", icon: Package },
+    { title: "Timesheets", url: "/hr/timesheets", icon: Calendar },
     { title: "Clients", url: "/customers", icon: Users },
     { title: "Invoices", url: "/invoices", icon: Package },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
@@ -160,7 +158,7 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   logistics: "/dashboard/logistics",
   legal: "/dashboard/legal",
   furniture_manufacturing: "/dashboard/furniture",
-  software_services: "/dashboard/software",
+  software_services: "/dashboard/software-services",
   consulting: "/dashboard/consulting",
 };
 
