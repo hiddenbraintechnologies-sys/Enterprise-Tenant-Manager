@@ -186,15 +186,16 @@ describe("API Contract Tests", () => {
 
   describe("Plans API Contract", () => {
     describe("GET /api/subscription/plans-with-pricing", () => {
-      it("should return array of plans with required properties", async () => {
+      it("should return plans object with plans array", async () => {
         const response = await fetch(`${BASE_URL}/api/subscription/plans-with-pricing?country=india`);
 
         expect(response.status).toBe(200);
         const data = await response.json();
 
-        expect(Array.isArray(data)).toBe(true);
-        if (data.length > 0) {
-          const plan = data[0];
+        expect(data).toHaveProperty("plans");
+        expect(Array.isArray(data.plans)).toBe(true);
+        if (data.plans.length > 0) {
+          const plan = data.plans[0];
           expect(plan).toHaveProperty("tier");
           expect(plan).toHaveProperty("name");
         }
