@@ -12,6 +12,22 @@ import { responseTimeMiddleware } from "./middleware/response-time";
 import { metricsMiddleware, metricsHandler, metricsJsonHandler } from "./middleware/performance/metrics";
 import { queryTrackerMiddleware } from "./middleware/performance/query-tracker";
 import { runMigrations } from "./db-migrate";
+import { enforceEnvironmentValidation, getEnvironmentInfo } from "./lib/env-validation";
+import { logRateLimitStatus, productionGuardMiddleware } from "./lib/production-guards";
+import { requestLoggerMiddleware } from "./lib/request-logger";
+import { apiErrorBoundary } from "./lib/error-boundary";
+
+// ============================================
+// PRODUCTION STARTUP VALIDATION
+// ============================================
+const { isProduction, environment } = getEnvironmentInfo();
+console.log(`[startup] Starting MyBizStream (${environment})`);
+
+// Validate environment variables (fails fast in production if missing)
+enforceEnvironmentValidation();
+
+// Log rate limit configuration
+logRateLimitStatus();
 
 const app = express();
 const httpServer = createServer(app);
@@ -31,6 +47,12 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Request logger with correlation ID (early in the chain)
+app.use(requestLoggerMiddleware);
+
+// Production safety guards - block seed/demo endpoints in production
+app.use(productionGuardMiddleware);
 
 // Performance middleware (early in the chain)
 app.use(responseTimeMiddleware({ threshold: 1000 }));
@@ -260,13 +282,8 @@ app.use((req, res, next) => {
   
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
+  // API error boundary with correlation ID
+  app.use(apiErrorBoundary);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
