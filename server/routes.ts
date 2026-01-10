@@ -1273,6 +1273,7 @@ export async function registerRoutes(
     }
   });
 
+  // Local requirePlatformAdmin with proper RBAC separation
   const requirePlatformAdmin = (requiredRole?: "SUPER_ADMIN" | "PLATFORM_ADMIN") => {
     return (req: Request, res: Response, next: any) => {
       if (!req.platformAdminContext) {
@@ -1286,13 +1287,20 @@ export async function registerRoutes(
         if (req.platformAdminContext.platformAdmin.role !== "SUPER_ADMIN") {
           return res.status(403).json({ 
             message: "Super admin access required",
-            code: "INSUFFICIENT_PLATFORM_ROLE"
+            code: "SUPER_ADMIN_REQUIRED"
           });
         }
       }
 
       next();
     };
+  };
+
+  // Helper to get admin's country scope for filtering
+  const getAdminCountryScope = (req: Request): string[] | null => {
+    if (!req.platformAdminContext) return null;
+    if (req.platformAdminContext.platformAdmin.role === "SUPER_ADMIN") return null; // null = no filter
+    return req.platformAdminContext.scope?.countryIds || [];
   };
 
   // Register Business Registry routes (SuperAdmin only for management)
@@ -1311,9 +1319,14 @@ export async function registerRoutes(
         ? await storage.getAdminCountryAssignments(adminId) 
         : [];
       
+      // Return resolved permissions for RBAC-based UI gating
+      const resolvedPermissions = req.platformAdminContext?.resolvedPermissions;
+      
       res.json({
         platformAdmin: req.platformAdminContext?.platformAdmin,
-        permissions: req.platformAdminContext?.permissions,
+        permissions: resolvedPermissions?.permissions || [],
+        isSuperAdmin: resolvedPermissions?.isSuperAdmin || false,
+        scope: resolvedPermissions?.scope || null,
         countryAssignments: countryAssignments.map(a => a.countryCode),
       });
     } catch (error) {
@@ -2166,8 +2179,8 @@ export async function registerRoutes(
 
   // ==================== GLOBAL TENANT REGISTRY ====================
 
-  // List all tenants with filtering
-  app.get("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+  // List all tenants with filtering (scoped by admin's country assignments)
+  app.get("/api/platform-admin/tenants", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
       const { country, region, status, businessType, search, includeDeleted } = req.query;
       
@@ -2177,6 +2190,21 @@ export async function registerRoutes(
       
       // Filter in memory for flexibility (can be optimized with drizzle where clauses)
       let filtered = allTenants;
+      
+      // SCOPE ENFORCEMENT: Platform admins only see tenants in their assigned countries
+      const adminScope = getAdminCountryScope(req);
+      if (adminScope !== null && adminScope.length > 0) {
+        // Map country codes to tenant country enum values
+        const countryCodeToTenantCountry: Record<string, string> = {
+          "IN": "india", "AE": "uae", "GB": "uk", "MY": "malaysia", "SG": "singapore"
+        };
+        const allowedTenantCountries = adminScope.map(c => countryCodeToTenantCountry[c] || c.toLowerCase());
+        filtered = filtered.filter(t => t.country && allowedTenantCountries.includes(t.country));
+      } else if (adminScope !== null && adminScope.length === 0) {
+        // Platform admin with no scope assigned - show no tenants
+        filtered = [];
+      }
+      // adminScope === null means super admin - no filtering
       
       // Exclude deleted tenants by default unless includeDeleted=true
       const shouldIncludeDeleted = includeDeleted === 'true';
@@ -2210,7 +2238,7 @@ export async function registerRoutes(
         userId: req.platformAdminContext?.platformAdmin.id,
         action: "access",
         resource: "tenant_registry",
-        metadata: { action: "list_tenants", filters: { country, region, status, businessType }, count: filtered.length },
+        metadata: { action: "list_tenants", filters: { country, region, status, businessType }, count: filtered.length, scopeApplied: adminScope !== null },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       });
@@ -2226,13 +2254,28 @@ export async function registerRoutes(
     }
   });
 
-  // Get single tenant details
-  app.get("/api/platform-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin(), requirePlatformPermission("read_tenants"), async (req, res) => {
+  // Get single tenant details (with scope enforcement)
+  app.get("/api/platform-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, req.params.tenantId));
       
       if (!tenant) {
         return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      // SCOPE ENFORCEMENT: Check if platform admin can access this tenant's country
+      const adminScope = getAdminCountryScope(req);
+      if (adminScope !== null) {
+        const countryCodeToTenantCountry: Record<string, string> = {
+          "IN": "india", "AE": "uae", "GB": "uk", "MY": "malaysia", "SG": "singapore"
+        };
+        const allowedTenantCountries = adminScope.map(c => countryCodeToTenantCountry[c] || c.toLowerCase());
+        if (!tenant.country || !allowedTenantCountries.includes(tenant.country)) {
+          return res.status(403).json({ 
+            message: "Access denied - tenant not in your assigned countries",
+            code: "SCOPE_DENIED"
+          });
+        }
       }
 
       // Get user count for this tenant

@@ -71,9 +71,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   };
 
   const hasCountryAccess = (countryCode: string): boolean => {
-    // Super Admin, Platform Admin, and Tech Support Manager have access to all countries
-    if (isSuperAdmin || isPlatformAdmin || isTechSupportManager) return true;
-    // Manager and Support Team need country assignments
+    // Super Admin has access to all countries (global scope)
+    if (isSuperAdmin) return true;
+    // Platform Admin, Tech Support Manager, Manager, Support Team need country assignments
+    // countryAssignments comes from the API based on admin's scope
+    if (countryAssignments.length === 0) return false; // No scope assigned
     return countryAssignments.includes(countryCode);
   };
 

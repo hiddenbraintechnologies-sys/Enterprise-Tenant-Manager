@@ -1,10 +1,22 @@
 import type { Request, Response, NextFunction } from "express";
 import { jwtAuthService, DecodedToken } from "./jwt";
 import { db } from "../db";
-import { users, tenants, roles, userTenants, platformAdmins, type PlatformAdminRole } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { users, tenants, roles, userTenants, platformAdmins, platformAdminCountryAssignments, type PlatformAdminRole } from "@shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { getTenantFeatures } from "./context";
 import type { RequestContext } from "@shared/schema";
+import { 
+  PLATFORM_PERMISSIONS, 
+  SUPER_ADMIN_ONLY_PERMISSIONS,
+  resolveAdminPermissions,
+  type PlatformPermission,
+  type ResolvedAdminPermissions 
+} from "./permissions";
+
+export interface AdminScope {
+  countryIds: string[];
+  regionIds: string[];
+}
 
 export interface PlatformAdminContext {
   platformAdmin: {
@@ -14,6 +26,8 @@ export interface PlatformAdminContext {
     role: PlatformAdminRole;
   };
   permissions: string[];
+  resolvedPermissions: ResolvedAdminPermissions;
+  scope: AdminScope | null;
 }
 
 declare global {
@@ -64,6 +78,22 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
         });
       }
 
+      // Fetch admin's country scope
+      let countryIds: string[] = [];
+      if (admin.role !== "SUPER_ADMIN") {
+        const countryAssignments = await db.select()
+          .from(platformAdminCountryAssignments)
+          .where(eq(platformAdminCountryAssignments.adminId, admin.id));
+        countryIds = countryAssignments.map(ca => ca.countryCode);
+      }
+
+      // Resolve permissions based on role and scope
+      const resolvedPermissions = resolveAdminPermissions(
+        admin.role,
+        countryIds,
+        [] // regionIds - can be extended later
+      );
+
       req.platformAdminContext = {
         platformAdmin: {
           id: admin.id,
@@ -72,6 +102,8 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
           role: admin.role as PlatformAdminRole,
         },
         permissions: decoded.permissions,
+        resolvedPermissions,
+        scope: resolvedPermissions.scope,
       };
       
       return next();
@@ -154,12 +186,10 @@ export function requirePlatformPermission(...requiredPermissions: string[]) {
       return next();
     }
 
-    // Check if the admin has all required permissions
-    const adminPermissions = req.platformAdminContext.permissions || [];
+    // Check if the admin has all required permissions using resolved permissions
+    const resolved = req.platformAdminContext.resolvedPermissions;
     const hasAllPermissions = requiredPermissions.every(perm => 
-      adminPermissions.includes(perm) || 
-      adminPermissions.includes("*") ||
-      adminPermissions.includes(`${perm.split(":")[0]}:*`)
+      resolved.permissions.includes(perm as PlatformPermission)
     );
 
     if (!hasAllPermissions) {
@@ -167,12 +197,96 @@ export function requirePlatformPermission(...requiredPermissions: string[]) {
         message: "Insufficient permissions",
         code: "MISSING_PERMISSION",
         required: requiredPermissions,
-        current: adminPermissions,
+        current: resolved.permissions,
       });
     }
 
     next();
   };
+}
+
+/**
+ * Middleware that requires SUPER_ADMIN role only.
+ * Use for routes that should never be accessible to PLATFORM_ADMIN.
+ */
+export function requireSuperAdmin() {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.platformAdminContext) {
+      return res.status(403).json({ 
+        message: "Platform admin access required",
+        code: "NOT_PLATFORM_ADMIN"
+      });
+    }
+
+    if (req.platformAdminContext.platformAdmin.role !== "SUPER_ADMIN") {
+      return res.status(403).json({ 
+        message: "Super admin access required",
+        code: "SUPER_ADMIN_REQUIRED"
+      });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Middleware that checks if admin can access a specific country (scope check).
+ * Use for routes that return country-scoped data.
+ */
+export function requireCountryScope(getCountryCode: (req: Request) => string | undefined) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.platformAdminContext) {
+      return res.status(403).json({ 
+        message: "Platform admin access required",
+        code: "NOT_PLATFORM_ADMIN"
+      });
+    }
+
+    // Super admin can access all countries
+    if (req.platformAdminContext.platformAdmin.role === "SUPER_ADMIN") {
+      return next();
+    }
+
+    const countryCode = getCountryCode(req);
+    if (!countryCode) {
+      return next(); // No country specified, allow (filtering should happen in route)
+    }
+
+    const scope = req.platformAdminContext.scope;
+    if (!scope || scope.countryIds.length === 0) {
+      return res.status(403).json({ 
+        message: "No country scope assigned",
+        code: "NO_COUNTRY_SCOPE"
+      });
+    }
+
+    if (!scope.countryIds.includes(countryCode)) {
+      return res.status(403).json({ 
+        message: "Access denied for this country",
+        code: "COUNTRY_SCOPE_DENIED",
+        requested: countryCode,
+        allowed: scope.countryIds,
+      });
+    }
+
+    next();
+  };
+}
+
+/**
+ * Helper to get admin's allowed country codes for query filtering.
+ */
+export function getAdminCountryScope(req: Request): string[] | null {
+  if (!req.platformAdminContext) {
+    return null;
+  }
+
+  // Super admin sees all
+  if (req.platformAdminContext.platformAdmin.role === "SUPER_ADMIN") {
+    return null; // null means no filter
+  }
+
+  return req.platformAdminContext.scope?.countryIds || [];
 }
 
 export function requireRole(...allowedRoles: string[]) {
