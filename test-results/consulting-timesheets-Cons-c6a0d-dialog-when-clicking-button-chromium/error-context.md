@@ -1,0 +1,94 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e8]
+          - generic [ref=e12]: MyBizStream
+        - generic [ref=e13]:
+          - button "Toggle theme" [ref=e14] [cursor=pointer]:
+            - img
+            - img
+            - generic [ref=e15]: Toggle theme
+          - link "Sign In" [ref=e16] [cursor=pointer]:
+            - /url: /login
+            - text: Sign In
+            - img
+    - generic [ref=e18]:
+      - heading "Manage Your Business Smarter & Faster" [level=1] [ref=e19]:
+        - text: Manage Your Business
+        - generic [ref=e20]: Smarter & Faster
+      - paragraph [ref=e21]: The all-in-one platform for small and medium businesses. Streamline bookings, manage customers, track payments, and grow your business with powerful analytics.
+      - generic [ref=e22]:
+        - link "Get Started Free" [ref=e23] [cursor=pointer]:
+          - /url: /register
+          - text: Get Started Free
+          - img
+        - link "Sign In" [ref=e24] [cursor=pointer]:
+          - /url: /login
+    - generic [ref=e26]:
+      - heading "Built for these businesses" [level=2] [ref=e27]
+      - generic [ref=e28]:
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - generic [ref=e32]: PG / Hostels / Co-living
+        - generic [ref=e33]:
+          - img [ref=e34]
+          - generic [ref=e36]: Salons & Beauty Parlours
+        - generic [ref=e37]:
+          - img [ref=e38]
+          - generic [ref=e40]: Gyms & Fitness Centers
+        - generic [ref=e41]:
+          - img [ref=e42]
+          - generic [ref=e44]: Coaching / Training Institutes
+        - generic [ref=e45]:
+          - img [ref=e46]
+          - generic [ref=e48]: Service-based Businesses
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - heading "Everything You Need to Run Your Business" [level=2] [ref=e52]
+        - paragraph [ref=e53]: Powerful features designed for modern businesses. Simple to use, yet powerful enough for growth.
+      - generic [ref=e54]:
+        - generic [ref=e56]:
+          - img [ref=e58]
+          - heading "Smart Scheduling" [level=3] [ref=e60]
+          - paragraph [ref=e61]: Intelligent booking system with conflict detection and recurring appointments.
+        - generic [ref=e63]:
+          - img [ref=e65]
+          - heading "Customer Management" [level=3] [ref=e70]
+          - paragraph [ref=e71]: Complete CRM with customer profiles, history tracking, and notes.
+        - generic [ref=e73]:
+          - img [ref=e75]
+          - heading "Analytics Dashboard" [level=3] [ref=e77]
+          - paragraph [ref=e78]: Real-time insights into revenue, bookings, and business performance.
+        - generic [ref=e80]:
+          - img [ref=e82]
+          - heading "Billing & Payments" [level=3] [ref=e84]
+          - paragraph [ref=e85]: Invoicing, payment tracking, and wallet management in one place.
+        - generic [ref=e87]:
+          - img [ref=e89]
+          - heading "Secure & Reliable" [level=3] [ref=e91]
+          - paragraph [ref=e92]: Enterprise-grade security with role-based access control.
+        - generic [ref=e94]:
+          - img [ref=e96]
+          - heading "Multi-Business Support" [level=3] [ref=e98]
+          - paragraph [ref=e99]: Perfect for PGs, salons, gyms, coaching centers, and more.
+    - generic [ref=e101]:
+      - heading "Ready to Transform Your Business?" [level=2] [ref=e102]
+      - paragraph [ref=e103]: Join thousands of businesses already using MyBizStream to streamline their operations.
+      - link "Start Your Free Trial" [ref=e104] [cursor=pointer]:
+        - /url: /register
+        - text: Start Your Free Trial
+        - img
+    - contentinfo [ref=e105]:
+      - generic [ref=e106]:
+        - generic [ref=e107]:
+          - img [ref=e108]
+          - generic [ref=e112]: MyBizStream
+        - paragraph [ref=e113]: Built for small & medium businesses
+```
