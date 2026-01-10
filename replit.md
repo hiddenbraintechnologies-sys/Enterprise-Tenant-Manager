@@ -306,13 +306,37 @@ MyBizStream is an enterprise-grade, multi-tenant SaaS platform designed to strea
 - `/api/admin/exchange-rates/*` - Currency management
 - `/api/admin/compliance/*` - Compliance management
 
+## Production Operations
+
+### Health Endpoints
+- `/health` - Basic liveness check (responds immediately)
+- `/health/db` - Database connectivity check
+- `/health/ready` - Comprehensive readiness check (DB, migrations, config, services)
+
+### Startup Validation
+- Validates required environment variables at startup
+- Enters "degraded mode" in production if critical config is missing (only health endpoints work)
+- Structured logging for observability (auth failures, tenant isolation, config errors)
+
+### Security Guards
+- Dev endpoints (`/api/seed`, `/api/demo`, etc.) blocked in production
+- Rate limiting enforced in production (SKIP_RATE_LIMIT ignored)
+- Production guard middleware prevents access to test/seed endpoints
+
+### Scripts
+- `npx tsx scripts/migrate-deploy.ts` - Safe, idempotent database migrations
+- `npx tsx scripts/smoke-prod-check.ts <URL>` - Production smoke tests
+- `./scripts/prepublish-check.sh` - Pre-deployment validation
+
 ## Documentation Files
+- **PRODUCTION_RUNBOOK.md**: Comprehensive deployment and operations guide
 - **MYBIZSTREAM_DOCUMENTATION.md**: Comprehensive platform documentation
 - **TESTING_WORKFLOW.md**: Testing strategy, tools, and CI/CD guidelines
 - **TEST_SCENARIOS.md**: Detailed test scenarios (200+ test cases)
 - **design_guidelines.md**: Frontend design guidelines
 - **PHASE2_GLOBAL_PARITY_FRAMEWORK.md**: Phase 2 global parity plan with 47 TODO items
 - **MYBIZSTREAM_SYSTEM_AUDIT.md**: Detailed system audit of all 12 modules
+- **DEPLOYMENT.md**: Deployment configuration and requirements
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication

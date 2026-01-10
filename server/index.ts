@@ -16,12 +16,20 @@ import { enforceEnvironmentValidation, getEnvironmentInfo } from "./lib/env-vali
 import { logRateLimitStatus, productionGuardMiddleware } from "./lib/production-guards";
 import { requestLoggerMiddleware } from "./lib/request-logger";
 import { apiErrorBoundary } from "./lib/error-boundary";
+import { validateStartupConfig, logStartupConfig } from "./lib/startup-config";
+import { degradedModeMiddleware } from "./lib/degraded-mode";
+import { performReadinessCheck } from "./lib/health-ready";
+import { logger } from "./lib/structured-logging";
 
 // ============================================
 // PRODUCTION STARTUP VALIDATION
 // ============================================
 const { isProduction, environment } = getEnvironmentInfo();
-console.log(`[startup] Starting MyBizStream (${environment})`);
+logger.startup(`Starting MyBizStream (${environment})`);
+
+// Validate startup configuration (comprehensive check)
+validateStartupConfig();
+logStartupConfig();
 
 // Validate environment variables (fails fast in production if missing)
 enforceEnvironmentValidation();
@@ -108,6 +116,29 @@ app.get('/health/db', async (_req, res) => {
     });
   }
 });
+
+// Comprehensive readiness check endpoint
+app.get('/health/ready', async (_req, res) => {
+  try {
+    const result = await performReadinessCheck();
+    const statusCode = result.ready ? 200 : 503;
+    res.status(statusCode).json(result);
+  } catch (error) {
+    res.status(503).json({
+      ready: false,
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      checks: [{
+        name: 'readiness_check',
+        status: 'unhealthy',
+        message: error instanceof Error ? error.message : 'Readiness check failed',
+      }],
+    });
+  }
+});
+
+// Degraded mode middleware - blocks non-health endpoints when degraded
+app.use(degradedModeMiddleware);
 
 // Track initialization state
 let isInitialized = false;

@@ -1,0 +1,57 @@
+We are production-ready (all tests passing). Now create a PRODUCTION LAUNCH RUNBOOK and implement the final “launch hardening” tasks. Do NOT add new features. Do NOT refactor architecture. Only production readiness work.
+
+1) Production Configuration & Safety
+- Ensure dev-only endpoints (seed/demo) are DISABLED in production (hard environment guard).
+- Add a “startup config validation” that checks required env vars exist:
+  DATABASE_URL, JWT secrets, OIDC/Replit auth config, WhatsApp/email provider keys (if enabled), base URLs.
+- If any required env var is missing, log a clear error and run in “degraded mode” (only /health works), returning 503 DB_UNAVAILABLE or CONFIG_INVALID for other routes.
+
+2) Health, Monitoring, and Observability
+- Confirm /health and /health/db are stable and fast.
+- Add an optional /health/ready endpoint that checks:
+  - DB reachable (SELECT 1)
+  - migrations status (if applicable)
+  - essential services configured
+- Add structured logging for:
+  - auth failures
+  - tenant isolation blocks (404)
+  - config errors
+  - DB connection failures
+- Add basic error tracking hook (Sentry-compatible) behind an env flag, no hard dependency.
+
+3) Database & Migrations
+- Ensure migrations are explicit and safe:
+  - Provide a single command/script: “npm run migrate:deploy” (or equivalent)
+  - Ensure it is idempotent and fails loudly on errors
+- Add a “migration status” check used by /health/ready.
+
+4) Security & Rate Limits
+- Confirm rate limits for login/auth endpoints are enabled in production.
+- Ensure CORS config is correct for production domains.
+- Ensure cookies/session/JWT settings are secure in prod (httpOnly, secure, sameSite where relevant).
+- Confirm no secrets are logged anywhere.
+
+5) Release Smoke Test Script
+Create a script “scripts/smoke-prod-check.ts” (or .sh) that:
+- Calls /health, /health/db, /health/ready
+- Logs in (or uses test token) and hits one endpoint per module:
+  - Furniture: list products, create sales order (dry-run if possible), generate invoice PDF endpoint
+  - Services: list projects, create project, create timesheet
+- Verifies tenant isolation by attempting cross-tenant access (expects 404)
+- Prints PASS/FAIL summary and exits non-zero on failure
+
+6) Documentation
+Generate a “PRODUCTION_RUNBOOK.md” that includes:
+- Required env vars list + examples (no real secrets)
+- Deployment steps (Replit prod + AWS + GCP high-level)
+- How to run migrations
+- How to run smoke tests
+- Rollback plan
+- Monitoring checklist (what endpoints to monitor, alert thresholds)
+- Incident checklist (DB down, auth down, WhatsApp down)
+
+Deliverables:
+- PRODUCTION_RUNBOOK.md
+- scripts/smoke-prod-check.*
+- Any minimal code changes needed to enforce the above (guards/logging/health readiness)
+- Confirm all tests still pass after changes
