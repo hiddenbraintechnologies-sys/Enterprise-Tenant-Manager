@@ -396,11 +396,13 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
                     variant={countryAssignments.includes(region.countryCode) ? "default" : "outline"}
                     className="cursor-pointer"
                     onClick={() => {
-                      if (countryAssignments.includes(region.countryCode)) {
-                        setCountryAssignments(countryAssignments.filter(c => c !== region.countryCode));
-                      } else {
-                        setCountryAssignments([...countryAssignments, region.countryCode]);
-                      }
+                      setCountryAssignments(prev => {
+                        if (prev.includes(region.countryCode)) {
+                          return prev.filter(c => c !== region.countryCode);
+                        } else {
+                          return [...prev, region.countryCode];
+                        }
+                      });
                     }}
                     data-testid={`badge-region-${region.countryCode}`}
                   >
@@ -709,10 +711,19 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
                 variant={countryAssignments.includes(region.countryCode) ? "default" : "outline"}
                 className="cursor-pointer"
                 onClick={() => {
-                  if (countryAssignments.includes(region.countryCode)) {
-                    setCountryAssignments(countryAssignments.filter(c => c !== region.countryCode));
-                  } else {
-                    setCountryAssignments([...countryAssignments, region.countryCode]);
+                  setCountryAssignments(prev => {
+                    if (prev.includes(region.countryCode)) {
+                      return prev.filter(c => c !== region.countryCode);
+                    } else {
+                      return [...prev, region.countryCode];
+                    }
+                  });
+                  // Clear scope error when countries are selected
+                  if (errors.scope) {
+                    setErrors(prev => {
+                      const { scope: _, ...rest } = prev;
+                      return rest;
+                    });
                   }
                 }}
                 data-testid={`badge-create-region-${region.countryCode}`}

@@ -1,0 +1,51 @@
+Bug: Platform Admin creation form shows selected country chips (e.g., IN/MY/GB) but still displays “0 countries selected” and blocks submit. This means the country picker UI state is not correctly bound to the form validation field.
+
+Do NOT add features. Fix only the form wiring + validation messaging.
+
+1) Identify the form stack
+- Find the create admin form component and validation stack (react-hook-form + zod or equivalent).
+- Identify the exact validated field name used for countries:
+  e.g., allowedCountryIds OR countryAssignments OR assignedCountries.
+
+2) Fix field name mismatch (most important)
+- Ensure the country picker writes to the SAME field name that the Zod schema validates and the backend expects.
+- If backend expects allowedCountryIds, then the form must submit { allowedCountryIds: ["IN","MY","GB"] }.
+
+3) Fix controlled component binding
+- Ensure the multi-select is controlled by the form, not separate local state.
+- Use Controller (react-hook-form) or equivalent so:
+  - onChange updates the form field
+  - value is read from the form field
+- Remove any duplicate local state unless it mirrors form value exactly.
+
+4) Fix value type mismatch
+- Ensure the form field stores string[] (country codes/IDs), not objects.
+  Example:
+    UI options: { label: "India", value: "IN" }
+    Stored value: ["IN"]
+- If currently storing objects, add a mapping layer:
+  onChange(options) => setValue(field, options.map(o => o.value))
+
+5) Fix role-switch clearing behavior
+- If role is global (SUPER_ADMIN / TECH_SUPPORT_MANAGER), clear the countries field AND chips.
+- If role is scoped (PLATFORM_ADMIN/MANAGER/SUPPORT_TEAM), do not clear selected countries unless user explicitly clears.
+- Ensure UI chips always reflect the form value.
+
+6) Fix error message logic
+- Error should show ONLY when role requires scope AND countries length === 0.
+- If countries length > 0, no “0 countries selected” message should show.
+
+7) Backend confirmation (already exists, verify)
+- If scoped role + empty countries:
+  return 400 { code: "SCOPE_REQUIRED" }
+- Ensure frontend displays SCOPE_REQUIRED inline under the country picker.
+
+8) Add tests (UI/integration)
+- Test: select countries then submit -> no validation error
+- Test: no countries selected for PLATFORM_ADMIN -> shows correct message and backend returns 400 SCOPE_REQUIRED if forced
+
+Output:
+- Root cause found (field mismatch vs binding vs type)
+- Files changed
+- Before/after behavior description
+- Tests passing
