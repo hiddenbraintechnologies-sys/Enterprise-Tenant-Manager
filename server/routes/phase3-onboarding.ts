@@ -130,16 +130,26 @@ router.post("/signup", rateLimit({ windowMs: 60 * 1000, maxRequests: 5 }), async
 
     const { newTenant, newUser } = result;
 
-    const tokens = await jwtAuthService.generateTokenPair(
-      newUser.id,
-      newTenant.id,
-      adminRole.id,
-      [],
-      {
-        userAgent: req.headers["user-agent"],
-        ipAddress: req.ip || undefined,
-      }
-    );
+    let tokens;
+    try {
+      tokens = await jwtAuthService.generateTokenPair(
+        newUser.id,
+        newTenant.id,
+        adminRole.id,
+        [],
+        {
+          userAgent: req.headers["user-agent"],
+          ipAddress: req.ip || undefined,
+        }
+      );
+    } catch (tokenError) {
+      console.error("[phase3-signup] Token generation failed:", tokenError);
+      return res.status(500).json({ 
+        error: "Signup failed", 
+        code: "INTERNAL_AUTH_ERROR",
+        details: process.env.NODE_ENV === "test" ? String(tokenError) : undefined,
+      });
+    }
 
     auditService.logAsync({
       tenantId: newTenant.id,
