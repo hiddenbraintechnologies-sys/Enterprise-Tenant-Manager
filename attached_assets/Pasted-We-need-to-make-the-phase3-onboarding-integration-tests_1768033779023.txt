@@ -1,0 +1,58 @@
+We need to make the phase3-onboarding integration tests deterministic and passing.
+Do NOT change production business logic unless it’s clearly a bug. Prefer test setup fixes.
+
+Goals:
+- Ensure signup integration tests pass reliably.
+- Ensure failures are actionable (no silent JWT/token failures).
+- Ensure required reference data (roles) exists for tests.
+
+1) Test DB Setup (migrations)
+- Ensure tests use a dedicated TEST_DATABASE_URL (or same DATABASE_URL but isolated schema).
+- Before running integration tests, automatically apply DB migrations for the test database.
+- If using Drizzle, add a test bootstrap that runs migrations programmatically once per test run (or in globalSetup).
+- Add a guard so migrations do not run against production.
+
+2) Seed Reference Data
+- Seed the required RBAC roles and permissions BEFORE onboarding tests:
+  - role_admin (and any other required roles referenced by signup flow)
+  - any required permission rows or lookup tables
+- Ensure seeding is idempotent (safe to re-run).
+- Put seeding in globalSetup or beforeAll for the onboarding test suite.
+
+3) Side-effect Isolation (notifications)
+- Identify non-critical side-effect functions invoked during signup:
+  - sendWelcomeNotification
+  - notifyPlatformOwner
+  - any email/whatsapp hooks
+- In test environment, mock these to no-op OR route them to a fake in-memory provider so they never throw.
+- Ensure tests still validate that “notification would have been triggered” via a spy or audit log entry, but without external dependencies.
+
+4) JWT / Token Generation Visibility
+- Ensure token generation failures are NOT silent:
+  - If JWT generation fails, throw a clear error and fail the request with 500 + structured error code (INTERNAL_AUTH_ERROR) in test env at least.
+- Add a targeted unit test for token creation if needed.
+- Log minimal diagnostic info in test mode only (no secrets).
+
+5) Database Connection in Tests
+- Ensure connection pool is initialized once for tests.
+- Ensure connectionTimeoutMillis is reasonable (3–5s).
+- Add /health/db ping in test bootstrap; if it fails, skip integration tests with a clear message rather than cascading undefined errors.
+
+6) Fix phase3-onboarding tests
+- Update tests to:
+  - run migrations + seeds automatically
+  - assert on failure payload when signup fails (if it ever does), printing server error body to help debugging
+- Keep the expected success response shape as-is: data.tenant.id must exist.
+
+7) Re-run Test Suite
+- Run only onboarding tests first, then full suite.
+- Provide a report:
+  - which root cause was real (missing roles vs migration vs JWT vs side-effect throw)
+  - what was changed (files + summary)
+  - final pass/fail counts
+
+Success criteria:
+- phase3-onboarding test suite passes
+- No reliance on manual DB setup
+- No external network calls during tests
+- Failures (if any) are explicit and actionable
