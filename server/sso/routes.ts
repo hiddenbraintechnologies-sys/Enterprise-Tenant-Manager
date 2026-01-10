@@ -1043,13 +1043,13 @@ router.post('/saml/acs', async (req: Request, res: Response) => {
     const provisionResult = await ssoUserProvisioningService.provisionUser({
       provider,
       profile: {
-        providerUserId: result.user.nameId || result.user.email,
+        providerUserId: result.user.email,
         email: result.user.email,
         firstName: result.user.firstName,
         lastName: result.user.lastName,
-        displayName: result.user.displayName,
+        displayName: `${result.user.firstName || ''} ${result.user.lastName || ''}`.trim() || result.user.email,
         groups: result.user.groups,
-        attributes: result.user.attributes,
+        attributes: {},
       },
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],

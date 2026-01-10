@@ -1,5 +1,5 @@
 import request from "supertest";
-import { createTestApp } from "../test-app";
+import { createServicesTestApp } from "../../test-support/createServicesTestApp";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -10,9 +10,10 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
   const otherTenantId = "test-tenant-other";
   const headers = { "X-Tenant-ID": testTenantId };
   const otherHeaders = { "X-Tenant-ID": otherTenantId };
+  const basePath = "/api/services/software";
 
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    const testApp = await createServicesTestApp();
     app = testApp.app;
     httpServer = testApp.httpServer;
   });
@@ -24,14 +25,14 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
   describe("Authentication Guard Tests", () => {
     it("should reject unauthenticated requests to protected endpoints", async () => {
       const endpoints = [
-        { method: "get", path: "/api/services/projects" },
-        { method: "get", path: "/api/services/timesheets" },
-        { method: "post", path: "/api/services/projects" },
-        { method: "post", path: "/api/services/timesheets" },
+        { method: "get", path: `${basePath}/projects` },
+        { method: "get", path: `${basePath}/timesheets` },
+        { method: "post", path: `${basePath}/projects` },
+        { method: "post", path: `${basePath}/timesheets` },
       ];
 
       for (const { method, path } of endpoints) {
-        const res = await (request(app) as any)[method](path).set(headers);
+        const res = await (request(app) as any)[method](path);
         expect([400, 401]).toContain(res.status);
       }
     });
@@ -39,8 +40,8 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
   describe("Tenant Isolation Tests", () => {
     const endpoints = [
-      "/api/services/projects",
-      "/api/services/timesheets",
+      `${basePath}/projects`,
+      `${basePath}/timesheets`,
     ];
 
     it("should require tenant context for all services endpoints", async () => {
@@ -52,11 +53,11 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should isolate project data between tenants", async () => {
       const response1 = await request(app)
-        .get("/api/services/projects")
+        .get(`${basePath}/projects`)
         .set(headers);
 
       const response2 = await request(app)
-        .get("/api/services/projects")
+        .get(`${basePath}/projects`)
         .set(otherHeaders);
 
       expect(response1.status).toBe(200);
@@ -65,7 +66,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should return 404 for cross-tenant project access", async () => {
       const response = await request(app)
-        .get("/api/services/projects/non-existent-project-id")
+        .get(`${basePath}/projects/non-existent-project-id`)
         .set(otherHeaders);
 
       expect(response.status).toBe(404);
@@ -73,7 +74,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should return 404 for cross-tenant task access", async () => {
       const response = await request(app)
-        .get("/api/services/tasks/non-existent-task-id")
+        .get(`${basePath}/tasks/non-existent-task-id`)
         .set(otherHeaders);
 
       expect(response.status).toBe(404);
@@ -81,7 +82,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should return 404 for cross-tenant timesheet access", async () => {
       const response = await request(app)
-        .get("/api/services/timesheets/non-existent-timesheet-id")
+        .get(`${basePath}/timesheets/non-existent-timesheet-id`)
         .set(otherHeaders);
 
       expect(response.status).toBe(404);
@@ -89,11 +90,11 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should isolate timesheet data between tenants", async () => {
       const response1 = await request(app)
-        .get("/api/services/timesheets")
+        .get(`${basePath}/timesheets`)
         .set(headers);
 
       const response2 = await request(app)
-        .get("/api/services/timesheets")
+        .get(`${basePath}/timesheets`)
         .set(otherHeaders);
 
       expect(response1.status).toBe(200);
@@ -104,7 +105,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
   describe("RBAC Tests", () => {
     it("should enforce tenant context for project creation", async () => {
       const response = await request(app)
-        .post("/api/services/projects")
+        .post(`${basePath}/projects`)
         .send({
           name: "Test Project",
           code: "TEST-001",
@@ -116,7 +117,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should enforce tenant context for task creation", async () => {
       const response = await request(app)
-        .post("/api/services/projects/some-project-id/tasks")
+        .post(`${basePath}/projects/some-project-id/tasks`)
         .send({
           title: "Test Task",
           status: "pending",
@@ -127,7 +128,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should enforce tenant context for timesheet creation", async () => {
       const response = await request(app)
-        .post("/api/services/timesheets")
+        .post(`${basePath}/timesheets`)
         .send({
           projectId: "some-project-id",
           date: "2026-01-09",
@@ -139,7 +140,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should require tenant context for project update", async () => {
       const response = await request(app)
-        .patch("/api/services/projects/some-project-id")
+        .patch(`${basePath}/projects/some-project-id`)
         .send({ name: "Updated Project" });
 
       expect([400, 401]).toContain(response.status);
@@ -147,7 +148,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should require tenant context for project deletion", async () => {
       const response = await request(app)
-        .delete("/api/services/projects/some-project-id");
+        .delete(`${basePath}/projects/some-project-id`);
 
       expect([400, 401]).toContain(response.status);
     });
@@ -156,7 +157,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
   describe("Pagination Tests", () => {
     it("should support pagination parameters for projects", async () => {
       const response = await request(app)
-        .get("/api/services/projects?page=1&limit=10")
+        .get(`${basePath}/projects?page=1&limit=10`)
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -170,7 +171,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should support pagination parameters for timesheets", async () => {
       const response = await request(app)
-        .get("/api/services/timesheets?page=1&limit=10")
+        .get(`${basePath}/timesheets?page=1&limit=10`)
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -180,7 +181,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should support status filter for projects", async () => {
       const response = await request(app)
-        .get("/api/services/projects?status=active")
+        .get(`${basePath}/projects?status=active`)
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -189,7 +190,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should support date range filters for timesheets", async () => {
       const response = await request(app)
-        .get("/api/services/timesheets?startDate=2026-01-01&endDate=2026-01-31")
+        .get(`${basePath}/timesheets?startDate=2026-01-01&endDate=2026-01-31`)
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -198,7 +199,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should support search filter for projects", async () => {
       const response = await request(app)
-        .get("/api/services/projects?search=test")
+        .get(`${basePath}/projects?search=test`)
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -209,7 +210,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
   describe("API Contract Validation", () => {
     it("should return consistent list response format for projects", async () => {
       const response = await request(app)
-        .get("/api/services/projects")
+        .get(`${basePath}/projects`)
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -223,7 +224,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should return consistent list response format for timesheets", async () => {
       const response = await request(app)
-        .get("/api/services/timesheets")
+        .get(`${basePath}/timesheets`)
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -234,7 +235,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should return consistent error format for missing tenant", async () => {
       const response = await request(app)
-        .get("/api/services/projects");
+        .get(`${basePath}/projects`);
 
       expect([400, 401]).toContain(response.status);
       expect(response.body).toHaveProperty("message");
@@ -242,7 +243,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
 
     it("should return consistent 404 format for non-existent resources", async () => {
       const response = await request(app)
-        .get("/api/services/projects/non-existent-id")
+        .get(`${basePath}/projects/non-existent-id`)
         .set(headers);
 
       expect(response.status).toBe(404);
@@ -253,7 +254,7 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
   describe("Timesheet Workflow Tests", () => {
     it("should reject invalid timesheet status transitions", async () => {
       const response = await request(app)
-        .post("/api/services/timesheets/fake-id/invalid-action")
+        .post(`${basePath}/timesheets/fake-id/invalid-action`)
         .set(headers);
 
       expect(response.status).toBe(404);
@@ -266,7 +267,7 @@ describe("Health Endpoints", () => {
   let httpServer: Server;
 
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    const testApp = await createServicesTestApp();
     app = testApp.app;
     httpServer = testApp.httpServer;
   });

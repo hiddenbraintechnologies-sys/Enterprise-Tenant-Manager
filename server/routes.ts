@@ -47,7 +47,7 @@ import {
 } from "./core";
 import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
-import { complianceService } from "./core/compliance";
+import { complianceService } from "./core/compliance/compliance-service";
 import complianceRoutes from "./core/compliance/compliance-routes";
 import indiaComplianceRoutes from "./core/india-compliance/india-compliance-routes";
 import uaeComplianceRoutes from "./core/uae-compliance/uae-compliance-routes";
@@ -1365,7 +1365,7 @@ export async function registerRoutes(
       auditService.logAsync({
         tenantId: undefined,
         userId: req.platformAdminContext?.platformAdmin.id,
-        action: "read",
+        action: "access",
         resource: "platform_admin",
         metadata: { action: "list_all" },
         ipAddress: req.ip,
@@ -3248,7 +3248,7 @@ export async function registerRoutes(
       res.json({
         tenant: maskedTenant,
         settings,
-        features: features.map(f => f.featureCode),
+        features: features,
         _supportAccess: true,
         _readOnly: true,
       });
@@ -3269,13 +3269,17 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Tenant not found" });
       }
 
-      const users = await storage.getUsersByTenant(
-        tenantId,
-        limit ? parseInt(limit as string) : 100,
-        offset ? parseInt(offset as string) : 0
-      );
+      const users = await storage.getUsersByTenant(tenantId, {
+        limit: limit ? parseInt(limit as string) : 100,
+        offset: offset ? parseInt(offset as string) : 0,
+      });
 
-      const maskedUsers = users.map(user => DataMasking.maskUserForSupport(user));
+      const maskedUsers = users.map(user => ({
+        id: user.id,
+        email: user.email ? user.email.replace(/^(.{2}).*(@.*)$/, '$1***$2') : null,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      }));
 
       auditService.logAsync({
         tenantId,
@@ -3318,11 +3322,19 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found" });
       }
 
-      if (user.tenantId !== tenantId) {
+      const [userTenantRecord] = await db.select().from(userTenants)
+        .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
+      
+      if (!userTenantRecord) {
         return res.status(403).json({ message: "User does not belong to this tenant" });
       }
 
-      const maskedUser = DataMasking.maskUserForSupport(user);
+      const maskedUser = {
+        id: user.id,
+        email: user.email ? user.email.replace(/^(.{2}).*(@.*)$/, '$1***$2') : null,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      };
 
       auditService.logAsync({
         tenantId,
@@ -3471,7 +3483,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found" });
       }
 
-      if (user.tenantId !== tenantId) {
+      const [userTenantLink] = await db.select().from(userTenants)
+        .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
+      
+      if (!userTenantLink) {
         return res.status(403).json({ message: "User does not belong to this tenant" });
       }
 
@@ -3536,11 +3551,17 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found" });
       }
 
-      if (user.tenantId !== tenantId) {
+      const [userTenantLink] = await db.select().from(userTenants)
+        .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
+      
+      if (!userTenantLink) {
         return res.status(403).json({ message: "User does not belong to this tenant" });
       }
 
-      await storage.updateUser(userId, { isActive });
+      const oldIsActive = userTenantLink.isActive;
+      await db.update(userTenants)
+        .set({ isActive })
+        .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
 
       auditService.logAsync({
         tenantId,
@@ -3548,7 +3569,7 @@ export async function registerRoutes(
         action: "update",
         resource: "support_user_status",
         resourceId: userId,
-        oldValue: { isActive: user.isActive },
+        oldValue: { isActive: oldIsActive },
         newValue: { isActive },
         metadata: { 
           accessType: "support_write",
@@ -3596,7 +3617,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid country" });
       }
 
-      const regionMap: Record<string, string> = {
+      const regionMap: Record<string, "asia_pacific" | "middle_east" | "europe" | "americas" | "africa"> = {
         india: "asia_pacific",
         malaysia: "asia_pacific",
         singapore: "asia_pacific",
@@ -4298,7 +4319,7 @@ export async function registerRoutes(
       res.json({
         tenant,
         settings,
-        features: features.map(f => f.featureCode),
+        features: features,
       });
     } catch (error) {
       console.error("Get tenant error:", error);
@@ -7733,12 +7754,12 @@ export async function registerRoutes(
         return res.status(404).json({ message: "DSAR not found" });
       }
       
-      const user = req.user;
+      const userId = getUserId(req) || "unknown";
       const success = await complianceService.updateDSARStatus(
         dsarId,
         status,
-        user?.id || "unknown",
-        user?.email || "unknown",
+        userId,
+        userId,
         notes
       );
       
@@ -8068,7 +8089,6 @@ export async function registerRoutes(
         tenantId: settings.tenantId,
         name,
         email,
-        status: "active",
       });
 
       // Hash password

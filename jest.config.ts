@@ -8,14 +8,15 @@ const config: Config = {
   moduleNameMapper: {
     '^@shared/(.*)$': '<rootDir>/shared/$1',
     '^@/(.*)$': '<rootDir>/server/$1',
+    '^openid-client$': '<rootDir>/server/test-support/shims/openid-client.ts',
+    '^openid-client/passport$': '<rootDir>/server/test-support/shims/openid-client.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      useESM: true,
-      tsconfig: 'tsconfig.test.json',
+      useESM: false,
+      tsconfig: 'tsconfig.spec.json',
     }],
   },
-  extensionsToTreatAsEsm: ['.ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   setupFilesAfterEnv: ['<rootDir>/server/__tests__/setup.ts'],
   testTimeout: 30000,
@@ -24,6 +25,7 @@ const config: Config = {
     'server/**/*.ts',
     '!server/**/*.d.ts',
     '!server/__tests__/**',
+    '!server/test-support/**',
   ],
 };
 

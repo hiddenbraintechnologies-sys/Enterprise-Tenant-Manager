@@ -1450,6 +1450,16 @@ export class DatabaseStorage implements IStorage {
     return filteredUsers.slice(offset, offset + limit);
   }
 
+  // Tenant Subscription (stub for billing support view)
+  async getTenantSubscription(tenantId: string): Promise<{ tier: string; status: string } | null> {
+    const tenant = await this.getTenant(tenantId);
+    if (!tenant) return null;
+    return {
+      tier: tenant.subscriptionTier || "free",
+      status: tenant.status || "active",
+    };
+  }
+
   // Platform Dashboard - Error Logs
   async getErrorLogs(options?: { tenantId?: string; severity?: string; limit?: number; offset?: number }): Promise<ErrorLog[]> {
     let query = db.select().from(errorLogs).$dynamic();

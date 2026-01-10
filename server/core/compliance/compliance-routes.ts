@@ -16,11 +16,11 @@ const updatePackSchema = insertCompliancePackSchema.partial();
 const updateItemSchema = insertComplianceChecklistItemSchema.partial().omit({ packId: true });
 const updateTenantSettingsSchema = insertTenantComplianceSettingsSchema.partial().omit({ tenantId: true });
 const updateProgressSchema = z.object({
-  status: z.enum(["pending", "in_progress", "completed", "verified", "skipped"]).optional(),
+  status: z.enum(["not_started", "in_progress", "completed", "not_applicable", "overdue"]).optional(),
   notes: z.string().optional(),
   evidenceUrl: z.string().optional(),
   evidenceDescription: z.string().optional(),
-  assignedTo: z.number().optional(),
+  assignedTo: z.string().optional(),
 });
 
 router.get("/packs", asyncHandler(async (req: Request, res: Response) => {

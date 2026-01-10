@@ -56,7 +56,7 @@ interface AccessLogParams {
   sessionId?: string;
 }
 
-class ComplianceService {
+export class ComplianceService {
   private maskingRulesCache: Map<string, DataMaskingRule[]> = new Map();
   private cacheExpiry: number = 0;
   private cacheTTL: number = 5 * 60 * 1000; // 5 minutes
@@ -1453,6 +1453,68 @@ class ComplianceService {
     };
 
     return [...commonItems, ...(regulationSpecific[regulation] || [])];
+  }
+
+  // Patient access history for clinic/healthcare module
+  async getPatientAccessHistory(tenantId: string, patientId: string): Promise<unknown[]> {
+    try {
+      const logs = await db.select()
+        .from(sensitiveDataAccessLogs)
+        .where(
+          and(
+            eq(sensitiveDataAccessLogs.tenantId, tenantId),
+            eq(sensitiveDataAccessLogs.resourceType, "patient"),
+            eq(sensitiveDataAccessLogs.resourceId, patientId)
+          )
+        )
+        .orderBy(desc(sensitiveDataAccessLogs.createdAt))
+        .limit(100);
+      return logs;
+    } catch {
+      return [];
+    }
+  }
+
+  // Unusual access pattern detection
+  async getUnusualAccessPatterns(
+    tenantId: string,
+    options: { windowHours?: number; threshold?: number }
+  ): Promise<{ patterns: unknown[]; alerts: unknown[] }> {
+    try {
+      const windowHours = options.windowHours || 24;
+      const threshold = options.threshold || 50;
+      const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+
+      const accessCounts = await db.select({
+        accessorId: sensitiveDataAccessLogs.accessorId,
+        accessorEmail: sensitiveDataAccessLogs.accessorEmail,
+        count: sql<number>`count(*)`.as("count"),
+      })
+        .from(sensitiveDataAccessLogs)
+        .where(
+          and(
+            eq(sensitiveDataAccessLogs.tenantId, tenantId),
+            gte(sensitiveDataAccessLogs.createdAt, windowStart)
+          )
+        )
+        .groupBy(sensitiveDataAccessLogs.accessorId, sensitiveDataAccessLogs.accessorEmail);
+
+      const unusualPatterns = accessCounts.filter(ac => ac.count > threshold);
+
+      return {
+        patterns: unusualPatterns,
+        alerts: unusualPatterns.map(p => ({
+          type: "high_access_volume",
+          accessorId: p.accessorId,
+          accessorEmail: p.accessorEmail,
+          accessCount: p.count,
+          threshold,
+          windowHours,
+        })),
+      };
+    } catch {
+      return { patterns: [], alerts: [] };
+    }
   }
 }
 
