@@ -53,12 +53,20 @@ describe("Rate Limit Bypass Security", () => {
       expect(freshBypass()).toBe(false);
     });
 
-    it("should bypass when NODE_ENV is undefined but SKIP_RATE_LIMIT=true (defaults to dev)", () => {
+    it("should NOT bypass when NODE_ENV is undefined even with SKIP_RATE_LIMIT=true (production-safe default)", () => {
       delete process.env.NODE_ENV;
       process.env.SKIP_RATE_LIMIT = "true";
 
       const { isRateLimitBypassed: freshBypass } = require("../core/auth-middleware");
-      expect(freshBypass()).toBe(true);
+      expect(freshBypass()).toBe(false);
+    });
+
+    it("should NOT bypass for unknown NODE_ENV values", () => {
+      process.env.NODE_ENV = "staging";
+      process.env.SKIP_RATE_LIMIT = "true";
+
+      const { isRateLimitBypassed: freshBypass } = require("../core/auth-middleware");
+      expect(freshBypass()).toBe(false);
     });
   });
 });

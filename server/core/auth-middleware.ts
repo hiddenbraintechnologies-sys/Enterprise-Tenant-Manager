@@ -278,11 +278,17 @@ export function requireScope(...requiredScopes: string[]) {
 }
 
 export function isRateLimitBypassed(): boolean {
-  const nodeEnv = process.env.NODE_ENV || "development";
-  if (nodeEnv === "production") {
+  const nodeEnv = process.env.NODE_ENV;
+  if (!nodeEnv || nodeEnv === "production") {
     return false;
   }
-  return nodeEnv === "test" || process.env.SKIP_RATE_LIMIT === "true";
+  if (nodeEnv === "test") {
+    return true;
+  }
+  if (nodeEnv === "development" && process.env.SKIP_RATE_LIMIT === "true") {
+    return true;
+  }
+  return false;
 }
 
 let rateLimitBypassWarningLogged = false;
