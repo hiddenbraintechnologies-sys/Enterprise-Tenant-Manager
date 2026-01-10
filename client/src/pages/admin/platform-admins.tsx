@@ -227,6 +227,25 @@ function ManagePermissionsDialog({ admin, open, onOpenChange }: ManagePermission
 
 type AdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN" | "TECH_SUPPORT_MANAGER" | "MANAGER" | "SUPPORT_TEAM";
 
+// Roles that require country scope assignment
+const SCOPED_ROLES: AdminRole[] = ["PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"];
+// Roles with global access (no scope needed)
+const GLOBAL_ROLES: AdminRole[] = ["SUPER_ADMIN", "TECH_SUPPORT_MANAGER"];
+
+function isRoleScoped(role: AdminRole): boolean {
+  return SCOPED_ROLES.includes(role);
+}
+
+function getScopeDisplayText(admin: PlatformAdmin): string {
+  if (GLOBAL_ROLES.includes(admin.role)) {
+    return "Global";
+  }
+  if (admin.countryAssignments && admin.countryAssignments.length > 0) {
+    return admin.countryAssignments.join(", ");
+  }
+  return "No scope assigned";
+}
+
 function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
   const { toast } = useToast();
   const [name, setName] = useState(admin?.name || "");
@@ -279,8 +298,8 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
     if (role !== admin?.role) updates.role = role;
     if (isActive !== admin?.isActive) updates.isActive = isActive;
     
-    // Include country assignments for MANAGER and SUPPORT_TEAM roles
-    if (role === "MANAGER" || role === "SUPPORT_TEAM") {
+    // Include country assignments for scoped roles
+    if (isRoleScoped(role)) {
       updates.countryAssignments = countryAssignments;
     }
     if (newPassword) {
@@ -339,7 +358,14 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
 
           <div className="space-y-2">
             <Label htmlFor="edit-role">Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as AdminRole)}>
+            <Select value={role} onValueChange={(v) => {
+              const newRole = v as AdminRole;
+              setRole(newRole);
+              // Clear country assignments when switching to global role
+              if (!isRoleScoped(newRole)) {
+                setCountryAssignments([]);
+              }
+            }}>
               <SelectTrigger data-testid="select-edit-admin-role">
                 <SelectValue />
               </SelectTrigger>
@@ -352,17 +378,17 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {role === "SUPER_ADMIN" && "Full access to all features"}
-              {role === "PLATFORM_ADMIN" && "Access based on assigned permissions"}
-              {role === "TECH_SUPPORT_MANAGER" && "Technical monitoring, API management, system health"}
-              {role === "MANAGER" && "Operations access for assigned regions"}
-              {role === "SUPPORT_TEAM" && "Support tickets for assigned regions"}
+              {role === "SUPER_ADMIN" && "Full access to all features (Global)"}
+              {role === "PLATFORM_ADMIN" && "Scoped access to assigned countries"}
+              {role === "TECH_SUPPORT_MANAGER" && "Technical monitoring, API management (Global)"}
+              {role === "MANAGER" && "Operations access for assigned countries"}
+              {role === "SUPPORT_TEAM" && "Support tickets for assigned countries"}
             </p>
           </div>
 
-          {(role === "MANAGER" || role === "SUPPORT_TEAM") && (
+          {isRoleScoped(role) ? (
             <div className="space-y-2">
-              <Label>Assigned Regions</Label>
+              <Label>Assigned Countries</Label>
               <div className="flex flex-wrap gap-2 min-h-9 p-2 border rounded-md">
                 {regionsData?.map((region) => (
                   <Badge
@@ -383,8 +409,13 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                Click to toggle region access. {countryAssignments.length} region{countryAssignments.length !== 1 ? "s" : ""} selected.
+                Scope controls which tenants this admin can access. {countryAssignments.length} countr{countryAssignments.length !== 1 ? "ies" : "y"} selected.
               </p>
+            </div>
+          ) : (
+            <div className="p-3 rounded-md bg-muted/50 border">
+              <p className="text-sm font-medium">Global Access</p>
+              <p className="text-xs text-muted-foreground">This role has access to all countries and tenants.</p>
             </div>
           )}
 
@@ -492,7 +523,17 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
       toast({ title: "Admin created successfully" });
       onSuccess();
     },
-    onError: (error: Error) => {
+    onError: (error: Error & { code?: string }) => {
+      // Handle SCOPE_REQUIRED error inline
+      if (error.message?.includes("SCOPE_REQUIRED") || error.message?.includes("Country scope required")) {
+        setErrors(prev => ({ ...prev, scope: "At least one country must be selected for this role" }));
+        toast({ 
+          title: "Scope required", 
+          description: "Please select at least one country for this role",
+          variant: "destructive" 
+        });
+        return;
+      }
       toast({ 
         title: "Failed to create admin", 
         description: error.message,
@@ -526,6 +567,11 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
       newErrors.password = "Password must contain a number";
     }
     
+    // Validate scope for scoped roles
+    if (isRoleScoped(role) && countryAssignments.length === 0) {
+      newErrors.scope = "At least one country must be selected for this role";
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -556,8 +602,8 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
       forcePasswordReset,
     };
     
-    // Include country assignments for MANAGER and SUPPORT_TEAM roles
-    if (role === "MANAGER" || role === "SUPPORT_TEAM") {
+    // Include country assignments for scoped roles
+    if (isRoleScoped(role)) {
       data.countryAssignments = countryAssignments;
     }
     
@@ -623,7 +669,16 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="admin-role">Role</Label>
-        <Select value={role} onValueChange={(v) => setRole(v as AdminRole)}>
+        <Select value={role} onValueChange={(v) => {
+          const newRole = v as AdminRole;
+          setRole(newRole);
+          // Clear country assignments and scope error when switching to global role
+          if (!isRoleScoped(newRole)) {
+            setCountryAssignments([]);
+            const { scope: _, ...rest } = errors;
+            setErrors(rest);
+          }
+        }}>
           <SelectTrigger data-testid="select-admin-role">
             <SelectValue placeholder="Select role" />
           </SelectTrigger>
@@ -644,10 +699,10 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
         </p>
       </div>
 
-      {(role === "MANAGER" || role === "SUPPORT_TEAM") && (
+      {isRoleScoped(role) ? (
         <div className="space-y-2">
-          <Label>Assigned Regions</Label>
-          <div className="flex flex-wrap gap-2 min-h-9 p-2 border rounded-md">
+          <Label>Assigned Countries <span className="text-destructive">*</span></Label>
+          <div className={`flex flex-wrap gap-2 min-h-9 p-2 border rounded-md ${errors.scope ? 'border-destructive' : ''}`}>
             {regionsData?.map((region) => (
               <Badge
                 key={region.countryCode}
@@ -666,9 +721,15 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
               </Badge>
             ))}
           </div>
+          {errors.scope && <p className="text-sm text-destructive">{errors.scope}</p>}
           <p className="text-xs text-muted-foreground">
-            Click to toggle region access. {countryAssignments.length} region{countryAssignments.length !== 1 ? "s" : ""} selected.
+            Scope controls which tenants this admin can access. {countryAssignments.length} countr{countryAssignments.length !== 1 ? "ies" : "y"} selected.
           </p>
+        </div>
+      ) : (
+        <div className="p-3 rounded-md bg-muted/50 border">
+          <p className="text-sm font-medium">Global Access</p>
+          <p className="text-xs text-muted-foreground">This role has access to all countries and tenants.</p>
         </div>
       )}
 
@@ -720,6 +781,7 @@ function PlatformAdminsContent() {
   const { admin: currentAdmin } = useAdmin();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<AdminRole | "ALL">("ALL");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<PlatformAdmin | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -732,9 +794,12 @@ function PlatformAdminsContent() {
   });
 
   const filteredAdmins = data?.admins?.filter(
-    (admin) =>
-      admin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      admin.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (admin) => {
+      const matchesSearch = admin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        admin.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRole = roleFilter === "ALL" || admin.role === roleFilter;
+      return matchesSearch && matchesRole;
+    }
   ) || [];
 
   const toggleStatusMutation = useMutation({
@@ -821,7 +886,20 @@ function PlatformAdminsContent() {
                 data-testid="input-search-admins"
               />
             </div>
-            <Badge variant="outline">{data?.total || 0} admins</Badge>
+            <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as AdminRole | "ALL")}>
+              <SelectTrigger className="w-[180px]" data-testid="select-role-filter">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Roles</SelectItem>
+                <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+                <SelectItem value="TECH_SUPPORT_MANAGER">Tech Support Manager</SelectItem>
+                <SelectItem value="MANAGER">Manager</SelectItem>
+                <SelectItem value="SUPPORT_TEAM">Support Team</SelectItem>
+              </SelectContent>
+            </Select>
+            <Badge variant="outline">{filteredAdmins.length} of {data?.total || 0} admins</Badge>
           </div>
         </CardHeader>
         <CardContent>
@@ -836,6 +914,7 @@ function PlatformAdminsContent() {
                 <TableRow>
                   <TableHead>Admin</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Scope</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last Login</TableHead>
                   <TableHead>Created</TableHead>
@@ -871,11 +950,11 @@ function PlatformAdminsContent() {
                         {admin.role === "MANAGER" && "Manager"}
                         {admin.role === "SUPPORT_TEAM" && "Support Team"}
                       </Badge>
-                      {(admin.role === "MANAGER" || admin.role === "SUPPORT_TEAM") && admin.countryAssignments && admin.countryAssignments.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {admin.countryAssignments.length} region{admin.countryAssignments.length !== 1 ? "s" : ""}
-                        </p>
-                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`text-sm ${GLOBAL_ROLES.includes(admin.role) ? 'text-muted-foreground' : ''}`}>
+                        {getScopeDisplayText(admin)}
+                      </span>
                     </TableCell>
                     <TableCell>
                       {admin.isActive ? (

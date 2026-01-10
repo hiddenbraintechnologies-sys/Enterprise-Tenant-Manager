@@ -1361,6 +1361,19 @@ export async function registerRoutes(
 
       const { name, email, password, role, forcePasswordReset, permissions, countryAssignments } = parsed.data;
 
+      // Validate scope requirement for country-scoped roles
+      const COUNTRY_SCOPED_ROLES = ["PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"];
+      const effectiveRole = role || "PLATFORM_ADMIN";
+      if (COUNTRY_SCOPED_ROLES.includes(effectiveRole)) {
+        if (!countryAssignments || countryAssignments.length === 0) {
+          return res.status(400).json({ 
+            message: "Country scope required for this role", 
+            code: "SCOPE_REQUIRED",
+            details: "At least one country must be assigned for this role"
+          });
+        }
+      }
+
       const existingAdmin = await storage.getPlatformAdminByEmail(email);
       if (existingAdmin) {
         return res.status(409).json({ message: "Email already registered" });
@@ -1403,10 +1416,10 @@ export async function registerRoutes(
         }
       }
 
-      // Assign country restrictions for MANAGER and SUPPORT_TEAM roles
+      // Assign country restrictions for country-scoped roles (PLATFORM_ADMIN, MANAGER, SUPPORT_TEAM)
       let assignedCountries: string[] = [];
       if (countryAssignments && countryAssignments.length > 0 && 
-          ["MANAGER", "SUPPORT_TEAM"].includes(role || "PLATFORM_ADMIN")) {
+          ["PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"].includes(role || "PLATFORM_ADMIN")) {
         const assignments = await storage.setAdminCountries(
           admin.id, 
           countryAssignments, 
@@ -1541,6 +1554,37 @@ export async function registerRoutes(
 
       const { name, email, password, role, isActive, forcePasswordReset, countryAssignments } = parsed.data;
 
+      // Determine the final role after update
+      const finalRole = role || existingAdmin.role;
+      const COUNTRY_SCOPED_ROLES = ["PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"];
+      
+      // Validate scope requirement when updating to or remaining in a scoped role
+      if (COUNTRY_SCOPED_ROLES.includes(finalRole)) {
+        // If countryAssignments explicitly provided, validate it's not empty
+        if (countryAssignments !== undefined && countryAssignments.length === 0) {
+          return res.status(400).json({ 
+            message: "Country scope required for this role", 
+            code: "SCOPE_REQUIRED",
+            details: "At least one country must be assigned for this role"
+          });
+        }
+        
+        // Get current assignments to validate scope
+        const currentAssignments = await storage.getAdminCountryAssignments(req.params.id);
+        const willHaveAssignments = countryAssignments 
+          ? countryAssignments.length > 0 
+          : currentAssignments.length > 0;
+        
+        // If changing to a scoped role or already in scoped role, ensure assignments exist
+        if (!willHaveAssignments) {
+          return res.status(400).json({ 
+            message: "Country scope required for this role", 
+            code: "SCOPE_REQUIRED",
+            details: "At least one country must be assigned for this role"
+          });
+        }
+      }
+
       if (email && email !== existingAdmin.email) {
         const existingWithEmail = await storage.getPlatformAdminByEmail(email);
         if (existingWithEmail) {
@@ -1558,21 +1602,21 @@ export async function registerRoutes(
 
       const admin = await storage.updatePlatformAdmin(req.params.id, updateData);
 
-      // Update country assignments if provided
+      // Update country assignments
       let updatedCountries: string[] = [];
-      if (countryAssignments !== undefined) {
-        const finalRole = role || existingAdmin.role;
-        if (["MANAGER", "SUPPORT_TEAM"].includes(finalRole)) {
-          const assignments = await storage.setAdminCountries(
-            req.params.id,
-            countryAssignments,
-            req.platformAdminContext?.platformAdmin.id
-          );
-          updatedCountries = assignments.map(a => a.countryCode);
-        } else if (finalRole === "SUPER_ADMIN" || finalRole === "PLATFORM_ADMIN") {
-          // Clear country assignments for SUPER_ADMIN and PLATFORM_ADMIN (they have full access)
-          await storage.setAdminCountries(req.params.id, [], req.platformAdminContext?.platformAdmin.id);
-        }
+      const GLOBAL_ROLES = ["SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "TECH_SUPPORT_MANAGER"];
+      
+      // Always clear assignments when transitioning to a global role
+      if (GLOBAL_ROLES.includes(finalRole)) {
+        await storage.setAdminCountries(req.params.id, [], req.platformAdminContext?.platformAdmin.id);
+      } else if (countryAssignments !== undefined) {
+        // Update country assignments for scoped roles when provided
+        const assignments = await storage.setAdminCountries(
+          req.params.id,
+          countryAssignments,
+          req.platformAdminContext?.platformAdmin.id
+        );
+        updatedCountries = assignments.map(a => a.countryCode);
       }
 
       auditService.logAsync({

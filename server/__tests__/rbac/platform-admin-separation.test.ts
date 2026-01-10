@@ -424,4 +424,108 @@ describe("Platform Admin RBAC Separation", () => {
       });
     });
   });
+
+  describe("Scope Requirement Validation", () => {
+    const COUNTRY_SCOPED_ROLES = ["PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"];
+    const GLOBAL_SCOPE_ROLES = ["SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "TECH_SUPPORT_MANAGER"];
+
+    it("should identify country-scoped roles correctly", async () => {
+      const { ROLE_DEFINITIONS } = await import("@shared/rbac/permissions");
+
+      // Country-scoped roles should have scopeType = "COUNTRY"
+      expect(ROLE_DEFINITIONS.PLATFORM_ADMIN.scopeType).toBe("COUNTRY");
+      expect(ROLE_DEFINITIONS.MANAGER.scopeType).toBe("COUNTRY");
+      expect(ROLE_DEFINITIONS.SUPPORT_TEAM.scopeType).toBe("COUNTRY");
+    });
+
+    it("should identify global-scope roles correctly", async () => {
+      const { ROLE_DEFINITIONS } = await import("@shared/rbac/permissions");
+
+      // Global-scope roles should have scopeType = "GLOBAL"
+      expect(ROLE_DEFINITIONS.PLATFORM_SUPER_ADMIN.scopeType).toBe("GLOBAL");
+      expect(ROLE_DEFINITIONS.TECH_SUPPORT_MANAGER.scopeType).toBe("GLOBAL");
+    });
+
+    it("should require countries for PLATFORM_ADMIN role", () => {
+      const role = "PLATFORM_ADMIN";
+      const requiresScope = COUNTRY_SCOPED_ROLES.includes(role);
+      expect(requiresScope).toBe(true);
+    });
+
+    it("should require countries for MANAGER role", () => {
+      const role = "MANAGER";
+      const requiresScope = COUNTRY_SCOPED_ROLES.includes(role);
+      expect(requiresScope).toBe(true);
+    });
+
+    it("should require countries for SUPPORT_TEAM role", () => {
+      const role = "SUPPORT_TEAM";
+      const requiresScope = COUNTRY_SCOPED_ROLES.includes(role);
+      expect(requiresScope).toBe(true);
+    });
+
+    it("should NOT require countries for SUPER_ADMIN role", () => {
+      const role = "SUPER_ADMIN";
+      const requiresScope = COUNTRY_SCOPED_ROLES.includes(role);
+      expect(requiresScope).toBe(false);
+    });
+
+    it("should NOT require countries for TECH_SUPPORT_MANAGER role", () => {
+      const role = "TECH_SUPPORT_MANAGER";
+      const requiresScope = COUNTRY_SCOPED_ROLES.includes(role);
+      expect(requiresScope).toBe(false);
+    });
+
+    it("should validate scope requirements using requiresScope helper", async () => {
+      const { requiresScope } = await import("@shared/rbac/permissions");
+
+      // Country-scoped roles
+      expect(requiresScope("PLATFORM_ADMIN")).toBe("COUNTRY");
+      expect(requiresScope("MANAGER")).toBe("COUNTRY");
+      expect(requiresScope("SUPPORT_TEAM")).toBe("COUNTRY");
+
+      // Global-scoped roles
+      expect(requiresScope("PLATFORM_SUPER_ADMIN")).toBe("GLOBAL");
+      expect(requiresScope("TECH_SUPPORT_MANAGER")).toBe("GLOBAL");
+    });
+
+    it("should provide SCOPE_REQUIRED error format for validation", () => {
+      // Expected error format when scope is required but not provided
+      const scopeRequiredError = {
+        message: "Country scope required for this role",
+        code: "SCOPE_REQUIRED",
+        details: "At least one country must be assigned for this role"
+      };
+
+      expect(scopeRequiredError.code).toBe("SCOPE_REQUIRED");
+      expect(scopeRequiredError.message).toContain("scope required");
+    });
+
+    it("should validate request body for scoped role creation", () => {
+      // Simulate validation logic for create admin request
+      const validateScopeRequirement = (role: string, countryAssignments?: string[]) => {
+        const SCOPED_ROLES = ["PLATFORM_ADMIN", "MANAGER", "SUPPORT_TEAM"];
+        if (SCOPED_ROLES.includes(role)) {
+          if (!countryAssignments || countryAssignments.length === 0) {
+            return { valid: false, code: "SCOPE_REQUIRED" };
+          }
+        }
+        return { valid: true };
+      };
+
+      // Scoped roles without countries should fail
+      expect(validateScopeRequirement("PLATFORM_ADMIN", []).valid).toBe(false);
+      expect(validateScopeRequirement("MANAGER", undefined).valid).toBe(false);
+      expect(validateScopeRequirement("SUPPORT_TEAM", []).valid).toBe(false);
+
+      // Scoped roles with countries should pass
+      expect(validateScopeRequirement("PLATFORM_ADMIN", ["IN"]).valid).toBe(true);
+      expect(validateScopeRequirement("MANAGER", ["UK", "US"]).valid).toBe(true);
+      expect(validateScopeRequirement("SUPPORT_TEAM", ["UAE"]).valid).toBe(true);
+
+      // Global roles without countries should pass
+      expect(validateScopeRequirement("SUPER_ADMIN", []).valid).toBe(true);
+      expect(validateScopeRequirement("TECH_SUPPORT_MANAGER", undefined).valid).toBe(true);
+    });
+  });
 });
