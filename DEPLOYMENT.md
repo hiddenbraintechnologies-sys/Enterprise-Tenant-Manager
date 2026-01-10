@@ -303,29 +303,111 @@ pg_dump -t users -t customers $DATABASE_URL > users_backup.sql
 
 ## Deployment Checklist
 
-### Pre-Deployment
+### Pre-Publish Gate
 
-- [ ] All tests passing
-- [ ] Environment variables configured
+Run the pre-publish check script before clicking Publish:
+
+```bash
+# Make the script executable (first time only)
+chmod +x scripts/prepublish-check.sh
+
+# Run all pre-publish checks
+./scripts/prepublish-check.sh
+```
+
+The script performs:
+1. **Environment check** - Confirms NODE_ENV and required variables
+2. **TypeScript compilation** - Runs `tsc -p tsconfig.release.json --noEmit`
+3. **Test suite** - Runs `npm test` (all Jest tests)
+4. **Migration dry-run** - Runs `npx tsx server/scripts/migrate-production.ts --dry-run`
+
+**Do NOT publish if any check fails!**
+
+### Pre-Deployment (Manual Verification)
+
+- [ ] All tests passing (`npm test`)
+- [ ] Environment variables configured in Replit Secrets
 - [ ] Database backup created
 - [ ] Migration dry-run reviewed
 - [ ] Rollback plan documented
+- [ ] Pre-publish script passed (`./scripts/prepublish-check.sh`)
 
 ### Deployment
 
 - [ ] Run migrations with confirmation
-- [ ] Deploy application
-- [ ] Verify `/health` returns 200
-- [ ] Verify `/health/db` returns 200
-- [ ] Check logs for errors
+- [ ] Click "Publish" in Replit
+- [ ] Wait for deployment to complete
 
-### Post-Deployment
+### Post-Publish Smoke Test Checklist
 
-- [ ] Smoke test critical flows
-- [ ] Monitor error rates
+Immediately after publishing, verify the following:
+
+#### 1. Health Endpoints
+```bash
+# Basic health
+curl -s https://your-app.replit.app/health
+# Expected: {"status":"ok","timestamp":"..."}
+
+# Database health
+curl -s https://your-app.replit.app/health/db
+# Expected: {"status":"ok","database":"connected","timestamp":"..."}
+```
+
+#### 2. Production Guards Active
+```bash
+# Seed endpoints should return 403
+curl -s -o /dev/null -w "%{http_code}" https://your-app.replit.app/api/seed
+# Expected: 403
+
+curl -s -o /dev/null -w "%{http_code}" https://your-app.replit.app/api/demo
+# Expected: 403
+```
+
+#### 3. Business Module Smoke Tests
+
+**Furniture Module:**
+- [ ] Create a new invoice via UI or API
+- [ ] Download invoice PDF (verify PDF generation works)
+- [ ] Verify invoice appears in list
+
+**Software Services Module:**
+- [ ] Create a new project
+- [ ] Add a task to the project
+- [ ] Log a timesheet entry against the task
+- [ ] Verify all entries appear correctly
+
+**Consulting Module (if enabled):**
+- [ ] Create a consulting project
+- [ ] Log timesheet entries
+- [ ] Generate invoice from timesheets
+- [ ] Verify invoice calculations
+
+#### 4. Logging & Monitoring
+```bash
+# Make a test request and check for correlation ID
+curl -sI https://your-app.replit.app/api/health | grep -i x-correlation-id
+# Expected: X-Correlation-Id: <uuid>
+```
+
+Verify in logs:
+- [ ] Request logs show correlation IDs: `[request] GET /api/... 200 45ms [abc123]`
+- [ ] No errors or warnings in startup logs
+- [ ] Rate limiting is enforced (not bypassed)
+
+#### 5. Final Verification
+
+- [ ] Login flow works
+- [ ] Navigation between modules works
+- [ ] No console errors in browser
+- [ ] Response times are acceptable
+
+### Post-Deployment Monitoring
+
+- [ ] Monitor error rates for 15 minutes
 - [ ] Check slow query logs
 - [ ] Verify rate limiting active
 - [ ] Confirm seed endpoints blocked
+- [ ] Watch for unusual patterns
 
 ---
 
