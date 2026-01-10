@@ -76,6 +76,7 @@ import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
 import AiPermissions from "@/pages/ai-permissions";
 import AdminLogin from "@/pages/admin-login";
+import AdminForgotPassword from "@/pages/admin-forgot-password";
 import Login from "@/pages/login";
 import ManagerDashboard from "@/pages/manager/dashboard";
 import SupportDashboard from "@/pages/support/dashboard";
@@ -453,10 +454,15 @@ function AppRouter() {
 
   const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin") || location.startsWith("/manager") || location.startsWith("/support") || location.startsWith("/tech-support");
   const isAdminLoginPath = location === "/admin-login";
+  const isAdminForgotPasswordPath = location === "/admin-forgot-password";
   const isPortalPath = location.startsWith("/portal");
 
   if (isAdminLoginPath) {
     return <AdminLogin />;
+  }
+
+  if (isAdminForgotPasswordPath) {
+    return <AdminForgotPassword />;
   }
 
   if (isPortalPath) {

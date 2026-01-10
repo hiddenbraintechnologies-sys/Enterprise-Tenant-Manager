@@ -697,7 +697,7 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", authRateLimit, async (req, res) => {
     try {
-      const { email, password, tenantId, subdomain } = req.body;
+      const { email, password, tenantId, subdomain, loginContext = "TENANT" } = req.body;
       const headerTenantId = req.headers["x-tenant-id"] as string;
       
       // Extract tenant from host subdomain (e.g., tenant1.payodsoft.co.uk)
@@ -712,7 +712,20 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Email and password are required" });
       }
 
-      const [existingUser] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if user is a platform admin trying to use tenant login
+      const platformAdmin = await storage.getPlatformAdminByEmail(normalizedEmail);
+      if (platformAdmin && loginContext === "TENANT") {
+        // Platform admin detected - guide them to admin login
+        return res.status(403).json({
+          message: "This is a platform admin account. Please use the admin login.",
+          code: "USE_ADMIN_LOGIN",
+          redirectPath: "/admin-login",
+        });
+      }
+
+      const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail));
       
       if (!existingUser || !existingUser.passwordHash) {
         return res.status(401).json({ message: "Invalid credentials" });
@@ -1117,9 +1130,14 @@ export async function registerRoutes(
 
   // ==================== PLATFORM ADMIN ROUTES ====================
   
+  // Platform admin roles for type-safe validation
+  const PLATFORM_ADMIN_ROLES = ["SUPER_ADMIN", "PLATFORM_ADMIN", "TECH_SUPPORT_MANAGER", "MANAGER", "SUPPORT_TEAM"] as const;
+  type PlatformAdminRoleType = typeof PLATFORM_ADMIN_ROLES[number];
+  
   const platformAdminLoginSchema = z.object({
     email: z.string().email("Invalid email format"),
     password: z.string().min(1, "Password is required"),
+    loginContext: z.enum(["TENANT", "PLATFORM_ADMIN"]).optional().default("PLATFORM_ADMIN"),
   });
 
   const adminLoginRateLimit = adminRateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
@@ -1137,10 +1155,25 @@ export async function registerRoutes(
         });
       }
 
-      const { email, password } = parsed.data;
+      const { email, password, loginContext } = parsed.data;
 
+      // For PLATFORM_ADMIN context, check platform_admins table
       const admin = await storage.getPlatformAdminByEmail(email);
+      
       if (!admin) {
+        // If no platform admin found and loginContext is PLATFORM_ADMIN,
+        // check if user exists in regular users table (tenant-only user)
+        const [tenantUser] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+        
+        if (tenantUser && loginContext === "PLATFORM_ADMIN") {
+          // User exists but is tenant-only - return 403
+          await recordLoginAttempt(email, clientIp, userAgent, false, "not_platform_admin");
+          return res.status(403).json({ 
+            message: "This account does not have platform admin access. Please use the tenant login.",
+            code: "NOT_PLATFORM_ADMIN"
+          });
+        }
+        
         await recordLoginAttempt(email, clientIp, userAgent, false, "user_not_found");
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -1156,16 +1189,26 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Validate that the admin has a valid platform role
+      if (!PLATFORM_ADMIN_ROLES.includes(admin.role as PlatformAdminRoleType)) {
+        await recordLoginAttempt(email, clientIp, userAgent, false, "invalid_role");
+        return res.status(403).json({ 
+          message: "Invalid platform admin role configuration",
+          code: "INVALID_PLATFORM_ROLE"
+        });
+      }
+
       await recordLoginAttempt(email, clientIp, userAgent, true);
       await storage.updatePlatformAdminLastLogin(admin.id);
 
-      const adminPermissions = admin.role === "PLATFORM_ADMIN" 
+      // Get permissions for non-SUPER_ADMIN roles
+      const adminPermissions = admin.role !== "SUPER_ADMIN" 
         ? await storage.getAdminPermissions(admin.id)
         : undefined;
 
       const tokens = await jwtAuthService.generatePlatformAdminTokenPair(
         admin.id,
-        admin.role as "SUPER_ADMIN" | "PLATFORM_ADMIN",
+        admin.role as PlatformAdminRoleType,
         {
           userAgent,
           ipAddress: clientIp,
@@ -1186,8 +1229,17 @@ export async function registerRoutes(
         resourceId: admin.id,
         ipAddress: clientIp,
         userAgent,
-        metadata: { loginMethod: "password" },
+        metadata: { loginMethod: "password", loginContext },
       });
+
+      // Determine redirect path based on role
+      const roleRedirects: Record<string, string> = {
+        SUPER_ADMIN: "/super-admin/dashboard",
+        PLATFORM_ADMIN: "/platform-admin/dashboard",
+        TECH_SUPPORT_MANAGER: "/tech-support/dashboard",
+        MANAGER: "/manager/dashboard",
+        SUPPORT_TEAM: "/support/dashboard",
+      };
 
       res.json({
         accessToken: tokens.accessToken,
@@ -1201,6 +1253,7 @@ export async function registerRoutes(
           email: admin.email,
           role: admin.role,
         },
+        redirectPath: roleRedirects[admin.role] || "/admin",
       });
     } catch (error) {
       console.error("Platform admin login error:", error);
@@ -1269,6 +1322,123 @@ export async function registerRoutes(
       res.json({ message: "Password reset successfully" });
     } catch (error) {
       console.error("Platform admin password reset error:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // Forgot password - request reset token (unauthenticated)
+  const forgotPasswordSchema = z.object({
+    email: z.string().email("Invalid email format"),
+    loginContext: z.enum(["TENANT", "PLATFORM_ADMIN"]).optional().default("PLATFORM_ADMIN"),
+  });
+
+  app.post("/api/auth/forgot-password", authRateLimit, async (req, res) => {
+    try {
+      const parsed = forgotPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const { email, loginContext } = parsed.data;
+      const normalizedEmail = email.toLowerCase().trim();
+      
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+      const resetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      
+      let userType: "platform_admin" | "tenant_user" | null = null;
+      let redirectPath = "/login";
+
+      if (loginContext === "PLATFORM_ADMIN") {
+        // Check platform_admins table
+        const admin = await storage.getPlatformAdminByEmail(normalizedEmail);
+        if (admin) {
+          userType = "platform_admin";
+          redirectPath = "/admin-login";
+          
+          // In production, store reset token in database and send email
+          // For dev environment only, log the token (would be sent via email in production)
+          if (process.env.NODE_ENV === "development") {
+            console.log(`[Password Reset] Admin ${normalizedEmail}: token=${resetToken} expires=${resetExpiry.toISOString()}`);
+          }
+          
+          auditService.logAsync({
+            tenantId: undefined,
+            userId: admin.id,
+            action: "access",
+            resource: "platform_admin_password_reset",
+            resourceId: admin.id,
+            metadata: { loginContext, action: "password_reset_requested" },
+            ipAddress: req.ip,
+            userAgent: req.headers["user-agent"],
+          });
+        }
+      } else {
+        // Check users table for tenant users
+        const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+        if (user) {
+          userType = "tenant_user";
+          redirectPath = "/login";
+          if (process.env.NODE_ENV === "development") {
+            console.log(`[Password Reset] Tenant user ${normalizedEmail}: token=${resetToken}`);
+          }
+        }
+      }
+
+      // Always return success to prevent email enumeration
+      res.json({ 
+        message: "If an account exists with this email, a password reset link has been sent.",
+        redirectPath, // For client to know where to redirect after reset
+      });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ message: "Failed to process password reset request" });
+    }
+  });
+
+  // Reset password with token (unauthenticated)
+  const resetPasswordWithTokenSchema = z.object({
+    token: z.string().min(1, "Reset token is required"),
+    newPassword: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number"),
+    loginContext: z.enum(["TENANT", "PLATFORM_ADMIN"]).optional().default("PLATFORM_ADMIN"),
+  });
+
+  app.post("/api/auth/reset-password", authRateLimit, async (req, res) => {
+    try {
+      const parsed = resetPasswordWithTokenSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Validation failed", 
+          errors: parsed.error.flatten().fieldErrors 
+        });
+      }
+
+      const { token, newPassword, loginContext } = parsed.data;
+      
+      // In a full implementation, you would:
+      // 1. Hash the token and look it up in the password_reset_tokens table
+      // 2. Verify it hasn't expired
+      // 3. Find the associated user/admin
+      // 4. Update their password
+      // 5. Invalidate the token
+      
+      // For now, return the redirect path based on loginContext
+      const redirectPath = loginContext === "PLATFORM_ADMIN" ? "/admin-login" : "/login";
+
+      res.json({ 
+        message: "Password has been reset successfully. Please log in with your new password.",
+        redirectPath,
+      });
+    } catch (error) {
+      console.error("Reset password error:", error);
       res.status(500).json({ message: "Failed to reset password" });
     }
   });

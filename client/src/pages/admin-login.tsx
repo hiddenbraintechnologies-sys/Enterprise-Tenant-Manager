@@ -1,11 +1,23 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocation, Link } from "wouter";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Eye, EyeOff, Loader2 } from "lucide-react";
+
+const ROLE_DASHBOARDS: Record<string, string> = {
+  SUPER_ADMIN: "/super-admin/dashboard",
+  PLATFORM_ADMIN: "/platform-admin/dashboard",
+  TECH_SUPPORT_MANAGER: "/tech-support/dashboard",
+  MANAGER: "/manager/dashboard",
+  SUPPORT_TEAM: "/support/dashboard",
+};
+
+function getRoleDashboard(role?: string): string {
+  return role ? ROLE_DASHBOARDS[role] || "/admin" : "/admin";
+}
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
@@ -43,7 +55,7 @@ export default function AdminLogin() {
 
       toast({
         title: "Login successful",
-        description: "Redirecting to admin dashboard...",
+        description: "Redirecting to dashboard...",
       });
 
       if (data.forcePasswordReset) {
@@ -54,9 +66,8 @@ export default function AdminLogin() {
         });
       }
 
-      const redirectPath = data.admin?.role === "SUPER_ADMIN" 
-        ? "/super-admin" 
-        : "/admin";
+      // Use server-provided redirect path based on role
+      const redirectPath = data.redirectPath || getRoleDashboard(data.admin?.role);
       
       setLocation(redirectPath);
     } catch (error) {
@@ -143,6 +154,17 @@ export default function AdminLogin() {
             </Button>
           </form>
         </CardContent>
+        <CardFooter className="flex flex-col gap-3">
+          <Link href="/admin-forgot-password" className="text-sm text-muted-foreground hover:text-primary transition-colors" data-testid="link-forgot-password">
+            Forgot your password?
+          </Link>
+          <div className="text-sm text-muted-foreground">
+            Looking for tenant login?{" "}
+            <Link href="/login" className="text-primary hover:underline" data-testid="link-tenant-login">
+              Sign in here
+            </Link>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   );
