@@ -390,25 +390,29 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
             <div className="space-y-2">
               <Label>Assigned Countries</Label>
               <div className="flex flex-wrap gap-2 min-h-9 p-2 border rounded-md">
-                {regionsData?.map((region) => (
-                  <Badge
-                    key={region.countryCode}
-                    variant={countryAssignments.includes(region.countryCode) ? "default" : "outline"}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setCountryAssignments(prev => {
-                        if (prev.includes(region.countryCode)) {
-                          return prev.filter(c => c !== region.countryCode);
-                        } else {
-                          return [...prev, region.countryCode];
-                        }
-                      });
-                    }}
-                    data-testid={`badge-region-${region.countryCode}`}
-                  >
-                    {region.countryCode}
-                  </Badge>
-                ))}
+                {regionsData?.map((region) => {
+                  const isSelected = countryAssignments.includes(region.countryCode);
+                  return (
+                    <button
+                      key={region.countryCode}
+                      type="button"
+                      className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer ${
+                        isSelected 
+                          ? 'border-transparent bg-primary text-primary-foreground shadow-xs' 
+                          : 'border bg-background hover:bg-accent hover:text-accent-foreground'
+                      }`}
+                      onClick={() => {
+                        const newAssignments = isSelected
+                          ? countryAssignments.filter(c => c !== region.countryCode)
+                          : [...countryAssignments, region.countryCode];
+                        setCountryAssignments(newAssignments);
+                      }}
+                      data-testid={`badge-region-${region.countryCode}`}
+                    >
+                      {region.countryCode}
+                    </button>
+                  );
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
                 Scope controls which tenants this admin can access. {countryAssignments.length} countr{countryAssignments.length !== 1 ? "ies" : "y"} selected.
@@ -705,32 +709,36 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
         <div className="space-y-2">
           <Label>Assigned Countries <span className="text-destructive">*</span></Label>
           <div className={`flex flex-wrap gap-2 min-h-9 p-2 border rounded-md ${errors.scope ? 'border-destructive' : ''}`}>
-            {regionsData?.map((region) => (
-              <Badge
-                key={region.countryCode}
-                variant={countryAssignments.includes(region.countryCode) ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => {
-                  setCountryAssignments(prev => {
-                    if (prev.includes(region.countryCode)) {
-                      return prev.filter(c => c !== region.countryCode);
-                    } else {
-                      return [...prev, region.countryCode];
+            {regionsData?.map((region) => {
+              const isSelected = countryAssignments.includes(region.countryCode);
+              return (
+                <button
+                  key={region.countryCode}
+                  type="button"
+                  className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer ${
+                    isSelected 
+                      ? 'border-transparent bg-primary text-primary-foreground shadow-xs' 
+                      : 'border bg-background hover:bg-accent hover:text-accent-foreground'
+                  }`}
+                  onClick={() => {
+                    const newAssignments = isSelected
+                      ? countryAssignments.filter(c => c !== region.countryCode)
+                      : [...countryAssignments, region.countryCode];
+                    setCountryAssignments(newAssignments);
+                    // Clear scope error when countries are selected
+                    if (newAssignments.length > 0 && errors.scope) {
+                      setErrors(prev => {
+                        const { scope: _, ...rest } = prev;
+                        return rest;
+                      });
                     }
-                  });
-                  // Clear scope error when countries are selected
-                  if (errors.scope) {
-                    setErrors(prev => {
-                      const { scope: _, ...rest } = prev;
-                      return rest;
-                    });
-                  }
-                }}
-                data-testid={`badge-create-region-${region.countryCode}`}
-              >
-                {region.countryCode}
-              </Badge>
-            ))}
+                  }}
+                  data-testid={`badge-create-region-${region.countryCode}`}
+                >
+                  {region.countryCode}
+                </button>
+              );
+            })}
           </div>
           {errors.scope && <p className="text-sm text-destructive">{errors.scope}</p>}
           <p className="text-xs text-muted-foreground">
