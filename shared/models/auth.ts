@@ -48,6 +48,7 @@ export const platformAdmins = pgTable("platform_admins", {
   role: platformAdminRoleEnum("role").notNull().default("PLATFORM_ADMIN"),
   isActive: boolean("is_active").notNull().default(true),
   forcePasswordReset: boolean("force_password_reset").notNull().default(false),
+  twoFactorRequired: boolean("two_factor_required").notNull().default(false),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -215,9 +216,10 @@ export const adminTwoFactorAuth = pgTable("admin_two_factor_auth", {
   method: varchar("method", { length: 20 }).notNull().default("totp"), // 'totp', 'sms', 'email'
   secretKey: varchar("secret_key", { length: 255 }), // Encrypted TOTP secret
   phoneNumber: varchar("phone_number", { length: 20 }), // For SMS-based 2FA
-  backupCodes: jsonb("backup_codes").default([]), // Encrypted backup codes
+  backupCodes: jsonb("backup_codes").default([]), // Hashed backup codes
   isEnabled: boolean("is_enabled").notNull().default(false),
   isVerified: boolean("is_verified").notNull().default(false),
+  verifiedAt: timestamp("verified_at"),
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

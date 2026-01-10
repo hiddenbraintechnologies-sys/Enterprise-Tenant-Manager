@@ -1,0 +1,142 @@
+Implement Admin 2FA using TOTP (Authenticator apps) for platform admin login, starting with PLATFORM_SUPER_ADMIN required and PLATFORM_ADMIN optional (toggle). Keep password reset as email reset-link (single-use token), NOT OTP.
+
+Do NOT add unrelated features. Must be secure, minimal, and fully tested.
+
+================================================
+1) Database / Schema
+================================================
+Add fields for platform admin users (or admin profile table—use whatever exists today):
+
+- twoFactorEnabled (boolean, default false)
+- twoFactorSecretEncrypted (text nullable)  // store encrypted at rest (preferred) OR store in a protected secrets table
+- twoFactorVerifiedAt (timestamp nullable)
+- twoFactorRequired (boolean, default false) // set true for PLATFORM_SUPER_ADMIN, optional for PLATFORM_ADMIN
+- twoFactorBackupCodesHash (json/text nullable) // optional but recommended (hashed codes)
+
+Also add audit log events:
+- ADMIN_2FA_SETUP_STARTED
+- ADMIN_2FA_ENABLED
+- ADMIN_2FA_DISABLED
+- ADMIN_LOGIN_2FA_CHALLENGE
+- ADMIN_LOGIN_SUCCESS
+- ADMIN_LOGIN_FAILED
+
+================================================
+2) Backend: TOTP Utilities
+================================================
+- Use a standard TOTP library (e.g., otplib or speakeasy).
+- Generate a base32 secret.
+- Validate 6-digit codes with small window tolerance (±1 step).
+
+Security:
+- Rate limit OTP verification attempts (per user + IP).
+- Do not log secrets or OTP codes.
+
+================================================
+3) Backend APIs (Admin-only)
+================================================
+A) Start 2FA Setup (SUPER_ADMIN can manage; admin can enroll self if you allow)
+POST /api/platform/admins/:id/2fa/setup
+- Requires: requireSuperAdminOnly() OR allow self-enroll with permission
+- Generate secret
+- Store encrypted secret with twoFactorEnabled=false
+- Return: otpauth URL + QR code data (or otpauth URL for frontend QR generation)
+- Audit: ADMIN_2FA_SETUP_STARTED
+
+B) Confirm 2FA Setup
+POST /api/platform/admins/:id/2fa/confirm
+body: { code }
+- Verify TOTP code
+- If valid:
+  - set twoFactorEnabled=true
+  - set twoFactorVerifiedAt=now
+  - generate backup codes (8-10), store hashed
+  - return backup codes ONCE
+- Audit: ADMIN_2FA_ENABLED
+
+C) Disable 2FA (SUPER_ADMIN only)
+POST /api/platform/admins/:id/2fa/disable
+- Clear secret + flags + backup codes
+- Audit: ADMIN_2FA_DISABLED
+
+================================================
+4) Admin Login Flow (/admin-login)
+================================================
+Keep email/password login, but add OTP step for admins when 2FA enabled/required.
+
+A) Step 1: Password Check
+POST /api/auth/admin/login
+body: { email, password }
+
+Rules:
+- Authenticate email/password
+- Ensure user is a platform admin role (PLATFORM_SUPER_ADMIN / PLATFORM_ADMIN / TECH_SUPPORT_MANAGER / etc.)
+- If role is PLATFORM_SUPER_ADMIN => enforce twoFactorRequired=true
+- If twoFactorRequired=true OR twoFactorEnabled=true:
+  - return 200 with { code:"TWO_FACTOR_REQUIRED", tempToken }
+  - tempToken is short-lived (5 minutes), signed server-side, contains userId + nonce
+  - Audit: ADMIN_LOGIN_2FA_CHALLENGE
+- Else: issue normal session/JWT and return success
+
+B) Step 2: OTP Verify
+POST /api/auth/admin/login/2fa
+body: { tempToken, code }
+- Validate tempToken
+- Verify TOTP code
+- If success: issue normal JWT/session + refresh token
+- If failure: 401 { code:"INVALID_OTP" }
+- Rate limit OTP attempts
+
+C) Backup Code (optional but recommended)
+POST /api/auth/admin/login/backup
+body: { tempToken, backupCode }
+- Validate hashed code, single-use (remove/mark used)
+- Issue JWT/session
+
+================================================
+5) Frontend UI
+================================================
+A) Admin Management Page (existing UI)
+- Add section on Admin detail (or edit modal):
+  - "Two-Factor Authentication (TOTP)"
+  - Button: "Setup 2FA" (shows QR + code input)
+  - Button: "Disable 2FA" (SUPER_ADMIN only)
+
+B) Admin Login Page (/admin-login)
+- After submitting email/password:
+  - if response code == TWO_FACTOR_REQUIRED:
+    - show OTP entry screen (6-digit)
+    - submit to /api/auth/admin/login/2fa
+  - if success: redirect to correct admin dashboard
+
+C) QR Code Rendering
+- Generate QR on frontend from otpauth URL (use a QR component/library)
+- Never show secret in plain text unless “copy key” is explicitly clicked.
+
+================================================
+6) Password Reset (keep email link)
+================================================
+- Keep reset-link flow for email/password accounts.
+- After reset, revoke existing refresh tokens/sessions.
+- For platform admins, redirect to /admin-login after reset.
+
+================================================
+7) Tests (mandatory)
+================================================
+Add tests:
+- PLATFORM_SUPER_ADMIN login always requires 2FA once enabled/required
+- PLATFORM_ADMIN login requires 2FA only if enabled
+- Wrong OTP fails with 401 INVALID_OTP
+- Rate limiting triggers after repeated OTP failures
+- Disabling 2FA prevents OTP challenge
+- Tenant users cannot access /api/auth/admin/login
+
+Run full test suite; all must pass.
+
+================================================
+8) Deliverables
+================================================
+- DB migrations + schema updates
+- Backend endpoints for 2FA setup/confirm/disable + admin login 2FA step
+- Frontend: admin 2FA setup UI + admin login OTP screen
+- Tests passing + short verification notes
