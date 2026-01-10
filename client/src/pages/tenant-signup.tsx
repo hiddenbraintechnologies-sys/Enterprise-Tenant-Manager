@@ -129,6 +129,7 @@ export default function TenantSignupPage() {
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       localStorage.setItem("tenantId", data.tenant.id);
+      localStorage.setItem("lastTenantId", data.tenant.id);
       localStorage.setItem("tenantCountry", variables.country);
 
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });

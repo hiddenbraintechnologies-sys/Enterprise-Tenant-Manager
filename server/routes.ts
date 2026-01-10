@@ -617,6 +617,84 @@ export async function registerRoutes(
     }
   });
 
+  // Tenant lookup by email - allows root domain login to discover user's tenants
+  app.post("/api/auth/tenants/lookup", authRateLimit, async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ 
+          message: "Email is required",
+          code: "EMAIL_REQUIRED"
+        });
+      }
+
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+      
+      if (!existingUser) {
+        return res.status(404).json({ 
+          message: "No account found with this email",
+          code: "USER_NOT_FOUND"
+        });
+      }
+
+      // Get all tenants the user belongs to
+      const userTenantRecords = await db.select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, existingUser.id),
+          eq(userTenants.isActive, true)
+        ));
+
+      if (userTenantRecords.length === 0) {
+        return res.status(404).json({ 
+          message: "No tenant membership found for this user",
+          code: "TENANT_NOT_FOUND_FOR_USER"
+        });
+      }
+
+      // Fetch tenant details for each membership
+      const tenantOptions = await Promise.all(
+        userTenantRecords.map(async (ut) => {
+          const [t] = await db.select().from(tenants).where(
+            and(
+              eq(tenants.id, ut.tenantId),
+              eq(tenants.status, "active")
+            )
+          );
+          return t ? { 
+            id: t.id, 
+            name: t.name, 
+            slug: t.slug,
+            region: t.region,
+            country: t.country,
+            businessType: t.businessType,
+            status: t.status,
+            isDefault: ut.isDefault,
+          } : null;
+        })
+      );
+
+      const activeTenants = tenantOptions.filter(Boolean);
+      
+      if (activeTenants.length === 0) {
+        return res.status(404).json({ 
+          message: "No active tenants found for this user",
+          code: "TENANT_NOT_FOUND_FOR_USER"
+        });
+      }
+
+      res.json({
+        tenants: activeTenants,
+        count: activeTenants.length,
+        hasMultiple: activeTenants.length > 1,
+      });
+    } catch (error) {
+      console.error("Tenant lookup error:", error);
+      res.status(500).json({ message: "Failed to lookup tenants" });
+    }
+  });
+
   app.post("/api/auth/login", authRateLimit, async (req, res) => {
     try {
       const { email, password, tenantId, subdomain } = req.body;

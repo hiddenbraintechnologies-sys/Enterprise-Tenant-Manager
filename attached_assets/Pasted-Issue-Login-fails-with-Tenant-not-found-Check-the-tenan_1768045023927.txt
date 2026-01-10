@@ -1,0 +1,64 @@
+Issue: Login fails with “Tenant not found. Check the tenant URL or select a tenant.” even though signup succeeded.
+We must make root-domain login work reliably without requiring users to manually use tenant subdomains.
+
+Do NOT add new features unrelated to auth. Fix tenant resolution + login UX.
+
+1) Backend: Tenant Discovery by Email
+- Add an endpoint:
+  POST /api/auth/tenants/lookup
+  body: { email }
+  returns: { tenants: [{ id, name, slug, region, status }] }
+- Lookup logic:
+  - Find user by email
+  - Find user-tenants mappings for that user
+  - Return all active tenants the user belongs to
+- If none found: return 404 with error code TENANT_NOT_FOUND_FOR_USER
+
+2) Backend: Login With Tenant Resolution
+- Update email/password login flow to support:
+  A) If request includes tenantId (or X-Tenant-ID) -> validate user belongs to that tenant, then authenticate
+  B) If tenantId missing:
+     - Lookup tenants for email
+     - If exactly 1 tenant -> use it automatically and proceed login
+     - If >1 tenants -> return 409 with error code TENANT_SELECTION_REQUIRED and the list of tenants
+
+Important:
+- Return consistent errors:
+  - 401 for wrong credentials
+  - 404 if user has no tenant
+  - 409 if multiple tenants and selection required
+
+3) Frontend: Tenant Picker UX on Login
+- On login submit:
+  - First call /api/auth/tenants/lookup (or handle 409 response from login)
+  - If single tenant -> proceed login automatically
+  - If multiple -> show a modal/dropdown “Select your tenant”
+- When tenant selected:
+  - Save tenantId to localStorage (e.g., selectedTenantId)
+  - Retry login including tenantId (or set X-Tenant-ID header)
+
+4) Persist Tenant Context
+- Ensure all authenticated API calls include tenant context:
+  - Inject X-Tenant-ID from:
+    a) subdomain mapping if present
+    b) selectedTenantId localStorage fallback
+- After successful login, redirect to correct dashboard for that tenant businessType.
+
+5) Fix Signup → Login Continuity
+- After successful signup, store:
+  - created tenantId as selectedTenantId
+  - and/or return tenant object in response so UI saves it
+This prevents immediate “tenant not found” on first login.
+
+6) Tests
+Add/Update tests:
+- Signup returns tenant.id and user is mapped to tenant
+- Login without tenantId:
+  - if one tenant -> success
+  - if multiple -> 409 and tenants list
+  - if none -> 404
+- Tenant isolation unchanged (cross-tenant returns 404)
+
+Deliverable:
+- Root domain login works for newly registered users.
+- No need to type tenant URL manually.

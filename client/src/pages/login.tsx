@@ -115,7 +115,7 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
-      const storedTenantId = localStorage.getItem("lastTenantId");
+      const storedTenantId = localStorage.getItem("lastTenantId") || localStorage.getItem("tenantId");
       return performLogin(data, storedTenantId || undefined, false);
     },
     onSuccess: (data) => {
@@ -124,6 +124,7 @@ export default function Login() {
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       if (data.tenant?.id) {
+        localStorage.setItem("tenantId", data.tenant.id);
         localStorage.setItem("lastTenantId", data.tenant.id);
       }
       
@@ -165,6 +166,7 @@ export default function Login() {
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       if (data.tenant?.id) {
+        localStorage.setItem("tenantId", data.tenant.id);
         localStorage.setItem("lastTenantId", data.tenant.id);
       }
       

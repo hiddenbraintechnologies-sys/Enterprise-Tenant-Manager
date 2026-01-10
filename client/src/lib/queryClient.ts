@@ -8,8 +8,24 @@ async function throwIfResNotOk(res: Response) {
 }
 
 function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("mybizstream_admin_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = {};
+  
+  // Try admin token first, then user token
+  const adminToken = localStorage.getItem("mybizstream_admin_token");
+  const userToken = localStorage.getItem("accessToken");
+  const token = adminToken || userToken;
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  
+  // Include tenant context for API isolation
+  const tenantId = localStorage.getItem("lastTenantId") || localStorage.getItem("tenantId");
+  if (tenantId) {
+    headers["X-Tenant-ID"] = tenantId;
+  }
+  
+  return headers;
 }
 
 export async function apiRequest(
