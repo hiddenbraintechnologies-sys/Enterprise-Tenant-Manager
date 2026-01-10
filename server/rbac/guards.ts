@@ -16,12 +16,14 @@ import { eq, inArray } from "drizzle-orm";
 import {
   Permissions,
   ROLE_DEFINITIONS,
+  PLATFORM_ROLES,
   hasPermission,
   requiresScope,
   isTenantCountryInScope,
   type Permission,
   type Role,
   type PlatformRole,
+  type TenantRole,
   type ScopeType,
   type ScopeContext,
 } from "@shared/rbac/permissions";
@@ -29,15 +31,21 @@ import {
 // Re-export permission constants for convenience
 export { Permissions, ROLE_DEFINITIONS, hasPermission, requiresScope };
 
+// Map legacy role names to new constants
+const LEGACY_ROLE_MAP: Record<string, PlatformRole> = {
+  "SUPER_ADMIN": PLATFORM_ROLES.SUPER_ADMIN,
+  "PLATFORM_SUPER_ADMIN": PLATFORM_ROLES.SUPER_ADMIN,
+  "PLATFORM_ADMIN": PLATFORM_ROLES.PLATFORM_ADMIN,
+  "TECH_SUPPORT_MANAGER": PLATFORM_ROLES.TECH_SUPPORT_MANAGER,
+  "MANAGER": PLATFORM_ROLES.MANAGER,
+  "SUPPORT_TEAM": PLATFORM_ROLES.SUPPORT_TEAM,
+};
+
 /**
- * Error response format for RBAC failures
+ * Normalize role string to standard format
  */
-interface RBACError {
-  error: {
-    code: "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND";
-    message: string;
-    details?: Record<string, unknown>;
-  };
+function normalizeRole(role: string): Role {
+  return LEGACY_ROLE_MAP[role] || role as Role;
 }
 
 /**
@@ -47,6 +55,7 @@ export interface DerivedScopeContext extends ScopeContext {
   adminId?: string;
   role?: Role;
   isPlatformAdmin: boolean;
+  isTenantUser: boolean;
   isSuperAdmin: boolean;
 }
 
@@ -71,54 +80,82 @@ export function requireAuth() {
       return next();
     }
 
-    const error: RBACError = {
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Authentication required",
-      },
-    };
-    return res.status(401).json(error);
+    return res.status(401).json({ 
+      message: "Authentication required",
+      code: "UNAUTHORIZED"
+    });
   };
 }
 
 /**
  * requirePermission - Checks if user has a specific permission
  * Returns 403 if authenticated but lacks permission
+ * Works for both platform admins and tenant users
  * 
  * @param permission - The permission to check (from Permissions constant)
  */
 export function requirePermission(permission: Permission) {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Must be authenticated first
-    if (!req.platformAdminContext?.platformAdmin) {
-      const error: RBACError = {
-        error: {
+    // Check for platform admin context first
+    if (req.platformAdminContext?.platformAdmin) {
+      const role = normalizeRole(req.platformAdminContext.platformAdmin.role);
+
+      // Check if role has the required permission
+      if (!hasPermission(role, permission)) {
+        return res.status(403).json({ 
+          message: "Insufficient permissions",
           code: "FORBIDDEN",
-          message: "Platform admin access required",
-        },
-      };
-      return res.status(403).json(error);
+          required: permission,
+        });
+      }
+
+      return next();
     }
 
-    const role = req.platformAdminContext.platformAdmin.role as Role;
+    // Check for tenant user context
+    if (req.context?.user && req.context.role) {
+      // Map tenant role to tenant role type and check permissions
+      const tenantRole = mapTenantRole(req.context.role.name);
+      if (tenantRole && hasPermission(tenantRole, permission)) {
+        return next();
+      }
 
-    // Check if role has the required permission
-    if (!hasPermission(role, permission)) {
-      const error: RBACError = {
-        error: {
-          code: "FORBIDDEN",
-          message: "Not authorized",
-          details: {
-            required: permission,
-            role: role,
-          },
-        },
-      };
-      return res.status(403).json(error);
+      // Also check stored permissions array
+      if (req.context.permissions?.includes(permission)) {
+        return next();
+      }
+
+      return res.status(403).json({ 
+        message: "Insufficient permissions",
+        code: "FORBIDDEN",
+        required: permission,
+      });
     }
 
-    next();
+    // No authenticated context
+    return res.status(403).json({ 
+      message: "Authentication required",
+      code: "NOT_AUTHENTICATED"
+    });
   };
+}
+
+/**
+ * Map tenant role name to TenantRole type
+ */
+function mapTenantRole(roleName: string): TenantRole | null {
+  const roleMap: Record<string, TenantRole> = {
+    "admin": "TENANT_ADMIN",
+    "ADMIN": "TENANT_ADMIN",
+    "TENANT_ADMIN": "TENANT_ADMIN",
+    "staff": "TENANT_STAFF",
+    "STAFF": "TENANT_STAFF",
+    "TENANT_STAFF": "TENANT_STAFF",
+    "viewer": "TENANT_VIEWER",
+    "VIEWER": "TENANT_VIEWER",
+    "TENANT_VIEWER": "TENANT_VIEWER",
+  };
+  return roleMap[roleName] || null;
 }
 
 /**
@@ -127,36 +164,51 @@ export function requirePermission(permission: Permission) {
  */
 export function requireAnyPermission(...permissions: Permission[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.platformAdminContext?.platformAdmin) {
-      const error: RBACError = {
-        error: {
+    // Check for platform admin context
+    if (req.platformAdminContext?.platformAdmin) {
+      const role = normalizeRole(req.platformAdminContext.platformAdmin.role);
+
+      // Check if role has any of the required permissions
+      const hasAny = permissions.some(perm => hasPermission(role, perm));
+
+      if (!hasAny) {
+        return res.status(403).json({ 
+          message: "Insufficient permissions",
           code: "FORBIDDEN",
-          message: "Platform admin access required",
-        },
-      };
-      return res.status(403).json(error);
+          required: permissions,
+        });
+      }
+
+      return next();
     }
 
-    const role = req.platformAdminContext.platformAdmin.role as Role;
+    // Check for tenant user context
+    if (req.context?.user && req.context.role) {
+      const tenantRole = mapTenantRole(req.context.role.name);
+      if (tenantRole) {
+        const hasAny = permissions.some(perm => hasPermission(tenantRole, perm));
+        if (hasAny) {
+          return next();
+        }
+      }
 
-    // Check if role has any of the required permissions
-    const hasAny = permissions.some(perm => hasPermission(role, perm));
+      // Check stored permissions array
+      const hasAny = permissions.some(perm => req.context?.permissions?.includes(perm));
+      if (hasAny) {
+        return next();
+      }
 
-    if (!hasAny) {
-      const error: RBACError = {
-        error: {
-          code: "FORBIDDEN",
-          message: "Not authorized",
-          details: {
-            required: permissions,
-            role: role,
-          },
-        },
-      };
-      return res.status(403).json(error);
+      return res.status(403).json({ 
+        message: "Insufficient permissions",
+        code: "FORBIDDEN",
+        required: permissions,
+      });
     }
 
-    next();
+    return res.status(403).json({ 
+      message: "Authentication required",
+      code: "NOT_AUTHENTICATED"
+    });
   };
 }
 
@@ -167,29 +219,20 @@ export function requireAnyPermission(...permissions: Permission[]) {
 export function requireSuperAdminOnly() {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.platformAdminContext?.platformAdmin) {
-      const error: RBACError = {
-        error: {
-          code: "FORBIDDEN",
-          message: "Platform admin access required",
-        },
-      };
-      return res.status(403).json(error);
+      return res.status(403).json({ 
+        message: "Platform admin access required",
+        code: "NOT_PLATFORM_ADMIN"
+      });
     }
 
-    const role = req.platformAdminContext.platformAdmin.role;
+    const role = normalizeRole(req.platformAdminContext.platformAdmin.role);
 
-    // Only SUPER_ADMIN role passes
-    if (role !== "SUPER_ADMIN" && role !== "PLATFORM_SUPER_ADMIN") {
-      const error: RBACError = {
-        error: {
-          code: "FORBIDDEN",
-          message: "Not authorized",
-          details: {
-            message: "Super admin access required",
-          },
-        },
-      };
-      return res.status(403).json(error);
+    // Only PLATFORM_SUPER_ADMIN role passes
+    if (role !== PLATFORM_ROLES.SUPER_ADMIN) {
+      return res.status(403).json({ 
+        message: "Super admin access required",
+        code: "SUPER_ADMIN_REQUIRED"
+      });
     }
 
     next();
@@ -201,24 +244,42 @@ export function requireSuperAdminOnly() {
  * Returns the scope information for the current user
  */
 export function getScopeContext(req: Request): DerivedScopeContext | null {
-  if (!req.platformAdminContext?.platformAdmin) {
-    return null;
+  // Check for platform admin context
+  if (req.platformAdminContext?.platformAdmin) {
+    const admin = req.platformAdminContext.platformAdmin;
+    const role = normalizeRole(admin.role);
+    const scopeType = requiresScope(role);
+    const scope = req.platformAdminContext.scope;
+
+    return {
+      scopeType,
+      adminId: admin.id,
+      role,
+      isPlatformAdmin: true,
+      isTenantUser: false,
+      isSuperAdmin: role === PLATFORM_ROLES.SUPER_ADMIN,
+      allowedCountryIds: scope?.countryIds || [],
+      allowedRegionIds: scope?.regionIds || [],
+    };
   }
 
-  const admin = req.platformAdminContext.platformAdmin;
-  const role = admin.role as PlatformRole;
-  const scopeType = requiresScope(role);
-  const scope = req.platformAdminContext.scope;
+  // Check for tenant user context
+  if (req.context?.user && req.context.tenant) {
+    const tenantRole = req.context.role ? mapTenantRole(req.context.role.name) : null;
 
-  return {
-    scopeType,
-    adminId: admin.id,
-    role,
-    isPlatformAdmin: true,
-    isSuperAdmin: role === "SUPER_ADMIN" || role === "PLATFORM_SUPER_ADMIN",
-    allowedCountryIds: scope?.countryIds || [],
-    allowedRegionIds: scope?.regionIds || [],
-  };
+    return {
+      scopeType: "TENANT",
+      role: tenantRole || undefined,
+      isPlatformAdmin: false,
+      isTenantUser: true,
+      isSuperAdmin: false,
+      tenantId: req.context.tenant.id,
+      allowedCountryIds: [],
+      allowedRegionIds: [],
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -311,13 +372,10 @@ export function enforceTenantScope(
       const isInScope = scopeContext.allowedCountryIds?.includes(target.countryCode);
       if (!isInScope) {
         // Return 404 to not leak tenant existence
-        const error: RBACError = {
-          error: {
-            code: "NOT_FOUND",
-            message: "Resource not found",
-          },
-        };
-        return res.status(404).json(error);
+        return res.status(404).json({
+          message: "Resource not found",
+          code: "NOT_FOUND"
+        });
       }
       return next();
     }
@@ -329,13 +387,10 @@ export function enforceTenantScope(
         .where(eq(tenants.id, target.tenantId));
 
       if (!tenant) {
-        const error: RBACError = {
-          error: {
-            code: "NOT_FOUND",
-            message: "Resource not found",
-          },
-        };
-        return res.status(404).json(error);
+        return res.status(404).json({
+          message: "Resource not found",
+          code: "NOT_FOUND"
+        });
       }
 
       // Check if tenant's country is in admin's scope
@@ -346,13 +401,10 @@ export function enforceTenantScope(
 
       if (!isInScope) {
         // Return 404 to not leak tenant existence
-        const error: RBACError = {
-          error: {
-            code: "NOT_FOUND",
-            message: "Resource not found",
-          },
-        };
-        return res.status(404).json(error);
+        return res.status(404).json({
+          message: "Resource not found",
+          code: "NOT_FOUND"
+        });
       }
     }
 
