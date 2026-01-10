@@ -16,11 +16,19 @@ describe("Platform Admin RBAC Separation", () => {
     it("should define all platform roles", async () => {
       const { PLATFORM_ROLES } = await import("@shared/rbac/permissions");
 
-      expect(PLATFORM_ROLES.SUPER_ADMIN).toBe("SUPER_ADMIN");
+      expect(PLATFORM_ROLES.SUPER_ADMIN).toBe("PLATFORM_SUPER_ADMIN");
       expect(PLATFORM_ROLES.PLATFORM_ADMIN).toBe("PLATFORM_ADMIN");
       expect(PLATFORM_ROLES.TECH_SUPPORT_MANAGER).toBe("TECH_SUPPORT_MANAGER");
       expect(PLATFORM_ROLES.MANAGER).toBe("MANAGER");
       expect(PLATFORM_ROLES.SUPPORT_TEAM).toBe("SUPPORT_TEAM");
+    });
+
+    it("should define tenant roles", async () => {
+      const { TENANT_ROLES } = await import("@shared/rbac/permissions");
+
+      expect(TENANT_ROLES.ADMIN).toBe("TENANT_ADMIN");
+      expect(TENANT_ROLES.STAFF).toBe("TENANT_STAFF");
+      expect(TENANT_ROLES.VIEWER).toBe("TENANT_VIEWER");
     });
 
     it("should define scope types", async () => {
@@ -32,60 +40,57 @@ describe("Platform Admin RBAC Separation", () => {
       expect(SCOPE_TYPES.TENANT).toBe("TENANT");
     });
 
-    it("should have distinct permission sets for each role", async () => {
-      const { ROLE_PERMISSIONS, PLATFORM_ROLES } = await import("@shared/rbac/permissions");
+    it("should have role definitions for all roles", async () => {
+      const { ROLE_DEFINITIONS } = await import("@shared/rbac/permissions");
 
-      // Super admin should have the most permissions
-      expect(ROLE_PERMISSIONS[PLATFORM_ROLES.SUPER_ADMIN].length).toBeGreaterThan(
-        ROLE_PERMISSIONS[PLATFORM_ROLES.PLATFORM_ADMIN].length
-      );
+      // Platform roles
+      expect(ROLE_DEFINITIONS.PLATFORM_SUPER_ADMIN).toBeDefined();
+      expect(ROLE_DEFINITIONS.PLATFORM_ADMIN).toBeDefined();
+      expect(ROLE_DEFINITIONS.TECH_SUPPORT_MANAGER).toBeDefined();
+      expect(ROLE_DEFINITIONS.MANAGER).toBeDefined();
+      expect(ROLE_DEFINITIONS.SUPPORT_TEAM).toBeDefined();
 
-      // Platform admin should have more permissions than manager
-      expect(ROLE_PERMISSIONS[PLATFORM_ROLES.PLATFORM_ADMIN].length).toBeGreaterThanOrEqual(
-        ROLE_PERMISSIONS[PLATFORM_ROLES.MANAGER].length
-      );
-
-      // All roles should have at least some permissions
-      Object.values(PLATFORM_ROLES).forEach(role => {
-        expect(ROLE_PERMISSIONS[role].length).toBeGreaterThan(0);
-      });
+      // Tenant roles
+      expect(ROLE_DEFINITIONS.TENANT_ADMIN).toBeDefined();
+      expect(ROLE_DEFINITIONS.TENANT_STAFF).toBeDefined();
+      expect(ROLE_DEFINITIONS.TENANT_VIEWER).toBeDefined();
     });
 
-    it("should define scope rules for each role", async () => {
-      const { ROLE_SCOPE_RULES, PLATFORM_ROLES, SCOPE_TYPES } = await import("@shared/rbac/permissions");
+    it("should define scope types in role definitions", async () => {
+      const { ROLE_DEFINITIONS } = await import("@shared/rbac/permissions");
 
       // Super admin has global scope
-      expect(ROLE_SCOPE_RULES[PLATFORM_ROLES.SUPER_ADMIN]).toBe(SCOPE_TYPES.GLOBAL);
+      expect(ROLE_DEFINITIONS.PLATFORM_SUPER_ADMIN.scopeType).toBe("GLOBAL");
 
       // Platform admin has country scope
-      expect(ROLE_SCOPE_RULES[PLATFORM_ROLES.PLATFORM_ADMIN]).toBe(SCOPE_TYPES.COUNTRY);
+      expect(ROLE_DEFINITIONS.PLATFORM_ADMIN.scopeType).toBe("COUNTRY");
 
       // Tech support manager has global scope for system monitoring
-      expect(ROLE_SCOPE_RULES[PLATFORM_ROLES.TECH_SUPPORT_MANAGER]).toBe(SCOPE_TYPES.GLOBAL);
+      expect(ROLE_DEFINITIONS.TECH_SUPPORT_MANAGER.scopeType).toBe("GLOBAL");
 
       // Manager has country scope
-      expect(ROLE_SCOPE_RULES[PLATFORM_ROLES.MANAGER]).toBe(SCOPE_TYPES.COUNTRY);
+      expect(ROLE_DEFINITIONS.MANAGER.scopeType).toBe("COUNTRY");
 
       // Support team has country scope
-      expect(ROLE_SCOPE_RULES[PLATFORM_ROLES.SUPPORT_TEAM]).toBe(SCOPE_TYPES.COUNTRY);
+      expect(ROLE_DEFINITIONS.SUPPORT_TEAM.scopeType).toBe("COUNTRY");
+
+      // Tenant roles have tenant scope
+      expect(ROLE_DEFINITIONS.TENANT_ADMIN.scopeType).toBe("TENANT");
+      expect(ROLE_DEFINITIONS.TENANT_STAFF.scopeType).toBe("TENANT");
+      expect(ROLE_DEFINITIONS.TENANT_VIEWER.scopeType).toBe("TENANT");
     });
   });
 
   describe("Permission Constants", () => {
     it("should have distinct permission sets for SUPER_ADMIN and PLATFORM_ADMIN", async () => {
-      const { ROLE_PERMISSIONS, PLATFORM_ROLES, SUPER_ADMIN_ONLY_PERMISSIONS, PLATFORM_PERMISSIONS } = 
+      const { ROLE_DEFINITIONS, SUPER_ADMIN_ONLY_PERMISSIONS, Permissions } = 
         await import("@shared/rbac/permissions");
 
-      const superAdminPerms = ROLE_PERMISSIONS[PLATFORM_ROLES.SUPER_ADMIN];
-      const platformAdminPerms = ROLE_PERMISSIONS[PLATFORM_ROLES.PLATFORM_ADMIN];
+      const superAdminPerms = ROLE_DEFINITIONS.PLATFORM_SUPER_ADMIN.permissions;
+      const platformAdminPerms = ROLE_DEFINITIONS.PLATFORM_ADMIN.permissions;
 
       // Super admin should have more permissions
       expect(superAdminPerms.length).toBeGreaterThan(platformAdminPerms.length);
-      
-      // Platform admin permissions should be a subset of super admin permissions
-      for (const perm of platformAdminPerms) {
-        expect(superAdminPerms).toContain(perm);
-      }
 
       // Super admin only permissions should NOT be in platform admin permissions
       for (const perm of SUPER_ADMIN_ONLY_PERMISSIONS) {
@@ -93,34 +98,49 @@ describe("Platform Admin RBAC Separation", () => {
       }
 
       // Verify expected super admin only permissions
-      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS);
-      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG);
-      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING);
-      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(PLATFORM_PERMISSIONS.MANAGE_BUSINESS_TYPES);
+      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(Permissions.MANAGE_PLATFORM_ADMINS);
+      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(Permissions.MANAGE_GLOBAL_CONFIG);
+      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(Permissions.MANAGE_PLANS_PRICING);
+      expect(SUPER_ADMIN_ONLY_PERMISSIONS).toContain(Permissions.MANAGE_BUSINESS_TYPES);
     });
 
     it("should have expected platform admin permissions", async () => {
-      const { ROLE_PERMISSIONS, PLATFORM_ROLES, PLATFORM_PERMISSIONS } = await import("@shared/rbac/permissions");
+      const { ROLE_DEFINITIONS, Permissions } = await import("@shared/rbac/permissions");
       
-      const platformAdminPerms = ROLE_PERMISSIONS[PLATFORM_ROLES.PLATFORM_ADMIN];
+      const platformAdminPerms = ROLE_DEFINITIONS.PLATFORM_ADMIN.permissions;
 
-      expect(platformAdminPerms).toContain(PLATFORM_PERMISSIONS.VIEW_TENANTS);
-      expect(platformAdminPerms).toContain(PLATFORM_PERMISSIONS.SUSPEND_TENANT);
-      expect(platformAdminPerms).toContain(PLATFORM_PERMISSIONS.VIEW_USAGE_METRICS);
-      expect(platformAdminPerms).toContain(PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS);
-      expect(platformAdminPerms).toContain(PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS);
+      expect(platformAdminPerms).toContain(Permissions.VIEW_TENANTS_SCOPED);
+      expect(platformAdminPerms).toContain(Permissions.SUSPEND_TENANT_SCOPED);
+      expect(platformAdminPerms).toContain(Permissions.VIEW_INVOICES_PAYMENTS);
+      expect(platformAdminPerms).toContain(Permissions.HANDLE_SUPPORT_TICKETS);
     });
 
     it("should have expected tech support manager permissions", async () => {
-      const { ROLE_PERMISSIONS, PLATFORM_ROLES, PLATFORM_PERMISSIONS } = await import("@shared/rbac/permissions");
+      const { ROLE_DEFINITIONS, Permissions } = await import("@shared/rbac/permissions");
       
-      const techSupportPerms = ROLE_PERMISSIONS[PLATFORM_ROLES.TECH_SUPPORT_MANAGER];
+      const techSupportPerms = ROLE_DEFINITIONS.TECH_SUPPORT_MANAGER.permissions;
 
-      expect(techSupportPerms).toContain(PLATFORM_PERMISSIONS.VIEW_SYSTEM_HEALTH);
-      expect(techSupportPerms).toContain(PLATFORM_PERMISSIONS.VIEW_API_METRICS);
-      expect(techSupportPerms).toContain(PLATFORM_PERMISSIONS.VIEW_ERROR_LOGS);
-      expect(techSupportPerms).toContain(PLATFORM_PERMISSIONS.VIEW_PERFORMANCE);
-      expect(techSupportPerms).toContain(PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS);
+      expect(techSupportPerms).toContain(Permissions.VIEW_SYSTEM_HEALTH);
+      expect(techSupportPerms).toContain(Permissions.VIEW_API_METRICS);
+      expect(techSupportPerms).toContain(Permissions.VIEW_ERROR_LOGS);
+      expect(techSupportPerms).toContain(Permissions.VIEW_PERFORMANCE);
+      expect(techSupportPerms).toContain(Permissions.VIEW_AUDIT_LOGS);
+    });
+
+    it("should have expected tenant admin permissions", async () => {
+      const { ROLE_DEFINITIONS, Permissions } = await import("@shared/rbac/permissions");
+      
+      const tenantAdminPerms = ROLE_DEFINITIONS.TENANT_ADMIN.permissions;
+
+      expect(tenantAdminPerms).toContain(Permissions.MANAGE_USERS);
+      expect(tenantAdminPerms).toContain(Permissions.VIEW_DASHBOARD);
+      expect(tenantAdminPerms).toContain(Permissions.MANAGE_PROJECTS);
+      expect(tenantAdminPerms).toContain(Permissions.MANAGE_TIMESHEETS);
+      expect(tenantAdminPerms).toContain(Permissions.VIEW_INVOICES);
+      expect(tenantAdminPerms).toContain(Permissions.CREATE_INVOICES);
+      expect(tenantAdminPerms).toContain(Permissions.RECORD_PAYMENTS);
+      expect(tenantAdminPerms).toContain(Permissions.VIEW_ANALYTICS);
+      expect(tenantAdminPerms).toContain(Permissions.MANAGE_SETTINGS);
     });
   });
 
@@ -173,6 +193,51 @@ describe("Platform Admin RBAC Separation", () => {
       expect(resolved.isGlobalScope).toBe(true);
       expect(resolved.scope).toBeNull();
       expect(resolved.scopeType).toBe(SCOPE_TYPES.GLOBAL);
+    });
+  });
+
+  describe("Simple Permission Check", () => {
+    it("should check permissions with hasPermission function", async () => {
+      const { hasPermission, Permissions } = await import("@shared/rbac/permissions");
+
+      // Super admin should have all permissions
+      expect(hasPermission("PLATFORM_SUPER_ADMIN", Permissions.MANAGE_PLATFORM_ADMINS)).toBe(true);
+      expect(hasPermission("PLATFORM_SUPER_ADMIN", Permissions.VIEW_ALL_TENANTS)).toBe(true);
+
+      // Platform admin should not have super admin only permissions
+      expect(hasPermission("PLATFORM_ADMIN", Permissions.MANAGE_PLATFORM_ADMINS)).toBe(false);
+      expect(hasPermission("PLATFORM_ADMIN", Permissions.VIEW_TENANTS_SCOPED)).toBe(true);
+
+      // Tech support should have system permissions
+      expect(hasPermission("TECH_SUPPORT_MANAGER", Permissions.VIEW_SYSTEM_HEALTH)).toBe(true);
+      expect(hasPermission("TECH_SUPPORT_MANAGER", Permissions.MANAGE_PLATFORM_ADMINS)).toBe(false);
+
+      // Tenant admin should have tenant permissions
+      expect(hasPermission("TENANT_ADMIN", Permissions.MANAGE_PROJECTS)).toBe(true);
+      expect(hasPermission("TENANT_ADMIN", Permissions.CREATE_INVOICES)).toBe(true);
+
+      // Tenant staff should have limited permissions
+      expect(hasPermission("TENANT_STAFF", Permissions.VIEW_DASHBOARD)).toBe(true);
+      expect(hasPermission("TENANT_STAFF", Permissions.CREATE_INVOICES)).toBe(false);
+
+      // Tenant viewer should have very limited permissions
+      expect(hasPermission("TENANT_VIEWER", Permissions.VIEW_DASHBOARD)).toBe(true);
+      expect(hasPermission("TENANT_VIEWER", Permissions.MANAGE_PROJECTS)).toBe(false);
+    });
+  });
+
+  describe("Scope Requirements", () => {
+    it("should return correct scope type for each role", async () => {
+      const { requiresScope } = await import("@shared/rbac/permissions");
+
+      expect(requiresScope("PLATFORM_SUPER_ADMIN")).toBe("GLOBAL");
+      expect(requiresScope("PLATFORM_ADMIN")).toBe("COUNTRY");
+      expect(requiresScope("TECH_SUPPORT_MANAGER")).toBe("GLOBAL");
+      expect(requiresScope("MANAGER")).toBe("COUNTRY");
+      expect(requiresScope("SUPPORT_TEAM")).toBe("COUNTRY");
+      expect(requiresScope("TENANT_ADMIN")).toBe("TENANT");
+      expect(requiresScope("TENANT_STAFF")).toBe("TENANT");
+      expect(requiresScope("TENANT_VIEWER")).toBe("TENANT");
     });
   });
 
@@ -235,65 +300,20 @@ describe("Platform Admin RBAC Separation", () => {
     });
   });
 
-  describe("Permission Check Functions", () => {
-    it("should allow super admin to have all permissions", async () => {
-      const { resolvePermissions, hasPermission, PLATFORM_PERMISSIONS, PLATFORM_ROLES } = 
-        await import("@shared/rbac/permissions");
-
-      const resolved = resolvePermissions(PLATFORM_ROLES.SUPER_ADMIN, [], []);
-
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS)).toBe(true);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG)).toBe(true);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.VIEW_TENANTS)).toBe(true);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.VIEW_SYSTEM_HEALTH)).toBe(true);
-    });
-
-    it("should restrict platform admin from super admin only permissions", async () => {
-      const { resolvePermissions, hasPermission, PLATFORM_PERMISSIONS, PLATFORM_ROLES } = 
-        await import("@shared/rbac/permissions");
-
-      const resolved = resolvePermissions(PLATFORM_ROLES.PLATFORM_ADMIN, ["IN"], []);
-
-      // Should NOT have super admin only permissions
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS)).toBe(false);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG)).toBe(false);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING)).toBe(false);
-
-      // Should have platform admin permissions
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.VIEW_TENANTS)).toBe(true);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.SUSPEND_TENANT)).toBe(true);
-    });
-
-    it("should restrict tech support manager to system monitoring permissions", async () => {
-      const { resolvePermissions, hasPermission, PLATFORM_PERMISSIONS, PLATFORM_ROLES } = 
-        await import("@shared/rbac/permissions");
-
-      const resolved = resolvePermissions(PLATFORM_ROLES.TECH_SUPPORT_MANAGER, [], []);
-
-      // Should have tech support permissions
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.VIEW_SYSTEM_HEALTH)).toBe(true);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.VIEW_ERROR_LOGS)).toBe(true);
-
-      // Should NOT have admin management permissions
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS)).toBe(false);
-      expect(hasPermission(resolved, PLATFORM_PERMISSIONS.SUSPEND_TENANT)).toBe(false);
-    });
-  });
-
   describe("Super Admin Only Permission Check", () => {
     it("should correctly identify super admin only permissions", async () => {
-      const { isSuperAdminOnly, PLATFORM_PERMISSIONS } = await import("@shared/rbac/permissions");
+      const { isSuperAdminOnly, Permissions } = await import("@shared/rbac/permissions");
 
       // These should be super admin only
-      expect(isSuperAdminOnly(PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS)).toBe(true);
-      expect(isSuperAdminOnly(PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG)).toBe(true);
-      expect(isSuperAdminOnly(PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING)).toBe(true);
-      expect(isSuperAdminOnly(PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS)).toBe(true);
+      expect(isSuperAdminOnly(Permissions.MANAGE_PLATFORM_ADMINS)).toBe(true);
+      expect(isSuperAdminOnly(Permissions.MANAGE_GLOBAL_CONFIG)).toBe(true);
+      expect(isSuperAdminOnly(Permissions.MANAGE_PLANS_PRICING)).toBe(true);
+      expect(isSuperAdminOnly(Permissions.VIEW_ALL_TENANTS)).toBe(true);
 
       // These should NOT be super admin only
-      expect(isSuperAdminOnly(PLATFORM_PERMISSIONS.VIEW_TENANTS)).toBe(false);
-      expect(isSuperAdminOnly(PLATFORM_PERMISSIONS.SUSPEND_TENANT)).toBe(false);
-      expect(isSuperAdminOnly(PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS)).toBe(false);
+      expect(isSuperAdminOnly(Permissions.VIEW_TENANTS_SCOPED)).toBe(false);
+      expect(isSuperAdminOnly(Permissions.SUSPEND_TENANT_SCOPED)).toBe(false);
+      expect(isSuperAdminOnly(Permissions.HANDLE_SUPPORT_TICKETS)).toBe(false);
     });
   });
 

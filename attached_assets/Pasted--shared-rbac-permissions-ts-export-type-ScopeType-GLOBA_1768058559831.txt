@@ -1,0 +1,161 @@
+// shared/rbac/permissions.ts
+
+export type ScopeType = "GLOBAL" | "COUNTRY" | "REGION" | "TENANT";
+
+export type PlatformRole =
+  | "PLATFORM_SUPER_ADMIN"
+  | "PLATFORM_ADMIN"
+  | "TECH_SUPPORT_MANAGER"
+  | "MANAGER"
+  | "SUPPORT_TEAM";
+
+export type TenantRole = "TENANT_ADMIN" | "TENANT_STAFF" | "TENANT_VIEWER";
+
+export type Role = PlatformRole | TenantRole;
+
+export const Permissions = {
+  // Platform-level
+  MANAGE_PLATFORM_ADMINS: "MANAGE_PLATFORM_ADMINS",
+  MANAGE_GLOBAL_CONFIG: "MANAGE_GLOBAL_CONFIG",
+  MANAGE_PLANS_PRICING: "MANAGE_PLANS_PRICING",
+  MANAGE_BUSINESS_TYPES: "MANAGE_BUSINESS_TYPES",
+  MANAGE_COUNTRIES_REGIONS: "MANAGE_COUNTRIES_REGIONS",
+  VIEW_ALL_TENANTS: "VIEW_ALL_TENANTS",
+  VIEW_TENANTS_SCOPED: "VIEW_TENANTS_SCOPED",
+  SUSPEND_TENANT_SCOPED: "SUSPEND_TENANT_SCOPED",
+  OVERRIDE_TENANT_LOCK: "OVERRIDE_TENANT_LOCK",
+  VIEW_SYSTEM_LOGS: "VIEW_SYSTEM_LOGS",
+  VIEW_API_METRICS: "VIEW_API_METRICS",
+  MANAGE_APIS: "MANAGE_APIS",
+
+  // Tenant-level
+  MANAGE_USERS: "MANAGE_USERS",
+  VIEW_DASHBOARD: "VIEW_DASHBOARD",
+  MANAGE_PROJECTS: "MANAGE_PROJECTS",
+  MANAGE_TIMESHEETS: "MANAGE_TIMESHEETS",
+  VIEW_INVOICES: "VIEW_INVOICES",
+  CREATE_INVOICES: "CREATE_INVOICES",
+  RECORD_PAYMENTS: "RECORD_PAYMENTS",
+  VIEW_ANALYTICS: "VIEW_ANALYTICS",
+  MANAGE_SETTINGS: "MANAGE_SETTINGS",
+} as const;
+
+export type Permission = (typeof Permissions)[keyof typeof Permissions];
+
+export type RoleDefinition = {
+  role: Role;
+  scopeType: ScopeType;
+  permissions: readonly Permission[];
+};
+
+// Default permissions per role (single source of truth)
+export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
+  PLATFORM_SUPER_ADMIN: {
+    role: "PLATFORM_SUPER_ADMIN",
+    scopeType: "GLOBAL",
+    permissions: [
+      Permissions.MANAGE_PLATFORM_ADMINS,
+      Permissions.MANAGE_GLOBAL_CONFIG,
+      Permissions.MANAGE_PLANS_PRICING,
+      Permissions.MANAGE_BUSINESS_TYPES,
+      Permissions.MANAGE_COUNTRIES_REGIONS,
+      Permissions.VIEW_ALL_TENANTS,
+      Permissions.SUSPEND_TENANT_SCOPED, // allowed everywhere due to GLOBAL scope
+      Permissions.OVERRIDE_TENANT_LOCK,
+      Permissions.VIEW_SYSTEM_LOGS,
+      Permissions.VIEW_API_METRICS,
+      Permissions.MANAGE_APIS,
+    ],
+  },
+
+  PLATFORM_ADMIN: {
+    role: "PLATFORM_ADMIN",
+    scopeType: "COUNTRY", // or REGION depending on your model
+    permissions: [
+      Permissions.VIEW_TENANTS_SCOPED,
+      Permissions.SUSPEND_TENANT_SCOPED,
+      // Read-only billing views can be permissioned separately if you want later
+    ],
+  },
+
+  TECH_SUPPORT_MANAGER: {
+    role: "TECH_SUPPORT_MANAGER",
+    scopeType: "GLOBAL",
+    permissions: [
+      Permissions.VIEW_SYSTEM_LOGS,
+      Permissions.VIEW_API_METRICS,
+      Permissions.MANAGE_APIS,
+    ],
+  },
+
+  MANAGER: {
+    role: "MANAGER",
+    scopeType: "COUNTRY",
+    permissions: [
+      Permissions.VIEW_TENANTS_SCOPED,
+      // Optional: add limited ops permissions later (support tickets etc.)
+    ],
+  },
+
+  SUPPORT_TEAM: {
+    role: "SUPPORT_TEAM",
+    scopeType: "COUNTRY",
+    permissions: [
+      Permissions.VIEW_TENANTS_SCOPED,
+      // Keep very limited; no suspends unless you want it
+    ],
+  },
+
+  TENANT_ADMIN: {
+    role: "TENANT_ADMIN",
+    scopeType: "TENANT",
+    permissions: [
+      Permissions.MANAGE_USERS,
+      Permissions.VIEW_DASHBOARD,
+      Permissions.MANAGE_PROJECTS,
+      Permissions.MANAGE_TIMESHEETS,
+      Permissions.VIEW_INVOICES,
+      Permissions.CREATE_INVOICES,
+      Permissions.RECORD_PAYMENTS,
+      Permissions.VIEW_ANALYTICS,
+      Permissions.MANAGE_SETTINGS,
+    ],
+  },
+
+  TENANT_STAFF: {
+    role: "TENANT_STAFF",
+    scopeType: "TENANT",
+    permissions: [
+      Permissions.VIEW_DASHBOARD,
+      Permissions.MANAGE_PROJECTS, // allow limited project actions if your rules permit
+      Permissions.MANAGE_TIMESHEETS,
+      Permissions.VIEW_INVOICES,
+    ],
+  },
+
+  TENANT_VIEWER: {
+    role: "TENANT_VIEWER",
+    scopeType: "TENANT",
+    permissions: [Permissions.VIEW_DASHBOARD, Permissions.VIEW_INVOICES],
+  },
+};
+
+// Helpers used by both server and client
+export function hasPermission(
+  role: Role,
+  permission: Permission
+): boolean {
+  return ROLE_DEFINITIONS[role].permissions.includes(permission);
+}
+
+export type ScopeContext = {
+  scopeType: ScopeType;
+  // Set these from user profile / admin assignment / JWT claims
+  tenantId?: string;
+  allowedCountryIds?: string[];
+  allowedRegionIds?: string[];
+};
+
+export function requiresScope(role: Role): ScopeType {
+  return ROLE_DEFINITIONS[role].scopeType;
+}

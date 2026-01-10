@@ -41,16 +41,17 @@ import {
   Wrench,
 } from "lucide-react";
 import {
-  PLATFORM_PERMISSIONS,
-  type PlatformPermission,
+  Permissions,
+  PLATFORM_ROLES,
+  type Permission,
 } from "@shared/rbac/permissions";
 
 interface MenuItem {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
-  permission?: PlatformPermission | string;
-  permissions?: (PlatformPermission | string)[];
+  permission?: Permission | string;
+  permissions?: (Permission | string)[];
   superAdminOnly?: boolean;
 }
 
@@ -65,67 +66,37 @@ const superAdminMenuItems: MenuItem[] = [
     title: "Tenants",
     url: "/super-admin/tenants",
     icon: Building2,
-    permission: PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS,
+    permission: Permissions.VIEW_ALL_TENANTS,
   },
   {
     title: "Platform Admins",
     url: "/super-admin/admins",
     icon: UserCog,
-    permission: PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS,
+    permission: Permissions.MANAGE_PLATFORM_ADMINS,
   },
   {
     title: "Billing",
     url: "/super-admin/billing",
     icon: DollarSign,
-    permission: PLATFORM_PERMISSIONS.VIEW_ALL_REVENUE,
-  },
-  {
-    title: "Invoice Templates",
-    url: "/super-admin/invoice-templates",
-    icon: FileEdit,
-    permission: PLATFORM_PERMISSIONS.MANAGE_INVOICE_TEMPLATES,
-  },
-  {
-    title: "Tax Management",
-    url: "/super-admin/tax",
-    icon: Calculator,
-    permission: PLATFORM_PERMISSIONS.MANAGE_TAX_CONFIGS,
-  },
-  {
-    title: "Exchange Rates",
-    url: "/super-admin/exchange-rates",
-    icon: ArrowRightLeft,
-    permission: PLATFORM_PERMISSIONS.MANAGE_EXCHANGE_RATES,
-  },
-  {
-    title: "WhatsApp",
-    url: "/super-admin/whatsapp",
-    icon: MessageSquare,
-    permission: PLATFORM_PERMISSIONS.MANAGE_WHATSAPP_CONFIG,
+    permission: Permissions.VIEW_INVOICES_PAYMENTS,
   },
   {
     title: "Audit Logs",
     url: "/super-admin/audit-logs",
     icon: FileText,
-    permission: PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS,
-  },
-  {
-    title: "Compliance",
-    url: "/super-admin/compliance",
-    icon: Scale,
-    permission: PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS,
+    permission: Permissions.VIEW_SYSTEM_LOGS,
   },
   {
     title: "System Settings",
     url: "/super-admin/settings",
     icon: Cog,
-    permission: PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG,
+    permission: Permissions.MANAGE_GLOBAL_CONFIG,
   },
   {
     title: "Regions",
     url: "/super-admin/regions",
     icon: Globe,
-    permission: PLATFORM_PERMISSIONS.MANAGE_COUNTRIES_REGIONS,
+    permission: Permissions.MANAGE_COUNTRIES_REGIONS,
   },
 ];
 
@@ -139,55 +110,25 @@ const platformAdminMenuItems: MenuItem[] = [
     title: "Tenants",
     url: "/admin/tenants",
     icon: Building2,
-    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
-  },
-  {
-    title: "Users",
-    url: "/admin/users",
-    icon: Users,
-    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
+    permission: Permissions.VIEW_TENANTS_SCOPED,
   },
   {
     title: "Billing",
     url: "/admin/billing",
     icon: DollarSign,
-    permission: PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
-  },
-  {
-    title: "Tax Management",
-    url: "/admin/tax",
-    icon: Calculator,
-    permission: PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
-  },
-  {
-    title: "Invoice Templates",
-    url: "/admin/invoice-templates",
-    icon: FileEdit,
-    permission: PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
-  },
-  {
-    title: "WhatsApp",
-    url: "/admin/whatsapp",
-    icon: MessageSquare,
-    permission: PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS,
+    permission: Permissions.VIEW_INVOICES_PAYMENTS,
   },
   {
     title: "Audit Logs",
     url: "/admin/audit-logs",
     icon: FileText,
-    permission: PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS,
+    permission: Permissions.VIEW_AUDIT_LOGS,
   },
   {
-    title: "Compliance",
-    url: "/admin/compliance",
-    icon: Scale,
-    permission: PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS,
-  },
-  {
-    title: "System Settings",
-    url: "/admin/settings",
-    icon: Cog,
-    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
+    title: "Support Tickets",
+    url: "/admin/support",
+    icon: Ticket,
+    permission: Permissions.HANDLE_SUPPORT_TICKETS,
   },
 ];
 
@@ -201,19 +142,19 @@ const managerMenuItems: MenuItem[] = [
     title: "Tenants",
     url: "/manager/tenants",
     icon: Building2,
-    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
+    permission: Permissions.VIEW_TENANTS_SCOPED,
   },
   {
     title: "Operations",
     url: "/manager/operations",
     icon: ClipboardList,
-    permission: PLATFORM_PERMISSIONS.VIEW_OPERATIONS,
+    permission: Permissions.VIEW_OPERATIONS,
   },
   {
     title: "Reports",
     url: "/manager/reports",
     icon: BarChart3,
-    permission: PLATFORM_PERMISSIONS.VIEW_REPORTS,
+    permission: Permissions.VIEW_REPORTS,
   },
 ];
 
@@ -227,13 +168,13 @@ const supportTeamMenuItems: MenuItem[] = [
     title: "Tickets",
     url: "/support/tickets",
     icon: Ticket,
-    permission: PLATFORM_PERMISSIONS.VIEW_TICKETS,
+    permission: Permissions.VIEW_TICKETS,
   },
   {
     title: "User Issues",
     url: "/support/issues",
     icon: Headphones,
-    permission: PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS,
+    permission: Permissions.HANDLE_SUPPORT_TICKETS,
   },
 ];
 
@@ -247,31 +188,31 @@ const techSupportManagerMenuItems: MenuItem[] = [
     title: "System Health",
     url: "/tech-support/health",
     icon: Activity,
-    permission: PLATFORM_PERMISSIONS.VIEW_SYSTEM_HEALTH,
+    permission: Permissions.VIEW_SYSTEM_HEALTH,
   },
   {
     title: "API Management",
     url: "/tech-support/apis",
     icon: Globe,
-    permission: PLATFORM_PERMISSIONS.VIEW_API_METRICS,
+    permission: Permissions.VIEW_API_METRICS,
   },
   {
     title: "Error Logs",
     url: "/tech-support/errors",
     icon: AlertTriangle,
-    permission: PLATFORM_PERMISSIONS.VIEW_ERROR_LOGS,
+    permission: Permissions.VIEW_ERROR_LOGS,
   },
   {
     title: "Performance",
     url: "/tech-support/performance",
     icon: BarChart3,
-    permission: PLATFORM_PERMISSIONS.VIEW_PERFORMANCE,
+    permission: Permissions.VIEW_PERFORMANCE,
   },
   {
     title: "Audit Logs",
     url: "/tech-support/audit-logs",
     icon: FileText,
-    permission: PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS,
+    permission: Permissions.VIEW_AUDIT_LOGS,
   },
 ];
 
