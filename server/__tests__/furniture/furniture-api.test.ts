@@ -1,5 +1,5 @@
 import request from "supertest";
-import { createTestApp } from "../test-app";
+import { createFurnitureTestApp } from "../../test-support/createFurnitureTestApp";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -7,10 +7,11 @@ describe("Furniture Module API", () => {
   let app: Express;
   let httpServer: Server;
   const testTenantId = "test-tenant-id";
+  const otherTenantId = "test-tenant-other";
   const headers = { "X-Tenant-ID": testTenantId };
 
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    const testApp = await createFurnitureTestApp();
     app = testApp.app;
     httpServer = testApp.httpServer;
   });
@@ -133,7 +134,7 @@ describe("Furniture Module API", () => {
 
     it("should filter production orders by priority", async () => {
       const response = await request(app)
-        .get("/api/furniture/production-orders?priority=high")
+        .get("/api/furniture/production-orders?priority=1")
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -189,10 +190,10 @@ describe("Furniture Module API", () => {
     });
   });
 
-  describe("GET /api/furniture/deliveries", () => {
+  describe("GET /api/furniture/delivery-orders", () => {
     it("should return paginated deliveries", async () => {
       const response = await request(app)
-        .get("/api/furniture/deliveries")
+        .get("/api/furniture/delivery-orders")
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -202,7 +203,7 @@ describe("Furniture Module API", () => {
 
     it("should filter deliveries by status", async () => {
       const response = await request(app)
-        .get("/api/furniture/deliveries?status=scheduled")
+        .get("/api/furniture/delivery-orders?status=scheduled")
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -211,7 +212,7 @@ describe("Furniture Module API", () => {
 
     it("should filter deliveries by search", async () => {
       const response = await request(app)
-        .get("/api/furniture/deliveries?search=DEL-")
+        .get("/api/furniture/delivery-orders?search=DEL-")
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -219,10 +220,10 @@ describe("Furniture Module API", () => {
     });
   });
 
-  describe("GET /api/furniture/installations", () => {
+  describe("GET /api/furniture/installation-orders", () => {
     it("should return paginated installations", async () => {
       const response = await request(app)
-        .get("/api/furniture/installations")
+        .get("/api/furniture/installation-orders")
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -232,7 +233,7 @@ describe("Furniture Module API", () => {
 
     it("should filter installations by status", async () => {
       const response = await request(app)
-        .get("/api/furniture/installations?status=scheduled")
+        .get("/api/furniture/installation-orders?status=scheduled")
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -241,7 +242,7 @@ describe("Furniture Module API", () => {
 
     it("should filter installations by search", async () => {
       const response = await request(app)
-        .get("/api/furniture/installations?search=INS-")
+        .get("/api/furniture/installation-orders?search=INS-")
         .set(headers);
 
       expect(response.status).toBe(200);

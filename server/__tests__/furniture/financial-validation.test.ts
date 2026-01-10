@@ -1,5 +1,5 @@
 import request from "supertest";
-import { createTestApp } from "../test-app";
+import { createFurnitureTestApp } from "../../test-support/createFurnitureTestApp";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -10,7 +10,7 @@ describe("Furniture Module Financial Validation Tests", () => {
   const headers = { "X-Tenant-ID": testTenantId };
 
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    const testApp = await createFurnitureTestApp();
     app = testApp.app;
     httpServer = testApp.httpServer;
   });

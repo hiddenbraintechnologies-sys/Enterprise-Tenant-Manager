@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, jest } from "@jest/globals";
 
 jest.mock('openid-client', () => require('../test-support/shims/openid-client'));
-jest.mock('openid-client/passport', () => require('../test-support/shims/openid-client'));
+jest.mock('openid-client/passport', () => require('../test-support/shims/openid-client-passport'));
 
 let bootstrapResult: { dbConnected: boolean; errors: string[] } | null = null;
 

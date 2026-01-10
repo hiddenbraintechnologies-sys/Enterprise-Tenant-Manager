@@ -1,5 +1,5 @@
 import request from "supertest";
-import { createTestApp } from "../test-app";
+import { createFurnitureTestApp } from "../../test-support/createFurnitureTestApp";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -10,7 +10,7 @@ describe("Furniture Module RBAC Tests", () => {
   const headers = { "X-Tenant-ID": testTenantId };
 
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    const testApp = await createFurnitureTestApp();
     app = testApp.app;
     httpServer = testApp.httpServer;
   });
@@ -26,8 +26,8 @@ describe("Furniture Module RBAC Tests", () => {
         "/api/furniture/raw-materials",
         "/api/furniture/production-orders",
         "/api/furniture/sales-orders",
-        "/api/furniture/deliveries",
-        "/api/furniture/installations",
+        "/api/furniture/delivery-orders",
+        "/api/furniture/installation-orders",
         "/api/furniture/bom",
       ];
 
@@ -81,7 +81,7 @@ describe("Furniture Module RBAC Tests", () => {
 
     it("should allow viewing completed deliveries", async () => {
       const response = await request(app)
-        .get("/api/furniture/deliveries?status=delivered")
+        .get("/api/furniture/delivery-orders?status=delivered")
         .set(headers);
 
       expect(response.status).toBe(200);
@@ -89,7 +89,7 @@ describe("Furniture Module RBAC Tests", () => {
 
     it("should allow viewing completed installations", async () => {
       const response = await request(app)
-        .get("/api/furniture/installations?status=completed")
+        .get("/api/furniture/installation-orders?status=completed")
         .set(headers);
 
       expect(response.status).toBe(200);
