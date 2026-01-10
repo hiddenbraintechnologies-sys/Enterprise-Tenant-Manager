@@ -164,7 +164,7 @@ export default function SoftwareServicesTimesheets() {
       return apiRequest("POST", "/api/hr/timesheets", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/timesheets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/timesheets/my"] });
       toast({
         title: "Time logged",
         description: "Your time entry has been recorded.",
