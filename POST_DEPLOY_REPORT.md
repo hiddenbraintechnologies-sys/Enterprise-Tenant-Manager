@@ -4,93 +4,70 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | ✅ **PRODUCTION DEPLOY COMPLETE - VERIFIED HEALTHY** |
-| **Deployed Commit** | `ce39b8c218a3da3c6d5544a1c2a6b402c59bc229` |
-| **Deployment Time** | 2026-01-10T10:32:00Z |
-| **Production URL** | `https://9ab8c182-76e5-474d-9086-cba612793a81-00-2w46tp78xhjs9.riker.replit.dev` |
+| **Status** | ✅ **PRODUCTION VERIFIED HEALTHY** |
+| **Production URL** | `https://payodsoft.co.uk` |
+| **Verification Time** | 2026-01-10T10:38:48Z |
+| **Deployed Commit** | `650c6c0e0fb965856d64a53020676c0161ce81fc` |
 
 ---
 
-## 1. Production Environment Verification
-
-### Required Secrets
-| Secret | Status |
-|--------|--------|
-| `DATABASE_URL` | ✅ Configured |
-| `JWT_ACCESS_SECRET` | ✅ Configured |
-| `JWT_REFRESH_SECRET` | ✅ Configured |
-| `SESSION_SECRET` | ✅ Configured |
-
-### Optional Services
-| Service | Status |
-|---------|--------|
-| Email (SendGrid/Resend) | ⚪ Not configured |
-| WhatsApp (Twilio) | ⚪ Not configured |
-
-### Security
-- ✅ Dev endpoints blocked in production
-- ✅ Rate limiting enforced
-- ✅ Tenant isolation active
-
----
-
-## 2. Health Endpoint Results
+## 1. Health Endpoint Results
 
 ### `/health` - Liveness Check
 ```json
-{"status":"ok","timestamp":"2026-01-10T10:32:50.437Z"}
+{"status":"ok","timestamp":"2026-01-10T10:38:43.828Z"}
 ```
-**Status: ✅ PASS**
+**HTTP Status: 200 ✅**
 
 ### `/health/db` - Database Check
 ```json
-{"status":"ok","database":"connected","timestamp":"2026-01-10T10:32:50.522Z"}
+{"status":"ok","database":"connected","timestamp":"2026-01-10T10:38:46.698Z"}
 ```
-**Status: ✅ PASS**
+**HTTP Status: 200 ✅**
 
 ### `/health/ready` - Readiness Check
 ```json
 {
   "ready": true,
   "status": "ok",
-  "timestamp": "2026-01-10T10:32:50.592Z",
+  "timestamp": "2026-01-10T10:38:46.993Z",
   "checks": [
-    {"name": "database", "status": "ok", "message": "Database connection successful", "latencyMs": 1},
+    {"name": "database", "status": "ok", "message": "Database connection successful", "latencyMs": 45},
     {"name": "migrations", "status": "ok", "message": "Database schema is present"},
     {"name": "configuration", "status": "ok", "message": "All required configuration present"},
     {"name": "essential_services", "status": "ok", "message": "All essential services configured"}
   ]
 }
 ```
-**Status: ✅ PASS (All 4 checks passing)**
+**HTTP Status: 200 ✅**
 
 ---
 
-## 3. Production Smoke Test Results
+## 2. Production Smoke Test Results
 
 ```
 ============================================================
 PRODUCTION SMOKE TEST
-Base URL: https://9ab8c182-76e5-474d-9086-cba612793a81-00-2w46tp78xhjs9.riker.replit.dev
-Time: 2026-01-10T10:32:53.923Z
+Base URL: https://payodsoft.co.uk
+Time: 2026-01-10T10:38:48.614Z
 ============================================================
 
 Phase 1: Health Checks
 ----------------------------------------
-✅ GET /health (102ms)
-✅ GET /health/db (29ms)
-✅ GET /health/ready (8ms)
+✅ GET /health (105ms)
+✅ GET /health/db (154ms)
+✅ GET /health/ready (115ms)
 
 Phase 2: Unauthenticated API Checks
 ----------------------------------------
-✅ Furniture Products requires auth
-✅ Services Projects requires auth
+✅ Furniture Products requires auth (19ms)
+✅ Services Projects requires auth (64ms)
 
 Phase 5: Security Checks
 ----------------------------------------
-✅ Tenant Isolation
-✅ Production Blocked Endpoints
-✅ Rate Limit Headers
+✅ Tenant Isolation (66ms)
+✅ Production Blocked Endpoints (73ms)
+✅ Rate Limit Headers (96ms)
 
 ============================================================
 SUMMARY: 8/8 PASSED
@@ -101,81 +78,95 @@ SUMMARY: 8/8 PASSED
 
 ---
 
+## 3. Dev Endpoints Blocked Verification
+
+| Endpoint | HTTP Status | Response |
+|----------|-------------|----------|
+| `/api/seed` | 403 ✅ | `{"error":"Forbidden","message":"This endpoint is disabled in production","code":"PRODUCTION_BLOCKED"}` |
+| `/api/demo` | 403 ✅ | `{"error":"Forbidden","message":"This endpoint is disabled in production","code":"PRODUCTION_BLOCKED"}` |
+
+**Status: ✅ Dev endpoints properly blocked in production**
+
+---
+
 ## 4. Database Status
 
 | Metric | Value |
 |--------|-------|
 | Connection | ✅ Connected |
-| Latency | 1ms |
-| Schema Tables | 235 |
+| Latency | 45ms |
+| Schema | ✅ Present |
 | Migrations | ✅ Applied |
 
 ---
 
-## 5. Warnings
+## 5. Security Verification
+
+| Check | Status |
+|-------|--------|
+| HTTPS enabled | ✅ |
+| Tenant isolation enforced | ✅ |
+| API endpoints require auth | ✅ |
+| Rate limiting active | ✅ |
+| Dev endpoints blocked | ✅ |
+
+---
+
+## 6. Warnings
 
 **None** - All systems operational.
 
 ---
 
-## 6. Rollback Readiness
+## 7. Rollback Readiness
 
 If issues are detected, execute the following rollback procedure:
 
 ### Immediate Rollback Steps
 
-1. **Redeploy Previous Commit**
-   ```bash
-   # From Replit deployments panel, select previous version
-   # Or use git to checkout and redeploy
-   git checkout <previous-commit>
-   ```
+1. **Redeploy Previous Version**
+   - From Replit deployments panel, select previous deployment
+   - Or rollback to previous checkpoint
 
 2. **Verify Health After Rollback**
    ```bash
-   curl https://<PROD_URL>/health
-   curl https://<PROD_URL>/health/ready
+   curl https://payodsoft.co.uk/health
+   curl https://payodsoft.co.uk/health/ready
    ```
 
 3. **Run Smoke Test**
    ```bash
-   npx tsx scripts/smoke-prod-check.ts https://<PROD_URL>
+   npx tsx scripts/smoke-prod-check.ts https://payodsoft.co.uk
    ```
-
-4. **Check Logs for Errors**
-   - Review application logs for startup errors
-   - Check database connectivity
-   - Verify JWT authentication flow
-
-### Database Rollback (if needed)
-- Drizzle migrations are additive; no destructive changes in this release
-- If schema issues occur, use database checkpoint restore from Replit
 
 ---
 
-## 7. Monitoring Checklist
+## Verification Checklist
 
 | Item | Status |
 |------|--------|
-| Health endpoint responding | ✅ |
+| Custom domain resolves | ✅ |
+| HTTPS working | ✅ |
+| Health endpoints responding | ✅ |
 | Database connected | ✅ |
 | API endpoints secured | ✅ |
 | Rate limiting active | ✅ |
 | Tenant isolation enforced | ✅ |
-| Startup validation passed | ✅ |
+| Dev endpoints blocked | ✅ |
+| Smoke test passing | ✅ 8/8 |
 
 ---
 
 ## Sign-off
 
-- **Deployed by**: Replit Agent
-- **Verified at**: 2026-01-10T10:32:53Z
-- **Commit**: `ce39b8c218a3da3c6d5544a1c2a6b402c59bc229`
+- **Verified by**: Replit Agent
+- **Production URL**: https://payodsoft.co.uk
+- **Verification Time**: 2026-01-10T10:38:48Z
 
 ---
 
 ## Final Result
 
 ```
-✅ PRODUCTION DEPLOY COMPLETE – VERIFIED HEALTHY
+✅ PRODUCTION VERIFIED HEALTHY (payodsoft.co.uk)
 ```
