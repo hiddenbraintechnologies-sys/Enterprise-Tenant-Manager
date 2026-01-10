@@ -83,6 +83,33 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Database health check endpoint with timeout
+app.get('/health/db', async (_req, res) => {
+  const timeout = 5000;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('Database connection timeout')), timeout);
+  });
+  
+  try {
+    const { pool } = await import('./db');
+    await Promise.race([
+      pool.query('SELECT 1'),
+      timeoutPromise
+    ]);
+    res.status(200).json({ 
+      status: 'ok', 
+      database: 'connected',
+      timestamp: new Date().toISOString() 
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: 'DB_UNAVAILABLE',
+      message: error instanceof Error ? error.message : 'Database connection failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Track initialization state
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
