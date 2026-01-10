@@ -2194,12 +2194,9 @@ export async function registerRoutes(
       // SCOPE ENFORCEMENT: Platform admins only see tenants in their assigned countries
       const adminScope = getAdminCountryScope(req);
       if (adminScope !== null && adminScope.length > 0) {
-        // Map country codes to tenant country enum values
-        const countryCodeToTenantCountry: Record<string, string> = {
-          "IN": "india", "AE": "uae", "GB": "uk", "MY": "malaysia", "SG": "singapore"
-        };
-        const allowedTenantCountries = adminScope.map(c => countryCodeToTenantCountry[c] || c.toLowerCase());
-        filtered = filtered.filter(t => t.country && allowedTenantCountries.includes(t.country));
+        // Use canonical mapping utility for consistent country code conversion
+        const { isTenantCountryInScope } = await import("./core/permissions");
+        filtered = filtered.filter(t => isTenantCountryInScope(t.country, adminScope));
       } else if (adminScope !== null && adminScope.length === 0) {
         // Platform admin with no scope assigned - show no tenants
         filtered = [];
@@ -2266,11 +2263,8 @@ export async function registerRoutes(
       // SCOPE ENFORCEMENT: Check if platform admin can access this tenant's country
       const adminScope = getAdminCountryScope(req);
       if (adminScope !== null) {
-        const countryCodeToTenantCountry: Record<string, string> = {
-          "IN": "india", "AE": "uae", "GB": "uk", "MY": "malaysia", "SG": "singapore"
-        };
-        const allowedTenantCountries = adminScope.map(c => countryCodeToTenantCountry[c] || c.toLowerCase());
-        if (!tenant.country || !allowedTenantCountries.includes(tenant.country)) {
+        const { isTenantCountryInScope } = await import("./core/permissions");
+        if (!isTenantCountryInScope(tenant.country, adminScope)) {
           return res.status(403).json({ 
             message: "Access denied - tenant not in your assigned countries",
             code: "SCOPE_DENIED"

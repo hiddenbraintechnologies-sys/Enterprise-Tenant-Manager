@@ -153,6 +153,60 @@ export function canAccessRegion(
   return resolved.scope.regionIds.includes(region);
 }
 
+// ==================== COUNTRY CODE MAPPING ====================
+// Canonical mapping between ISO 2-letter country codes (used in platformAdminCountryAssignments)
+// and tenant.country enum values (used in tenants table)
+
+export const ISO_TO_TENANT_COUNTRY: Record<string, string> = {
+  "IN": "india",
+  "AE": "uae",
+  "GB": "uk",
+  "MY": "malaysia",
+  "SG": "singapore",
+  "US": "united_states",
+  "AU": "australia",
+  "CA": "canada",
+  "NZ": "new_zealand",
+  "DE": "germany",
+  "FR": "france",
+  "ES": "spain",
+  "IT": "italy",
+  "NL": "netherlands",
+  "ZA": "south_africa",
+  "NG": "nigeria",
+  "BR": "brazil",
+  "JP": "japan",
+  "CN": "china",
+  "SA": "saudi_arabia",
+};
+
+export const TENANT_COUNTRY_TO_ISO: Record<string, string> = Object.fromEntries(
+  Object.entries(ISO_TO_TENANT_COUNTRY).map(([iso, tenant]) => [tenant, iso])
+);
+
+/**
+ * Convert ISO country codes to tenant country values
+ */
+export function isoToTenantCountries(isoCodes: string[]): string[] {
+  return isoCodes.map(code => ISO_TO_TENANT_COUNTRY[code] || code.toLowerCase());
+}
+
+/**
+ * Convert tenant country value to ISO country code
+ */
+export function tenantCountryToISO(tenantCountry: string): string {
+  return TENANT_COUNTRY_TO_ISO[tenantCountry] || tenantCountry.toUpperCase();
+}
+
+/**
+ * Check if a tenant country is in the allowed ISO country codes
+ */
+export function isTenantCountryInScope(tenantCountry: string | null, allowedIsoCodes: string[]): boolean {
+  if (!tenantCountry) return false;
+  const allowedTenantCountries = isoToTenantCountries(allowedIsoCodes);
+  return allowedTenantCountries.includes(tenantCountry);
+}
+
 /**
  * Get permission display names for UI
  */

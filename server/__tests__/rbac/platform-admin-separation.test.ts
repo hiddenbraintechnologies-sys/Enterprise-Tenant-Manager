@@ -178,4 +178,62 @@ describe("Platform Admin RBAC Separation", () => {
       expect(isSuperAdminOnlyPermission(PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS)).toBe(false);
     });
   });
+
+  describe("Country Code Mapping", () => {
+    it("should correctly map ISO codes to tenant country values", async () => {
+      const { isoToTenantCountries } = await import("../../core/permissions");
+
+      expect(isoToTenantCountries(["IN"])).toEqual(["india"]);
+      expect(isoToTenantCountries(["AE"])).toEqual(["uae"]);
+      expect(isoToTenantCountries(["GB"])).toEqual(["uk"]);
+      expect(isoToTenantCountries(["US"])).toEqual(["united_states"]);
+      expect(isoToTenantCountries(["IN", "AE", "GB"])).toEqual(["india", "uae", "uk"]);
+    });
+
+    it("should correctly check tenant country in scope", async () => {
+      const { isTenantCountryInScope } = await import("../../core/permissions");
+
+      // India admin can access india tenants
+      expect(isTenantCountryInScope("india", ["IN"])).toBe(true);
+      expect(isTenantCountryInScope("india", ["IN", "AE"])).toBe(true);
+
+      // India admin cannot access other countries
+      expect(isTenantCountryInScope("uk", ["IN"])).toBe(false);
+      expect(isTenantCountryInScope("uae", ["IN"])).toBe(false);
+
+      // Multi-country admin
+      expect(isTenantCountryInScope("india", ["IN", "AE", "GB"])).toBe(true);
+      expect(isTenantCountryInScope("uae", ["IN", "AE", "GB"])).toBe(true);
+      expect(isTenantCountryInScope("uk", ["IN", "AE", "GB"])).toBe(true);
+      expect(isTenantCountryInScope("united_states", ["IN", "AE", "GB"])).toBe(false);
+
+      // Empty scope means no access
+      expect(isTenantCountryInScope("india", [])).toBe(false);
+
+      // Null country means no access
+      expect(isTenantCountryInScope(null, ["IN"])).toBe(false);
+    });
+
+    it("should handle extended country mappings", async () => {
+      const { isTenantCountryInScope } = await import("../../core/permissions");
+
+      // Test US, Australia, etc.
+      expect(isTenantCountryInScope("united_states", ["US"])).toBe(true);
+      expect(isTenantCountryInScope("australia", ["AU"])).toBe(true);
+      expect(isTenantCountryInScope("canada", ["CA"])).toBe(true);
+      expect(isTenantCountryInScope("germany", ["DE"])).toBe(true);
+      expect(isTenantCountryInScope("south_africa", ["ZA"])).toBe(true);
+      expect(isTenantCountryInScope("nigeria", ["NG"])).toBe(true);
+      expect(isTenantCountryInScope("brazil", ["BR"])).toBe(true);
+    });
+
+    it("should convert tenant country back to ISO code", async () => {
+      const { tenantCountryToISO } = await import("../../core/permissions");
+
+      expect(tenantCountryToISO("india")).toBe("IN");
+      expect(tenantCountryToISO("uae")).toBe("AE");
+      expect(tenantCountryToISO("uk")).toBe("GB");
+      expect(tenantCountryToISO("united_states")).toBe("US");
+    });
+  });
 });
