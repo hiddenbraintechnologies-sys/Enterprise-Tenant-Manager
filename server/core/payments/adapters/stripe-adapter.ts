@@ -12,9 +12,41 @@ import type {
   Currency,
 } from "../types";
 
+interface StripeClient {
+  paymentIntents: {
+    create: (params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    retrieve: (id: string) => Promise<Record<string, unknown>>;
+  };
+  refunds: {
+    create: (params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  };
+  customers: {
+    create: (params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  };
+  subscriptions: {
+    create: (params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    cancel: (id: string) => Promise<void>;
+  };
+  webhooks: {
+    constructEvent: (payload: string | Buffer, signature: string, secret: string) => unknown;
+  };
+}
+
+type StripeConstructor = new (apiKey: string, options: Record<string, unknown>) => StripeClient;
+
+async function loadStripeModule(): Promise<StripeConstructor> {
+  try {
+    const module = await (Function('return import("stripe")')() as Promise<{ default: unknown }>);
+    return module.default as StripeConstructor;
+  } catch {
+    throw new Error("Stripe adapter unavailable: install 'stripe' dependency");
+  }
+}
+
 export class StripeAdapter extends BasePaymentAdapter {
   name: PaymentGatewayType = "stripe";
-  private stripe: any = null;
+  private stripe: StripeClient | null = null;
+  private stripeLoadError: Error | null = null;
 
   protected async onInitialize(): Promise<void> {
     if (!this.config?.apiKey) {
@@ -23,13 +55,13 @@ export class StripeAdapter extends BasePaymentAdapter {
     }
     
     try {
-      // @ts-ignore - stripe is an optional peer dependency
-      const Stripe = (await import("stripe")).default;
-      this.stripe = new Stripe(this.config.apiKey, {
+      const StripeConstructor = await loadStripeModule();
+      this.stripe = new StripeConstructor(this.config.apiKey, {
         apiVersion: "2024-11-20.acacia",
       });
     } catch (error) {
-      console.error("Failed to initialize Stripe:", error);
+      this.stripeLoadError = error instanceof Error ? error : new Error(String(error));
+      console.error("Failed to initialize Stripe:", this.stripeLoadError.message);
     }
   }
 
@@ -37,15 +69,25 @@ export class StripeAdapter extends BasePaymentAdapter {
     return super.isConfigured() && this.stripe !== null;
   }
 
-  async createPayment(params: CreatePaymentParams): Promise<PaymentIntent> {
+  private getStripeClient(): StripeClient {
     this.ensureInitialized();
+    
+    if (this.stripeLoadError) {
+      throw this.stripeLoadError;
+    }
     
     if (!this.stripe) {
       throw new Error("Stripe not initialized");
     }
+    
+    return this.stripe;
+  }
+
+  async createPayment(params: CreatePaymentParams): Promise<PaymentIntent> {
+    const stripe = this.getStripeClient();
 
     try {
-      const paymentIntent = await this.stripe.paymentIntents.create({
+      const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(params.amount * 100),
         currency: params.currency.toLowerCase(),
         description: params.description,
@@ -61,73 +103,67 @@ export class StripeAdapter extends BasePaymentAdapter {
         id: this.generateTransactionId(),
         amount: params.amount,
         currency: params.currency,
-        status: this.mapStripeStatus(paymentIntent.status),
-        gatewayPaymentId: paymentIntent.id,
-        clientSecret: paymentIntent.client_secret,
+        status: this.mapStripeStatus(paymentIntent.status as string),
+        gatewayPaymentId: paymentIntent.id as string,
+        clientSecret: paymentIntent.client_secret as string | undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Stripe createPayment error:", error);
       return {
         id: this.generateTransactionId(),
         amount: params.amount,
         currency: params.currency,
         status: "failed",
-        metadata: { error: error.message },
+        metadata: { error: errorMessage },
       };
     }
   }
 
   async getPaymentStatus(gatewayPaymentId: string): Promise<PaymentStatus> {
-    this.ensureInitialized();
-    
-    if (!this.stripe) {
-      throw new Error("Stripe not initialized");
-    }
+    const stripe = this.getStripeClient();
 
     try {
-      const paymentIntent = await this.stripe.paymentIntents.retrieve(gatewayPaymentId);
+      const paymentIntent = await stripe.paymentIntents.retrieve(gatewayPaymentId);
       
       return {
         id: gatewayPaymentId,
-        status: this.mapStripeStatus(paymentIntent.status),
-        amount: paymentIntent.amount / 100,
-        currency: paymentIntent.currency.toUpperCase() as Currency,
+        status: this.mapStripeStatus(paymentIntent.status as string),
+        amount: (paymentIntent.amount as number) / 100,
+        currency: (paymentIntent.currency as string).toUpperCase() as Currency,
         paidAt: paymentIntent.status === "succeeded" ? new Date() : undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string };
       return {
         id: gatewayPaymentId,
         status: "failed",
         amount: 0,
         currency: "USD",
-        errorCode: error.code,
-        errorMessage: error.message,
+        errorCode: err.code,
+        errorMessage: err.message,
       };
     }
   }
 
   async refund(params: RefundParams): Promise<RefundResult> {
-    this.ensureInitialized();
-    
-    if (!this.stripe) {
-      throw new Error("Stripe not initialized");
-    }
+    const stripe = this.getStripeClient();
 
     try {
-      const refund = await this.stripe.refunds.create({
+      const refund = await stripe.refunds.create({
         payment_intent: params.paymentId,
         amount: params.amount ? Math.round(params.amount * 100) : undefined,
-        reason: params.reason as any,
+        reason: params.reason,
       });
 
       return {
         id: this.generateTransactionId(),
         paymentId: params.paymentId,
-        amount: refund.amount / 100,
+        amount: (refund.amount as number) / 100,
         status: refund.status === "succeeded" ? "succeeded" : "pending",
-        gatewayRefundId: refund.id,
+        gatewayRefundId: refund.id as string,
       };
-    } catch (error: any) {
+    } catch {
       return {
         id: this.generateTransactionId(),
         paymentId: params.paymentId,
@@ -138,13 +174,9 @@ export class StripeAdapter extends BasePaymentAdapter {
   }
 
   async createSubscription(params: SubscriptionCreateParams): Promise<SubscriptionResult> {
-    this.ensureInitialized();
-    
-    if (!this.stripe) {
-      throw new Error("Stripe not initialized");
-    }
+    const stripe = this.getStripeClient();
 
-    const customer = await this.stripe.customers.create({
+    const customer = await stripe.customers.create({
       email: params.customerEmail,
       name: params.customerName,
       metadata: {
@@ -153,7 +185,7 @@ export class StripeAdapter extends BasePaymentAdapter {
       },
     });
 
-    const subscription = await this.stripe.subscriptions.create({
+    const subscription = await stripe.subscriptions.create({
       customer: customer.id,
       items: [{ price: params.planId }],
       trial_period_days: params.trialDays,
@@ -165,22 +197,18 @@ export class StripeAdapter extends BasePaymentAdapter {
 
     return {
       id: this.generateTransactionId(),
-      gatewaySubscriptionId: subscription.id,
-      status: this.mapStripeSubscriptionStatus(subscription.status),
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      gatewaySubscriptionId: subscription.id as string,
+      status: this.mapStripeSubscriptionStatus(subscription.status as string),
+      currentPeriodStart: new Date((subscription.current_period_start as number) * 1000),
+      currentPeriodEnd: new Date((subscription.current_period_end as number) * 1000),
     };
   }
 
   async cancelSubscription(gatewaySubscriptionId: string): Promise<boolean> {
-    this.ensureInitialized();
-    
-    if (!this.stripe) {
-      throw new Error("Stripe not initialized");
-    }
+    const stripe = this.getStripeClient();
 
     try {
-      await this.stripe.subscriptions.cancel(gatewaySubscriptionId);
+      await stripe.subscriptions.cancel(gatewaySubscriptionId);
       return true;
     } catch (error) {
       console.error("Stripe cancelSubscription error:", error);
@@ -203,8 +231,8 @@ export class StripeAdapter extends BasePaymentAdapter {
   }
 
   normalizeWebhookEvent(payload: Record<string, unknown>): NormalizedWebhookEvent {
-    const event = payload as any;
-    const eventType = event.type as string;
+    const event = payload as { type?: string; id?: string; data?: { object?: Record<string, unknown> } };
+    const eventType = event.type || "";
     const data = event.data?.object || {};
 
     let type: NormalizedWebhookEvent["type"] = "unknown";
@@ -221,16 +249,18 @@ export class StripeAdapter extends BasePaymentAdapter {
       type = "invoice.paid";
     }
 
+    const metadata = data.metadata as Record<string, unknown> | undefined;
+
     return {
       type,
-      gatewayEventId: event.id,
-      gatewayPaymentId: data.id,
-      gatewaySubscriptionId: data.subscription,
-      gatewayInvoiceId: data.invoice,
-      amount: data.amount ? data.amount / 100 : undefined,
-      currency: data.currency?.toUpperCase(),
-      tenantId: data.metadata?.tenantId,
-      metadata: data.metadata,
+      gatewayEventId: event.id || "",
+      gatewayPaymentId: data.id as string | undefined,
+      gatewaySubscriptionId: data.subscription as string | undefined,
+      gatewayInvoiceId: data.invoice as string | undefined,
+      amount: typeof data.amount === "number" ? data.amount / 100 : undefined,
+      currency: typeof data.currency === "string" ? data.currency.toUpperCase() as Currency : undefined,
+      tenantId: metadata?.tenantId as string | undefined,
+      metadata,
       rawPayload: payload,
     };
   }
@@ -268,3 +298,5 @@ export class StripeAdapter extends BasePaymentAdapter {
     }
   }
 }
+
+export { loadStripeModule };
