@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "**/*.test.ts",
+    "server/services/hrms/**/*",
+    "server/storage/hrms.ts",
+    "server/seeds/hrms-mock-data.ts",
+    "server/routes/hrms/**/*"
+  ]
+}

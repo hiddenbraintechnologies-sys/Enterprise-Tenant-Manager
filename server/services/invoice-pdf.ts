@@ -616,5 +616,3 @@ class InvoicePDFService {
 }
 
 export const invoicePDFService = new InvoicePDFService();
-
-export type { InvoicePDFData };

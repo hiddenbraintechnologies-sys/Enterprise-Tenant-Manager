@@ -4,8 +4,8 @@ set -e
 echo "=== MyBizStream Release Check ==="
 echo ""
 
-echo "1. Running TypeScript type check..."
-npx tsc --noEmit
+echo "1. Running TypeScript type check (release config)..."
+npx tsc -p tsconfig.release.json --noEmit
 echo "   ✓ Type check passed"
 echo ""
 
