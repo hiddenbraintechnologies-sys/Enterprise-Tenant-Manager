@@ -48,6 +48,7 @@ import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
+import NotAuthorized from "@/pages/not-authorized";
 
 import { AdminLayout } from "@/components/admin-layout";
 import { SuperAdminRouteGuard, TechSupportRouteGuard } from "@/contexts/admin-context";
@@ -324,6 +325,7 @@ function AuthenticatedRoutes() {
           </FeatureGuard>
         </ModuleGuard>
       </Route>
+      <Route path="/not-authorized" component={NotAuthorized} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -352,6 +354,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/settings" component={AdminSettings} />
         <Route path="/super-admin/regions" component={AdminRegions} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
+        <Route path="/not-authorized" component={NotAuthorized} />
         <Route component={NotFound} />
       </Switch>
     </SuperAdminRouteGuard>
@@ -374,6 +377,7 @@ function PlatformAdminRoutes() {
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/regions" component={AdminRegions} />
       <Route path="/admin/subscriptions" component={SubscriptionManagement} />
+      <Route path="/not-authorized" component={NotAuthorized} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -386,6 +390,7 @@ function ManagerRoutes() {
       <Route path="/manager/tenants" component={AdminTenants} />
       <Route path="/manager/operations" component={ManagerDashboard} />
       <Route path="/manager/reports" component={ManagerDashboard} />
+      <Route path="/not-authorized" component={NotAuthorized} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -397,6 +402,7 @@ function SupportTeamRoutes() {
       <Route path="/support" component={SupportDashboard} />
       <Route path="/support/tickets" component={SupportDashboard} />
       <Route path="/support/issues" component={SupportDashboard} />
+      <Route path="/not-authorized" component={NotAuthorized} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -412,6 +418,7 @@ function TechSupportRoutes() {
         <Route path="/tech-support/errors" component={TechSupportDashboard} />
         <Route path="/tech-support/performance" component={TechSupportDashboard} />
         <Route path="/tech-support/audit-logs" component={AdminAuditLogs} />
+        <Route path="/not-authorized" component={NotAuthorized} />
         <Route component={NotFound} />
       </Switch>
     </TechSupportRouteGuard>
@@ -487,6 +494,7 @@ function AppRouter() {
         <Route path="/subscription/select" component={SubscriptionSelect} />
         <Route path="/subscription-dashboard" component={SubscriptionDashboard} />
         <Route path="/onboarding" component={Onboarding} />
+        <Route path="/not-authorized" component={NotAuthorized} />
         <Route component={Landing} />
       </Switch>
     );

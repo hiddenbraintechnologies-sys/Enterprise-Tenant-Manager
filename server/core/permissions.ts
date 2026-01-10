@@ -5,226 +5,104 @@ import {
 } from "@shared/schema";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 
-// ==================== PLATFORM ADMIN PERMISSIONS ====================
-// Defines explicit permission sets for PLATFORM_SUPER_ADMIN and PLATFORM_ADMIN roles
+// ==================== RE-EXPORT FROM SHARED RBAC MODULE ====================
+// Single source of truth for platform permissions
+export {
+  PLATFORM_ROLES,
+  PLATFORM_PERMISSIONS,
+  ROLE_PERMISSIONS,
+  ROLE_SCOPE_RULES,
+  SUPER_ADMIN_ONLY_PERMISSIONS,
+  SCOPE_TYPES,
+  ISO_TO_TENANT_COUNTRY,
+  TENANT_COUNTRY_TO_ISO,
+  resolvePermissions,
+  hasPermission as hasPlatformPermission,
+  hasAnyPermission,
+  isSuperAdminOnly as isSuperAdminOnlyPermission,
+  canAccessCountry,
+  canAccessRegion,
+  getMenuItemsForRole,
+  filterMenuItems,
+  isoToTenantCountries,
+  tenantCountryToISO,
+  isTenantCountryInScope,
+  type PlatformRole,
+  type PlatformPermission,
+  type ScopeType,
+  type AdminScope,
+  type ResolvedPermissions,
+  type MenuItem,
+} from "@shared/rbac/permissions";
 
-export const PLATFORM_PERMISSIONS = {
-  // Super Admin Only Permissions
-  MANAGE_PLATFORM_ADMINS: "platform:manage_admins",
-  MANAGE_COUNTRIES_REGIONS: "platform:manage_countries_regions",
-  MANAGE_GLOBAL_CONFIG: "platform:manage_global_config",
-  MANAGE_PLANS_PRICING: "platform:manage_plans_pricing",
-  MANAGE_BUSINESS_TYPES: "platform:manage_business_types",
-  VIEW_ALL_TENANTS: "platform:view_all_tenants",
-  VIEW_ALL_REVENUE: "platform:view_all_revenue",
-  VIEW_SYSTEM_LOGS: "platform:view_system_logs",
-  OVERRIDE_TENANT_LOCKS: "platform:override_tenant_locks",
-  
-  // Platform Admin Permissions (scoped)
-  VIEW_TENANTS: "platform:view_tenants",
-  SUSPEND_TENANT: "platform:suspend_tenant",
-  VIEW_USAGE_METRICS: "platform:view_usage_metrics",
-  VIEW_INVOICES_PAYMENTS: "platform:view_invoices_payments",
-  HANDLE_SUPPORT_TICKETS: "platform:handle_support_tickets",
-} as const;
+// Legacy exports for backward compatibility
+import { 
+  PLATFORM_ROLES as _PLATFORM_ROLES,
+  PLATFORM_PERMISSIONS as _PLATFORM_PERMISSIONS,
+  ROLE_PERMISSIONS as _ROLE_PERMISSIONS,
+  resolvePermissions as _resolvePermissions,
+  type ResolvedPermissions as _ResolvedPermissions,
+  type PlatformRole as _PlatformRole,
+  type PlatformPermission as _PlatformPermission,
+} from "@shared/rbac/permissions";
 
-export type PlatformPermission = typeof PLATFORM_PERMISSIONS[keyof typeof PLATFORM_PERMISSIONS];
+// Legacy type alias
+export type AdminRole = _PlatformRole;
 
-export const SUPER_ADMIN_PERMISSIONS: PlatformPermission[] = [
-  PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS,
-  PLATFORM_PERMISSIONS.MANAGE_COUNTRIES_REGIONS,
-  PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG,
-  PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING,
-  PLATFORM_PERMISSIONS.MANAGE_BUSINESS_TYPES,
-  PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS,
-  PLATFORM_PERMISSIONS.VIEW_ALL_REVENUE,
-  PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS,
-  PLATFORM_PERMISSIONS.OVERRIDE_TENANT_LOCKS,
-  // Super admin also has all platform admin permissions
-  PLATFORM_PERMISSIONS.VIEW_TENANTS,
-  PLATFORM_PERMISSIONS.SUSPEND_TENANT,
-  PLATFORM_PERMISSIONS.VIEW_USAGE_METRICS,
-  PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
-  PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS,
-];
+// Legacy interface alias  
+export type ResolvedAdminPermissions = _ResolvedPermissions;
 
-export const PLATFORM_ADMIN_PERMISSIONS: PlatformPermission[] = [
-  PLATFORM_PERMISSIONS.VIEW_TENANTS,
-  PLATFORM_PERMISSIONS.SUSPEND_TENANT,
-  PLATFORM_PERMISSIONS.VIEW_USAGE_METRICS,
-  PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
-  PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS,
-];
-
-// Super admin only permissions (not available to platform admins)
-export const SUPER_ADMIN_ONLY_PERMISSIONS: PlatformPermission[] = [
-  PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS,
-  PLATFORM_PERMISSIONS.MANAGE_COUNTRIES_REGIONS,
-  PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG,
-  PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING,
-  PLATFORM_PERMISSIONS.MANAGE_BUSINESS_TYPES,
-  PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS,
-  PLATFORM_PERMISSIONS.VIEW_ALL_REVENUE,
-  PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS,
-  PLATFORM_PERMISSIONS.OVERRIDE_TENANT_LOCKS,
-];
-
-export type AdminRole = "SUPER_ADMIN" | "PLATFORM_ADMIN";
-
-export interface AdminScope {
-  countryIds: string[];
-  regionIds: string[];
-}
-
-export interface ResolvedAdminPermissions {
-  role: AdminRole;
-  permissions: PlatformPermission[];
-  scope: AdminScope | null; // null means global access (super admin)
-  isSuperAdmin: boolean;
-}
+// Legacy permission arrays for backward compatibility
+export const SUPER_ADMIN_PERMISSIONS = _ROLE_PERMISSIONS[_PLATFORM_ROLES.SUPER_ADMIN];
+export const PLATFORM_ADMIN_PERMISSIONS = _ROLE_PERMISSIONS[_PLATFORM_ROLES.PLATFORM_ADMIN];
 
 /**
- * Resolve permissions for a platform admin based on their role
+ * Legacy function - resolve permissions for a platform admin based on their role
+ * @deprecated Use resolvePermissions from @shared/rbac/permissions instead
  */
 export function resolveAdminPermissions(
   role: string,
   countryIds?: string[] | null,
   regionIds?: string[] | null
-): ResolvedAdminPermissions {
-  const isSuperAdmin = role === "SUPER_ADMIN";
-  
-  return {
-    role: isSuperAdmin ? "SUPER_ADMIN" : "PLATFORM_ADMIN",
-    permissions: isSuperAdmin ? SUPER_ADMIN_PERMISSIONS : PLATFORM_ADMIN_PERMISSIONS,
-    scope: isSuperAdmin ? null : {
-      countryIds: countryIds || [],
-      regionIds: regionIds || [],
-    },
-    isSuperAdmin,
-  };
-}
-
-/**
- * Check if an admin has a specific platform permission
- */
-export function hasPlatformPermission(
-  resolved: ResolvedAdminPermissions,
-  permission: PlatformPermission
-): boolean {
-  return resolved.permissions.includes(permission);
-}
-
-/**
- * Check if a permission is super admin only
- */
-export function isSuperAdminOnlyPermission(permission: PlatformPermission): boolean {
-  return SUPER_ADMIN_ONLY_PERMISSIONS.includes(permission);
-}
-
-/**
- * Check if an admin can access a specific country (scope check)
- */
-export function canAccessCountry(
-  resolved: ResolvedAdminPermissions,
-  countryCode: string
-): boolean {
-  // Super admin can access all countries
-  if (resolved.isSuperAdmin || resolved.scope === null) {
-    return true;
-  }
-  
-  // Platform admin must have country in their scope
-  return resolved.scope.countryIds.includes(countryCode);
-}
-
-/**
- * Check if an admin can access a specific region (scope check)
- */
-export function canAccessRegion(
-  resolved: ResolvedAdminPermissions,
-  region: string
-): boolean {
-  // Super admin can access all regions
-  if (resolved.isSuperAdmin || resolved.scope === null) {
-    return true;
-  }
-  
-  // Platform admin must have region in their scope
-  return resolved.scope.regionIds.includes(region);
-}
-
-// ==================== COUNTRY CODE MAPPING ====================
-// Canonical mapping between ISO 2-letter country codes (used in platformAdminCountryAssignments)
-// and tenant.country enum values (used in tenants table)
-
-export const ISO_TO_TENANT_COUNTRY: Record<string, string> = {
-  "IN": "india",
-  "AE": "uae",
-  "GB": "uk",
-  "MY": "malaysia",
-  "SG": "singapore",
-  "US": "united_states",
-  "AU": "australia",
-  "CA": "canada",
-  "NZ": "new_zealand",
-  "DE": "germany",
-  "FR": "france",
-  "ES": "spain",
-  "IT": "italy",
-  "NL": "netherlands",
-  "ZA": "south_africa",
-  "NG": "nigeria",
-  "BR": "brazil",
-  "JP": "japan",
-  "CN": "china",
-  "SA": "saudi_arabia",
-};
-
-export const TENANT_COUNTRY_TO_ISO: Record<string, string> = Object.fromEntries(
-  Object.entries(ISO_TO_TENANT_COUNTRY).map(([iso, tenant]) => [tenant, iso])
-);
-
-/**
- * Convert ISO country codes to tenant country values
- */
-export function isoToTenantCountries(isoCodes: string[]): string[] {
-  return isoCodes.map(code => ISO_TO_TENANT_COUNTRY[code] || code.toLowerCase());
-}
-
-/**
- * Convert tenant country value to ISO country code
- */
-export function tenantCountryToISO(tenantCountry: string): string {
-  return TENANT_COUNTRY_TO_ISO[tenantCountry] || tenantCountry.toUpperCase();
-}
-
-/**
- * Check if a tenant country is in the allowed ISO country codes
- */
-export function isTenantCountryInScope(tenantCountry: string | null, allowedIsoCodes: string[]): boolean {
-  if (!tenantCountry) return false;
-  const allowedTenantCountries = isoToTenantCountries(allowedIsoCodes);
-  return allowedTenantCountries.includes(tenantCountry);
+): _ResolvedPermissions {
+  return _resolvePermissions(role as _PlatformRole, countryIds, regionIds);
 }
 
 /**
  * Get permission display names for UI
  */
-export const PLATFORM_PERMISSION_DISPLAY_NAMES: Record<PlatformPermission, string> = {
-  [PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS]: "Manage Platform Admins",
-  [PLATFORM_PERMISSIONS.MANAGE_COUNTRIES_REGIONS]: "Manage Countries & Regions",
-  [PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG]: "Manage Global Configuration",
-  [PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING]: "Manage Plans & Pricing",
-  [PLATFORM_PERMISSIONS.MANAGE_BUSINESS_TYPES]: "Manage Business Types",
-  [PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS]: "View All Tenants (Global)",
-  [PLATFORM_PERMISSIONS.VIEW_ALL_REVENUE]: "View All Revenue (Global)",
-  [PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS]: "View System Logs",
-  [PLATFORM_PERMISSIONS.OVERRIDE_TENANT_LOCKS]: "Override Tenant Locks",
-  [PLATFORM_PERMISSIONS.VIEW_TENANTS]: "View Tenants (Scoped)",
-  [PLATFORM_PERMISSIONS.SUSPEND_TENANT]: "Suspend Tenant (Scoped)",
-  [PLATFORM_PERMISSIONS.VIEW_USAGE_METRICS]: "View Usage Metrics (Scoped)",
-  [PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS]: "View Invoices & Payments (Read-only)",
-  [PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS]: "Handle Support Tickets (Scoped)",
+export const PLATFORM_PERMISSION_DISPLAY_NAMES: Record<_PlatformPermission, string> = {
+  [_PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS]: "Manage Platform Admins",
+  [_PLATFORM_PERMISSIONS.MANAGE_COUNTRIES_REGIONS]: "Manage Countries & Regions",
+  [_PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG]: "Manage Global Configuration",
+  [_PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING]: "Manage Plans & Pricing",
+  [_PLATFORM_PERMISSIONS.MANAGE_BUSINESS_TYPES]: "Manage Business Types",
+  [_PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS]: "View All Tenants (Global)",
+  [_PLATFORM_PERMISSIONS.VIEW_ALL_REVENUE]: "View All Revenue (Global)",
+  [_PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS]: "View System Logs",
+  [_PLATFORM_PERMISSIONS.OVERRIDE_TENANT_LOCKS]: "Override Tenant Locks",
+  [_PLATFORM_PERMISSIONS.MANAGE_EXCHANGE_RATES]: "Manage Exchange Rates",
+  [_PLATFORM_PERMISSIONS.MANAGE_TAX_CONFIGS]: "Manage Tax Configurations",
+  [_PLATFORM_PERMISSIONS.MANAGE_INVOICE_TEMPLATES]: "Manage Invoice Templates",
+  [_PLATFORM_PERMISSIONS.MANAGE_WHATSAPP_CONFIG]: "Manage WhatsApp Configuration",
+  [_PLATFORM_PERMISSIONS.VIEW_TENANTS]: "View Tenants (Scoped)",
+  [_PLATFORM_PERMISSIONS.SUSPEND_TENANT]: "Suspend Tenant (Scoped)",
+  [_PLATFORM_PERMISSIONS.REACTIVATE_TENANT]: "Reactivate Tenant (Scoped)",
+  [_PLATFORM_PERMISSIONS.VIEW_USAGE_METRICS]: "View Usage Metrics (Scoped)",
+  [_PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS]: "View Invoices & Payments (Read-only)",
+  [_PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS]: "Handle Support Tickets (Scoped)",
+  [_PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS]: "View Audit Logs",
+  [_PLATFORM_PERMISSIONS.VIEW_SYSTEM_HEALTH]: "View System Health",
+  [_PLATFORM_PERMISSIONS.VIEW_API_METRICS]: "View API Metrics",
+  [_PLATFORM_PERMISSIONS.MANAGE_APIS]: "Manage APIs",
+  [_PLATFORM_PERMISSIONS.VIEW_ERROR_LOGS]: "View Error Logs",
+  [_PLATFORM_PERMISSIONS.MANAGE_ALERTS]: "Manage Alerts",
+  [_PLATFORM_PERMISSIONS.VIEW_PERFORMANCE]: "View Performance",
+  [_PLATFORM_PERMISSIONS.VIEW_OPERATIONS]: "View Operations",
+  [_PLATFORM_PERMISSIONS.VIEW_REPORTS]: "View Reports",
+  [_PLATFORM_PERMISSIONS.VIEW_TICKETS]: "View Tickets",
+  [_PLATFORM_PERMISSIONS.RESPOND_TICKETS]: "Respond to Tickets",
+  [_PLATFORM_PERMISSIONS.ESCALATE_TICKETS]: "Escalate Tickets",
 };
 
 // ==================== TENANT-LEVEL PERMISSIONS ====================

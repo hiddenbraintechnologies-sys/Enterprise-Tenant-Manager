@@ -40,13 +40,17 @@ import {
   ArrowRightLeft,
   Wrench,
 } from "lucide-react";
+import {
+  PLATFORM_PERMISSIONS,
+  type PlatformPermission,
+} from "@shared/rbac/permissions";
 
 interface MenuItem {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
-  permission?: string;
-  permissions?: string[];
+  permission?: PlatformPermission | string;
+  permissions?: (PlatformPermission | string)[];
   superAdminOnly?: boolean;
 }
 
@@ -61,67 +65,67 @@ const superAdminMenuItems: MenuItem[] = [
     title: "Tenants",
     url: "/super-admin/tenants",
     icon: Building2,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS,
   },
   {
     title: "Platform Admins",
     url: "/super-admin/admins",
     icon: UserCog,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS,
   },
   {
     title: "Billing",
     url: "/super-admin/billing",
     icon: DollarSign,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.VIEW_ALL_REVENUE,
   },
   {
     title: "Invoice Templates",
     url: "/super-admin/invoice-templates",
     icon: FileEdit,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.MANAGE_INVOICE_TEMPLATES,
   },
   {
     title: "Tax Management",
     url: "/super-admin/tax",
     icon: Calculator,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.MANAGE_TAX_CONFIGS,
   },
   {
     title: "Exchange Rates",
     url: "/super-admin/exchange-rates",
     icon: ArrowRightLeft,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.MANAGE_EXCHANGE_RATES,
   },
   {
     title: "WhatsApp",
     url: "/super-admin/whatsapp",
     icon: MessageSquare,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.MANAGE_WHATSAPP_CONFIG,
   },
   {
     title: "Audit Logs",
     url: "/super-admin/audit-logs",
     icon: FileText,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS,
   },
   {
     title: "Compliance",
     url: "/super-admin/compliance",
     icon: Scale,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS,
   },
   {
     title: "System Settings",
     url: "/super-admin/settings",
     icon: Cog,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG,
   },
   {
     title: "Regions",
     url: "/super-admin/regions",
     icon: Globe,
-    superAdminOnly: true,
+    permission: PLATFORM_PERMISSIONS.MANAGE_COUNTRIES_REGIONS,
   },
 ];
 
@@ -135,55 +139,55 @@ const platformAdminMenuItems: MenuItem[] = [
     title: "Tenants",
     url: "/admin/tenants",
     icon: Building2,
-    permission: "read_tenants",
+    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
   },
   {
     title: "Users",
     url: "/admin/users",
     icon: Users,
-    permission: "read_users",
+    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
   },
   {
     title: "Billing",
     url: "/admin/billing",
     icon: DollarSign,
-    permission: "view_billing",
+    permission: PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
   },
   {
     title: "Tax Management",
     url: "/admin/tax",
     icon: Calculator,
-    permission: "manage_billing",
+    permission: PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
   },
   {
     title: "Invoice Templates",
     url: "/admin/invoice-templates",
     icon: FileEdit,
-    permission: "manage_billing",
+    permission: PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS,
   },
   {
     title: "WhatsApp",
     url: "/admin/whatsapp",
     icon: MessageSquare,
-    permission: "manage_features",
+    permission: PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS,
   },
   {
     title: "Audit Logs",
     url: "/admin/audit-logs",
     icon: FileText,
-    permission: "view_logs",
+    permission: PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS,
   },
   {
     title: "Compliance",
     url: "/admin/compliance",
     icon: Scale,
-    permission: "read_tenants",
+    permission: PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS,
   },
   {
     title: "System Settings",
     url: "/admin/settings",
     icon: Cog,
-    permissions: ["manage_features"],
+    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
   },
 ];
 
@@ -197,16 +201,19 @@ const managerMenuItems: MenuItem[] = [
     title: "Tenants",
     url: "/manager/tenants",
     icon: Building2,
+    permission: PLATFORM_PERMISSIONS.VIEW_TENANTS,
   },
   {
     title: "Operations",
     url: "/manager/operations",
     icon: ClipboardList,
+    permission: PLATFORM_PERMISSIONS.VIEW_OPERATIONS,
   },
   {
     title: "Reports",
     url: "/manager/reports",
     icon: BarChart3,
+    permission: PLATFORM_PERMISSIONS.VIEW_REPORTS,
   },
 ];
 
@@ -220,11 +227,13 @@ const supportTeamMenuItems: MenuItem[] = [
     title: "Tickets",
     url: "/support/tickets",
     icon: Ticket,
+    permission: PLATFORM_PERMISSIONS.VIEW_TICKETS,
   },
   {
     title: "User Issues",
     url: "/support/issues",
     icon: Headphones,
+    permission: PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS,
   },
 ];
 
@@ -238,26 +247,31 @@ const techSupportManagerMenuItems: MenuItem[] = [
     title: "System Health",
     url: "/tech-support/health",
     icon: Activity,
+    permission: PLATFORM_PERMISSIONS.VIEW_SYSTEM_HEALTH,
   },
   {
     title: "API Management",
     url: "/tech-support/apis",
     icon: Globe,
+    permission: PLATFORM_PERMISSIONS.VIEW_API_METRICS,
   },
   {
     title: "Error Logs",
     url: "/tech-support/errors",
     icon: AlertTriangle,
+    permission: PLATFORM_PERMISSIONS.VIEW_ERROR_LOGS,
   },
   {
     title: "Performance",
     url: "/tech-support/performance",
     icon: BarChart3,
+    permission: PLATFORM_PERMISSIONS.VIEW_PERFORMANCE,
   },
   {
     title: "Audit Logs",
     url: "/tech-support/audit-logs",
     icon: FileText,
+    permission: PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS,
   },
 ];
 
