@@ -3825,8 +3825,8 @@ export async function registerRoutes(
       const { tenantId } = req.params;
       const { reason } = req.body;
 
-      if (!reason || reason.trim().length < 5) {
-        return res.status(400).json({ message: "A reason is required (at least 5 characters)" });
+      if (!reason || reason.trim().length < 3) {
+        return res.status(400).json({ message: "A reason is required (at least 3 characters)" });
       }
 
       const tenant = await storage.getTenant(tenantId);
