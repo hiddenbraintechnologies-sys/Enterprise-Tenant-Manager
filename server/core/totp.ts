@@ -1,6 +1,7 @@
 import { verify, generate, generateSecret, generateURI } from "otplib";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 const defaultOptions = {
   algorithm: "sha1" as const,
@@ -59,23 +60,40 @@ export async function verifyBackupCode(code: string, hashedCodes: string[]): Pro
   return -1;
 }
 
+const TEMP_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET || "fallback-2fa-temp-secret-change-me";
+
 export function generateTempToken(adminId: string, expiresInMinutes = 5): { token: string; expiresAt: Date } {
   const nonce = crypto.randomBytes(16).toString("hex");
   const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
-  const payload = JSON.stringify({ adminId, nonce, expiresAt: expiresAt.toISOString() });
-  const token = Buffer.from(payload).toString("base64");
+  
+  const token = jwt.sign(
+    { 
+      adminId, 
+      nonce,
+      purpose: "2fa-verification",
+    },
+    TEMP_TOKEN_SECRET,
+    { 
+      expiresIn: `${expiresInMinutes}m`,
+      issuer: "mybizstream-2fa",
+    }
+  );
+  
   return { token, expiresAt };
 }
 
 export function verifyTempToken(token: string): { adminId: string; valid: boolean } {
   try {
-    const payload = JSON.parse(Buffer.from(token, "base64").toString("utf-8"));
-    const expiresAt = new Date(payload.expiresAt);
-    if (expiresAt < new Date()) {
+    const decoded = jwt.verify(token, TEMP_TOKEN_SECRET, {
+      issuer: "mybizstream-2fa",
+    }) as { adminId: string; purpose: string };
+    
+    if (decoded.purpose !== "2fa-verification") {
       return { adminId: "", valid: false };
     }
-    return { adminId: payload.adminId, valid: true };
-  } catch {
+    
+    return { adminId: decoded.adminId, valid: true };
+  } catch (error) {
     return { adminId: "", valid: false };
   }
 }
