@@ -277,6 +277,16 @@ export function requireScope(...requiredScopes: string[]) {
   };
 }
 
+export function isRateLimitBypassed(): boolean {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  if (nodeEnv === "production") {
+    return false;
+  }
+  return nodeEnv === "test" || process.env.SKIP_RATE_LIMIT === "true";
+}
+
+let rateLimitBypassWarningLogged = false;
+
 export function rateLimit(options: {
   windowMs: number;
   maxRequests: number;
@@ -284,7 +294,11 @@ export function rateLimit(options: {
   const requests = new Map<string, { count: number; resetAt: number }>();
 
   return (req: Request, res: Response, next: NextFunction) => {
-    if (process.env.NODE_ENV === "test" || process.env.SKIP_RATE_LIMIT === "true") {
+    if (isRateLimitBypassed()) {
+      if (!rateLimitBypassWarningLogged && process.env.SKIP_RATE_LIMIT === "true") {
+        console.warn(`WARNING: Rate limiting bypass ENABLED (SKIP_RATE_LIMIT=true, env=${process.env.NODE_ENV || "development"})`);
+        rateLimitBypassWarningLogged = true;
+      }
       return next();
     }
 
