@@ -141,6 +141,13 @@ export default function Register() {
 
       if (!response.ok) {
         const error = await response.json();
+        // Construct detailed error message from field errors if available
+        if (error.errors && typeof error.errors === 'object') {
+          const fieldErrors = Object.entries(error.errors)
+            .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+            .join('; ');
+          throw new Error(fieldErrors || error.message || "Registration failed");
+        }
         throw new Error(error.message || "Registration failed");
       }
 
@@ -149,6 +156,10 @@ export default function Register() {
     onSuccess: (data) => {
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
+      if (data.tenant?.id) {
+        localStorage.setItem("tenantId", data.tenant.id);
+        localStorage.setItem("lastTenantId", data.tenant.id);
+      }
       
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       

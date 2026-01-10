@@ -466,7 +466,7 @@ export async function registerRoutes(
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
     businessName: z.string().min(1, "Business name is required").max(200),
-    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism"]),
+    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism", "education", "logistics", "legal", "furniture_manufacturing", "software_services", "consulting"]),
     countryCode: z.string().min(1, "Country is required").max(5),
   });
 
