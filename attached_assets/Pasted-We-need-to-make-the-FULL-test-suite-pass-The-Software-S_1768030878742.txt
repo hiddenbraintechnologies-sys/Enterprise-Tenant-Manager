@@ -1,0 +1,34 @@
+We need to make the FULL test suite pass. The Software Services & Consulting module is correct; failures are from pre-existing issues.
+
+Do NOT refactor architecture. Do NOT change database schema unless absolutely required. Prefer compatibility fixes.
+
+1) Fix signup API response contract
+- Identify the signup endpoint response shape.
+- Update it to include a stable structure that tests can rely on:
+  return { data: { tenant: { id, ... }, user: { id, ... }, ... }, ... }
+- Ensure backward compatibility: if clients already use the current shape, keep existing fields but ADD the missing nested fields (do not remove fields).
+- Update any related typings.
+
+2) Fix RBAC status mismatch (403 vs 401)
+- Find the failing RBAC test.
+- Ensure the endpoint returns:
+  - 401 when not authenticated
+  - 403 when authenticated but lacking permission
+- Verify middleware order: auth must run before permission checks.
+- Adjust the test only if it is clearly incorrect, otherwise fix the code behavior.
+
+3) Fix TypeScript errors in server/routes.ts by aligning to actual interfaces/schema
+- DatabaseStorage: add missing methods used by routes (getUser, updateUser) with correct implementations using existing DB access patterns.
+- userTenants: remove/replace references to non-existent fields (e.g., createdAt) OR map to correct columns if they exist elsewhere.
+- User fields: remove/replace isActive, loginAttempts, lastLoginAt references if not in schema; if the behavior is needed, implement safe fallbacks (e.g., treat missing as active; track attempts in a separate store only if already exists). Do NOT add new DB columns in this pass.
+- Compliance service: add missing method stubs that routes call, returning safe defaults, unless the functionality already exists under another service name—then wire to the existing implementation.
+
+4) Re-run tests
+- After fixes, run the full test suite again.
+- Provide a report: suites passed/failed, tests passed/failed, and list remaining failures with stack traces.
+
+Success criteria:
+- TypeScript build passes
+- All test suites run (none blocked by TS)
+- Signup contract tests pass (no undefined tenant.id)
+- RBAC test returns correct status codes

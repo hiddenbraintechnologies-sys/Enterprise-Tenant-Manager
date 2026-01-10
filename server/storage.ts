@@ -10,7 +10,7 @@ import {
   platformAdminCountryAssignments,
   platformRegionConfigs, exchangeRates,
   supportTickets, supportTicketMessages, errorLogs, usageMetrics,
-  auditLogs, userTenants,
+  auditLogs, userTenants, users,
   customerPortalSettings, customerPortalAccounts, customerPortalSessions, customerPortalInvites,
   furnitureProducts, rawMaterialCategories, rawMaterials, rawMaterialStockMovements,
   billOfMaterials, bomComponents, productionOrders, productionStages,
@@ -271,6 +271,11 @@ export interface IStorage {
     activeUsers: number;
     usersByTenant: { tenantId: string; tenantName: string; count: number }[];
   }>;
+
+  // User Management
+  getUser(id: string): Promise<{ id: string; email: string | null; firstName: string | null; lastName: string | null; passwordHash: string | null; } | undefined>;
+  updateUser(id: string, updates: Partial<{ passwordHash: string }>): Promise<void>;
+  getUsersByTenant(tenantId: string, options?: { limit?: number; offset?: number; search?: string }): Promise<{ id: string; email: string | null; firstName: string | null; lastName: string | null; }[]>;
 
   // Platform Dashboard - Error Logs
   getErrorLogs(options?: { tenantId?: string; severity?: string; limit?: number; offset?: number }): Promise<ErrorLog[]>;
@@ -1402,6 +1407,47 @@ export class DatabaseStorage implements IStorage {
         count: data.count,
       })),
     };
+  }
+
+  // User Management
+  async getUser(id: string): Promise<{ id: string; email: string | null; firstName: string | null; lastName: string | null; passwordHash: string | null; } | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<{ passwordHash: string }>): Promise<void> {
+    await db.update(users).set(updates).where(eq(users.id, id));
+  }
+
+  async getUsersByTenant(tenantId: string, options?: { limit?: number; offset?: number; search?: string }): Promise<{ id: string; email: string | null; firstName: string | null; lastName: string | null; }[]> {
+    const tenantUserLinks = await db.select({ userId: userTenants.userId })
+      .from(userTenants)
+      .where(eq(userTenants.tenantId, tenantId));
+
+    const userIds = tenantUserLinks.map(u => u.userId);
+    if (userIds.length === 0) return [];
+
+    const allUsers = await db.select({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+    }).from(users);
+
+    let filteredUsers = allUsers.filter(u => userIds.includes(u.id));
+
+    if (options?.search) {
+      const searchLower = options.search.toLowerCase();
+      filteredUsers = filteredUsers.filter(u =>
+        u.email?.toLowerCase().includes(searchLower) ||
+        u.firstName?.toLowerCase().includes(searchLower) ||
+        u.lastName?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    const offset = options?.offset || 0;
+    const limit = options?.limit || 100;
+    return filteredUsers.slice(offset, offset + limit);
   }
 
   // Platform Dashboard - Error Logs

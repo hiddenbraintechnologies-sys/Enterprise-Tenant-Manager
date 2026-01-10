@@ -3939,7 +3939,8 @@ export async function registerRoutes(
         userId: userTenants.userId,
         roleId: userTenants.roleId,
         isDefault: userTenants.isDefault,
-        createdAt: userTenants.createdAt,
+        isActive: userTenants.isActive,
+        joinedAt: userTenants.joinedAt,
       }).from(userTenants).where(eq(userTenants.tenantId, tenantId));
 
       const usersData = await Promise.all(tenantUsers.map(async (tu) => {
@@ -3951,10 +3952,10 @@ export async function registerRoutes(
           firstName: user.firstName,
           lastName: user.lastName,
           role: role?.name || "unknown",
-          isActive: user.isActive,
-          isLocked: user.loginAttempts >= 5,
-          lastLoginAt: user.lastLoginAt,
-          createdAt: tu.createdAt,
+          isActive: tu.isActive ?? true,
+          isLocked: false,
+          lastLoginAt: null,
+          createdAt: tu.joinedAt,
         };
       }));
 
@@ -4000,17 +4001,17 @@ export async function registerRoutes(
         return res.status(400).json({ message: "A reason is required" });
       }
 
-      const user = await storage.getUser(userId);
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      await storage.updateUser(userId, { loginAttempts: 999 });
+      await db.update(userTenants).set({ isActive: false }).where(eq(userTenants.userId, userId));
 
       await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId));
 
       auditService.logAsync({
-        tenantId: tenantId || user.tenantId,
+        tenantId: tenantId,
         userId: req.platformAdminContext?.platformAdmin.id,
         action: "update",
         resource: "super_admin_user_lock",
@@ -4045,15 +4046,15 @@ export async function registerRoutes(
         return res.status(400).json({ message: "A reason is required" });
       }
 
-      const user = await storage.getUser(userId);
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      await storage.updateUser(userId, { loginAttempts: 0 });
+      await db.update(userTenants).set({ isActive: true }).where(eq(userTenants.userId, userId));
 
       auditService.logAsync({
-        tenantId: tenantId || user.tenantId,
+        tenantId: tenantId,
         userId: req.platformAdminContext?.platformAdmin.id,
         action: "update",
         resource: "super_admin_user_unlock",
@@ -4101,7 +4102,7 @@ export async function registerRoutes(
       await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId));
 
       auditService.logAsync({
-        tenantId: tenantId || user.tenantId,
+        tenantId: tenantId,
         userId: req.platformAdminContext?.platformAdmin.id,
         action: "update",
         resource: "super_admin_password_reset",
