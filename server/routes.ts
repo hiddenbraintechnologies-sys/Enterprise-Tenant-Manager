@@ -3922,8 +3922,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "tenantIds array is required" });
       }
 
-      if (tenantIds.length > 50) {
-        return res.status(400).json({ message: "Maximum 50 tenants can be deleted at once" });
+      if (tenantIds.length > 500) {
+        return res.status(400).json({ message: "Maximum 500 tenants can be deleted at once" });
       }
 
       const deletedTenants: string[] = [];
