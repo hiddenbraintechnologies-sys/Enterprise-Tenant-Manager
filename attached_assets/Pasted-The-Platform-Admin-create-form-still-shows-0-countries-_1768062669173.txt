@@ -1,0 +1,56 @@
+The Platform Admin create form still shows “0 countries selected” even when IN/MY/GB chips are visible.
+This confirms the selected countries UI is NOT bound to the react-hook-form field validated by Zod.
+
+Do NOT change UI styling. Fix only form wiring, schema field name, and payload mapping.
+
+1) Locate the create admin form:
+- File likely: client/src/pages/admin/platform-admins.tsx (or similar)
+- Identify:
+  a) react-hook-form useForm() fields
+  b) Zod schema field name for countries
+  c) submit handler payload field name sent to backend
+
+2) Make the country selector a controlled RHF field (MANDATORY)
+- Replace any local state like selectedCountries/useState with RHF control.
+- Use <Controller> to bind:
+  name: "countryAssignments" (or the exact schema field)
+  value: string[] (country codes like ["IN","MY"])
+  onChange: updates the RHF field
+
+Example requirement:
+- Clicking IN toggles "IN" in the form field array.
+- The UI chips/buttons must render directly from watch("countryAssignments").
+
+3) Fix field name mismatch end-to-end
+Pick ONE canonical field name and use it everywhere:
+- Frontend form field
+- Zod schema
+- Backend request body
+Recommended: countryAssignments: string[]
+
+If backend expects allowedCountryIds, then map:
+  countryAssignments -> allowedCountryIds
+but do it explicitly in submit handler, and schema must validate whichever you use.
+
+4) Fix type mismatch
+- Ensure field is string[] only.
+- No objects. No {label,value}. Only country codes/IDs.
+
+5) Fix validation message logic
+- Show “Select at least one country” ONLY when:
+  role is PLATFORM_ADMIN/MANAGER/SUPPORT_TEAM AND countryAssignments.length === 0
+- If countryAssignments.length > 0, hide the error.
+
+6) Add a quick debug log (temporary during dev)
+- On submit, console.log the payload being sent:
+  { role, countryAssignments, ... }
+- Confirm it contains ["IN","MY","GB"] when selected.
+
+7) Tests
+Add one test to prevent regression:
+- Selecting IN sets form value length to 1 and allows submit (no validation error).
+
+Deliverable:
+- Selecting countries updates the validated RHF field
+- Error disappears when countries are selected
+- Submit succeeds and backend receives non-empty countryAssignments

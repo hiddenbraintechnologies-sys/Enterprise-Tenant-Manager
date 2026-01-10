@@ -8,6 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAdmin, SuperAdminGuard } from "@/contexts/admin-context";
 import { useState, useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   UserCog,
   Search,
@@ -497,32 +500,86 @@ function EditAdminDialog({ admin, open, onOpenChange }: EditAdminDialogProps) {
   );
 }
 
+const createAdminSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email format"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain an uppercase letter")
+    .regex(/[a-z]/, "Password must contain a lowercase letter")
+    .regex(/[0-9]/, "Password must contain a number"),
+  role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "TECH_SUPPORT_MANAGER", "MANAGER", "SUPPORT_TEAM"]),
+  countryAssignments: z.array(z.string()).default([]),
+  forcePasswordReset: z.boolean().default(true),
+}).refine((data) => {
+  // Scoped roles require at least one country
+  if (SCOPED_ROLES.includes(data.role as AdminRole) && data.countryAssignments.length === 0) {
+    return false;
+  }
+  return true;
+}, {
+  message: "At least one country must be selected for this role",
+  path: ["countryAssignments"],
+});
+
+type CreateAdminFormData = z.infer<typeof createAdminSchema>;
+
 function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
   const { toast } = useToast();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<AdminRole>("PLATFORM_ADMIN");
-  const [countryAssignments, setCountryAssignments] = useState<string[]>([]);
-  const [forcePasswordReset, setForcePasswordReset] = useState(true);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const form = useForm<CreateAdminFormData>({
+    resolver: zodResolver(createAdminSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      role: "PLATFORM_ADMIN",
+      countryAssignments: [],
+      forcePasswordReset: true,
+    },
+  });
+
+  const { control, handleSubmit, watch, setValue, formState: { errors } } = form;
+  const watchedRole = watch("role");
+  const watchedCountries = watch("countryAssignments");
 
   // Fetch available regions
   const { data: regionsData } = useQuery<{ id: string; countryCode: string; countryName: string }[]>({
     queryKey: ["/api/region-configs/active"],
   });
 
+  // Clear country assignments when switching to global role
+  useEffect(() => {
+    if (!isRoleScoped(watchedRole as AdminRole)) {
+      setValue("countryAssignments", []);
+    }
+  }, [watchedRole, setValue]);
+
   const createMutation = useMutation({
-    mutationFn: async (data: {
-      name: string;
-      email: string;
-      password: string;
-      role: string;
-      forcePasswordReset: boolean;
-      countryAssignments?: string[];
-    }) => {
-      return apiRequest("POST", "/api/platform-admin/admins", data);
+    mutationFn: async (data: CreateAdminFormData) => {
+      const payload: {
+        name: string;
+        email: string;
+        password: string;
+        role: string;
+        forcePasswordReset: boolean;
+        countryAssignments?: string[];
+      } = {
+        name: data.name.trim(),
+        email: data.email.trim().toLowerCase(),
+        password: data.password,
+        role: data.role,
+        forcePasswordReset: data.forcePasswordReset,
+      };
+      
+      // Include country assignments for scoped roles
+      if (isRoleScoped(data.role as AdminRole)) {
+        payload.countryAssignments = data.countryAssignments;
+      }
+      
+      console.log("[CreateAdmin] Submitting payload:", payload);
+      return apiRequest("POST", "/api/platform-admin/admins", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/platform-admin/admins"] });
@@ -530,16 +587,6 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
       onSuccess();
     },
     onError: (error: Error & { code?: string }) => {
-      // Handle SCOPE_REQUIRED error inline
-      if (error.message?.includes("SCOPE_REQUIRED") || error.message?.includes("Country scope required")) {
-        setErrors(prev => ({ ...prev, scope: "At least one country must be selected for this role" }));
-        toast({ 
-          title: "Scope required", 
-          description: "Please select at least one country for this role",
-          variant: "destructive" 
-        });
-        return;
-      }
       toast({ 
         title: "Failed to create admin", 
         description: error.message,
@@ -548,115 +595,74 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
     },
   });
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!name.trim()) {
-      newErrors.name = "Name is required";
-    }
-    
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Invalid email format";
-    }
-    
-    if (!password) {
-      newErrors.password = "Password is required";
-    } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
-    } else if (!/[A-Z]/.test(password)) {
-      newErrors.password = "Password must contain an uppercase letter";
-    } else if (!/[a-z]/.test(password)) {
-      newErrors.password = "Password must contain a lowercase letter";
-    } else if (!/[0-9]/.test(password)) {
-      newErrors.password = "Password must contain a number";
-    }
-    
-    // Validate scope for scoped roles
-    if (isRoleScoped(role) && countryAssignments.length === 0) {
-      newErrors.scope = "At least one country must be selected for this role";
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) {
-      toast({
-        title: "Please fix the form errors",
-        description: "Check the highlighted fields above",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    const data: {
-      name: string;
-      email: string;
-      password: string;
-      role: string;
-      forcePasswordReset: boolean;
-      countryAssignments?: string[];
-    } = {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-      role,
-      forcePasswordReset,
-    };
-    
-    // Include country assignments for scoped roles
-    if (isRoleScoped(role)) {
-      data.countryAssignments = countryAssignments;
-    }
-    
+  const onSubmit = (data: CreateAdminFormData) => {
     createMutation.mutate(data);
   };
 
+  const toggleCountry = (countryCode: string) => {
+    const current = watchedCountries || [];
+    const newValue = current.includes(countryCode)
+      ? current.filter(c => c !== countryCode)
+      : [...current, countryCode];
+    setValue("countryAssignments", newValue, { shouldValidate: true });
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="admin-name">Name</Label>
-        <Input
-          id="admin-name"
-          placeholder="Enter admin name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={createMutation.isPending}
-          data-testid="input-admin-name"
+        <Controller
+          name="name"
+          control={control}
+          render={({ field }) => (
+            <Input
+              id="admin-name"
+              placeholder="Enter admin name"
+              {...field}
+              disabled={createMutation.isPending}
+              data-testid="input-admin-name"
+            />
+          )}
         />
-        {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="admin-email">Email</Label>
-        <Input
-          id="admin-email"
-          type="email"
-          placeholder="admin@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={createMutation.isPending}
-          data-testid="input-admin-email-create"
+        <Controller
+          name="email"
+          control={control}
+          render={({ field }) => (
+            <Input
+              id="admin-email"
+              type="email"
+              placeholder="admin@example.com"
+              {...field}
+              disabled={createMutation.isPending}
+              data-testid="input-admin-email-create"
+            />
+          )}
         />
-        {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+        {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="admin-password">Password</Label>
         <div className="relative">
-          <Input
-            id="admin-password"
-            type={showPassword ? "text" : "password"}
-            placeholder="Enter password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={createMutation.isPending}
-            className="pr-10"
-            data-testid="input-admin-password-create"
+          <Controller
+            name="password"
+            control={control}
+            render={({ field }) => (
+              <Input
+                id="admin-password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter password"
+                {...field}
+                disabled={createMutation.isPending}
+                className="pr-10"
+                data-testid="input-admin-password-create"
+              />
+            )}
           />
           <button
             type="button"
@@ -667,7 +673,7 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+        {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
         <p className="text-xs text-muted-foreground">
           Must be 8+ characters with uppercase, lowercase, and number
         </p>
@@ -675,42 +681,39 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="admin-role">Role</Label>
-        <Select value={role} onValueChange={(v) => {
-          const newRole = v as AdminRole;
-          setRole(newRole);
-          // Clear country assignments and scope error when switching to global role
-          if (!isRoleScoped(newRole)) {
-            setCountryAssignments([]);
-            const { scope: _, ...rest } = errors;
-            setErrors(rest);
-          }
-        }}>
-          <SelectTrigger data-testid="select-admin-role">
-            <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-            <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
-            <SelectItem value="TECH_SUPPORT_MANAGER">Tech Support Manager</SelectItem>
-            <SelectItem value="MANAGER">Manager</SelectItem>
-            <SelectItem value="SUPPORT_TEAM">Support Team</SelectItem>
-          </SelectContent>
-        </Select>
+        <Controller
+          name="role"
+          control={control}
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger data-testid="select-admin-role">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                <SelectItem value="PLATFORM_ADMIN">Platform Admin</SelectItem>
+                <SelectItem value="TECH_SUPPORT_MANAGER">Tech Support Manager</SelectItem>
+                <SelectItem value="MANAGER">Manager</SelectItem>
+                <SelectItem value="SUPPORT_TEAM">Support Team</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        />
         <p className="text-xs text-muted-foreground">
-          {role === "SUPER_ADMIN" && "Full access to all features"}
-          {role === "PLATFORM_ADMIN" && "Access based on assigned permissions"}
-          {role === "TECH_SUPPORT_MANAGER" && "Technical monitoring, API management, system health"}
-          {role === "MANAGER" && "Operations access for assigned regions"}
-          {role === "SUPPORT_TEAM" && "Support tickets for assigned regions"}
+          {watchedRole === "SUPER_ADMIN" && "Full access to all features"}
+          {watchedRole === "PLATFORM_ADMIN" && "Access based on assigned permissions"}
+          {watchedRole === "TECH_SUPPORT_MANAGER" && "Technical monitoring, API management, system health"}
+          {watchedRole === "MANAGER" && "Operations access for assigned regions"}
+          {watchedRole === "SUPPORT_TEAM" && "Support tickets for assigned regions"}
         </p>
       </div>
 
-      {isRoleScoped(role) ? (
+      {isRoleScoped(watchedRole as AdminRole) ? (
         <div className="space-y-2">
           <Label>Assigned Countries <span className="text-destructive">*</span></Label>
-          <div className={`flex flex-wrap gap-2 min-h-9 p-2 border rounded-md ${errors.scope ? 'border-destructive' : ''}`}>
+          <div className={`flex flex-wrap gap-2 min-h-9 p-2 border rounded-md ${errors.countryAssignments ? 'border-destructive' : ''}`}>
             {regionsData?.map((region) => {
-              const isSelected = countryAssignments.includes(region.countryCode);
+              const isSelected = (watchedCountries || []).includes(region.countryCode);
               return (
                 <button
                   key={region.countryCode}
@@ -720,19 +723,7 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
                       ? 'border-transparent bg-primary text-primary-foreground shadow-xs' 
                       : 'border bg-background hover:bg-accent hover:text-accent-foreground'
                   }`}
-                  onClick={() => {
-                    const newAssignments = isSelected
-                      ? countryAssignments.filter(c => c !== region.countryCode)
-                      : [...countryAssignments, region.countryCode];
-                    setCountryAssignments(newAssignments);
-                    // Clear scope error when countries are selected
-                    if (newAssignments.length > 0 && errors.scope) {
-                      setErrors(prev => {
-                        const { scope: _, ...rest } = prev;
-                        return rest;
-                      });
-                    }
-                  }}
+                  onClick={() => toggleCountry(region.countryCode)}
                   data-testid={`badge-create-region-${region.countryCode}`}
                 >
                   {region.countryCode}
@@ -740,9 +731,9 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
               );
             })}
           </div>
-          {errors.scope && <p className="text-sm text-destructive">{errors.scope}</p>}
+          {errors.countryAssignments && <p className="text-sm text-destructive">{errors.countryAssignments.message}</p>}
           <p className="text-xs text-muted-foreground">
-            Scope controls which tenants this admin can access. {countryAssignments.length} countr{countryAssignments.length !== 1 ? "ies" : "y"} selected.
+            Scope controls which tenants this admin can access. {(watchedCountries || []).length} countr{(watchedCountries || []).length !== 1 ? "ies" : "y"} selected.
           </p>
         </div>
       ) : (
@@ -759,11 +750,17 @@ function CreateAdminForm({ onSuccess, onCancel }: CreateAdminFormProps) {
             Require password change on first login
           </p>
         </div>
-        <Switch
-          id="force-reset"
-          checked={forcePasswordReset}
-          onCheckedChange={setForcePasswordReset}
-          data-testid="switch-force-password-reset"
+        <Controller
+          name="forcePasswordReset"
+          control={control}
+          render={({ field }) => (
+            <Switch
+              id="force-reset"
+              checked={field.value}
+              onCheckedChange={field.onChange}
+              data-testid="switch-force-password-reset"
+            />
+          )}
         />
       </div>
 
