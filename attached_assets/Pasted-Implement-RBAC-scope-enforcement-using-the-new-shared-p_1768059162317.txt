@@ -1,0 +1,113 @@
+Implement RBAC + scope enforcement using the new shared permission matrix (permissions.ts) as the single source of truth.
+
+Do NOT add new product features. Do NOT refactor unrelated modules. Keep changes minimal and safe. All tests must pass.
+
+================================================
+0) Goal
+================================================
+Fix the issue where PLATFORM_SUPER_ADMIN and PLATFORM_ADMIN behave similarly by enforcing:
+- Permission-based access (not role-name checks)
+- Scope-based filtering for PLATFORM_ADMIN / MANAGER / SUPPORT_TEAM
+- UI menu gating by permission
+
+Keep existing tenant-isolation behavior (cross-tenant access => 404).
+
+================================================
+1) Create/Use Single Source of Truth
+================================================
+- Add (or confirm) file: shared/rbac/permissions.ts (as provided)
+- Ensure both server and client can import it (or duplicate safely if shared import is not possible).
+
+================================================
+2) Server-side RBAC Middleware
+================================================
+Create server/rbac/guards.ts:
+
+A) requireAuth()
+- If no authenticated user => 401
+
+B) requirePermission(permission)
+- If authenticated but lacks permission => 403
+- Error payload: { error: { code: "FORBIDDEN", message: "Not authorized" } }
+
+C) enforceScope()
+- If role scopeType is:
+  GLOBAL: no filtering
+  COUNTRY: restrict queries to allowedCountryIds
+  REGION: restrict to allowedRegionIds
+  TENANT: restrict to tenant_id
+
+- Ensure PLATFORM_ADMIN cannot access global-only routes regardless of scope.
+
+D) getScopeContext(user)
+- Derive allowedCountryIds / allowedRegionIds from user profile/admin assignment or JWT claims (whichever exists).
+
+================================================
+3) Apply RBAC + Scope to Admin Routes
+================================================
+For each admin route group, apply guards:
+
+SUPER ADMIN ONLY routes (must be 403 for PLATFORM_ADMIN):
+- Manage platform admins (create/disable)
+- Plans/pricing changes
+- Global feature flags
+- Countries/regions management
+- Business type enable/disable
+
+Scoped admin routes (PLATFORM_ADMIN allowed but filtered):
+- Tenants list/details (only within scope)
+- Tenant suspend/reactivate (scoped)
+- Support console (scoped)
+- Read-only billing view (scoped)
+
+Important:
+- Tenant isolation rule remains: cross-tenant resources return 404.
+- Platform scope filtering should happen BEFORE returning data (never leak tenant existence outside scope).
+
+================================================
+4) Update UI Menu Gating (Permission-driven)
+================================================
+Update admin sidebar/menu rendering:
+- Use hasPermission(role, permission) from permissions.ts
+- SUPER_ADMIN sees:
+  Global Settings, Plans/Pricing, Admin Management, Countries/Regions, Global Feature Flags
+- PLATFORM_ADMIN does NOT see those menus
+- PLATFORM_ADMIN sees only:
+  Scoped Tenants, Tenant Health, Support Console, Read-only Billing
+
+If user manually navigates to a restricted URL:
+- show "Not Authorized" page (403 UI)
+- do not show blank pages
+
+================================================
+5) Tests (Mandatory)
+================================================
+Add/Update tests to ensure:
+
+A) API authorization semantics
+- 401 when unauthenticated
+- 403 when authenticated but lacks permission
+
+B) Role separation
+- PLATFORM_ADMIN calling SUPER_ADMIN routes => 403
+- SUPER_ADMIN can access all admin routes
+
+C) Scope enforcement
+- PLATFORM_ADMIN tenant list returns ONLY tenants in allowedCountryIds/allowedRegionIds
+- Attempt to access tenant outside scope => 404 (or 403 if it’s a list endpoint; pick one consistent rule and document it)
+
+D) Regression
+- Existing tenant isolation tests still pass
+- Existing furniture/services tests still pass
+
+================================================
+6) Deliverables
+================================================
+- server/rbac/guards.ts (or equivalent)
+- Permissions enforced on admin routes
+- UI menu gating based on permissions
+- Tests passing (full suite)
+
+Output required:
+- List of routes updated and their required permissions
+- Test suite summary showing all passing

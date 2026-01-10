@@ -10,16 +10,21 @@ import { eq, and, inArray, isNull } from "drizzle-orm";
 export {
   PLATFORM_ROLES,
   PLATFORM_PERMISSIONS,
+  Permissions,
   ROLE_PERMISSIONS,
   ROLE_SCOPE_RULES,
+  ROLE_DEFINITIONS,
   SUPER_ADMIN_ONLY_PERMISSIONS,
   SCOPE_TYPES,
+  TENANT_ROLES,
   ISO_TO_TENANT_COUNTRY,
   TENANT_COUNTRY_TO_ISO,
   resolvePermissions,
-  hasPermission as hasPlatformPermission,
+  hasPermission,
+  hasResolvedPermission,
   hasAnyPermission,
-  isSuperAdminOnly as isSuperAdminOnlyPermission,
+  isSuperAdminOnly,
+  requiresScope,
   canAccessCountry,
   canAccessRegion,
   getMenuItemsForRole,
@@ -28,22 +33,28 @@ export {
   tenantCountryToISO,
   isTenantCountryInScope,
   type PlatformRole,
+  type TenantRole,
+  type Role,
+  type Permission,
   type PlatformPermission,
   type ScopeType,
+  type ScopeContext,
   type AdminScope,
   type ResolvedPermissions,
+  type RoleDefinition,
   type MenuItem,
 } from "@shared/rbac/permissions";
 
 // Legacy exports for backward compatibility
 import { 
   PLATFORM_ROLES as _PLATFORM_ROLES,
-  PLATFORM_PERMISSIONS as _PLATFORM_PERMISSIONS,
+  Permissions as _Permissions,
   ROLE_PERMISSIONS as _ROLE_PERMISSIONS,
   resolvePermissions as _resolvePermissions,
+  hasPermission as _hasPermission,
   type ResolvedPermissions as _ResolvedPermissions,
   type PlatformRole as _PlatformRole,
-  type PlatformPermission as _PlatformPermission,
+  type Permission as _Permission,
 } from "@shared/rbac/permissions";
 
 // Legacy type alias
@@ -69,40 +80,49 @@ export function resolveAdminPermissions(
 }
 
 /**
+ * Legacy function - check if a role has a permission
+ * @deprecated Use hasPermission from @shared/rbac/permissions instead
+ */
+export function hasPlatformPermission(role: string, permission: _Permission): boolean {
+  return _hasPermission(role as _PlatformRole, permission);
+}
+
+/**
  * Get permission display names for UI
  */
-export const PLATFORM_PERMISSION_DISPLAY_NAMES: Record<_PlatformPermission, string> = {
-  [_PLATFORM_PERMISSIONS.MANAGE_PLATFORM_ADMINS]: "Manage Platform Admins",
-  [_PLATFORM_PERMISSIONS.MANAGE_COUNTRIES_REGIONS]: "Manage Countries & Regions",
-  [_PLATFORM_PERMISSIONS.MANAGE_GLOBAL_CONFIG]: "Manage Global Configuration",
-  [_PLATFORM_PERMISSIONS.MANAGE_PLANS_PRICING]: "Manage Plans & Pricing",
-  [_PLATFORM_PERMISSIONS.MANAGE_BUSINESS_TYPES]: "Manage Business Types",
-  [_PLATFORM_PERMISSIONS.VIEW_ALL_TENANTS]: "View All Tenants (Global)",
-  [_PLATFORM_PERMISSIONS.VIEW_ALL_REVENUE]: "View All Revenue (Global)",
-  [_PLATFORM_PERMISSIONS.VIEW_SYSTEM_LOGS]: "View System Logs",
-  [_PLATFORM_PERMISSIONS.OVERRIDE_TENANT_LOCKS]: "Override Tenant Locks",
-  [_PLATFORM_PERMISSIONS.MANAGE_EXCHANGE_RATES]: "Manage Exchange Rates",
-  [_PLATFORM_PERMISSIONS.MANAGE_TAX_CONFIGS]: "Manage Tax Configurations",
-  [_PLATFORM_PERMISSIONS.MANAGE_INVOICE_TEMPLATES]: "Manage Invoice Templates",
-  [_PLATFORM_PERMISSIONS.MANAGE_WHATSAPP_CONFIG]: "Manage WhatsApp Configuration",
-  [_PLATFORM_PERMISSIONS.VIEW_TENANTS]: "View Tenants (Scoped)",
-  [_PLATFORM_PERMISSIONS.SUSPEND_TENANT]: "Suspend Tenant (Scoped)",
-  [_PLATFORM_PERMISSIONS.REACTIVATE_TENANT]: "Reactivate Tenant (Scoped)",
-  [_PLATFORM_PERMISSIONS.VIEW_USAGE_METRICS]: "View Usage Metrics (Scoped)",
-  [_PLATFORM_PERMISSIONS.VIEW_INVOICES_PAYMENTS]: "View Invoices & Payments (Read-only)",
-  [_PLATFORM_PERMISSIONS.HANDLE_SUPPORT_TICKETS]: "Handle Support Tickets (Scoped)",
-  [_PLATFORM_PERMISSIONS.VIEW_AUDIT_LOGS]: "View Audit Logs",
-  [_PLATFORM_PERMISSIONS.VIEW_SYSTEM_HEALTH]: "View System Health",
-  [_PLATFORM_PERMISSIONS.VIEW_API_METRICS]: "View API Metrics",
-  [_PLATFORM_PERMISSIONS.MANAGE_APIS]: "Manage APIs",
-  [_PLATFORM_PERMISSIONS.VIEW_ERROR_LOGS]: "View Error Logs",
-  [_PLATFORM_PERMISSIONS.MANAGE_ALERTS]: "Manage Alerts",
-  [_PLATFORM_PERMISSIONS.VIEW_PERFORMANCE]: "View Performance",
-  [_PLATFORM_PERMISSIONS.VIEW_OPERATIONS]: "View Operations",
-  [_PLATFORM_PERMISSIONS.VIEW_REPORTS]: "View Reports",
-  [_PLATFORM_PERMISSIONS.VIEW_TICKETS]: "View Tickets",
-  [_PLATFORM_PERMISSIONS.RESPOND_TICKETS]: "Respond to Tickets",
-  [_PLATFORM_PERMISSIONS.ESCALATE_TICKETS]: "Escalate Tickets",
+export const PLATFORM_PERMISSION_DISPLAY_NAMES: Partial<Record<_Permission, string>> = {
+  [_Permissions.MANAGE_PLATFORM_ADMINS]: "Manage Platform Admins",
+  [_Permissions.MANAGE_COUNTRIES_REGIONS]: "Manage Countries & Regions",
+  [_Permissions.MANAGE_GLOBAL_CONFIG]: "Manage Global Configuration",
+  [_Permissions.MANAGE_PLANS_PRICING]: "Manage Plans & Pricing",
+  [_Permissions.MANAGE_BUSINESS_TYPES]: "Manage Business Types",
+  [_Permissions.VIEW_ALL_TENANTS]: "View All Tenants (Global)",
+  [_Permissions.VIEW_SYSTEM_LOGS]: "View System Logs",
+  [_Permissions.OVERRIDE_TENANT_LOCK]: "Override Tenant Locks",
+  [_Permissions.VIEW_TENANTS_SCOPED]: "View Tenants (Scoped)",
+  [_Permissions.SUSPEND_TENANT_SCOPED]: "Suspend Tenant (Scoped)",
+  [_Permissions.VIEW_INVOICES_PAYMENTS]: "View Invoices & Payments (Read-only)",
+  [_Permissions.HANDLE_SUPPORT_TICKETS]: "Handle Support Tickets (Scoped)",
+  [_Permissions.VIEW_AUDIT_LOGS]: "View Audit Logs",
+  [_Permissions.VIEW_SYSTEM_HEALTH]: "View System Health",
+  [_Permissions.VIEW_API_METRICS]: "View API Metrics",
+  [_Permissions.MANAGE_APIS]: "Manage APIs",
+  [_Permissions.VIEW_ERROR_LOGS]: "View Error Logs",
+  [_Permissions.VIEW_PERFORMANCE]: "View Performance",
+  [_Permissions.VIEW_OPERATIONS]: "View Operations",
+  [_Permissions.VIEW_REPORTS]: "View Reports",
+  [_Permissions.VIEW_TICKETS]: "View Tickets",
+  [_Permissions.RESPOND_TICKETS]: "Respond to Tickets",
+  [_Permissions.ESCALATE_TICKETS]: "Escalate Tickets",
+  [_Permissions.MANAGE_USERS]: "Manage Users",
+  [_Permissions.VIEW_DASHBOARD]: "View Dashboard",
+  [_Permissions.MANAGE_PROJECTS]: "Manage Projects",
+  [_Permissions.MANAGE_TIMESHEETS]: "Manage Timesheets",
+  [_Permissions.VIEW_INVOICES]: "View Invoices",
+  [_Permissions.CREATE_INVOICES]: "Create Invoices",
+  [_Permissions.RECORD_PAYMENTS]: "Record Payments",
+  [_Permissions.VIEW_ANALYTICS]: "View Analytics",
+  [_Permissions.MANAGE_SETTINGS]: "Manage Settings",
 };
 
 // ==================== TENANT-LEVEL PERMISSIONS ====================
