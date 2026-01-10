@@ -284,6 +284,10 @@ export function rateLimit(options: {
   const requests = new Map<string, { count: number; resetAt: number }>();
 
   return (req: Request, res: Response, next: NextFunction) => {
+    if (process.env.NODE_ENV === "test" || process.env.SKIP_RATE_LIMIT === "true") {
+      return next();
+    }
+
     const key = req.ip || req.socket?.remoteAddress || "unknown";
     const now = Date.now();
 

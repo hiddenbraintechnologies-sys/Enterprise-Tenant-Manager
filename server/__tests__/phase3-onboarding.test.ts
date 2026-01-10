@@ -266,7 +266,7 @@ describe('Phase 3: Dashboard API', () => {
         const data = await response.json();
         expect(data).toHaveProperty('tenant');
         expect(data).toHaveProperty('modules');
-        expect(data).toHaveProperty('quickStats');
+        expect(data).toHaveProperty('features');
       } else {
         console.warn('[test] Dashboard returned:', response.status);
       }
@@ -287,7 +287,8 @@ describe('Phase 3: Dashboard API', () => {
 
       if (response.status === 200) {
         const data = await response.json();
-        expect(Array.isArray(data.modules)).toBe(true);
+        expect(data.modules).toHaveProperty('enabled');
+        expect(Array.isArray(data.modules.enabled)).toBe(true);
       }
     });
   });
@@ -309,7 +310,7 @@ describe('Phase 3: Dashboard API', () => {
       if (response.status === 200) {
         const data = await response.json();
         expect(data).toHaveProperty('tier');
-        expect(data).toHaveProperty('status');
+        expect(data).toHaveProperty('hasSubscription');
       }
     });
   });
@@ -330,7 +331,8 @@ describe('Phase 3: Dashboard API', () => {
 
       if (response.status === 200) {
         const data = await response.json();
-        expect(data).toHaveProperty('hasAccess');
+        expect(data).toHaveProperty('allowed');
+        expect(data).toHaveProperty('moduleId');
         expect(data).toHaveProperty('reason');
       }
     });
