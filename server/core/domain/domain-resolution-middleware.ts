@@ -211,7 +211,7 @@ export function attachDomainBranding() {
           secondaryColor: tenantBranding.secondaryColor,
           accentColor: tenantBranding.accentColor,
           backgroundColor: tenantBranding.backgroundColor,
-          textColor: tenantBranding.textColor,
+          textColor: tenantBranding.foregroundColor,
           fontFamily: tenantBranding.fontFamily,
           fontFamilyHeading: tenantBranding.fontFamilyHeading,
           fontFamilyMono: tenantBranding.fontFamilyMono,

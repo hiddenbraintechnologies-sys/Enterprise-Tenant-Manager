@@ -69,7 +69,7 @@ class LeaveService {
     };
     const leave = await hrmsStorage.updateLeave(tenantId, id, updateData);
     
-    if (data.status === "approved" || data.status === "rejected") {
+    if (leave && (data.status === "approved" || data.status === "rejected")) {
       setImmediate(async () => {
         try {
           const employee = await hrmsStorage.getEmployeeById(tenantId, leave.employeeId);

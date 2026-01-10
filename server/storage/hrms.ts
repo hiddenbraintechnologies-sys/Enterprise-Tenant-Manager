@@ -673,13 +673,13 @@ class HrmsStorage {
       ))
       .limit(1);
 
-    if (existing.length > 0 && existing[0].checkIn) {
+    if (existing.length > 0 && existing[0].checkInTime) {
       throw new Error("Already checked in for today");
     }
 
     if (existing.length > 0) {
       const [updated] = await db.update(hrAttendance)
-        .set({ checkIn: now.toTimeString().slice(0, 8), status: "present", updatedAt: now })
+        .set({ checkInTime: now.toTimeString().slice(0, 8), status: "present", updatedAt: now })
         .where(eq(hrAttendance.id, existing[0].id))
         .returning();
       return updated;
@@ -690,7 +690,7 @@ class HrmsStorage {
         tenantId,
         employeeId,
         attendanceDate: today,
-        checkIn: now.toTimeString().slice(0, 8),
+        checkInTime: now.toTimeString().slice(0, 8),
         status: "present",
       })
       .returning();
@@ -710,21 +710,22 @@ class HrmsStorage {
       ))
       .limit(1);
 
-    if (existing.length === 0 || !existing[0].checkIn) {
+    if (existing.length === 0 || !existing[0].checkInTime) {
       throw new Error("Must check in before checking out");
     }
 
-    if (existing[0].checkOut) {
+    if (existing[0].checkOutTime) {
       throw new Error("Already checked out for today");
     }
 
-    const checkInTime = new Date(`${today}T${existing[0].checkIn}`);
+    const checkInTimeStr = existing[0].checkInTime;
+    const checkInTime = new Date(`${today}T${checkInTimeStr}`);
     const hoursWorked = (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
 
     const [updated] = await db.update(hrAttendance)
       .set({ 
-        checkOut: now.toTimeString().slice(0, 8), 
-        hoursWorked: Math.round(hoursWorked * 100) / 100,
+        checkOutTime: now.toTimeString().slice(0, 8), 
+        workHours: String(Math.round(hoursWorked * 100) / 100),
         updatedAt: now 
       })
       .where(eq(hrAttendance.id, existing[0].id))

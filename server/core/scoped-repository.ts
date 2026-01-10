@@ -119,10 +119,11 @@ export class TenantScopedRepository {
       tenantId: this.tenantId,
     };
 
-    const [created] = await db.insert(this.table)
+    const result = await db.insert(this.table)
       .values(scopedData)
       .returning();
 
+    const [created] = result as any[];
     return created;
   }
 

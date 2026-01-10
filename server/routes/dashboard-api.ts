@@ -148,7 +148,7 @@ router.get("/", ...dashboardMiddlewareStack, async (req: Request, res: Response)
       subscriptionService.hasModuleAddon(moduleId, tenantAddons)
     );
 
-    const allEnabledModules = [...new Set([...enabledModules, ...addonEnabledModules])];
+    const allEnabledModules = Array.from(new Set([...enabledModules, ...addonEnabledModules]));
 
     const businessTypeModuleMapping: Record<string, string[]> = {
       clinic: ["bookings", "customers", "invoices", "analytics", "settings"],

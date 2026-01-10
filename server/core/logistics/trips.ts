@@ -58,7 +58,7 @@ tripsRouter.get("/", ...middleware, async (req: Request, res: Response) => {
 
     const orderColumn = {
       createdAt: trips.createdAt,
-      scheduledStart: trips.scheduledStart,
+      scheduledStart: trips.scheduledStartTime,
       status: trips.status,
     }[sortBy];
 

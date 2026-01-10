@@ -61,7 +61,7 @@ coursesRouter.get("/", ...middleware, async (req: Request, res: Response) => {
       createdAt: courses.createdAt,
       name: courses.name,
       status: courses.status,
-      startDate: courses.startDate,
+      startDate: courses.createdAt, // Courses don't have startDate; use createdAt as fallback
     }[sortBy];
 
     const orderFn = sortOrder === "asc" ? asc : desc;

@@ -45,7 +45,7 @@ studentsRouter.get("/", ...middleware, async (req: Request, res: Response) => {
           ilike(students.firstName, `%${search}%`),
           ilike(students.lastName, `%${search}%`),
           ilike(students.email, `%${search}%`),
-          ilike(students.studentId, `%${search}%`)
+          ilike(students.enrollmentNumber, `%${search}%`)
         )!
       );
     }
@@ -54,9 +54,7 @@ studentsRouter.get("/", ...middleware, async (req: Request, res: Response) => {
       conditions.push(eq(students.status, status as any));
     }
 
-    if (grade) {
-      conditions.push(eq(students.grade, grade));
-    }
+    // Note: grade field not in schema - filter removed
 
     const orderColumn = {
       createdAt: students.createdAt,

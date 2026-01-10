@@ -23,6 +23,7 @@ export class StripeAdapter extends BasePaymentAdapter {
     }
     
     try {
+      // @ts-ignore - stripe is an optional peer dependency
       const Stripe = (await import("stripe")).default;
       this.stripe = new Stripe(this.config.apiKey, {
         apiVersion: "2024-11-20.acacia",

@@ -22,6 +22,7 @@ export class RazorpayAdapter extends BasePaymentAdapter {
     }
 
     try {
+      // @ts-ignore - razorpay is an optional peer dependency
       const Razorpay = (await import("razorpay")).default;
       this.razorpay = new Razorpay({
         key_id: this.config.apiKey,

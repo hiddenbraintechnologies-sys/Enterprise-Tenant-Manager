@@ -322,14 +322,19 @@ legalInvoicesRouter.get("/:id/pdf", ...middleware, requirePermission("legal_invo
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, isolation.getTenantId()));
     const [branding] = await db.select().from(tenantBranding).where(eq(tenantBranding.tenantId, isolation.getTenantId()));
 
+    // Build client name from firstName/lastName or companyName
+    const clientName = client
+      ? (client.companyName || [client.firstName, client.lastName].filter(Boolean).join(" ") || null)
+      : null;
+
     const pdfBuffer = await baseFinancialService.generateInvoicePDF({
       invoice: {
         id: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
+        invoiceNumber: invoice.invoiceNumber || "",
         invoiceType: "tax_invoice",
-        status: invoice.status,
-        invoiceDate: invoice.invoiceDate,
-        dueDate: invoice.dueDate,
+        status: invoice.status || "draft",
+        invoiceDate: new Date(invoice.invoiceDate),
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null,
         currency: invoice.currency || "INR",
         baseCurrency: "INR",
         exchangeRate: 1,
@@ -340,7 +345,7 @@ legalInvoicesRouter.get("/:id/pdf", ...middleware, requirePermission("legal_invo
         paidAmount: parseFloat(invoice.paidAmount || "0"),
         balanceAmount: parseFloat(invoice.balanceAmount || "0"),
         taxMetadata: {},
-        billingName: client?.name || null,
+        billingName: clientName,
         billingAddress: client?.address || null,
         billingCity: null,
         billingState: null,
@@ -360,7 +365,7 @@ legalInvoicesRouter.get("/:id/pdf", ...middleware, requirePermission("legal_invo
       },
       items: [
         {
-          description: invoice.description || "Legal Services",
+          description: invoice.notes || "Legal Services",
           quantity: 1,
           unitPrice: parseFloat(invoice.subtotal),
           discountAmount: parseFloat(invoice.discountAmount || "0"),
@@ -411,17 +416,20 @@ legalInvoicesRouter.post("/:id/notify", ...middleware, requirePermission("legal_
       return res.status(400).json({ message: "No client associated with this invoice" });
     }
 
+    // Build client name for notification
+    const notifyClientName = client.companyName || [client.firstName, client.lastName].filter(Boolean).join(" ") || "Client";
+
     await sendLegalInvoiceNotification(
       isolation.getTenantId(),
       eventType || "INVOICE_ISSUED",
       {
-        clientName: client.name,
+        clientName: notifyClientName,
         clientEmail: client.email || undefined,
         clientPhone: client.phone || undefined,
-        invoiceNumber: invoice.invoiceNumber,
+        invoiceNumber: invoice.invoiceNumber || "",
         totalAmount: invoice.totalAmount,
         currency: invoice.currency || "INR",
-        dueDate: invoice.dueDate?.toISOString(),
+        dueDate: invoice.dueDate || undefined,
         paidAmount: invoice.paidAmount || "0",
         balanceAmount: invoice.balanceAmount || "0",
         invoiceId: invoice.id,

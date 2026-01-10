@@ -41,9 +41,9 @@ class PayrollService {
             recipient: { name: employee.firstName, email: employee.email || undefined },
             variables: { 
               employeeName: employee.firstName,
-              month: String(payroll.month),
-              year: String(payroll.year),
-              netPay: String(payroll.netPay),
+              month: String(payroll.payrollMonth),
+              year: String(payroll.payrollYear),
+              netPay: String(payroll.netSalary),
             },
             referenceId: payroll.id,
             referenceType: "payroll",

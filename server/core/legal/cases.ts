@@ -266,11 +266,11 @@ async function logCaseActivity(
     await db.insert(caseActivityLog).values({
       tenantId,
       caseId,
-      userId,
-      action,
-      description,
-      previousValue: previousValue ? JSON.stringify(previousValue) : null,
-      newValue: newValue ? JSON.stringify(newValue) : null,
+      performedBy: userId,
+      activityType: action,
+      activityDescription: description,
+      previousValue: previousValue ? previousValue : null,
+      newValue: newValue ? newValue : null,
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
     });
