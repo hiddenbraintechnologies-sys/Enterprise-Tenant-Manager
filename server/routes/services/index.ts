@@ -823,7 +823,6 @@ router.post("/projects/:id/invoices/from-timesheets", async (req: Request, res: 
       taxAmount: "0",
       totalAmount: totalAmount.toString(),
       currency: project.currency || "USD",
-      issueDate: new Date().toISOString().split("T")[0],
       notes: `Invoice generated from timesheets for project: ${project.name}`,
     }).returning();
 
@@ -834,7 +833,7 @@ router.post("/projects/:id/invoices/from-timesheets", async (req: Request, res: 
         description: `Project: ${project.name} - Timesheet billing (${totalHours} hours)`,
         quantity: Math.round(totalHours),
         unitPrice: project.hourlyRate?.toString() || "0",
-        amount: totalAmount.toString(),
+        totalPrice: totalAmount.toString(),
       });
     }
 
