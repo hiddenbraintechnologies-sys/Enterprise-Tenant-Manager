@@ -26,6 +26,9 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  ShieldCheck,
+  AlertTriangle,
+  Copy,
 } from "lucide-react";
 import {
   Select,
@@ -87,6 +90,26 @@ interface ManagePermissionsDialogProps {
   admin: PlatformAdmin | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface Manage2FADialogProps {
+  admin: PlatformAdmin | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+interface TwoFactorStatus {
+  isEnabled: boolean;
+  isVerified: boolean;
+  backupCodesRemaining: number;
+  lastUsedAt: string | null;
+  setupCompletedAt: string | null;
+}
+
+interface TwoFactorSetupResponse {
+  secret: string;
+  qrCode: string;
+  backupCodes: string[];
 }
 
 const AVAILABLE_PERMISSIONS = [
@@ -223,6 +246,296 @@ function ManagePermissionsDialog({ admin, open, onOpenChange }: ManagePermission
             </Button>
           )}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Manage2FADialog({ admin, open, onOpenChange }: Manage2FADialogProps) {
+  const { toast } = useToast();
+  const [setupData, setSetupData] = useState<TwoFactorSetupResponse | null>(null);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const { data: status, isLoading: statusLoading, refetch: refetchStatus } = useQuery<TwoFactorStatus>({
+    queryKey: ["/api/platform-admin/admins", admin?.id, "2fa/status"],
+    enabled: !!admin?.id && open,
+  });
+
+  const setupMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/platform-admin/admins/${admin?.id}/2fa/setup`, {});
+      return response.json();
+    },
+    onSuccess: (data: TwoFactorSetupResponse) => {
+      setSetupData(data);
+      toast({ title: "2FA setup initiated. Scan the QR code with your authenticator app." });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to setup 2FA", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: async (code: string) => {
+      return apiRequest("POST", `/api/platform-admin/admins/${admin?.id}/2fa/confirm`, { code });
+    },
+    onSuccess: () => {
+      setVerificationCode("");
+      setShowSuccess(true);
+      refetchStatus();
+      toast({ title: "2FA enabled successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to verify code", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/platform-admin/admins/${admin?.id}/2fa/disable`, {});
+    },
+    onSuccess: () => {
+      refetchStatus();
+      toast({ title: "2FA disabled successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to disable 2FA", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const handleCopyBackupCodes = () => {
+    if (setupData?.backupCodes) {
+      navigator.clipboard.writeText(setupData.backupCodes.join("\n"));
+      toast({ title: "Backup codes copied to clipboard" });
+    }
+  };
+
+  const handleClose = () => {
+    setSetupData(null);
+    setVerificationCode("");
+    setShowSuccess(false);
+    onOpenChange(false);
+  };
+
+  if (!admin) return null;
+
+  const isSuperAdmin = admin.role === "SUPER_ADMIN";
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5" />
+            Two-Factor Authentication
+          </DialogTitle>
+          <DialogDescription>
+            Manage 2FA for {admin.name}
+          </DialogDescription>
+        </DialogHeader>
+        
+        {statusLoading ? (
+          <div className="py-6 space-y-3">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-8 w-32" />
+          </div>
+        ) : setupData ? (
+          <div className="space-y-4">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-4">
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              </p>
+              <div className="flex justify-center mb-4">
+                <img 
+                  src={setupData.qrCode} 
+                  alt="2FA QR Code" 
+                  className="border rounded-md p-2 bg-white"
+                  data-testid="img-2fa-qr-code"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Or enter this secret manually: <code className="bg-muted px-1 py-0.5 rounded">{setupData.secret}</code>
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Enter verification code from your app</Label>
+              <Input
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                className="text-center text-2xl tracking-widest"
+                data-testid="input-2fa-code"
+              />
+            </div>
+
+            <div className="bg-muted p-3 rounded-md">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  Backup Codes
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCopyBackupCodes}
+                  data-testid="button-copy-backup-codes"
+                >
+                  <Copy className="h-3 w-3 mr-1" />
+                  Copy
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Save these codes in a secure place. Each can be used once if you lose access to your authenticator.
+              </p>
+              <div className="grid grid-cols-2 gap-1 text-xs font-mono">
+                {setupData.backupCodes.map((code, i) => (
+                  <span key={i} className="bg-background px-2 py-1 rounded">{code}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSetupData(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => confirmMutation.mutate(verificationCode)}
+                disabled={verificationCode.length !== 6 || confirmMutation.isPending}
+                data-testid="button-confirm-2fa"
+              >
+                {confirmMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Enable 2FA"
+                )}
+              </Button>
+            </div>
+          </div>
+        ) : showSuccess ? (
+          <div className="space-y-4">
+            <div className="text-center">
+              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+              <p className="font-medium">2FA Enabled Successfully</p>
+              <p className="text-sm text-muted-foreground">
+                Make sure you have saved your backup codes in a secure location.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleClose} data-testid="button-2fa-done">Done</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-md">
+              <div>
+                <p className="font-medium">2FA Status</p>
+                <p className="text-sm text-muted-foreground">
+                  {status?.isEnabled ? "Enabled and active" : "Not configured"}
+                </p>
+              </div>
+              {status?.isEnabled ? (
+                <Badge variant="default" className="gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  Enabled
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1">
+                  <XCircle className="h-3 w-3" />
+                  Disabled
+                </Badge>
+              )}
+            </div>
+
+            {status?.isEnabled && (
+              <>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="p-3 border rounded-md">
+                    <p className="text-muted-foreground">Backup Codes Left</p>
+                    <p className="font-medium">{status.backupCodesRemaining} of 8</p>
+                  </div>
+                  <div className="p-3 border rounded-md">
+                    <p className="text-muted-foreground">Last Used</p>
+                    <p className="font-medium">
+                      {status.lastUsedAt 
+                        ? new Date(status.lastUsedAt).toLocaleDateString() 
+                        : "Never"}
+                    </p>
+                  </div>
+                </div>
+
+                {isSuperAdmin && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
+                    <Crown className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      2FA is mandatory for Super Admins and cannot be disabled.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={handleClose}>
+                Close
+              </Button>
+              {status?.isEnabled ? (
+                !isSuperAdmin && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => disableMutation.mutate()}
+                    disabled={disableMutation.isPending}
+                    data-testid="button-disable-2fa"
+                  >
+                    {disableMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Disabling...
+                      </>
+                    ) : (
+                      "Disable 2FA"
+                    )}
+                  </Button>
+                )
+              ) : (
+                <Button
+                  onClick={() => setupMutation.mutate()}
+                  disabled={setupMutation.isPending}
+                  data-testid="button-setup-2fa"
+                >
+                  {setupMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Setting up...
+                    </>
+                  ) : (
+                    "Setup 2FA"
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -803,6 +1116,8 @@ function PlatformAdminsContent() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [permissionsAdmin, setPermissionsAdmin] = useState<PlatformAdmin | null>(null);
   const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
+  const [twoFactorAdmin, setTwoFactorAdmin] = useState<PlatformAdmin | null>(null);
+  const [is2FADialogOpen, setIs2FADialogOpen] = useState(false);
 
   const { data, isLoading } = useQuery<{ admins: PlatformAdmin[]; total: number }>({
     queryKey: ["/api/platform-admin/admins"],
@@ -1034,6 +1349,16 @@ function PlatformAdminsContent() {
                             <Key className="h-4 w-4 mr-2" />
                             Manage Permissions
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setTwoFactorAdmin(admin);
+                              setIs2FADialogOpen(true);
+                            }}
+                            data-testid={`button-manage-2fa-${admin.id}`}
+                          >
+                            <ShieldCheck className="h-4 w-4 mr-2" />
+                            Two-Factor Auth
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => toggleStatusMutation.mutate({
@@ -1079,6 +1404,15 @@ function PlatformAdminsContent() {
         onOpenChange={(open) => {
           setIsPermissionsDialogOpen(open);
           if (!open) setPermissionsAdmin(null);
+        }}
+      />
+
+      <Manage2FADialog
+        admin={twoFactorAdmin}
+        open={is2FADialogOpen}
+        onOpenChange={(open) => {
+          setIs2FADialogOpen(open);
+          if (!open) setTwoFactorAdmin(null);
         }}
       />
     </div>
