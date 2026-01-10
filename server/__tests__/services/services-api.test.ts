@@ -21,6 +21,22 @@ describe("Services Module (Software Services & Consulting) Tests", () => {
     httpServer.close();
   });
 
+  describe("Authentication Guard Tests", () => {
+    it("should reject unauthenticated requests to protected endpoints", async () => {
+      const endpoints = [
+        { method: "get", path: "/api/services/projects" },
+        { method: "get", path: "/api/services/timesheets" },
+        { method: "post", path: "/api/services/projects" },
+        { method: "post", path: "/api/services/timesheets" },
+      ];
+
+      for (const { method, path } of endpoints) {
+        const res = await (request(app) as any)[method](path).set(headers);
+        expect([400, 401]).toContain(res.status);
+      }
+    });
+  });
+
   describe("Tenant Isolation Tests", () => {
     const endpoints = [
       "/api/services/projects",

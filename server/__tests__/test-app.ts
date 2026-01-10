@@ -13,6 +13,16 @@ export async function createTestApp() {
     res.status(200).json({ status: 'ok' });
   });
   
+  app.get('/health/db', async (_req, res) => {
+    try {
+      const { pool } = await import('../db');
+      await pool.query('SELECT 1');
+      res.status(200).json({ status: 'ok', database: 'connected' });
+    } catch (error) {
+      res.status(503).json({ status: 'DB_UNAVAILABLE', message: 'Database connection failed' });
+    }
+  });
+  
   await registerRoutes(httpServer, app);
   
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
