@@ -197,7 +197,7 @@ export default function SoftwareServicesDashboard() {
           <Card data-testid="card-recent-projects">
             <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
               <CardTitle className="text-lg font-semibold">Recent Projects</CardTitle>
-              <Link href="/hr/projects">
+              <Link href="/dashboard/software-services/projects">
                 <Button variant="ghost" size="sm" data-testid="link-view-all-projects">
                   View All
                   <ArrowRight className="ml-1 h-4 w-4" />
@@ -221,7 +221,7 @@ export default function SoftwareServicesDashboard() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <FolderKanban className="h-12 w-12 text-muted-foreground/50" />
                   <p className="mt-2 text-sm text-muted-foreground">No projects yet</p>
-                  <Link href="/hr/projects">
+                  <Link href="/dashboard/software-services/projects">
                     <Button size="sm" className="mt-4" data-testid="button-new-project">
                       <Plus className="mr-1 h-4 w-4" />
                       Create Project
@@ -255,7 +255,7 @@ export default function SoftwareServicesDashboard() {
           <Card data-testid="card-recent-timesheets">
             <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
               <CardTitle className="text-lg font-semibold">My Recent Time</CardTitle>
-              <Link href="/hr/timesheets">
+              <Link href="/dashboard/software-services/timesheets">
                 <Button variant="ghost" size="sm" data-testid="link-view-all-timesheets">
                   View All
                   <ArrowRight className="ml-1 h-4 w-4" />
@@ -279,7 +279,7 @@ export default function SoftwareServicesDashboard() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Clock className="h-12 w-12 text-muted-foreground/50" />
                   <p className="mt-2 text-sm text-muted-foreground">No time logged yet</p>
-                  <Link href="/hr/timesheets">
+                  <Link href="/dashboard/software-services/timesheets">
                     <Button size="sm" className="mt-4" data-testid="button-log-time">
                       <Plus className="mr-1 h-4 w-4" />
                       Log Time
@@ -317,7 +317,7 @@ export default function SoftwareServicesDashboard() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="hover-elevate cursor-pointer" data-testid="card-quick-action-projects">
-            <Link href="/hr/projects">
+            <Link href="/dashboard/software-services/projects">
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-blue-500/10 text-blue-500">
                   <FolderKanban className="h-6 w-6" />
@@ -331,7 +331,7 @@ export default function SoftwareServicesDashboard() {
           </Card>
 
           <Card className="hover-elevate cursor-pointer" data-testid="card-quick-action-timesheets">
-            <Link href="/hr/timesheets">
+            <Link href="/dashboard/software-services/timesheets">
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-green-500/10 text-green-500">
                   <Clock className="h-6 w-6" />
@@ -345,7 +345,7 @@ export default function SoftwareServicesDashboard() {
           </Card>
 
           <Card className="hover-elevate cursor-pointer" data-testid="card-quick-action-invoices">
-            <Link href="/invoices">
+            <Link href="/dashboard/software-services/invoices">
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-purple-500/10 text-purple-500">
                   <FileText className="h-6 w-6" />

@@ -197,7 +197,7 @@ export default function ConsultingDashboard() {
           <Card data-testid="card-recent-engagements">
             <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
               <CardTitle className="text-lg font-semibold">Active Engagements</CardTitle>
-              <Link href="/hr/projects">
+              <Link href="/dashboard/consulting/projects">
                 <Button variant="ghost" size="sm" data-testid="link-view-all-engagements">
                   View All
                   <ArrowRight className="ml-1 h-4 w-4" />
@@ -221,7 +221,7 @@ export default function ConsultingDashboard() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Briefcase className="h-12 w-12 text-muted-foreground/50" />
                   <p className="mt-2 text-sm text-muted-foreground">No engagements yet</p>
-                  <Link href="/hr/projects">
+                  <Link href="/dashboard/consulting/projects">
                     <Button size="sm" className="mt-4" data-testid="button-new-engagement">
                       <Plus className="mr-1 h-4 w-4" />
                       New Engagement
@@ -233,7 +233,7 @@ export default function ConsultingDashboard() {
                   {projects.map((project) => (
                     <div key={project.id} className="flex items-center justify-between gap-4">
                       <div>
-                        <Link href="/hr/projects">
+                        <Link href="/dashboard/consulting/projects">
                           <p className="font-medium hover:underline" data-testid={`link-engagement-${project.id}`}>
                             {project.name}
                           </p>
@@ -255,7 +255,7 @@ export default function ConsultingDashboard() {
           <Card data-testid="card-recent-timesheets">
             <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
               <CardTitle className="text-lg font-semibold">My Recent Time</CardTitle>
-              <Link href="/hr/timesheets">
+              <Link href="/dashboard/consulting/timesheets">
                 <Button variant="ghost" size="sm" data-testid="link-view-all-timesheets">
                   View All
                   <ArrowRight className="ml-1 h-4 w-4" />
@@ -279,7 +279,7 @@ export default function ConsultingDashboard() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Clock className="h-12 w-12 text-muted-foreground/50" />
                   <p className="mt-2 text-sm text-muted-foreground">No time logged yet</p>
-                  <Link href="/hr/timesheets">
+                  <Link href="/dashboard/consulting/timesheets">
                     <Button size="sm" className="mt-4" data-testid="button-log-time">
                       <Plus className="mr-1 h-4 w-4" />
                       Log Time
@@ -317,7 +317,7 @@ export default function ConsultingDashboard() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="hover-elevate cursor-pointer" data-testid="card-quick-action-engagements">
-            <Link href="/hr/projects">
+            <Link href="/dashboard/consulting/projects">
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-purple-500/10 text-purple-500">
                   <Briefcase className="h-6 w-6" />
@@ -331,7 +331,7 @@ export default function ConsultingDashboard() {
           </Card>
 
           <Card className="hover-elevate cursor-pointer" data-testid="card-quick-action-timesheets">
-            <Link href="/hr/timesheets">
+            <Link href="/dashboard/consulting/timesheets">
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-green-500/10 text-green-500">
                   <Clock className="h-6 w-6" />
@@ -345,7 +345,7 @@ export default function ConsultingDashboard() {
           </Card>
 
           <Card className="hover-elevate cursor-pointer" data-testid="card-quick-action-invoices">
-            <Link href="/invoices">
+            <Link href="/dashboard/consulting/invoices">
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-blue-500/10 text-blue-500">
                   <FileText className="h-6 w-6" />

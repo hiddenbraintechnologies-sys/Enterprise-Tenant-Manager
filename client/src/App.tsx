@@ -27,7 +27,11 @@ import FurnitureDashboard from "@/pages/furniture-dashboard";
 import FurnitureInvoices from "@/pages/furniture/invoices";
 import FurnitureAnalytics from "@/pages/furniture/analytics";
 import SoftwareServicesDashboard from "@/pages/software-services-dashboard";
+import SoftwareServicesProjects from "@/pages/software-services/projects";
+import SoftwareServicesTimesheets from "@/pages/software-services/timesheets";
 import ConsultingDashboard from "@/pages/consulting-dashboard";
+import ConsultingProjects from "@/pages/consulting/projects";
+import ConsultingTimesheets from "@/pages/consulting/timesheets";
 import HrDashboard from "@/pages/hr-dashboard";
 import HrEmployees from "@/pages/hr/employees";
 import HrAttendance from "@/pages/hr/attendance";
@@ -164,9 +168,39 @@ function AuthenticatedRoutes() {
           <SoftwareServicesDashboard />
         </DashboardGuard>
       </Route>
+      <Route path="/dashboard/software-services/projects">
+        <DashboardGuard allowedBusinessType="software_services">
+          <SoftwareServicesProjects />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/software-services/timesheets">
+        <DashboardGuard allowedBusinessType="software_services">
+          <SoftwareServicesTimesheets />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/software-services/invoices">
+        <DashboardGuard allowedBusinessType="software_services">
+          <Invoices />
+        </DashboardGuard>
+      </Route>
       <Route path="/dashboard/consulting">
         <DashboardGuard allowedBusinessType="consulting">
           <ConsultingDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/consulting/projects">
+        <DashboardGuard allowedBusinessType="consulting">
+          <ConsultingProjects />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/consulting/timesheets">
+        <DashboardGuard allowedBusinessType="consulting">
+          <ConsultingTimesheets />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/consulting/invoices">
+        <DashboardGuard allowedBusinessType="consulting">
+          <Invoices />
         </DashboardGuard>
       </Route>
       

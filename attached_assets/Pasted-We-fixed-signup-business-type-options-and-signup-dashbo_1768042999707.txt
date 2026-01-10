@@ -1,0 +1,56 @@
+We fixed signup business type options and signup→dashboard routing, but Software Services/Consulting dashboards are still linking to HR module pages, which is not correct for these business types and may break workflows.
+
+Do NOT add new features. Only fix routing/navigation and verify workflows.
+
+1) Correct Dashboard Information Architecture
+For SOFTWARE_SERVICES and CONSULTING, ensure the primary nav + quick actions point to:
+- Projects (list + create)
+- Tasks (by project, if available; otherwise hide)
+- Timesheets (my timesheets + team timesheets if permitted)
+- Invoices (reuse existing invoice module list)
+- Customers/Clients (reuse CRM customers list)
+
+Explicitly DO NOT link core dashboard actions to HRMS pages unless a feature flag enables HRMS for that tenant.
+
+2) Verify Pages Actually Exist
+Confirm these routes exist and render without 404:
+- /dashboard/software-services
+- /dashboard/software-services/projects
+- /dashboard/software-services/timesheets
+- /dashboard/software-services/invoices
+- /dashboard/consulting
+- /dashboard/consulting/projects
+- /dashboard/consulting/timesheets
+- /dashboard/consulting/invoices
+
+If the app uses shared pages (e.g., /projects), ensure the links resolve correctly and the layout is consistent.
+
+3) Feature Flag Gating
+If HRMS exists as a separate module:
+- Add gating so HRMS nav items show only when FEATURE_HRMS (or equivalent) is enabled.
+- Software/Consulting tenants should not see HRMS by default.
+
+4) Fix Any Broken Flows
+Run through these flows and fix any breakage:
+- Create a project
+- Create a task (if present)
+- Log a timesheet entry
+- View invoices page loads without errors
+
+Ensure:
+- X-Tenant-ID header is present on all requests
+- TanStack Query cache invalidation works for create/update
+- Errors are surfaced (no silent failures)
+
+5) Add Playwright E2E Smoke Tests (must)
+Add tests:
+A) Signup shows SOFTWARE_SERVICES and CONSULTING
+B) After signup, user lands on the correct dashboard
+C) From Software Services dashboard, clicking Projects opens a real Projects page (not HRMS)
+D) Create Project succeeds (basic form submit)
+E) Timesheets page loads and can add a timesheet (if supported)
+
+Output:
+- List of files changed
+- Screenshots or route list confirming correct destinations
+- E2E test run summary
