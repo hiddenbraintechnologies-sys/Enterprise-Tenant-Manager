@@ -72,6 +72,7 @@ function ServiceDialog({
   onSuccess: () => void;
 }) {
   const { toast } = useToast();
+  const { country } = useCountry();
   const isEditing = !!service;
 
   const form = useForm<ServiceFormValues>({
@@ -253,6 +254,7 @@ function ServiceCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { formatCurrency } = useCountry();
   return (
     <Card className="group" data-testid={`service-card-${service.id}`}>
       <CardContent className="p-6">

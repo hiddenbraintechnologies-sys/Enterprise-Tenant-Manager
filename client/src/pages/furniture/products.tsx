@@ -669,7 +669,7 @@ export default function FurnitureProducts() {
                 <Armchair className="h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-semibold">No products found</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {searchQuery || typeFilter !== "all" || materialFilter !== "all"
+                  {searchInput || (pagination.filters.productType && pagination.filters.productType !== "all") || (pagination.filters.materialType && pagination.filters.materialType !== "all")
                     ? "Try adjusting your search or filters"
                     : "Get started by adding your first product"}
                 </p>

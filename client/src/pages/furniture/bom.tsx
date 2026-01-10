@@ -540,7 +540,7 @@ function BomDetailView({
                 {components.map((comp) => {
                   const material = materials.find((m) => m.id === comp.rawMaterialId);
                   const qty = parseFloat(comp.quantity || "0");
-                  const wastage = parseFloat(comp.wastagePercent || "0") / 100;
+                  const wastage = parseFloat(comp.wastePercentage || "0") / 100;
                   const effectiveQty = qty * (1 + wastage);
                   const cost = effectiveQty * parseFloat(material?.unitCost || "0");
 
