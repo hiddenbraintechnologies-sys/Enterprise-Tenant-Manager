@@ -150,7 +150,7 @@ export default function Register() {
       }
       
       // 3. Invalidate auth query and WAIT for it to complete
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
       
       toast({
         title: "Registration successful",

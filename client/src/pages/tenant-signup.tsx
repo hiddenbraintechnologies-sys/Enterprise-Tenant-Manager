@@ -132,7 +132,7 @@ export default function TenantSignupPage() {
       localStorage.setItem("lastTenantId", data.tenant.id);
       localStorage.setItem("tenantCountry", variables.country);
 
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
 
       toast({
         title: "Account created successfully",

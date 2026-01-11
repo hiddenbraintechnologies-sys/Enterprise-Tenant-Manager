@@ -35,6 +35,7 @@ async function fetchUserTenants(accessToken: string): Promise<{ tenants: Tenant[
 async function fetchUser(): Promise<AuthUser | null> {
   const accessToken = localStorage.getItem("accessToken");
   
+  // JWT Authentication path - primary for registered users
   if (accessToken) {
     const response = await fetch("/api/auth/me", {
       credentials: "include",
@@ -100,11 +101,19 @@ async function fetchUser(): Promise<AuthUser | null> {
           return fetchUser();
         }
       }
+      // JWT auth failed completely - clear tokens and return null
+      // Do NOT fall through to Replit Auth - user needs to re-login
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
+      return null;
     }
+    
+    // Non-401 error from /api/auth/me - return null, don't fallback
+    return null;
   }
 
+  // Replit Auth fallback - only used when no JWT tokens exist
+  // This is for users who haven't registered yet but might have Replit session
   const response = await fetch("/api/auth/user", {
     credentials: "include",
   });
@@ -114,7 +123,7 @@ async function fetchUser(): Promise<AuthUser | null> {
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${response.statusText}`);
+    return null;
   }
 
   return response.json();
@@ -126,10 +135,13 @@ async function logout(): Promise<void> {
   window.location.href = "/api/logout";
 }
 
+// Exported query key for consistent invalidation across components
+export const AUTH_QUERY_KEY = ["/api/auth"];
+
 export function useAuth() {
   const queryClient = useQueryClient();
   const { data: user, isLoading } = useQuery<AuthUser | null>({
-    queryKey: ["/api/auth/user"],
+    queryKey: AUTH_QUERY_KEY,
     queryFn: fetchUser,
     retry: false,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -138,7 +150,7 @@ export function useAuth() {
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/user"], null);
+      queryClient.setQueryData(AUTH_QUERY_KEY, null);
     },
   });
 

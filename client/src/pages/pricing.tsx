@@ -143,7 +143,7 @@ export default function PricingPage() {
     onSuccess: (data, planCode) => {
       const tier = planCode.replace("india_", "");
       localStorage.setItem("subscriptionTier", tier);
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
       toast({ title: "Plan updated", description: "Your subscription has been updated." });
       setLocation("/dashboard");
     },

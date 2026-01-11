@@ -110,7 +110,7 @@ export default function Login() {
         localStorage.setItem("lastTenantId", data.tenant.id);
       }
       
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
       
       toast({
         title: "Welcome back!",
@@ -150,7 +150,7 @@ export default function Login() {
         localStorage.setItem("lastTenantId", data.tenant.id);
       }
       
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
       
       toast({
         title: "Welcome back!",

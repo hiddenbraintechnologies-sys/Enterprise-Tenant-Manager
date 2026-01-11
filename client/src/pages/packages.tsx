@@ -219,7 +219,7 @@ export default function PackagesPage() {
         localStorage.setItem("subscriptionTier", data.plan?.tier || "free");
         
         // Refresh auth data to get updated tenant info
-        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
         
         // Wait for subscription query to reflect active status before navigating
         await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });

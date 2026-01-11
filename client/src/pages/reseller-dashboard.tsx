@@ -121,7 +121,7 @@ export default function ResellerDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
 
   const { data: authUser } = useQuery<{ tenant?: { id: string } }>({
-    queryKey: ["/api/auth/user"],
+    queryKey: ["/api/auth"],
   });
 
   const resellerId = authUser?.tenant?.id;
