@@ -182,6 +182,44 @@ export async function registerRoutes(
 
   // Register SSO routes
   app.use('/api/sso', ssoRoutes);
+
+  // DEV-ONLY: Debug endpoint to diagnose auth/tenant context issues
+  if (process.env.NODE_ENV === "development") {
+    app.get("/api/debug/request-context", authenticateJWT({ required: false }), async (req: any, res) => {
+      const hasCookie = Boolean(req.cookies?.tenantId || req.headers.cookie?.includes("tenantId"));
+      const hasAuthHeader = Boolean(req.headers.authorization?.startsWith("Bearer "));
+      const xTenantId = (req.headers["x-tenant-id"] as string) || null;
+      
+      // Check both JWT context (req.context) and Replit auth context (req.user)
+      const jwtContext = req.context;
+      const replitUser = req.user;
+      
+      const userPresent = Boolean(jwtContext?.user || replitUser);
+      const jwtUserId = jwtContext?.user?.id;
+      const replitUserId = replitUser?.claims?.sub;
+      const userId = jwtUserId || replitUserId;
+      const maskedUserId = userId ? `...${userId.slice(-6)}` : null;
+      
+      const tenantIdInContext = jwtContext?.tenant?.id || null;
+      
+      res.json({
+        path: req.path,
+        method: req.method,
+        hasCookie,
+        hasAuthHeader,
+        xTenantId,
+        userPresent,
+        userId: maskedUserId,
+        tenantIdInContext,
+        host: req.headers.host || null,
+        origin: req.headers.origin || null,
+        // Additional debug info
+        jwtUserPresent: Boolean(jwtContext?.user),
+        replitUserPresent: Boolean(replitUser),
+        tokenPayloadPresent: Boolean(req.tokenPayload),
+      });
+    });
+  }
   
   // Register domain management routes
   app.use('/api/domains', domainRoutes);
