@@ -126,6 +126,7 @@ export class JWTAuthService {
       }) as TokenPayload;
 
       if (decoded.type !== "access") {
+        console.log(`[jwt] Token type mismatch: expected 'access', got '${decoded.type}'`);
         return null;
       }
 
@@ -138,7 +139,8 @@ export class JWTAuthService {
         isPlatformAdmin: decoded.isPlatformAdmin,
         platformRole: decoded.platformRole,
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.log(`[jwt] Token verification error: ${error.message}`);
       return null;
     }
   }
