@@ -67,7 +67,9 @@ function buildUrl(queryKey: readonly unknown[]): string {
     throw new Error('queryKey must contain at least one string URL segment');
   }
   
-  const basePath = pathSegments.length === 1 ? pathSegments[0] : pathSegments.join('/');
+  // Join segments and ensure leading slash for same-origin requests
+  const joinedPath = pathSegments.join('/').replace(/^\/+/, '');
+  const basePath = '/' + joinedPath;
   
   const paramEntries = Object.entries(mergedParams);
   if (paramEntries.length > 0) {
