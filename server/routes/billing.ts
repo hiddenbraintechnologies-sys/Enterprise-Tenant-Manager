@@ -26,15 +26,17 @@ const verifyPaymentSchema = z.object({
 });
 
 function getTenantIdFromRequest(req: Request, requireAuth: boolean = false): string | null {
-  const user = (req as any).user;
+  // Auth middleware sets req.context, not req.user
+  const context = (req as any).context;
+  const tenantId = context?.tenant?.id;
   const headerTenantId = req.headers["x-tenant-id"] as string;
   
-  if (user?.tenantId) {
-    if (headerTenantId && headerTenantId !== user.tenantId) {
-      console.warn(`[billing] Tenant ID mismatch: header=${headerTenantId}, user=${user.tenantId}`);
+  if (tenantId) {
+    if (headerTenantId && headerTenantId !== tenantId) {
+      console.warn(`[billing] Tenant ID mismatch: header=${headerTenantId}, context=${tenantId}`);
       return null;
     }
-    return user.tenantId;
+    return tenantId;
   }
   
   if (requireAuth) {
@@ -45,11 +47,12 @@ function getTenantIdFromRequest(req: Request, requireAuth: boolean = false): str
 }
 
 function requireTenantMatch(req: Request): string | null {
-  const user = (req as any).user;
-  if (!user?.tenantId) {
+  // Auth middleware sets req.context.tenant, not req.user
+  const context = (req as any).context;
+  if (!context?.tenant?.id) {
     return null;
   }
-  return user.tenantId;
+  return context.tenant.id;
 }
 
 async function getPlanByCode(code: string) {
@@ -87,14 +90,15 @@ async function getPendingPayment(tenantId: string): Promise<BillingPayment | nul
 router.get("/subscription", requiredAuth, async (req: Request, res: Response) => {
   try {
     // First check if we have auth at all
-    const user = (req as any).user;
-    if (!user) {
+    // Auth middleware sets req.context, not req.user
+    const context = (req as any).context;
+    if (!context?.user) {
       return res.status(401).json({ code: "AUTH_REQUIRED", error: "Authentication required" });
     }
 
-    // SECURITY: Only trust tenantId from JWT, never from header alone
+    // SECURITY: Only trust tenantId from JWT (via req.context.tenant), never from header alone
     // This prevents cross-tenant data access via header spoofing
-    const tenantId = user.tenantId;
+    const tenantId = context.tenant?.id;
     
     // If user has no tenant binding (new signup in progress), return graceful NONE
     if (!tenantId) {
