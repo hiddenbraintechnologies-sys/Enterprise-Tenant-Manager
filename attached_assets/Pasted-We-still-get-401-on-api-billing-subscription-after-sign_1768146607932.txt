@@ -1,0 +1,110 @@
+We still get 401 on /api/billing/subscription after signup, while /api/me returns 200.
+This proves auth works but tenant context is missing from billing requests.
+Implement a hard guarantee: tenantId is persisted + loaded + attached before any billing call.
+
+========================================================
+A) Backend: Make register/login return tenantId explicitly
+========================================================
+Find the register/signup endpoint.
+Ensure the JSON response includes the created tenant id and defaultTenantId, e.g.:
+
+{
+  user: {...},
+  tenant: { id, name, country, businessType },
+  defaultTenantId: "<tenant-id>"
+}
+
+If multiple tenants, still return defaultTenantId.
+
+========================================================
+B) Client: On successful Register, persist tenantId BEFORE redirect
+========================================================
+In client register page (e.g. client/src/pages/register.tsx),
+on success:
+
+1) Extract tenantId from response (tenant.id or defaultTenantId)
+2) Persist it:
+   - localStorage.setItem("selectedTenantId", tenantId)
+   - document.cookie = `tenantId=${tenantId}; path=/; samesite=lax`
+3) Update TenantContext immediately (add a setter):
+   - tenantContext.setTenantId(tenantId)
+4) Only then navigate to /packages.
+
+This removes race conditions where /packages loads before tenant is set.
+
+========================================================
+C) TenantProvider: Always bootstrap tenantId from storage reliably
+========================================================
+In client/src/contexts/tenant-context.tsx:
+
+On mount, resolve tenantId in this order:
+1) localStorage.selectedTenantId
+2) cookie tenantId
+3) user.defaultTenantId (from /api/me payload)
+4) fallback: GET /api/tenants/my and select first
+
+Once resolved, set state AND persist back to localStorage + cookie.
+
+Also: provide a public method setTenantId(id) on the context,
+so register/login can set it immediately.
+
+========================================================
+D) apiFetch: ALWAYS include X-Tenant-ID when available
+========================================================
+Find your fetch wrapper (apiFetch/buildUrl).
+
+Ensure:
+- credentials: "include"
+- If tenantId exists, attach:
+  headers["X-Tenant-ID"] = tenantId
+
+Important: Do NOT exclude billing routes from tenant headers.
+Billing endpoints MUST receive X-Tenant-ID.
+
+Example:
+
+export async function apiFetch(path, options={}) {
+  const tenantId = getTenantIdFromContextOrStorage();
+  return fetch(path, {
+    ...options,
+    credentials: "include",
+    headers: {
+      ...(options.headers || {}),
+      ...(tenantId ? { "X-Tenant-ID": tenantId } : {}),
+    }
+  })
+}
+
+========================================================
+E) Packages page: Don't call subscription until tenantId exists
+========================================================
+In /packages subscription query:
+- enabled: !!tenantId
+- queryKey includes tenantId
+
+And if tenantId is missing, show:
+"Setting up your workspace…" loader, not an error.
+
+========================================================
+F) Server: return correct error codes to debug
+========================================================
+In billing subscription endpoint:
+- If missing auth -> 401 { code:"AUTH_REQUIRED" }
+- If missing tenant header -> 400 { code:"TENANT_REQUIRED" }
+- If tenant not accessible -> 404 { code:"TENANT_NOT_FOUND" }
+
+========================================================
+G) Verification steps
+========================================================
+After implementation:
+1) Register a new tenant
+2) Immediately go to /packages
+3) Network: /api/billing/subscription must be 200
+4) Request Headers must include X-Tenant-ID
+5) No 401 toast/banner
+
+Deliverables:
+- Register returns tenant id
+- Register persists tenant id and sets TenantContext before routing
+- apiFetch attaches X-Tenant-ID consistently
+- /packages works after refresh
