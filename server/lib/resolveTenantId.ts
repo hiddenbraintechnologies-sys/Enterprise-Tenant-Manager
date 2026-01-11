@@ -35,12 +35,14 @@ export async function resolveTenantId(req: Request): Promise<TenantResolutionRes
   let resolvedTenantId: string | null = null;
   let source: TenantResolutionResult["source"] = null;
 
-  if (headerTenantId) {
-    resolvedTenantId = headerTenantId;
-    source = "header";
-  } else if (context?.tenant?.id) {
+  // SECURITY: Prefer authenticated context over header to prevent spoofing
+  // Context tenant is already validated by auth middleware
+  if (context?.tenant?.id) {
     resolvedTenantId = context.tenant.id;
     source = "context";
+  } else if (headerTenantId) {
+    resolvedTenantId = headerTenantId;
+    source = "header";
   } else {
     const defaultMapping = await db
       .select({ tenantId: userTenants.tenantId })
