@@ -35,6 +35,13 @@ async function fetchUserTenants(accessToken: string): Promise<{ tenants: Tenant[
 async function fetchUser(): Promise<AuthUser | null> {
   const accessToken = localStorage.getItem("accessToken");
   
+  // Debug: log token to trace stale token issues
+  if (accessToken) {
+    console.log(`[fetchUser] Using token: ...${accessToken.substring(accessToken.length - 30)}`);
+  } else {
+    console.log(`[fetchUser] No accessToken in localStorage`);
+  }
+  
   // JWT Authentication path - primary for registered users
   if (accessToken) {
     const response = await fetch("/api/auth/me", {

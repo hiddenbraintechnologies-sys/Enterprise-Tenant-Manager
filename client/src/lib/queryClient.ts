@@ -17,6 +17,10 @@ function getAuthHeaders(): Record<string, string> {
   
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+    // Debug: log token suffix to trace stale token issues
+    console.log(`[getAuthHeaders] Using token: ...${token.substring(token.length - 30)}`);
+  } else {
+    console.log(`[getAuthHeaders] No token found in localStorage`);
   }
   
   // Include tenant context for API isolation
