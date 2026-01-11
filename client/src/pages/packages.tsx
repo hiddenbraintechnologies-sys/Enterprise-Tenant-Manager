@@ -138,7 +138,7 @@ export default function PackagesPage() {
     refetch: refetchSubscription, 
     isSuccess: isSubscriptionSuccess 
   } = useQuery<SubscriptionData>({
-    queryKey: ["/api/billing/subscription", tenantId],
+    queryKey: ["/api/billing/subscription", { _tenant: tenantId }],
     enabled: !!accessToken && !!tenantId, // Require BOTH auth AND tenant context
     staleTime: 10000,
     retry: 2,
