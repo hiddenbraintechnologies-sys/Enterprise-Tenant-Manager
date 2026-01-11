@@ -159,6 +159,17 @@ export async function registerRoutes(
       
       await featureService.seedFeatureFlags();
       console.log("[bootstrap] Feature flags seeded");
+      
+      // Seed India pricing plans and feature flags
+      try {
+        const { seedIndiaPricingPlans, seedIndiaFeatureFlags } = await import("./core/india-pricing");
+        await seedIndiaPricingPlans();
+        await seedIndiaFeatureFlags();
+        console.log("[bootstrap] India pricing seeded");
+      } catch (err) {
+        console.log("[bootstrap] India pricing seeding skipped:", err);
+      }
+      
       await tenantService.getOrCreateDefaultTenant();
       console.log("[bootstrap] Default tenant ready");
       await initializeWhatsappProviders();

@@ -89,6 +89,7 @@ import PortalDashboard from "@/pages/portal/dashboard";
 import TenantSignup from "@/pages/tenant-signup";
 import SubscriptionSelect from "@/pages/subscription-select";
 import SubscriptionDashboard from "@/pages/subscription-dashboard";
+import Pricing from "@/pages/pricing";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -277,6 +278,7 @@ function AuthenticatedRoutes() {
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/ai-permissions" component={AiPermissions} />
       <Route path="/settings" component={Settings} />
+      <Route path="/pricing" component={Pricing} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />
       <Route path="/subscription/select" component={SubscriptionSelect} />
@@ -505,6 +507,7 @@ function AppRouter() {
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
         <Route path="/signup" component={TenantSignup} />
+        <Route path="/pricing" component={Pricing} />
         <Route path="/subscription/select" component={SubscriptionSelect} />
         <Route path="/subscription-dashboard" component={SubscriptionDashboard} />
         <Route path="/onboarding" component={Onboarding} />
