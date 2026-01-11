@@ -341,11 +341,14 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   // Check for recently activated subscription flag (set by packages page on activation)
   const recentlyActivated = localStorage.getItem("subscriptionJustActivated") === "true";
 
+  // CRITICAL: Only fetch subscription when tenantId is available
+  const canFetchSubscription = Boolean(tenantId) && isAuthenticated;
+  
   const { data: subscriptionData, isLoading, isError, isSuccess, refetch, isFetching } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription"],
-    enabled: !!tenantId && isAuthenticated,
+    enabled: canFetchSubscription, // 🔑 NEVER run when tenantId is null/undefined
     staleTime: 30000,
-    retry: 2,
+    retry: canFetchSubscription ? 2 : false, // Don't retry if missing tenant
   });
 
   // When activation flag is detected and subscription is active, clear the flag

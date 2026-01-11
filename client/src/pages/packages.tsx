@@ -130,6 +130,9 @@ export default function PackagesPage() {
   // Track if we're waiting for tenant context to be available
   const isWaitingForTenant = !!accessToken && !tenantId;
 
+  // CRITICAL: Only fetch subscription when tenantId is available
+  const canFetchSubscription = Boolean(tenantId) && Boolean(accessToken);
+  
   const { 
     data: subscriptionData, 
     isLoading: isLoadingSubscription, 
@@ -139,9 +142,9 @@ export default function PackagesPage() {
     isSuccess: isSubscriptionSuccess 
   } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription"],
-    enabled: !!accessToken && !!tenantId, // Require BOTH auth AND tenant context
+    enabled: canFetchSubscription, // 🔑 NEVER run when tenantId is null/undefined
     staleTime: 10000,
-    retry: 2,
+    retry: canFetchSubscription ? 2 : false, // Don't retry if missing tenant
   });
 
   // Determine if this is a real error vs expected "NONE" state
