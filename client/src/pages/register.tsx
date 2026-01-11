@@ -81,9 +81,15 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Clear any stale tokens when visiting register page
-  // This ensures a clean slate for new registrations
+  // Clear any stale tokens AND cached queries when visiting register page
+  // This ensures a completely clean slate for new registrations
   useEffect(() => {
+    // Remove cached queries that might have stale auth headers baked in
+    queryClient.removeQueries({ queryKey: ["/api/billing/subscription"] });
+    queryClient.removeQueries({ queryKey: ["/api/billing/select-plan"] });
+    queryClient.removeQueries({ queryKey: ["/api/auth"] });
+    
+    // Clear localStorage tokens
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("tenantId");
@@ -144,13 +150,19 @@ export default function Register() {
       return response.json();
     },
     onSuccess: async (data) => {
-      // 1. Clear any stale tokens first, then persist new auth tokens
+      // 1. REMOVE all cached queries that might have stale tokens baked in
+      // This is critical - React Query may have cached requests with old tokens
+      queryClient.removeQueries({ queryKey: ["/api/billing/subscription"] });
+      queryClient.removeQueries({ queryKey: ["/api/billing/select-plan"] });
+      queryClient.removeQueries({ queryKey: ["/api/auth"] });
+      
+      // 2. Clear any stale tokens, then persist new auth tokens
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       
-      // 2. Persist tenantId to BOTH localStorage AND cookie BEFORE any redirect
+      // 3. Persist tenantId to BOTH localStorage AND cookie BEFORE any redirect
       const tenantId = data.tenant?.id || data.defaultTenantId;
       if (tenantId) {
         localStorage.setItem("tenantId", tenantId);
@@ -160,15 +172,12 @@ export default function Register() {
         document.cookie = `tenantId=${tenantId}; path=/; samesite=lax; max-age=31536000`;
       }
       
-      // 3. Invalidate auth query and WAIT for it to complete
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
-      
       toast({
         title: "Registration successful",
         description: `Welcome to MyBizStream, ${data.user.firstName}!`,
       });
 
-      // 4. Navigate to packages ONLY after tenantId is persisted
+      // 4. Navigate to packages - queries will be fresh with new tokens
       setLocation("/packages");
     },
     onError: (error: Error) => {
