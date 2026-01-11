@@ -133,25 +133,31 @@ export default function Register() {
 
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // 1. Persist auth tokens
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
-      if (data.tenant?.id) {
-        localStorage.setItem("tenantId", data.tenant.id);
-        localStorage.setItem("lastTenantId", data.tenant.id);
+      
+      // 2. Persist tenantId to BOTH localStorage AND cookie BEFORE any redirect
+      const tenantId = data.tenant?.id || data.defaultTenantId;
+      if (tenantId) {
+        localStorage.setItem("tenantId", tenantId);
+        localStorage.setItem("lastTenantId", tenantId);
+        localStorage.setItem("selectedTenantId", tenantId);
+        // Set cookie for server-side access
+        document.cookie = `tenantId=${tenantId}; path=/; samesite=lax; max-age=31536000`;
       }
       
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      // 3. Invalidate auth query and WAIT for it to complete
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       
       toast({
         title: "Registration successful",
         description: `Welcome to MyBizStream, ${data.user.firstName}!`,
       });
 
-      // Always redirect to packages for new signups to select a plan
-      setTimeout(() => {
-        setLocation("/packages");
-      }, 100);
+      // 4. Navigate to packages ONLY after tenantId is persisted
+      setLocation("/packages");
     },
     onError: (error: Error) => {
       toast({
