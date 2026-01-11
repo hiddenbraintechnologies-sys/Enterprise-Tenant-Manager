@@ -39,6 +39,7 @@ import {
   ClipboardList,
   ArrowRightLeft,
   Wrench,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Permissions,
@@ -87,6 +88,11 @@ const superAdminMenuItems: MenuItem[] = [
     permission: Permissions.VIEW_SYSTEM_LOGS,
   },
   {
+    title: "Security",
+    url: "/super-admin/security",
+    icon: ShieldCheck,
+  },
+  {
     title: "System Settings",
     url: "/super-admin/settings",
     icon: Cog,
@@ -123,6 +129,11 @@ const platformAdminMenuItems: MenuItem[] = [
     url: "/admin/audit-logs",
     icon: FileText,
     permission: Permissions.VIEW_AUDIT_LOGS,
+  },
+  {
+    title: "Security",
+    url: "/admin/security",
+    icon: ShieldCheck,
   },
   {
     title: "Support Tickets",
@@ -213,6 +224,11 @@ const techSupportManagerMenuItems: MenuItem[] = [
     url: "/tech-support/audit-logs",
     icon: FileText,
     permission: Permissions.VIEW_AUDIT_LOGS,
+  },
+  {
+    title: "Security",
+    url: "/tech-support/security",
+    icon: ShieldCheck,
   },
 ];
 

@@ -72,6 +72,8 @@ import AdminSettings from "@/pages/admin/settings";
 import AdminSso from "@/pages/admin/sso";
 import AdminRegions from "@/pages/admin/regions";
 import SubscriptionManagement from "@/pages/admin/subscription-management";
+import AdminSecurity from "@/pages/admin/security";
+import AdminSecuritySessions from "@/pages/admin/security-sessions";
 import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
 import AiPermissions from "@/pages/ai-permissions";
@@ -355,6 +357,8 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/settings" component={AdminSettings} />
         <Route path="/super-admin/regions" component={AdminRegions} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
+        <Route path="/super-admin/security" component={AdminSecurity} />
+        <Route path="/super-admin/security/sessions" component={AdminSecuritySessions} />
         <Route path="/not-authorized" component={NotAuthorized} />
         <Route component={NotFound} />
       </Switch>
@@ -378,6 +382,8 @@ function PlatformAdminRoutes() {
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/regions" component={AdminRegions} />
       <Route path="/admin/subscriptions" component={SubscriptionManagement} />
+      <Route path="/admin/security" component={AdminSecurity} />
+      <Route path="/admin/security/sessions" component={AdminSecuritySessions} />
       <Route path="/not-authorized" component={NotAuthorized} />
       <Route component={NotFound} />
     </Switch>
@@ -419,6 +425,8 @@ function TechSupportRoutes() {
         <Route path="/tech-support/errors" component={TechSupportDashboard} />
         <Route path="/tech-support/performance" component={TechSupportDashboard} />
         <Route path="/tech-support/audit-logs" component={AdminAuditLogs} />
+        <Route path="/tech-support/security" component={AdminSecurity} />
+        <Route path="/tech-support/security/sessions" component={AdminSecuritySessions} />
         <Route path="/not-authorized" component={NotAuthorized} />
         <Route component={NotFound} />
       </Switch>

@@ -61,7 +61,11 @@ import {
   createAdminSession,
   logAdminAction,
   getClientIp,
+  terminateSession,
+  terminateAllSessions,
+  getAdminAuditLogs,
 } from "./core/admin-security";
+import { adminSessions } from "@shared/schema";
 import {
   generateTotpSecret,
   generateOtpAuthUrl,
@@ -2135,6 +2139,247 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get platform admin me error:", error);
       res.status(500).json({ message: "Failed to get admin info" });
+    }
+  });
+
+  // ============================================
+  // SELF-SERVICE SECURITY ENDPOINTS (Read own data only)
+  // ============================================
+
+  // Get current admin's sessions
+  app.get("/api/platform-admin/me/sessions", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get current token hash to identify current session
+      const authHeader = req.headers.authorization;
+      const currentToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      const currentTokenHash = currentToken ? crypto.createHash("sha256").update(currentToken).digest("hex") : null;
+
+      const sessions = await db.select()
+        .from(adminSessions)
+        .where(and(
+          eq(adminSessions.adminId, adminId),
+          eq(adminSessions.isActive, true)
+        ))
+        .orderBy(desc(adminSessions.lastActivityAt));
+
+      res.json({
+        sessions: sessions.map(s => ({
+          id: s.id,
+          ipAddress: s.ipAddress,
+          userAgent: s.userAgent,
+          deviceInfo: s.deviceInfo,
+          createdAt: s.createdAt,
+          lastActivityAt: s.lastActivityAt,
+          expiresAt: s.expiresAt,
+          isCurrentSession: s.tokenHash === currentTokenHash,
+        })),
+      });
+    } catch (error) {
+      console.error("Get my sessions error:", error);
+      res.status(500).json({ message: "Failed to get sessions" });
+    }
+  });
+
+  // Revoke a specific session (own sessions only)
+  app.post("/api/platform-admin/me/sessions/:sessionId/revoke", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      const { sessionId } = req.params;
+      
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get current token hash to prevent revoking current session
+      const authHeader = req.headers.authorization;
+      const currentToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      const currentTokenHash = currentToken ? crypto.createHash("sha256").update(currentToken).digest("hex") : null;
+
+      // Verify session belongs to current admin
+      const [session] = await db.select()
+        .from(adminSessions)
+        .where(and(
+          eq(adminSessions.id, sessionId),
+          eq(adminSessions.adminId, adminId)
+        ));
+
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      if (session.tokenHash === currentTokenHash) {
+        return res.status(400).json({ message: "Cannot revoke current session" });
+      }
+
+      await terminateSession(sessionId, "user_revoked");
+
+      // Log the action
+      await logAdminAction({
+        adminId,
+        adminEmail: req.platformAdminContext!.platformAdmin.email,
+        adminRole: req.platformAdminContext!.platformAdmin.role,
+        action: "ADMIN_SESSION_REVOKED",
+        category: "security",
+        resource: "admin_session",
+        resourceId: sessionId,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ message: "Session revoked successfully" });
+    } catch (error) {
+      console.error("Revoke session error:", error);
+      res.status(500).json({ message: "Failed to revoke session" });
+    }
+  });
+
+  // Revoke all other sessions (keep current)
+  app.post("/api/platform-admin/me/sessions/revoke-others", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get current session ID to exclude
+      const authHeader = req.headers.authorization;
+      const currentToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      const currentTokenHash = currentToken ? crypto.createHash("sha256").update(currentToken).digest("hex") : null;
+
+      // Find current session
+      const [currentSession] = await db.select()
+        .from(adminSessions)
+        .where(and(
+          eq(adminSessions.tokenHash, currentTokenHash!),
+          eq(adminSessions.isActive, true)
+        ));
+
+      const revokedCount = await terminateAllSessions(
+        adminId,
+        "user_revoked_all",
+        currentSession?.id
+      );
+
+      // Log the action
+      await logAdminAction({
+        adminId,
+        adminEmail: req.platformAdminContext!.platformAdmin.email,
+        adminRole: req.platformAdminContext!.platformAdmin.role,
+        action: "ADMIN_ALL_SESSIONS_REVOKED",
+        category: "security",
+        resource: "admin_session",
+        metadata: { revokedCount },
+        ipAddress: getClientIp(req),
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ message: `${revokedCount} session(s) revoked`, revokedCount });
+    } catch (error) {
+      console.error("Revoke all sessions error:", error);
+      res.status(500).json({ message: "Failed to revoke sessions" });
+    }
+  });
+
+  // Get current admin's security activity (audit logs)
+  app.get("/api/platform-admin/me/security-activity", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+
+      const logs = await getAdminAuditLogs({
+        adminId,
+        category: "auth",
+        limit,
+      });
+
+      // Also get security-related logs
+      const securityLogs = await getAdminAuditLogs({
+        adminId,
+        category: "security",
+        limit,
+      });
+
+      // Combine and sort
+      const allLogs = [...logs, ...securityLogs]
+        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime())
+        .slice(0, limit);
+
+      res.json({
+        activities: allLogs.map(log => ({
+          id: log.id,
+          action: log.action,
+          category: log.category,
+          resource: log.resource,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          riskLevel: log.riskLevel,
+          createdAt: log.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error("Get security activity error:", error);
+      res.status(500).json({ message: "Failed to get security activity" });
+    }
+  });
+
+  // Regenerate backup codes (own 2FA only)
+  app.post("/api/platform-admin/me/2fa/regenerate-backup-codes", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
+    try {
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Check if 2FA is enabled
+      const [twoFactorRecord] = await db.select()
+        .from(adminTwoFactorAuth)
+        .where(eq(adminTwoFactorAuth.adminId, adminId));
+
+      if (!twoFactorRecord?.isEnabled) {
+        return res.status(400).json({ message: "2FA is not enabled" });
+      }
+
+      // Generate new backup codes
+      const backupCodes = generateBackupCodes(8);
+      const hashedBackupCodes = await hashBackupCodes(backupCodes);
+
+      await db.update(adminTwoFactorAuth)
+        .set({
+          backupCodes: hashedBackupCodes,
+          updatedAt: new Date(),
+        })
+        .where(eq(adminTwoFactorAuth.adminId, adminId));
+
+      // Log the action
+      await logAdminAction({
+        adminId,
+        adminEmail: req.platformAdminContext!.platformAdmin.email,
+        adminRole: req.platformAdminContext!.platformAdmin.role,
+        action: "ADMIN_2FA_BACKUP_CODES_REGENERATED",
+        category: "security",
+        resource: "admin_2fa",
+        resourceId: adminId,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        message: "Backup codes regenerated successfully",
+        backupCodes,
+      });
+    } catch (error) {
+      console.error("Regenerate backup codes error:", error);
+      res.status(500).json({ message: "Failed to regenerate backup codes" });
     }
   });
 
