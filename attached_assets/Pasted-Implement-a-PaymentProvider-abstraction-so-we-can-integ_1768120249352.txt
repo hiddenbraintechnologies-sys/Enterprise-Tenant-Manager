@@ -1,0 +1,138 @@
+Implement a PaymentProvider abstraction so we can integrate Razorpay later without rewriting billing logic.
+Use MockPaymentProvider for now (dev), but design the interface to match Razorpay needs.
+
+Do NOT modify auth/RBAC. Only billing/onboarding flow.
+
+================================================
+1) Create Provider Interface
+================================================
+Create server/core/payments/payment-provider.ts:
+
+export type CreateOrderInput = {
+  tenantId: string;
+  subscriptionId: string;
+  paymentId: string;
+  amountPaise: number;     // store smallest currency unit
+  currency: "INR";
+  receipt?: string;
+  notes?: Record<string, string>;
+};
+
+export type CreateOrderResult = {
+  provider: "MOCK" | "RAZORPAY";
+  providerOrderId: string;
+  amountPaise: number;
+  currency: "INR";
+  checkoutPayload: Record<string, any>; // what frontend needs to open checkout
+};
+
+export type VerifyPaymentInput = {
+  providerOrderId: string;
+  providerPaymentId: string;
+  providerSignature?: string;
+  paymentId: string;
+  tenantId: string;
+};
+
+export type VerifyPaymentResult = {
+  verified: boolean;
+  reason?: string;
+};
+
+export interface PaymentProvider {
+  name: "MOCK" | "RAZORPAY";
+  createOrder(input: CreateOrderInput): Promise<CreateOrderResult>;
+  verifyPayment(input: VerifyPaymentInput): Promise<VerifyPaymentResult>;
+}
+
+================================================
+2) Implement MockPaymentProvider (now)
+================================================
+Create server/core/payments/providers/mock.ts:
+
+- createOrder: returns providerOrderId like "mock_order_<uuid>"
+- checkoutPayload includes:
+  { orderId, amountPaise, currency, mode:"MOCK" }
+
+- verifyPayment:
+  - If providerPaymentId starts with "mock_pay_success" => verified true
+  - If starts with "mock_pay_fail" => verified false
+This allows deterministic tests.
+
+================================================
+3) Provider Factory
+================================================
+Create server/core/payments/provider-factory.ts:
+- Select provider by env:
+  PAYMENT_PROVIDER=MOCK or RAZORPAY
+Default: MOCK in dev, RAZORPAY in prod later.
+
+export function getPaymentProvider(): PaymentProvider
+
+================================================
+4) Billing APIs use Provider Abstraction
+================================================
+Update billing endpoints to use provider:
+
+A) POST /api/billing/select-plan
+- FREE: activate subscription immediately
+- BASIC/PRO:
+  - create subscription PENDING_PAYMENT
+  - create payment row CREATED
+  - call provider.createOrder() using amountPaise
+  - store providerOrderId on payment row
+  - return checkoutPayload to frontend
+
+B) POST /api/billing/checkout/verify
+- Input contains providerPaymentId + signature (optional for mock)
+- Call provider.verifyPayment()
+- If verified:
+  - mark payment PAID
+  - mark subscription ACTIVE
+  - apply feature flags
+- else:
+  - payment FAILED
+  - keep subscription PENDING_PAYMENT
+
+IMPORTANT:
+- Never activate subscription from frontend-only success.
+- Verify on server.
+
+================================================
+5) Frontend Checkout Page Behavior
+================================================
+/checkout reads checkoutPayload from backend and:
+- If MOCK:
+  - show 2 buttons:
+    "Simulate Success" -> calls verify endpoint with providerPaymentId="mock_pay_success_<uuid>"
+    "Simulate Fail" -> calls verify endpoint with providerPaymentId="mock_pay_fail_<uuid>"
+- Later for Razorpay:
+  - use checkoutPayload to open Razorpay checkout
+
+================================================
+6) Idempotency & Safety
+================================================
+- If select-plan is called again for same tenant while PENDING_PAYMENT:
+  - reuse existing pending subscription/payment if possible
+  - do not create duplicates
+- verify endpoint should be safe to retry:
+  - if already PAID, return success
+
+================================================
+7) Tests (required)
+================================================
+- Paid plan selection creates subscription=PENDING_PAYMENT and payment=CREATED
+- Mock success activates subscription and applies flags
+- Mock fail does not activate
+- Dashboard blocked while pending
+- Retry verify works idempotently
+- All existing tests pass
+
+================================================
+Deliverables
+================================================
+- PaymentProvider interface + mock provider + factory
+- Billing APIs using provider abstraction
+- Checkout UI with mock success/fail
+- Tests passing
+- Clear TODO markers where Razorpay adapter will be added later
