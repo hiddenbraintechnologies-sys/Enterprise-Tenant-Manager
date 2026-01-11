@@ -28,22 +28,62 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (!refreshToken) return false;
+  
+  try {
+    const response = await fetch("/api/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    
+    if (response.ok) {
+      const tokens = await response.json();
+      localStorage.setItem("accessToken", tokens.accessToken);
+      localStorage.setItem("refreshToken", tokens.refreshToken);
+      return true;
+    }
+  } catch {
+    // Refresh failed
+  }
+  
+  // Clear invalid tokens
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  return false;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const headers: Record<string, string> = {
-    ...getAuthHeaders(),
-    ...(data ? { "Content-Type": "application/json" } : {}),
+  const makeRequest = async () => {
+    const headers: Record<string, string> = {
+      ...getAuthHeaders(),
+      ...(data ? { "Content-Type": "application/json" } : {}),
+    };
+
+    return fetch(url, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
   };
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+  let res = await makeRequest();
+
+  // If 401, try to refresh token and retry once
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      res = await makeRequest();
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -92,10 +132,23 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = buildUrl(queryKey);
-    const res = await fetch(url, {
-      credentials: "include",
-      headers: getAuthHeaders(),
-    });
+    
+    const makeRequest = async () => {
+      return fetch(url, {
+        credentials: "include",
+        headers: getAuthHeaders(),
+      });
+    };
+
+    let res = await makeRequest();
+
+    // If 401, try to refresh token and retry once
+    if (res.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        res = await makeRequest();
+      }
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;
