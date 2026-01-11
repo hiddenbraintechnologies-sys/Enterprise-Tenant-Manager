@@ -27,6 +27,13 @@ export function getSession() {
     ttl: sessionTtl,
     tableName: "sessions",
   });
+
+  // Detect Replit preview/dev environment (runs in iframe, needs SameSite=None)
+  const isReplitPreview =
+    !!process.env.REPL_ID ||
+    !!process.env.REPLIT ||
+    process.env.NODE_ENV !== "production";
+
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
@@ -36,6 +43,7 @@ export function getSession() {
       httpOnly: true,
       secure: true,
       maxAge: sessionTtl,
+      sameSite: isReplitPreview ? "none" : "lax",
     },
   });
 }

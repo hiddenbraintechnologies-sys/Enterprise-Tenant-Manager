@@ -1,0 +1,72 @@
+We are still seeing "Unable to verify subscription" on /packages in Replit preview.
+Root cause: Replit preview runs inside an iframe; cookies with SameSite=Lax are blocked.
+Fix: In preview/dev, set auth cookies to SameSite=None and Secure=true so cookies are sent.
+
+TASKS:
+
+1) Locate where we set auth/session cookies on the backend.
+Search in server for:
+- "sameSite"
+- "cookie:"
+- "setCookie"
+- "res.cookie("
+- "express-session"
+- "cookieOptions"
+- "sessionOptions"
+- "accessToken" / "refreshToken" cookie setup
+
+2) Add environment detection for Replit Preview:
+Create helper:
+
+const isReplitPreview =
+  !!process.env.REPL_ID ||
+  !!process.env.REPLIT ||
+  process.env.NODE_ENV !== "production";
+
+3) Update ALL auth cookies (session cookie and/or access/refresh cookies) to:
+
+For preview/dev:
+- sameSite: "none"
+- secure: true
+
+For production:
+- sameSite: "lax"
+- secure: true (if on HTTPS domain) OR keep current prod logic
+
+Example (apply everywhere cookies are set):
+
+const cookieBase = {
+  httpOnly: true,
+  path: "/",
+};
+
+const cookieOptions = isReplitPreview
+  ? { ...cookieBase, sameSite: "none", secure: true }
+  : { ...cookieBase, sameSite: "lax", secure: true };
+
+When setting cookies:
+res.cookie("accessToken", token, cookieOptions);
+res.cookie("refreshToken", refresh, cookieOptions);
+(or session middleware cookie settings)
+
+4) If using express-session, update session config:
+app.use(session({
+  ...,
+  cookie: {
+    httpOnly: true,
+    sameSite: isReplitPreview ? "none" : "lax",
+    secure: isReplitPreview ? true : true,
+  }
+}));
+
+5) Restart the server after changes (required for new cookie attributes).
+
+6) Verification:
+- In Replit preview, open /api/debug/request-context
+  Confirm hasCookie=true and userPresent=true.
+- Then open /packages
+  /api/billing/subscription must stop returning 401 (should be 200 or 400 TENANT_REQUIRED).
+- The "Unable to verify subscription" banner must disappear.
+
+IMPORTANT:
+Do not weaken auth or tenant isolation. This is only cookie transport config for iframe preview.
