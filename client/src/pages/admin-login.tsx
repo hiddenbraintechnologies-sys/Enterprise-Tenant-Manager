@@ -8,11 +8,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Shield, Eye, EyeOff, Loader2, ShieldCheck, ArrowLeft, KeyRound, QrCode, Copy, Check } from "lucide-react";
 
 const ROLE_DASHBOARDS: Record<string, string> = {
-  SUPER_ADMIN: "/super-admin/dashboard",
-  PLATFORM_ADMIN: "/platform-admin/dashboard",
-  TECH_SUPPORT_MANAGER: "/tech-support/dashboard",
-  MANAGER: "/manager/dashboard",
-  SUPPORT_TEAM: "/support/dashboard",
+  SUPER_ADMIN: "/super-admin",
+  PLATFORM_ADMIN: "/admin",
+  TECH_SUPPORT_MANAGER: "/tech-support",
+  MANAGER: "/manager",
+  SUPPORT_TEAM: "/support",
 };
 
 function getRoleDashboard(role?: string): string {

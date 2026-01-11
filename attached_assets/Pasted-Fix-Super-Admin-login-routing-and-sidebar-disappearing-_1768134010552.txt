@@ -1,0 +1,61 @@
+Fix Super Admin login routing and sidebar disappearing issue.
+
+Problem:
+After logging in as Super Admin, user lands on /super-admin/dashboard and sees a 404 page.
+When clicking sidebar menu items, the sidebar disappears.
+
+Root cause likely:
+- Missing /super-admin/* routes in router
+- Layout/sidebar mounted only on certain routes; when route mismatches, app falls into 404 layout and sidebar unmounts
+- Sidebar links pointing to non-existent paths
+
+Goal:
+- Ensure Super Admin always lands on a valid route
+- Register all /super-admin/* routes
+- Ensure SuperAdminLayout stays mounted for all /super-admin/* paths so sidebar never disappears
+- Ensure sidebar menu items link to existing routes
+
+Implementation steps:
+
+1) Router: Add a dedicated SuperAdminLayout wrapper
+- Create a route group for /super-admin/*
+- For ANY path starting with /super-admin, render SuperAdminLayout which includes:
+  - Admin sidebar
+  - Topbar
+  - Main outlet section where the page component renders
+
+2) Add/verify routes exist
+Ensure these routes exist and render valid components (even basic placeholders if needed):
+- /super-admin/dashboard
+- /super-admin/tenants
+- /super-admin/admins (or platform-admins, but sidebar must match)
+- /super-admin/billing
+- /super-admin/audit-logs
+- /super-admin/security
+- /super-admin/system-settings
+- /super-admin/regions
+
+If any pages do not exist yet, create minimal pages with correct headings (no 404).
+
+3) Fix post-login redirect
+- After admin-login success for PLATFORM_SUPER_ADMIN, redirect to /super-admin/dashboard (only if it exists)
+- If dashboard route is not used, redirect to the actual first valid page (e.g., /super-admin/tenants)
+
+4) Fix sidebar links + disappearing menu
+- Sidebar should not depend on “current route match to show”
+- Sidebar visibility should depend only on admin session + role, not on route validity
+- Ensure all sidebar links use the router Link component (Wouter Link), not <a href>, to avoid full reloads
+
+5) 404 handling
+- For /super-admin/* unknown paths, show a SuperAdmin 404 page INSIDE the SuperAdminLayout (sidebar stays visible)
+- Do not fall back to public 404 page for /super-admin/*
+
+6) Tests / verification
+- Login as Super Admin -> lands on /super-admin/dashboard without 404
+- Click each sidebar item -> navigates without sidebar disappearing
+- Unknown /super-admin/xyz -> shows admin 404 but sidebar remains
+
+Deliverables:
+- List of routes added/updated
+- Confirmed redirect target after login
+- Confirmed sidebar no longer disappears

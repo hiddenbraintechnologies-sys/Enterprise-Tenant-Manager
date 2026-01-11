@@ -347,6 +347,9 @@ function SuperAdminRoutes() {
   return (
     <SuperAdminRouteGuard>
       <Switch>
+        <Route path="/super-admin/dashboard">
+          <Redirect to="/super-admin" />
+        </Route>
         <Route path="/super-admin" component={SuperAdminDashboard} />
         <Route path="/super-admin/tenants" component={AdminTenants} />
         <Route path="/super-admin/tenants/:tenantId" component={TenantDetails} />
@@ -378,6 +381,12 @@ function SuperAdminRoutes() {
 function PlatformAdminRoutes() {
   return (
     <Switch>
+      <Route path="/admin/dashboard">
+        <Redirect to="/admin" />
+      </Route>
+      <Route path="/platform-admin/dashboard">
+        <Redirect to="/admin" />
+      </Route>
       <Route path="/admin" component={PlatformAdminDashboard} />
       <Route path="/admin/tenants" component={AdminTenants} />
       <Route path="/admin/admins" component={AdminPlatformAdmins} />
@@ -402,6 +411,9 @@ function PlatformAdminRoutes() {
 function ManagerRoutes() {
   return (
     <Switch>
+      <Route path="/manager/dashboard">
+        <Redirect to="/manager" />
+      </Route>
       <Route path="/manager" component={ManagerDashboard} />
       <Route path="/manager/tenants" component={AdminTenants} />
       <Route path="/manager/operations" component={ManagerDashboard} />
@@ -415,6 +427,9 @@ function ManagerRoutes() {
 function SupportTeamRoutes() {
   return (
     <Switch>
+      <Route path="/support/dashboard">
+        <Redirect to="/support" />
+      </Route>
       <Route path="/support" component={SupportDashboard} />
       <Route path="/support/tickets" component={SupportDashboard} />
       <Route path="/support/issues" component={SupportDashboard} />
@@ -428,6 +443,9 @@ function TechSupportRoutes() {
   return (
     <TechSupportRouteGuard>
       <Switch>
+        <Route path="/tech-support/dashboard">
+          <Redirect to="/tech-support" />
+        </Route>
         <Route path="/tech-support" component={TechSupportDashboard} />
         <Route path="/tech-support/health" component={TechSupportDashboard} />
         <Route path="/tech-support/apis" component={TechSupportDashboard} />
@@ -469,7 +487,7 @@ function AppRouter() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin") || location.startsWith("/manager") || location.startsWith("/support") || location.startsWith("/tech-support");
+  const isAdminPath = location.startsWith("/super-admin") || location.startsWith("/admin") || location.startsWith("/platform-admin") || location.startsWith("/manager") || location.startsWith("/support") || location.startsWith("/tech-support");
   const isAdminLoginPath = location === "/admin-login";
   const isAdminForgotPasswordPath = location === "/admin-forgot-password";
   const isPortalPath = location.startsWith("/portal");
