@@ -197,7 +197,7 @@ export default function PackagesPage() {
         
         // Wait for subscription query to reflect active status before navigating
         // This prevents OnboardingGuard from seeing stale inactive data
-        await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription", tenantId] });
+        await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription", { _tenant: tenantId }] });
         
         // Refetch and wait for the data to be active
         const result = await refetchSubscription();
