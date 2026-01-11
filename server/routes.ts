@@ -634,10 +634,13 @@ export async function registerRoutes(
           firstName: newUser.firstName,
           lastName: newUser.lastName,
         },
+        defaultTenantId: newTenant.id,
         tenant: {
           id: newTenant.id,
           name: newTenant.name,
+          slug: newTenant.slug,
           businessType: newTenant.businessType,
+          country: newTenant.country,
         },
       });
     } catch (error) {
@@ -1065,6 +1068,62 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get me error:", error);
       res.status(500).json({ message: "Failed to get user info" });
+    }
+  });
+
+  // Get all tenants for the current user (for tenant bootstrap after login)
+  app.get("/api/tenants/my", authenticateJWT(), async (req, res) => {
+    try {
+      const userId = req.tokenPayload?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      // Get all tenants the user belongs to
+      const userTenantRecords = await db.select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.isActive, true)
+        ));
+
+      if (userTenantRecords.length === 0) {
+        return res.json({ tenants: [], defaultTenantId: null });
+      }
+
+      // Find the default tenant
+      const defaultRecord = userTenantRecords.find(ut => ut.isDefault) || userTenantRecords[0];
+
+      // Fetch tenant details for each membership
+      const tenantList = await Promise.all(
+        userTenantRecords.map(async (ut) => {
+          const [t] = await db.select().from(tenants).where(
+            and(
+              eq(tenants.id, ut.tenantId),
+              eq(tenants.status, "active")
+            )
+          );
+          return t ? { 
+            id: t.id, 
+            name: t.name, 
+            slug: t.slug,
+            country: t.country,
+            businessType: t.businessType,
+            isDefault: ut.isDefault,
+          } : null;
+        })
+      );
+
+      const activeTenants = tenantList.filter(Boolean);
+      const defaultTenant = activeTenants.find(t => t?.id === defaultRecord.tenantId);
+
+      res.json({
+        tenants: activeTenants,
+        defaultTenantId: defaultTenant?.id || activeTenants[0]?.id || null,
+      });
+    } catch (error) {
+      console.error("Get user tenants error:", error);
+      res.status(500).json({ message: "Failed to get tenants" });
     }
   });
 

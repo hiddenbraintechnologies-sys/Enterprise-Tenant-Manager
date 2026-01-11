@@ -19,6 +19,18 @@ export interface AuthUser extends User {
   dashboardRoute?: string;
 }
 
+async function fetchUserTenants(accessToken: string): Promise<{ tenants: Tenant[]; defaultTenantId: string | null }> {
+  const response = await fetch("/api/tenants/my", {
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+    },
+  });
+  if (response.ok) {
+    return response.json();
+  }
+  return { tenants: [], defaultTenantId: null };
+}
+
 async function fetchUser(): Promise<AuthUser | null> {
   const accessToken = localStorage.getItem("accessToken");
   
@@ -31,24 +43,40 @@ async function fetchUser(): Promise<AuthUser | null> {
 
     if (response.ok) {
       const data = await response.json();
+      
+      // If auth/me returned user but no tenant, try to bootstrap from /api/tenants/my
+      let tenant = data.tenant;
+      if (data.user && !tenant) {
+        const tenantsData = await fetchUserTenants(accessToken);
+        if (tenantsData.defaultTenantId && tenantsData.tenants.length > 0) {
+          const defaultTenant = tenantsData.tenants.find(t => t.id === tenantsData.defaultTenantId);
+          if (defaultTenant) {
+            tenant = defaultTenant;
+            // Persist tenant to localStorage for other components that check it directly
+            localStorage.setItem("tenantId", defaultTenant.id);
+            localStorage.setItem("lastTenantId", defaultTenant.id);
+          }
+        }
+      }
+      
       return {
         id: data.user?.id,
         email: data.user?.email,
         firstName: data.user?.firstName,
         lastName: data.user?.lastName,
         profileImageUrl: data.user?.profileImageUrl,
-        tenant: data.tenant ? {
-          id: data.tenant.id,
-          name: data.tenant.name,
-          businessType: data.tenant.businessType,
-          onboardingCompleted: data.tenant.onboardingCompleted,
-          country: data.tenant.country,
-          region: data.tenant.region,
-          currency: data.tenant.currency,
-          timezone: data.tenant.timezone,
+        tenant: tenant ? {
+          id: tenant.id,
+          name: tenant.name,
+          businessType: tenant.businessType,
+          onboardingCompleted: tenant.onboardingCompleted,
+          country: tenant.country,
+          region: tenant.region,
+          currency: tenant.currency,
+          timezone: tenant.timezone,
         } : null,
-        dashboardRoute: data.tenant?.businessType ? 
-          `/dashboard/${data.tenant.businessType === "coworking" ? "coworking" : data.tenant.businessType}` : 
+        dashboardRoute: tenant?.businessType ? 
+          `/dashboard/${tenant.businessType === "coworking" ? "coworking" : tenant.businessType}` : 
           "/dashboard/service",
       } as AuthUser;
     }
