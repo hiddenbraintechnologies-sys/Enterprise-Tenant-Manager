@@ -96,7 +96,9 @@ interface SubscriptionData {
   subscription: { id: string; status: string } | null;
   plan: { id: string; tier: string; name: string } | null;
   status: string;
+  planCode: string | null;
   isActive: boolean;
+  message?: string;
 }
 
 const DASHBOARD_ROUTES: Record<string, string> = {
@@ -125,12 +127,23 @@ export default function PackagesPage() {
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
   const accessToken = localStorage.getItem("accessToken");
 
-  const { data: subscriptionData, isLoading: isLoadingSubscription, isError: isSubscriptionError, refetch: refetchSubscription, isSuccess: isSubscriptionSuccess } = useQuery<SubscriptionData>({
+  const { 
+    data: subscriptionData, 
+    isLoading: isLoadingSubscription, 
+    isError: isSubscriptionError, 
+    error: subscriptionError,
+    refetch: refetchSubscription, 
+    isSuccess: isSubscriptionSuccess 
+  } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription", tenantId],
-    enabled: !!tenantId && !!accessToken,
+    enabled: !!accessToken, // Only require auth, tenant may be pending
     staleTime: 10000,
     retry: 2,
   });
+
+  // Determine if this is a real error vs expected "NONE" state
+  const isNoneStatus = subscriptionData?.status === "NONE";
+  const hasRealSubscriptionError = isSubscriptionError && !isNoneStatus;
 
   const { data: plansData, isLoading, isError: isPlansError, refetch: refetchPlans } = useQuery<PlansResponse>({
     queryKey: ["/api/billing/plans", { country: "india" }],
@@ -161,8 +174,8 @@ export default function PackagesPage() {
     refetchPlans();
   };
 
-  // Show guidance when subscription check succeeded but no active subscription
-  const showNoSubscriptionPrompt = isSubscriptionSuccess && !isLoadingSubscription && !subscriptionData?.isActive;
+  // Show guidance when subscription check succeeded but no active subscription (including NONE status)
+  const showNoSubscriptionPrompt = (isSubscriptionSuccess || isNoneStatus) && !isLoadingSubscription && !subscriptionData?.isActive;
 
   const selectPlanMutation = useMutation({
     mutationFn: async (planCode: string) => {
@@ -246,7 +259,7 @@ export default function PackagesPage() {
           </p>
         </div>
 
-        {isSubscriptionError && (
+        {hasRealSubscriptionError && (
           <Alert variant="destructive" className="max-w-md mx-auto mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">

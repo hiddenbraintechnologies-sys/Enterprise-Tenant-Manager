@@ -86,14 +86,44 @@ async function getPendingPayment(tenantId: string): Promise<BillingPayment | nul
 
 router.get("/subscription", requiredAuth, async (req: Request, res: Response) => {
   try {
-    const tenantId = requireTenantMatch(req);
+    // First check if we have auth at all
+    const user = (req as any).user;
+    if (!user) {
+      return res.status(401).json({ code: "AUTH_REQUIRED", error: "Authentication required" });
+    }
+
+    // SECURITY: Only trust tenantId from JWT, never from header alone
+    // This prevents cross-tenant data access via header spoofing
+    const tenantId = user.tenantId;
+    
+    // If user has no tenant binding (new signup in progress), return graceful NONE
     if (!tenantId) {
-      return res.status(401).json({ error: "Authentication required with valid tenant context" });
+      return res.json({ 
+        subscription: null, 
+        plan: null, 
+        status: "NONE", 
+        planCode: null,
+        isActive: false,
+        message: "No tenant context - please complete signup"
+      });
+    }
+
+    // Validate header matches JWT if provided (defense in depth)
+    const headerTenantId = req.headers["x-tenant-id"] as string;
+    if (headerTenantId && headerTenantId !== tenantId) {
+      console.warn(`[billing] Tenant ID mismatch: header=${headerTenantId}, jwt=${tenantId}`);
+      return res.status(403).json({ code: "TENANT_MISMATCH", error: "Tenant context mismatch" });
     }
 
     const subscription = await getSubscription(tenantId);
     if (!subscription) {
-      return res.json({ subscription: null, plan: null, status: "none" });
+      return res.json({ 
+        subscription: null, 
+        plan: null, 
+        status: "NONE", 
+        planCode: null,
+        isActive: false 
+      });
     }
 
     const plan = await subscriptionService.getPlan(subscription.planId);
@@ -102,11 +132,12 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
       subscription,
       plan,
       status: subscription.status,
+      planCode: plan?.code || null,
       isActive: subscription.status === "active" || subscription.status === "trialing",
     });
   } catch (error) {
     console.error("[billing] Error fetching subscription:", error);
-    res.status(500).json({ error: "Failed to fetch subscription" });
+    res.status(500).json({ code: "SERVER_ERROR", error: "Failed to fetch subscription" });
   }
 });
 
