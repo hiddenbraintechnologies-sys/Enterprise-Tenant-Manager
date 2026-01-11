@@ -68,8 +68,12 @@ export default function LandingIndia() {
             Simple business software
             <span className="block text-primary">for Indian SMBs</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground">
-            Start free. Upgrade only when you grow.
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            Manage projects, invoices, GST compliance, and payments — all in one place.
+            <span className="block mt-2">Start free. Upgrade only when you grow.</span>
+          </p>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Trusted by software companies, consultants, and service businesses across India.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Button size="lg" asChild data-testid="button-get-started-hero">
