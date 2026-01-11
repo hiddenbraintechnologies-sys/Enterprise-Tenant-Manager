@@ -1214,12 +1214,32 @@ export async function registerRoutes(
       const has2FAEnabled = twoFactorRecord?.isEnabled === true;
       const requires2FA = isSuperAdmin || admin.twoFactorRequired || has2FAEnabled;
       
-      // If 2FA required but not set up for SUPER_ADMIN, block login
+      // If SUPER_ADMIN hasn't set up 2FA yet, allow them to set it up themselves
       if (isSuperAdmin && !has2FAEnabled) {
-        await recordLoginAttempt(email, clientIp, userAgent, false, "2fa_not_setup");
-        return res.status(403).json({ 
-          message: "Two-factor authentication must be set up before logging in. Please contact another Super Admin to set up 2FA for your account.",
+        await recordLoginAttempt(email, clientIp, userAgent, true, "2fa_setup_required");
+        
+        // Generate a setup token that allows them to configure 2FA
+        const { token: setupToken, expiresAt } = generateTempToken(admin.id, 10); // 10 minutes for setup
+        
+        // Log the setup requirement
+        await db.insert(adminAuditLogs).values({
+          adminId: admin.id,
+          adminEmail: admin.email,
+          adminRole: admin.role,
+          action: "ADMIN_2FA_SETUP_INITIATED",
+          category: "auth",
+          resource: "admin_2fa",
+          resourceId: admin.id,
+          ipAddress: clientIp,
+          userAgent: userAgent || null,
+        });
+        
+        return res.status(200).json({ 
           code: "TWO_FACTOR_SETUP_REQUIRED",
+          message: "Two-factor authentication setup is required for Super Admin accounts.",
+          setupToken,
+          expiresAt: expiresAt.toISOString(),
+          adminId: admin.id,
         });
       }
       
@@ -1499,6 +1519,156 @@ export async function registerRoutes(
   // ============================================
   // PLATFORM ADMIN 2FA ENDPOINTS
   // ============================================
+  
+  // Self-service 2FA Setup (using setup token from login - no JWT required)
+  app.post("/api/auth/admin/2fa/self-setup", async (req, res) => {
+    try {
+      const { setupToken } = req.body;
+      
+      if (!setupToken) {
+        return res.status(400).json({ message: "Setup token is required" });
+      }
+      
+      // Verify the setup token
+      const { adminId, valid } = verifyTempToken(setupToken);
+      if (!valid || !adminId) {
+        return res.status(401).json({ message: "Invalid or expired setup token. Please log in again." });
+      }
+      
+      const admin = await storage.getPlatformAdmin(adminId);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+      
+      // Check if 2FA already enabled
+      const [existing2fa] = await db.select().from(adminTwoFactorAuth).where(eq(adminTwoFactorAuth.adminId, adminId));
+      if (existing2fa?.isEnabled) {
+        return res.status(400).json({ message: "2FA is already enabled" });
+      }
+      
+      // Generate secret
+      const secret = generateTotpSecret();
+      const otpauthUrl = generateOtpAuthUrl(admin.email, secret);
+      
+      // Store secret (not yet enabled)
+      if (existing2fa) {
+        await db.update(adminTwoFactorAuth)
+          .set({ secretKey: secret, isEnabled: false, isVerified: false, updatedAt: new Date() })
+          .where(eq(adminTwoFactorAuth.adminId, adminId));
+      } else {
+        await db.insert(adminTwoFactorAuth).values({
+          adminId,
+          method: "totp",
+          secretKey: secret,
+          isEnabled: false,
+          isVerified: false,
+        });
+      }
+      
+      // Log audit event
+      await db.insert(adminAuditLogs).values({
+        adminId,
+        adminEmail: admin.email,
+        adminRole: admin.role,
+        action: "ADMIN_2FA_SELF_SETUP_STARTED",
+        category: "security",
+        resource: "admin_2fa",
+        resourceId: adminId,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers["user-agent"] || null,
+      });
+      
+      res.json({
+        otpauthUrl,
+        secret,
+      });
+    } catch (error) {
+      console.error("Self 2FA setup error:", error);
+      res.status(500).json({ message: "Failed to setup 2FA" });
+    }
+  });
+  
+  // Confirm Self-service 2FA Setup (using setup token)
+  app.post("/api/auth/admin/2fa/self-confirm", async (req, res) => {
+    try {
+      const { setupToken, code } = req.body;
+      
+      if (!setupToken) {
+        return res.status(400).json({ message: "Setup token is required" });
+      }
+      
+      if (!code || typeof code !== "string" || code.length !== 6) {
+        return res.status(400).json({ message: "Invalid verification code" });
+      }
+      
+      // Verify the setup token
+      const { adminId, valid } = verifyTempToken(setupToken);
+      if (!valid || !adminId) {
+        return res.status(401).json({ message: "Invalid or expired setup token. Please log in again." });
+      }
+      
+      const admin = await storage.getPlatformAdmin(adminId);
+      if (!admin) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+      
+      const [twoFactorRecord] = await db.select().from(adminTwoFactorAuth).where(eq(adminTwoFactorAuth.adminId, adminId));
+      if (!twoFactorRecord || !twoFactorRecord.secretKey) {
+        return res.status(400).json({ message: "2FA setup not started" });
+      }
+      
+      if (twoFactorRecord.isEnabled) {
+        return res.status(400).json({ message: "2FA is already enabled" });
+      }
+      
+      // Verify TOTP code
+      const isValid = await verifyTotpCode(twoFactorRecord.secretKey, code);
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid verification code", code: "INVALID_OTP" });
+      }
+      
+      // Generate backup codes
+      const backupCodes = generateBackupCodes(8);
+      const hashedBackupCodes = await hashBackupCodes(backupCodes);
+      
+      // Enable 2FA
+      await db.update(adminTwoFactorAuth)
+        .set({
+          isEnabled: true,
+          isVerified: true,
+          verifiedAt: new Date(),
+          backupCodes: hashedBackupCodes,
+          updatedAt: new Date(),
+        })
+        .where(eq(adminTwoFactorAuth.adminId, adminId));
+      
+      // Log audit event
+      await db.insert(adminAuditLogs).values({
+        adminId,
+        adminEmail: admin.email,
+        adminRole: admin.role,
+        action: "ADMIN_2FA_SELF_ENABLED",
+        category: "security",
+        resource: "admin_2fa",
+        resourceId: adminId,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers["user-agent"] || null,
+      });
+      
+      // Generate a new temp token for login verification  
+      const { token: newTempToken, expiresAt } = generateTempToken(adminId, 5);
+      
+      res.json({
+        message: "2FA enabled successfully. Please verify with a new code to complete login.",
+        backupCodes,
+        tempToken: newTempToken,
+        expiresAt: expiresAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Self 2FA confirm error:", error);
+      res.status(500).json({ message: "Failed to confirm 2FA setup" });
+    }
+  });
   
   // Start 2FA Setup
   app.post("/api/platform-admin/admins/:id/2fa/setup", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
