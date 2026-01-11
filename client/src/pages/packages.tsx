@@ -133,6 +133,23 @@ export default function PackagesPage() {
   // CRITICAL: Only fetch subscription when tenantId is available
   const canFetchSubscription = Boolean(tenantId) && Boolean(accessToken);
   
+  // Tenant-safe fetch function - throws if tenantId missing (prevents accidental calls)
+  const fetchSubscription = async (): Promise<SubscriptionData> => {
+    if (!tenantId) {
+      throw new Error("Tenant not resolved yet");
+    }
+    const response = await fetch("/api/billing/subscription", {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "X-Tenant-ID": tenantId,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Subscription fetch failed: ${response.status}`);
+    }
+    return response.json();
+  };
+  
   const { 
     data: subscriptionData, 
     isLoading: isLoadingSubscription, 
@@ -142,6 +159,7 @@ export default function PackagesPage() {
     isSuccess: isSubscriptionSuccess 
   } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription"],
+    queryFn: fetchSubscription,
     enabled: canFetchSubscription, // 🔑 NEVER run when tenantId is null/undefined
     staleTime: 10000,
     retry: canFetchSubscription ? 2 : false, // Don't retry if missing tenant

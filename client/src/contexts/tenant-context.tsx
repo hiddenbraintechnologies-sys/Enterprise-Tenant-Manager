@@ -343,9 +343,28 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
   // CRITICAL: Only fetch subscription when tenantId is available
   const canFetchSubscription = Boolean(tenantId) && isAuthenticated;
+  const accessToken = localStorage.getItem("accessToken");
+  
+  // Tenant-safe fetch function - throws if tenantId missing (prevents accidental calls)
+  const fetchSubscription = async (): Promise<SubscriptionData> => {
+    if (!tenantId) {
+      throw new Error("Tenant not resolved yet");
+    }
+    const response = await fetch("/api/billing/subscription", {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "X-Tenant-ID": tenantId,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Subscription fetch failed: ${response.status}`);
+    }
+    return response.json();
+  };
   
   const { data: subscriptionData, isLoading, isError, isSuccess, refetch, isFetching } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription"],
+    queryFn: fetchSubscription,
     enabled: canFetchSubscription, // 🔑 NEVER run when tenantId is null/undefined
     staleTime: 30000,
     retry: canFetchSubscription ? 2 : false, // Don't retry if missing tenant
