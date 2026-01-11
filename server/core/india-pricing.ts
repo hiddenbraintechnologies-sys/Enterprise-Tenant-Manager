@@ -139,21 +139,44 @@ export const INDIA_TIER_LIMITS: Record<string, {
 // Valid India plan codes
 export const INDIA_PLAN_CODES = ["india_free", "india_basic", "india_pro"] as const;
 
+// Legacy plan codes that should be deactivated (no country prefix, from old seeding)
+// These are safe to deactivate as they don't belong to any specific country rollout
+export const LEGACY_PLAN_CODES = [
+  "free", "FREE", "plan-free", "plan_free",
+  "starter", "STARTER", "plan-starter", "plan_starter", 
+  "pro", "PRO", "plan-pro", "plan_pro",
+  "enterprise", "ENTERPRISE", "plan-enterprise", "plan_enterprise",
+];
+
+// Country prefixes that should NEVER be touched by India seed
+export const PROTECTED_COUNTRY_PREFIXES = ["uk_", "ae_", "sg_", "my_", "us_"];
+
+// Display order for India plans (1-indexed for clarity)
+export const INDIA_PLAN_ORDER: Record<string, number> = {
+  "india_free": 1,
+  "india_basic": 2,
+  "india_pro": 3,
+};
+
 export async function seedIndiaPricingPlans(): Promise<void> {
   console.log("[india-pricing] Seeding India pricing plans...");
 
-  // Deactivate all non-India plans in a single query using NOT IN
+  // ONLY deactivate legacy plans (no country prefix) - never touch other countries' plans
+  // This is safe because legacy codes don't have country prefixes like uk_, ae_, sg_, my_
   await db
     .update(globalPricingPlans)
     .set({ isActive: false, updatedAt: new Date() })
     .where(
       and(
         eq(globalPricingPlans.isActive, true),
-        sql`${globalPricingPlans.code} NOT IN ('india_free', 'india_basic', 'india_pro')`
+        sql`${globalPricingPlans.code} IN (${sql.raw(LEGACY_PLAN_CODES.map(c => `'${c}'`).join(','))})`
       )
     );
 
-  for (const [tierKey, config] of Object.entries(INDIA_PRICING_CONFIG)) {
+  // UPSERT India plans with correct displayOrder
+  for (const config of Object.values(INDIA_PRICING_CONFIG)) {
+    const displayOrder = INDIA_PLAN_ORDER[config.code] || 1;
+    
     const existing = await db
       .select()
       .from(globalPricingPlans)
@@ -171,7 +194,7 @@ export async function seedIndiaPricingPlans(): Promise<void> {
         maxCustomers: config.maxCustomers,
         features: config.features,
         isActive: true,
-        sortOrder: tierKey === "free" ? 0 : tierKey === "basic" ? 1 : 2,
+        sortOrder: displayOrder,
       });
       console.log(`[india-pricing] Created plan: ${config.name}`);
     } else {
@@ -185,6 +208,7 @@ export async function seedIndiaPricingPlans(): Promise<void> {
           maxCustomers: config.maxCustomers,
           features: config.features,
           isActive: true,
+          sortOrder: displayOrder,
           updatedAt: new Date(),
         })
         .where(eq(globalPricingPlans.code, config.code));
