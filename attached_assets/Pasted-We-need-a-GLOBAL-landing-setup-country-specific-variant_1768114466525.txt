@@ -1,0 +1,103 @@
+We need a GLOBAL landing setup + country-specific variants, while keeping ONE codebase.
+Do NOT touch auth/RBAC/dashboard logic. Marketing pages only.
+
+Goal:
+- Default global landing at /
+- India landing at /in (with INR pricing)
+- Country selector + “Change country” switch
+- Placeholder pages for /uk, /uae, /sg, /my (coming soon)
+- Store selection in cookie/localStorage and route accordingly
+
+================================================
+1) Routes to create
+================================================
+/                 -> Global landing (neutral copy, no INR)
+/in               -> India landing (INR pricing: Free/₹99/₹199)
+/uk               -> UK landing placeholder (Coming soon)
+/uae              -> UAE landing placeholder (Coming soon)
+/sg               -> Singapore landing placeholder (Coming soon)
+/my               -> Malaysia landing placeholder (Coming soon)
+
+Add a shared layout component used by all landings.
+
+================================================
+2) Global landing page ( / )
+================================================
+Copy tone: neutral + global credibility
+- Headline: “Business management platform for growing teams”
+- Subheadline: “One dashboard for operations, invoicing, payments, and compliance.”
+- CTA:
+  - “Start Free” -> /register
+  - “Choose Country” -> opens country selector modal
+- Show supported modules (Software/Consulting/Furniture/Clinics/Co-working/PG/Services)
+- Mention: “Launching country-specific pricing & compliance packs.”
+
+Pricing section:
+- Do NOT show INR.
+- Show: “Local pricing available by country” with selector.
+
+================================================
+3) India landing page ( /in )
+================================================
+Use the approved India launch copy + INR pricing table:
+FREE ₹0 / BASIC ₹99 / PRO ₹199
+Add GST + WhatsApp mentions.
+CTA -> /register
+
+================================================
+4) Country selector (header + modal)
+================================================
+Add a country switch in the header for all landing pages:
+- India
+- UK
+- UAE
+- Singapore
+- Malaysia
+
+Behavior:
+- On first visit to /:
+  - open a lightweight modal: “Choose your country”
+  - options: India, UK, UAE, Singapore, Malaysia
+  - selection stores:
+    localStorage key: selectedCountry = "IN" | "UK" | "AE" | "SG" | "MY"
+    cookie (optional): country=IN
+  - redirect:
+    IN -> /in
+    UK -> /uk
+    AE -> /uae
+    SG -> /sg
+    MY -> /my
+
+Add “Change country” link always visible.
+
+================================================
+5) Coming soon pages (/uk, /uae, /sg, /my)
+================================================
+Simple, professional placeholders:
+- “We’re launching in <country> soon”
+- Collect email interest (optional form that stores locally or hits an existing generic endpoint if available)
+- CTA: “Back to Global” -> /
+
+Do not show pricing here.
+
+================================================
+6) Guardrails
+================================================
+- No changes to application auth or dashboards
+- No admin URLs exposed
+- Landing pages must be fast and mobile-first
+- Reuse components to avoid duplication
+
+================================================
+7) Deliverables
+================================================
+- New routes/pages
+- Shared landing layout components
+- Country selector modal
+- Persistent country switch
+- Verified navigation works
+
+Output:
+- List of files created/modified
+- Screenshot description of / and /in
+- Confirm no impact to core app flows

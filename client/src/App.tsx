@@ -10,7 +10,12 @@ import { TourProvider } from "@/contexts/tour-context";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { CountryProvider } from "@/contexts/country-context";
 
-import Landing from "@/pages/landing";
+import LandingGlobal from "@/pages/landing-global";
+import LandingIndia from "@/pages/landing-india";
+import LandingUK from "@/pages/landing-uk";
+import LandingUAE from "@/pages/landing-uae";
+import LandingSingapore from "@/pages/landing-singapore";
+import LandingMalaysia from "@/pages/landing-malaysia";
 import Register from "@/pages/register";
 import ClinicDashboard from "@/pages/clinic-dashboard";
 import SalonDashboard from "@/pages/salon-dashboard";
@@ -512,7 +517,13 @@ function AppRouter() {
         <Route path="/subscription-dashboard" component={SubscriptionDashboard} />
         <Route path="/onboarding" component={Onboarding} />
         <Route path="/not-authorized" component={NotAuthorized} />
-        <Route component={Landing} />
+        <Route path="/in" component={LandingIndia} />
+        <Route path="/uk" component={LandingUK} />
+        <Route path="/uae" component={LandingUAE} />
+        <Route path="/sg" component={LandingSingapore} />
+        <Route path="/my" component={LandingMalaysia} />
+        <Route path="/" component={LandingGlobal} />
+        <Route component={LandingGlobal} />
       </Switch>
     );
   }

@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Building2,
   Calendar,
@@ -18,6 +17,7 @@ import {
   ClipboardList,
   BadgeIndianRupee,
 } from "lucide-react";
+import { LandingLayout } from "@/components/landing/landing-layout";
 
 const businessTypes = [
   { name: "Software Services & IT Companies", icon: LayoutDashboard },
@@ -53,36 +53,9 @@ const onboardingSteps = [
   { step: 4, title: "Upgrade only when needed", description: "Grow at your own pace" },
 ];
 
-export default function Landing() {
-  const scrollToPricing = () => {
-    document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
-  };
-
+export default function LandingIndia() {
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Building2 className="h-5 w-5" />
-            </div>
-            <span className="text-xl font-semibold" data-testid="text-logo">MyBizStream</span>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <ThemeToggle />
-            <Button variant="ghost" asChild className="hidden sm:inline-flex" data-testid="button-signin">
-              <a href="/login">Sign In</a>
-            </Button>
-            <Button asChild data-testid="button-get-started-nav">
-              <a href="/register">
-                Get Started
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </a>
-            </Button>
-          </div>
-        </div>
-      </nav>
-
+    <LandingLayout currentCountry="IN">
       <section className="relative overflow-hidden px-6 py-20 sm:py-28 lg:py-32">
         <div className="mx-auto max-w-4xl text-center">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl" data-testid="text-hero-title">
@@ -99,8 +72,8 @@ export default function Landing() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </a>
             </Button>
-            <Button size="lg" variant="outline" onClick={scrollToPricing} data-testid="button-view-pricing">
-              View Pricing
+            <Button size="lg" variant="outline" asChild data-testid="button-view-pricing">
+              <a href="#pricing">View Pricing</a>
             </Button>
           </div>
         </div>
@@ -319,16 +292,6 @@ export default function Landing() {
           </p>
         </div>
       </section>
-
-      <footer className="border-t px-6 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-sm text-muted-foreground sm:flex-row">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            <span>MyBizStream</span>
-          </div>
-          <p>Built for Indian small & medium businesses</p>
-        </div>
-      </footer>
-    </div>
+    </LandingLayout>
   );
 }
