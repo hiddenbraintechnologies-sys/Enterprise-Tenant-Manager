@@ -56,7 +56,7 @@ const onboardingSteps = [
 
 export default function LandingIndia() {
   return (
-    <LandingLayout currentCountry="IN">
+    <LandingLayout>
       <Seo
         title="Simple Business Software for Indian SMBs | MyBizStream"
         description="Manage projects, invoices, GST, and payments. Start free. Plans from ₹99/month. Built for Indian businesses."

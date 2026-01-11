@@ -2,36 +2,30 @@ import { useState, useEffect } from "react";
 import { Building2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useLocation } from "wouter";
 import {
   CountrySelectorModal,
   CountrySwitch,
   getStoredCountry,
-  type CountryCode,
 } from "./country-selector";
 
 interface LandingLayoutProps {
   children: React.ReactNode;
-  currentCountry?: CountryCode;
   showCountryPrompt?: boolean;
 }
 
-export function LandingLayout({ children, currentCountry, showCountryPrompt = false }: LandingLayoutProps) {
+export function LandingLayout({ children, showCountryPrompt = false }: LandingLayoutProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
-  const [storedCountry, setStoredCountry] = useState<CountryCode | null>(null);
+  const [location] = useLocation();
 
   useEffect(() => {
-    const stored = getStoredCountry();
-    setStoredCountry(stored);
-    
-    if (showCountryPrompt && !stored) {
+    if (showCountryPrompt && !getStoredCountry()) {
       const timer = setTimeout(() => {
         setSelectorOpen(true);
       }, 500);
       return () => clearTimeout(timer);
     }
   }, [showCountryPrompt]);
-
-  const displayCountry = currentCountry || storedCountry || undefined;
 
   return (
     <div className="min-h-screen bg-background">
@@ -47,7 +41,7 @@ export function LandingLayout({ children, currentCountry, showCountryPrompt = fa
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <CountrySwitch
-              currentCountry={displayCountry}
+              pathname={location}
               onOpenSelector={() => setSelectorOpen(true)}
             />
             <ThemeToggle />
@@ -85,7 +79,6 @@ export function LandingLayout({ children, currentCountry, showCountryPrompt = fa
       <CountrySelectorModal
         open={selectorOpen}
         onOpenChange={setSelectorOpen}
-        onSelect={(code) => setStoredCountry(code)}
       />
     </div>
   );

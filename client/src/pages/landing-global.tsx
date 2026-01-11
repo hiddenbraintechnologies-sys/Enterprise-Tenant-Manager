@@ -62,6 +62,14 @@ export default function LandingGlobal() {
           <p className="mt-6 text-sm text-muted-foreground">
             Launching country-specific pricing & compliance packs.
           </p>
+          <a 
+            href="/in" 
+            className="mt-3 inline-flex items-center text-sm text-primary hover:underline"
+            data-testid="link-india-pricing"
+          >
+            See India pricing
+            <ArrowRight className="ml-1 h-3 w-3" />
+          </a>
         </div>
       </section>
 

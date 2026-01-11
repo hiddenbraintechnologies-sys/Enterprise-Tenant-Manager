@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { Globe } from "lucide-react";
 
 const COUNTRIES = [
   { code: "IN", name: "India", path: "/in", available: true },
@@ -16,6 +17,16 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", path: "/sg", available: false },
   { code: "MY", name: "Malaysia", path: "/my", available: false },
 ] as const;
+
+export function getCountryFromPath(pathname: string): CountryCode | "GLOBAL" {
+  const country = COUNTRIES.find((c) => c.path === pathname);
+  return country ? country.code : "GLOBAL";
+}
+
+export function getCountryLabel(pathname: string): string {
+  const country = COUNTRIES.find((c) => c.path === pathname);
+  return country ? country.name : "Global";
+}
 
 export type CountryCode = typeof COUNTRIES[number]["code"];
 
@@ -86,12 +97,13 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
 }
 
 interface CountrySwitchProps {
-  currentCountry?: CountryCode;
+  pathname: string;
   onOpenSelector: () => void;
 }
 
-export function CountrySwitch({ currentCountry, onOpenSelector }: CountrySwitchProps) {
-  const country = COUNTRIES.find((c) => c.code === currentCountry);
+export function CountrySwitch({ pathname, onOpenSelector }: CountrySwitchProps) {
+  const country = COUNTRIES.find((c) => c.path === pathname);
+  const isGlobal = !country;
 
   return (
     <Button
@@ -101,15 +113,18 @@ export function CountrySwitch({ currentCountry, onOpenSelector }: CountrySwitchP
       className="gap-2"
       data-testid="button-change-country"
     >
-      {country ? (
+      {isGlobal ? (
+        <>
+          <Globe className="h-4 w-4" />
+          <span className="hidden sm:inline" data-testid="text-country-label">Global</span>
+        </>
+      ) : (
         <>
           <span className="flex h-5 w-7 items-center justify-center rounded border bg-muted text-xs font-semibold">
             {country.code}
           </span>
-          <span className="hidden sm:inline">{country.name}</span>
+          <span className="hidden sm:inline" data-testid="text-country-label">{country.name}</span>
         </>
-      ) : (
-        <span>Select Country</span>
       )}
     </Button>
   );
