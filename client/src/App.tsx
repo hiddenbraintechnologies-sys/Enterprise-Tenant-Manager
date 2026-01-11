@@ -492,10 +492,11 @@ function AppRouter() {
   const isAdminForgotPasswordPath = location === "/admin-forgot-password";
   const isPortalPath = location.startsWith("/portal");
   
-  // PUBLIC LANDING PAGES - Always accessible, no subscription checks
-  // Must check BEFORE authenticated routes to prevent subscription guard from running
-  const publicLandingPaths = ["/", "/in", "/uk", "/uae", "/sg", "/my", "/pricing"];
-  const isPublicLandingPath = publicLandingPaths.includes(location);
+  // PUBLIC ROUTES - Always accessible, no subscription checks, no TenantProvider
+  // Must check BEFORE authenticated routes to prevent OnboardingGuard from running
+  // Includes: landing pages, auth pages (login/register), pricing
+  const publicPaths = ["/", "/in", "/uk", "/uae", "/sg", "/my", "/pricing", "/login", "/register", "/signup", "/not-authorized"];
+  const isPublicPath = publicPaths.includes(location);
 
   if (isAdminLoginPath) {
     return <AdminLogin />;
@@ -516,17 +517,21 @@ function AppRouter() {
     );
   }
 
-  // Render public landing pages BEFORE auth loading check
-  // This ensures landing pages are always fast and never show subscription errors
-  if (isPublicLandingPath) {
+  // Render ALL public routes BEFORE auth loading check
+  // This ensures public pages never show subscription errors or loading spinners
+  if (isPublicPath) {
     return (
       <Switch>
+        <Route path="/login" component={Login} />
+        <Route path="/register" component={Register} />
+        <Route path="/signup" component={TenantSignup} />
         <Route path="/in" component={LandingIndia} />
         <Route path="/uk" component={LandingUK} />
         <Route path="/uae" component={LandingUAE} />
         <Route path="/sg" component={LandingSingapore} />
         <Route path="/my" component={LandingMalaysia} />
         <Route path="/pricing" component={Pricing} />
+        <Route path="/not-authorized" component={NotAuthorized} />
         <Route path="/" component={LandingGlobal} />
       </Switch>
     );
