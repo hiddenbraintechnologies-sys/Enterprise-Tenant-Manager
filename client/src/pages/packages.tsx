@@ -127,10 +127,9 @@ export default function PackagesPage() {
   const queryClient = useQueryClient();
 
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
-  const accessToken = localStorage.getItem("accessToken");
   
   // Fetch subscription when user is authenticated (backend handles NO_TENANT gracefully)
-  const canFetchSubscription = Boolean(accessToken);
+  const canFetchSubscription = isAuthenticated;
   
   // Clear stale subscription cache on mount to avoid cached 401 errors
   useEffect(() => {
@@ -251,7 +250,7 @@ export default function PackagesPage() {
   });
 
   const handleSelectPlan = (planCode: string) => {
-    if (!accessToken) {
+    if (!isAuthenticated) {
       toast({ title: "Please log in", description: "You need to be logged in to select a plan.", variant: "destructive" });
       setLocation("/login");
       return;
