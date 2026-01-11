@@ -1,0 +1,152 @@
+Create a public marketing landing page for MyBizStream using the approved India launch copy.
+Do NOT modify any existing auth, dashboard, or application logic.
+This is a marketing-only page.
+
+=====================================
+1) Page Basics
+=====================================
+Route:
+- /
+
+Purpose:
+- Explain what MyBizStream is
+- Show supported businesses
+- Explain pricing (India)
+- Drive signups to /login or /register
+
+Tech:
+- React + Tailwind (use existing UI system)
+- Responsive (mobile-first)
+
+=====================================
+2) Hero Section
+=====================================
+Headline:
+"Simple business software for Indian SMBs"
+
+Subheadline:
+"Start free. Upgrade only when you grow."
+
+Primary CTA:
+- Button: "Get Started Free" → /register
+Secondary CTA:
+- Button: "View Pricing" → scroll to pricing section
+
+=====================================
+3) Supported Businesses Section
+=====================================
+Title:
+"Built for real Indian businesses"
+
+List (cards or bullets):
+- Software Services & IT Companies
+- Consulting Firms
+- Furniture Manufacturing & Sales
+- Clinics & Small Healthcare Practices
+- Co-working Spaces
+- PGs & Hostels
+- General Service Businesses
+
+Footer note:
+"Restaurants & Hotels — Coming Soon"
+
+=====================================
+4) Features Section
+=====================================
+Title:
+"Everything you need to run your business"
+
+Bullets:
+- Projects & timesheets
+- Invoices & payment tracking
+- GST-ready billing
+- WhatsApp automation (Pro)
+- Secure admin controls
+- One simple dashboard
+
+Avoid enterprise buzzwords.
+
+=====================================
+5) Pricing Section (India-first)
+=====================================
+Title:
+"Simple, honest pricing"
+
+Plans:
+
+FREE – ₹0
+- 1 user
+- 50 records
+- Core dashboard
+- No credit card
+
+BASIC – ₹99 / month
+- 3 users
+- 500 records
+- Invoices & GST
+- Email support
+
+PRO – ₹199 / month (highlighted)
+- 10 users
+- Unlimited records
+- WhatsApp automation
+- Priority support
+
+Footer copy:
+"Upgrade only when you need it. Cancel anytime."
+
+=====================================
+6) Onboarding Section
+=====================================
+Title:
+"Get started in minutes"
+
+Steps:
+1. Sign up
+2. Choose your business type
+3. Start using the dashboard
+4. Upgrade only when needed
+
+=====================================
+7) Security & Trust Section
+=====================================
+Title:
+"Built with security in mind"
+
+Bullets:
+- Secure login
+- Role-based access
+- Admin 2FA
+- Session control
+- Audit logs
+
+=====================================
+8) Final CTA
+=====================================
+Headline:
+"Start free today"
+
+Button:
+- "Create Free Account" → /register
+
+Subtext:
+"No credit card required"
+
+=====================================
+9) Guardrails
+=====================================
+- Do NOT expose admin URLs
+- Do NOT show internal dashboards
+- Do NOT reference unfinished features
+- Keep copy simple and India-friendly
+
+=====================================
+10) Deliverables
+=====================================
+- Landing page at /
+- Mobile responsive layout
+- Clean Tailwind styling
+- No impact on existing app flows
+
+Final output:
+"Landing page ready for India launch"
