@@ -5,6 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Mail, Check } from "lucide-react";
 import { LandingLayout } from "./landing-layout";
 import { type CountryCode } from "./country-selector";
+import { Seo } from "@/components/seo";
+
+const COUNTRY_PATHS: Record<CountryCode, string> = {
+  IN: "in",
+  UK: "uk",
+  AE: "uae",
+  SG: "sg",
+  MY: "my",
+};
 
 interface ComingSoonPageProps {
   countryCode: CountryCode;
@@ -14,6 +23,7 @@ interface ComingSoonPageProps {
 export function ComingSoonPage({ countryCode, countryName }: ComingSoonPageProps) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const countryPath = COUNTRY_PATHS[countryCode] || countryCode.toLowerCase();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +38,11 @@ export function ComingSoonPage({ countryCode, countryName }: ComingSoonPageProps
 
   return (
     <LandingLayout currentCountry={countryCode}>
+      <Seo
+        title={`MyBizStream in ${countryName} – Launching Soon`}
+        description={`MyBizStream is launching soon in ${countryName}. Join the waitlist for early access.`}
+        canonicalUrl={`https://payodsoft.co.uk/${countryPath}`}
+      />
       <section className="px-6 py-20 sm:py-32">
         <div className="mx-auto max-w-2xl text-center">
           <div className="mx-auto flex h-20 w-24 items-center justify-center rounded-lg border-2 bg-muted text-2xl font-bold mb-6">

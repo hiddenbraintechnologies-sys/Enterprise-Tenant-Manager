@@ -13,6 +13,7 @@ import {
   Globe,
 } from "lucide-react";
 import { LandingLayout } from "@/components/landing/landing-layout";
+import { Seo } from "@/components/seo";
 
 const businessTypes = [
   { name: "Software Services", icon: LayoutDashboard },
@@ -36,6 +37,11 @@ const features = [
 export default function LandingGlobal() {
   return (
     <LandingLayout showCountryPrompt={true}>
+      <Seo
+        title="Business Management Platform for Growing Teams | MyBizStream"
+        description="One dashboard for operations, invoicing, payments, and compliance. Start free. Local pricing available by country."
+        canonicalUrl="https://payodsoft.co.uk/"
+      />
       <section className="relative overflow-hidden px-6 py-20 sm:py-28 lg:py-32">
         <div className="mx-auto max-w-4xl text-center">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl" data-testid="text-hero-title">

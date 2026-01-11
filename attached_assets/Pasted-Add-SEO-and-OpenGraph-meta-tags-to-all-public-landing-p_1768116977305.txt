@@ -1,0 +1,109 @@
+Add SEO and OpenGraph meta tags to all public landing pages.
+Do NOT modify auth, RBAC, dashboards, or application logic.
+Landing pages only.
+
+================================================
+1) Pages in Scope
+================================================
+/        (Global landing)
+/in     (India landing)
+/uk     (UK coming soon)
+/uae    (UAE coming soon)
+/sg     (Singapore coming soon)
+/my     (Malaysia coming soon)
+
+Use a shared SEO component to avoid duplication.
+
+================================================
+2) Shared SEO Component
+================================================
+Create a reusable <Seo /> component that supports:
+- title
+- description
+- canonicalUrl
+- og:title
+- og:description
+- og:url
+- og:type = "website"
+- og:site_name = "MyBizStream"
+- og:image (optional placeholder)
+- twitter:card = "summary_large_image"
+
+Component must:
+- Update <head> correctly
+- Be SSR-safe if applicable
+- Not interfere with routing
+
+================================================
+3) Page-specific SEO Content
+================================================
+
+A) Global Landing (/)
+Title:
+"Business Management Platform for Growing Teams | MyBizStream"
+
+Description:
+"One dashboard for operations, invoicing, payments, and compliance. Start free. Local pricing available by country."
+
+Canonical:
+https://payodsoft.co.uk/
+
+------------------------------------------------
+
+B) India Landing (/in)
+Title:
+"Simple Business Software for Indian SMBs | MyBizStream"
+
+Description:
+"Manage projects, invoices, GST, and payments. Start free. Plans from ₹99/month. Built for Indian businesses."
+
+Canonical:
+https://payodsoft.co.uk/in
+
+------------------------------------------------
+
+C) Coming Soon Pages (/uk, /uae, /sg, /my)
+Title template:
+"MyBizStream in <Country> – Launching Soon"
+
+Description template:
+"MyBizStream is launching soon in <Country>. Join the waitlist for early access."
+
+Canonical:
+https://payodsoft.co.uk/<country-code>
+
+================================================
+4) OpenGraph & Social Sharing
+================================================
+- Use consistent og:image across all pages (logo + neutral background)
+- Ensure og:url matches canonical
+- Add twitter meta tags
+
+================================================
+5) Guardrails
+================================================
+- Do NOT add tracking pixels unless already approved
+- Do NOT add auth-dependent logic
+- No pricing leakage on global or coming-soon pages
+- No admin URLs referenced
+
+================================================
+6) Verification
+================================================
+After implementation:
+- View page source and confirm meta tags
+- Test with:
+  - Facebook Sharing Debugger
+  - Twitter/X Card Validator
+- Confirm no console errors
+- Confirm navigation unaffected
+
+================================================
+7) Deliverables
+================================================
+- Shared SEO component
+- Meta tags on all landing pages
+- Confirmation checklist (pass/fail)
+
+Final Output:
+"SEO and OpenGraph tags added successfully for all landing pages"

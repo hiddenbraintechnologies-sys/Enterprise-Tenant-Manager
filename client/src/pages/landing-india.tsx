@@ -18,6 +18,7 @@ import {
   BadgeIndianRupee,
 } from "lucide-react";
 import { LandingLayout } from "@/components/landing/landing-layout";
+import { Seo } from "@/components/seo";
 
 const businessTypes = [
   { name: "Software Services & IT Companies", icon: LayoutDashboard },
@@ -56,6 +57,11 @@ const onboardingSteps = [
 export default function LandingIndia() {
   return (
     <LandingLayout currentCountry="IN">
+      <Seo
+        title="Simple Business Software for Indian SMBs | MyBizStream"
+        description="Manage projects, invoices, GST, and payments. Start free. Plans from ₹99/month. Built for Indian businesses."
+        canonicalUrl="https://payodsoft.co.uk/in"
+      />
       <section className="relative overflow-hidden px-6 py-20 sm:py-28 lg:py-32">
         <div className="mx-auto max-w-4xl text-center">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl" data-testid="text-hero-title">
