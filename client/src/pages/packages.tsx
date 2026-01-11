@@ -127,8 +127,6 @@ export default function PackagesPage() {
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
   const accessToken = localStorage.getItem("accessToken");
   
-  // Track if we're waiting for tenant context to be available
-  const isWaitingForTenant = !!accessToken && !tenantId;
 
   // CRITICAL: Only fetch subscription when tenantId is available
   const canFetchSubscription = Boolean(tenantId) && Boolean(accessToken);
@@ -264,6 +262,28 @@ export default function PackagesPage() {
 
   const displayPlans = plansData?.plans || [];
 
+  // 🔑 EARLY RETURN: Show loading state while waiting for tenant context
+  // This is a bootstrap state, NOT an error
+  if (!tenantId) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 className="text-xl font-bold" data-testid="text-packages-logo">MyBizStream</h1>
+            <ThemeToggle />
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-12">
+          <div className="flex flex-col items-center justify-center py-24" data-testid="loading-workspace">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Setting up your workspace</h2>
+            <p className="text-muted-foreground">Just a moment while we prepare your account</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -283,7 +303,8 @@ export default function PackagesPage() {
           </p>
         </div>
 
-        {hasRealSubscriptionError && (
+        {/* Only show real subscription errors AFTER tenant is resolved */}
+        {hasRealSubscriptionError && canFetchSubscription && (
           <Alert variant="destructive" className="max-w-md mx-auto mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
@@ -365,12 +386,7 @@ export default function PackagesPage() {
           </Alert>
         )}
 
-        {isWaitingForTenant ? (
-          <div className="flex flex-col items-center justify-center py-12" data-testid="loading-workspace">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mb-4" />
-            <p className="text-muted-foreground">Loading your workspace...</p>
-          </div>
-        ) : (isLoading || isLoadingSubscription) ? (
+        {(isLoading || isLoadingSubscription) ? (
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
