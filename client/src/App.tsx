@@ -491,6 +491,11 @@ function AppRouter() {
   const isAdminLoginPath = location === "/admin-login";
   const isAdminForgotPasswordPath = location === "/admin-forgot-password";
   const isPortalPath = location.startsWith("/portal");
+  
+  // PUBLIC LANDING PAGES - Always accessible, no subscription checks
+  // Must check BEFORE authenticated routes to prevent subscription guard from running
+  const publicLandingPaths = ["/", "/in", "/uk", "/uae", "/sg", "/my", "/pricing"];
+  const isPublicLandingPath = publicLandingPaths.includes(location);
 
   if (isAdminLoginPath) {
     return <AdminLogin />;
@@ -507,6 +512,22 @@ function AppRouter() {
         <Route path="/portal/invite/:inviteToken" component={PortalRegister} />
         <Route path="/portal/:token" component={PortalLogin} />
         <Route component={NotFound} />
+      </Switch>
+    );
+  }
+
+  // Render public landing pages BEFORE auth loading check
+  // This ensures landing pages are always fast and never show subscription errors
+  if (isPublicLandingPath) {
+    return (
+      <Switch>
+        <Route path="/in" component={LandingIndia} />
+        <Route path="/uk" component={LandingUK} />
+        <Route path="/uae" component={LandingUAE} />
+        <Route path="/sg" component={LandingSingapore} />
+        <Route path="/my" component={LandingMalaysia} />
+        <Route path="/pricing" component={Pricing} />
+        <Route path="/" component={LandingGlobal} />
       </Switch>
     );
   }
