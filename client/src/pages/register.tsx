@@ -81,6 +81,15 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // Clear any stale tokens when visiting register page
+  // This ensures a clean slate for new registrations
+  useEffect(() => {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("tenantId");
+    localStorage.removeItem("lastTenantId");
+  }, []);
+
   // Fetch active region configs for country selection
   const { data: regionConfigs, isLoading: isLoadingRegions } = useQuery<RegionConfig[]>({
     queryKey: ["/api/region-configs/active"],
@@ -135,7 +144,9 @@ export default function Register() {
       return response.json();
     },
     onSuccess: async (data) => {
-      // 1. Persist auth tokens
+      // 1. Clear any stale tokens first, then persist new auth tokens
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       

@@ -123,13 +123,14 @@ export default function PackagesPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const { tenant, isAuthenticated } = useAuth();
+  const { tenant, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
 
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
   
-  // Fetch subscription when user is authenticated (backend handles NO_TENANT gracefully)
-  const canFetchSubscription = isAuthenticated;
+  // Fetch subscription when user is authenticated and auth is not loading
+  // This prevents using stale tokens from previous sessions
+  const canFetchSubscription = isAuthenticated && !isAuthLoading;
   
   // Clear stale subscription cache on mount to avoid cached 401 errors
   useEffect(() => {
