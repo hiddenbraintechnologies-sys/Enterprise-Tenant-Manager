@@ -1,0 +1,92 @@
+We have confirmed the real issue:
+Billing and auth APIs are being called on a DIFFERENT origin
+(e.g. 9abc182-76e5-474d-*.replit.dev),
+so cookies are not sent and backend auth fails with 401.
+
+Fix this by enforcing SAME-ORIGIN API calls everywhere.
+
+====================================================
+1) Fix apiFetch / API base URL (CRITICAL)
+====================================================
+Locate apiFetch, fetcher, axios instance, or buildUrl helper.
+
+❌ REMOVE any hardcoded base URL like:
+- https://*.replit.dev
+- process.env.API_URL
+- process.env.VITE_API_URL
+- import.meta.env.VITE_API_URL
+
+✅ Force all API calls to be RELATIVE paths:
+
+Example (correct):
+
+fetch("/api/billing/subscription", {
+  method: "GET",
+  credentials: "include",
+  headers: { ... }
+})
+
+NOT:
+fetch("https://xxxx.replit.dev/api/billing/subscription")
+
+====================================================
+2) Search & destroy absolute API URLs
+====================================================
+Search entire repo for:
+- "http://"
+- "https://"
+- "replit.dev/api"
+- "API_URL"
+
+Replace ALL client-side API calls with relative paths:
+"/api/..."
+
+====================================================
+3) Ensure credentials are included
+====================================================
+In apiFetch:
+
+export async function apiFetch(path, options={}) {
+  return fetch(path, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  })
+}
+
+====================================================
+4) Remove cross-origin CORS hacks (if any)
+====================================================
+If you added:
+- cors({ origin: "*" })
+- allowCredentials hacks
+
+Leave backend as-is.
+Same-origin fixes cookie issues automatically.
+
+====================================================
+5) Verification (MANDATORY)
+====================================================
+After fix:
+- Open DevTools → Network
+- Click /api/me
+- Request URL MUST be:
+  https://<same-origin>/api/me
+- Cookies MUST be visible
+- Response MUST be 200
+
+Then:
+- /api/billing/subscription → 200 or 400 (NOT 401)
+- /packages page loads without error banner
+- "Start free" works
+
+====================================================
+Deliverable
+====================================================
+- All client API calls use relative paths only
+- No absolute API base URL anywhere
+- Auth works consistently
+- Subscription check succeeds

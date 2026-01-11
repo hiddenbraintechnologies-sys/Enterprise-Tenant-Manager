@@ -21,6 +21,7 @@ export interface AuthUser extends User {
 
 async function fetchUserTenants(accessToken: string): Promise<{ tenants: Tenant[]; defaultTenantId: string | null }> {
   const response = await fetch("/api/tenants/my", {
+    credentials: "include",
     headers: {
       "Authorization": `Bearer ${accessToken}`,
     },
@@ -36,6 +37,7 @@ async function fetchUser(): Promise<AuthUser | null> {
   
   if (accessToken) {
     const response = await fetch("/api/auth/me", {
+      credentials: "include",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
       },
@@ -86,6 +88,7 @@ async function fetchUser(): Promise<AuthUser | null> {
       if (refreshToken) {
         const refreshResponse = await fetch("/api/auth/refresh", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken }),
         });

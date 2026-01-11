@@ -65,6 +65,7 @@ export default function Login() {
   const performLogin = async (data: LoginForm, tenantId?: string, isRetry?: boolean): Promise<any> => {
     const response = await fetch("/api/auth/login", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...data, tenantId }),
     });

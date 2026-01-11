@@ -107,6 +107,7 @@ export default function Register() {
     mutationFn: async (data: RegistrationForm) => {
       const response = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName: data.firstName,
