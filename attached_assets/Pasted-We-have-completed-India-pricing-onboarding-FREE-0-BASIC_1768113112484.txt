@@ -1,0 +1,89 @@
+We have completed India pricing + onboarding (FREE ₹0 / BASIC ₹99 / PRO ₹199) and all tests pass.
+Now perform PRODUCTION DEPLOYMENT + post-deploy verification for payodsoft.co.uk.
+
+Do NOT add new features. Only:
+- (A) optional launch-safety adjustments (RBAC lock + grace UX) if missing
+- (B) deploy
+- (C) verify with scripts + a short report
+
+========================================
+STEP 1 — Pre-Deploy Safety Checks (must)
+========================================
+1) Run:
+   ./scripts/prepublish-check.sh
+2) Run:
+   npx tsx scripts/migrate-deploy.ts
+3) Confirm:
+   - Pricing plans seed on startup (idempotent)
+   - FREE plan auto-applies on tenant creation
+   - Upgrade nudges trigger ONLY when limits/pro-features are reached
+   - Auth/RBAC/Admin/2FA code paths unchanged
+
+If any fails, stop and print the exact failure.
+
+====================================================
+STEP 2 — Optional Launch-Safety Adjustments (only if missing)
+====================================================
+A) RBAC lock for pricing edits:
+- Ensure ONLY PLATFORM_SUPER_ADMIN can modify plan pricing/limits/feature flags.
+- PLATFORM_ADMIN must have read-only access.
+- If already enforced, do nothing.
+
+B) Record-limit “grace UX” (UI-only, no business logic changes):
+- When user hits plan record limit:
+  - Allow viewing existing records
+  - Block create actions
+  - Show friendly upgrade banner/modal
+- If already implemented, do nothing.
+
+Re-run tests if any adjustment was made.
+
+=========================
+STEP 3 — Deploy to Production
+=========================
+Deploy the current verified build to production domain payodsoft.co.uk.
+
+After deploy:
+- Confirm server starts cleanly
+- Confirm startup validation passes (no CONFIG_INVALID)
+- Confirm dev endpoints remain blocked
+
+=========================================
+STEP 4 — Post-Deploy Verification (must)
+=========================================
+1) Health checks:
+- GET https://payodsoft.co.uk/health
+- GET https://payodsoft.co.uk/health/db
+- GET https://payodsoft.co.uk/health/ready
+
+2) Run smoke tests against prod:
+- npx tsx scripts/smoke-prod-check.ts --baseUrl=https://payodsoft.co.uk
+
+3) Pricing/onboarding live validation (automated where possible; otherwise minimal scripted steps):
+- Create a new tenant and confirm:
+  - plan = FREE by default
+  - welcome card shows once per tenant
+- Simulate/trigger record limit and confirm:
+  - create is blocked
+  - existing records still viewable
+  - upgrade nudge appears
+- Confirm BASIC unlocks GST features and increases limits
+- Confirm PRO unlocks WhatsApp automation and unlimited records
+
+=========================================
+STEP 5 — Produce Deployment Report (must)
+=========================================
+Create POST_DEPLOY_PRICING_REPORT.md including:
+- Timestamp
+- Deployed commit hash
+- Migration output summary
+- Smoke test summary (pass/fail)
+- Health endpoint results
+- Pricing plan validation results
+- Confirmation: dev endpoints blocked + auth/admin security intact
+- Any warnings or known issues
+
+Final output must be one of:
+✅ “India pricing deployed and verified healthy on payodsoft.co.uk”
+OR
+❌ List the failing step + logs (redact secrets)

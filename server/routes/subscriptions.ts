@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { subscriptionService } from "../services/subscription";
-import { requirePlatformAdmin, requirePlatformPermission } from "../core";
+import { requirePlatformAdmin, requirePlatformPermission, requireSuperAdmin } from "../core";
 import { 
   insertGlobalPricingPlanSchema, 
   insertCountryPricingConfigSchema,
@@ -117,7 +117,7 @@ router.get("/plans/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/admin/plans", requirePlatformAdmin, async (req: Request, res: Response) => {
+router.post("/admin/plans", requireSuperAdmin(), async (req: Request, res: Response) => {
   try {
     const data = createPlanSchema.parse(req.body);
     const plan = await subscriptionService.createPlan(data as any);
@@ -131,7 +131,7 @@ router.post("/admin/plans", requirePlatformAdmin, async (req: Request, res: Resp
   }
 });
 
-router.put("/admin/plans/:id", requirePlatformAdmin, async (req: Request, res: Response) => {
+router.put("/admin/plans/:id", requireSuperAdmin(), async (req: Request, res: Response) => {
   try {
     const data = updatePlanSchema.parse(req.body);
     const plan = await subscriptionService.updatePlan(req.params.id, data as any);
@@ -148,7 +148,7 @@ router.put("/admin/plans/:id", requirePlatformAdmin, async (req: Request, res: R
   }
 });
 
-router.delete("/admin/plans/:id", requirePlatformAdmin, async (req: Request, res: Response) => {
+router.delete("/admin/plans/:id", requireSuperAdmin(), async (req: Request, res: Response) => {
   try {
     await subscriptionService.deletePlan(req.params.id);
     res.json({ success: true });
@@ -168,7 +168,7 @@ router.get("/admin/country-pricing", requirePlatformAdmin, async (req: Request, 
   }
 });
 
-router.put("/admin/country-pricing/:country", requirePlatformAdmin, async (req: Request, res: Response) => {
+router.put("/admin/country-pricing/:country", requireSuperAdmin(), async (req: Request, res: Response) => {
   try {
     const data = countryPricingSchema.parse({ ...req.body, country: req.params.country });
     const config = await subscriptionService.upsertCountryPricing(data as any);
@@ -182,7 +182,7 @@ router.put("/admin/country-pricing/:country", requirePlatformAdmin, async (req: 
   }
 });
 
-router.post("/admin/local-prices", requirePlatformAdmin, async (req: Request, res: Response) => {
+router.post("/admin/local-prices", requireSuperAdmin(), async (req: Request, res: Response) => {
   try {
     const data = setLocalPriceSchema.parse(req.body);
     await subscriptionService.setLocalPrice(data.planId, data.country, data.localPrice);

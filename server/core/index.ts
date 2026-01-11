@@ -1,10 +1,73 @@
 export * from "./context";
 export * from "./features";
-export * from "./permissions";
+export { 
+  PLATFORM_ROLES,
+  PLATFORM_PERMISSIONS,
+  Permissions,
+  ROLE_PERMISSIONS,
+  ROLE_SCOPE_RULES,
+  ROLE_DEFINITIONS,
+  SUPER_ADMIN_ONLY_PERMISSIONS,
+  SCOPE_TYPES,
+  TENANT_ROLES,
+  ISO_TO_TENANT_COUNTRY,
+  TENANT_COUNTRY_TO_ISO,
+  resolvePermissions,
+  hasResolvedPermission,
+  hasAnyPermission,
+  isSuperAdminOnly,
+  requiresScope,
+  canAccessCountry,
+  canAccessRegion,
+  getMenuItemsForRole,
+  filterMenuItems,
+  isoToTenantCountries,
+  tenantCountryToISO,
+  isTenantCountryInScope,
+  SUPER_ADMIN_PERMISSIONS,
+  PLATFORM_ADMIN_PERMISSIONS,
+  resolveAdminPermissions,
+  hasPlatformPermission,
+  PLATFORM_PERMISSION_DISPLAY_NAMES,
+  PERMISSIONS,
+  PermissionService,
+  permissionService,
+} from "./permissions";
+export type { 
+  PlatformRole,
+  TenantRole,
+  Role,
+  Permission,
+  PlatformPermission,
+  ScopeType,
+  ScopeContext,
+  ResolvedPermissions,
+  RoleDefinition,
+  MenuItem,
+  AdminRole,
+  ResolvedAdminPermissions,
+  PermissionCode,
+} from "./permissions";
 export * from "./tenants";
 export * from "./audit";
 export * from "./jwt";
-export * from "./auth-middleware";
+export { 
+  requirePlatformAdmin,
+  requirePlatformPermission,
+  requireSuperAdmin,
+  authenticateJWT,
+  requireCountryScope,
+  getAdminCountryScope,
+  requireRole,
+  validateTenantAccess,
+  requireScope,
+  isRateLimitBypassed,
+  rateLimit,
+  ROLE_HIERARCHY,
+  requireMinimumRole,
+  type AdminScope,
+  type PlatformAdminContext,
+} from "./auth-middleware";
 export * from "./tenant-isolation";
 export * from "./scoped-repository";
 export * from "./compliance";
