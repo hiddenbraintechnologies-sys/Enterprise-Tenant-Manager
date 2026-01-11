@@ -1,0 +1,56 @@
+Fix the “Unable to verify subscription status (401 tenant context required)” issue after signup.
+
+Goal:
+After Register/Login, the app must always have a valid tenant context BEFORE calling any subscription/billing APIs. New tenants must be auto-assigned to their newly created tenant and redirected to /packages without errors.
+
+Context:
+We enforce tenant isolation via tenant_id and require X-Tenant-ID (or tenantId claim) for billing/subscription endpoints. Currently /packages triggers subscription checks but tenant context is not set yet, causing 401.
+
+Tasks:
+
+A) Backend – ensure auth responses include default tenant
+1. In the signup/register endpoint (where tenant + admin user is created), ensure:
+   - userTenants record is created
+   - the new tenant is marked as the user’s default tenant (or the only tenant)
+2. Update the auth response payload to include:
+   - defaultTenantId
+   - defaultTenantSlug/subdomain if available
+   - (optional) tenant object summary { id, name, country, businessType }
+3. Add/confirm an endpoint exists:
+   GET /api/tenants/my (or /api/tenants/me)
+   returns the list of tenants for the logged-in user and includes a defaultTenantId.
+
+B) Client – Tenant bootstrap (must happen before subscription checks)
+1. In TenantProvider / tenant-context.tsx:
+   - If user is authenticated but tenantId is missing:
+     - call GET /api/tenants/my
+     - pick defaultTenantId (or first tenant)
+     - setTenantId() in state AND persist to localStorage/cookie
+   - Only AFTER tenantId is set, allow subscription/billing queries to run.
+2. In billing/subscription query hooks:
+   - gate the query with `enabled: !!tenantId`
+   - if tenantId not ready, show a lightweight loading state (not an error).
+3. In /packages page:
+   - do not show “Unable to verify subscription status” if tenantId is not loaded yet.
+   - show “Loading your workspace…” until tenantId exists.
+
+C) Routing / Guard correctness
+1. Ensure public routes remain public (/, /login, /register etc) — no subscription checks there.
+2. For /packages:
+   - require auth
+   - require tenant bootstrap (tenantId must exist)
+   - then fetch subscription status.
+
+D) Tests
+1. Add an integration test:
+   - signup → response includes defaultTenantId
+   - then call /api/billing/subscription with that tenant context and expect 200 (or a known default free status)
+2. Add a client-side test or minimal runtime assertion that subscription query does not fire before tenantId exists.
+
+Acceptance Criteria:
+- Fresh signup → redirect to /packages → NO error banner/toast
+- Subscription status loads successfully (default free plan if not selected yet)
+- Start Free / Get Basic buttons work without 401
+- Existing users with multiple tenants still work (default tenant selected automatically, or tenant picker if needed)
+
+Implement with minimal code changes and keep existing architecture (Express + Drizzle + TanStack Query).
