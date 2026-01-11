@@ -1,0 +1,79 @@
+We still get 401 for /api/billing/subscription after signup even though /api/me returns 200.
+Client-side gating did not fully stop early calls or tenant header injection is unreliable.
+
+Implement a secure backend fallback tenant resolver for billing endpoints:
+- Use X-Tenant-ID if provided
+- Otherwise infer tenantId from authenticated user context (defaultTenantId / userTenants)
+- Always enforce that the user belongs to the resolved tenant
+- Return correct error codes (400 for missing tenant, 401 for missing auth)
+
+========================================================
+A) Add tenant resolution helper (server)
+========================================================
+Create server/lib/resolveTenantId.ts (or similar):
+
+resolveTenantId(req):
+1) if req.headers["x-tenant-id"] exists -> return it
+2) else if req.user?.defaultTenantId exists -> return it
+3) else query DB for first tenant mapping for this user:
+   SELECT tenant_id FROM user_tenants WHERE user_id = ? ORDER BY created_at ASC LIMIT 1
+4) if none -> return null
+
+Then validate membership:
+- ensure user belongs to resolved tenant_id (user_tenants row exists)
+- if not -> return 404 TENANT_NOT_FOUND (security)
+
+========================================================
+B) Apply ONLY to billing routes (not global)
+========================================================
+In server/routes/billing.ts (or wherever /api/billing/subscription & /api/billing/plans live):
+Before running billing logic:
+- requireAuth must still run first
+- then call resolveTenantId(req)
+- attach to req.context.tenantId (or similar)
+
+Behavior:
+- If not authenticated -> 401 { code:"AUTH_REQUIRED" }
+- If authenticated but cannot resolve tenant -> 400 { code:"TENANT_REQUIRED" }
+- If tenant resolved but user not member -> 404 { code:"TENANT_NOT_FOUND" }
+
+IMPORTANT: This fallback should be enabled for:
+- GET /api/billing/subscription
+- POST /api/billing/select-plan
+- GET /api/billing/plans
+- /api/billing/* endpoints used during onboarding
+
+Do NOT weaken tenant isolation: still validate membership.
+
+========================================================
+C) Improve error payloads (so UI can handle)
+========================================================
+Standardize responses:
+- 401: { code:"AUTH_REQUIRED", message:"Authentication required" }
+- 400: { code:"TENANT_REQUIRED", message:"Tenant context required" }
+- 404: { code:"TENANT_NOT_FOUND", message:"Tenant not found" }
+
+========================================================
+D) Add dev-only logging (safe)
+========================================================
+DEV only: log a single line on subscription endpoint:
+- hasCookie: boolean
+- xTenantId: value or null
+- resolvedTenantId: value or null
+- userId: masked last 6 chars
+
+Do not log full cookies/tokens.
+
+========================================================
+E) Keep frontend gating, but now backend is robust
+========================================================
+Leave enabled: !!tenantId on frontend if present, but now even if a call slips through,
+billing will resolve tenant via default tenant and return 200.
+
+========================================================
+Acceptance Criteria
+========================================================
+1) After signup, /packages loads without 401 banner/toast.
+2) /api/billing/subscription returns 200 even if X-Tenant-ID is missing, using default tenant.
+3) Cross-tenant access still blocked (404) if user is not member of tenant.
+4) Tests pass and tenant isolation remains intact.
