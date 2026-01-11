@@ -9,6 +9,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { subscriptionService } from "../services/subscription";
 import { authenticateJWT } from "../core/auth-middleware";
 import { getPaymentProvider } from "../core/payments/provider-factory";
+import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
 
 const router = Router();
 
@@ -24,36 +25,6 @@ const verifyPaymentSchema = z.object({
   providerPaymentId: z.string().min(1),
   providerSignature: z.string().optional(),
 });
-
-function getTenantIdFromRequest(req: Request, requireAuth: boolean = false): string | null {
-  // Auth middleware sets req.context, not req.user
-  const context = (req as any).context;
-  const tenantId = context?.tenant?.id;
-  const headerTenantId = req.headers["x-tenant-id"] as string;
-  
-  if (tenantId) {
-    if (headerTenantId && headerTenantId !== tenantId) {
-      console.warn(`[billing] Tenant ID mismatch: header=${headerTenantId}, context=${tenantId}`);
-      return null;
-    }
-    return tenantId;
-  }
-  
-  if (requireAuth) {
-    return null;
-  }
-  
-  return headerTenantId || null;
-}
-
-function requireTenantMatch(req: Request): string | null {
-  // Auth middleware sets req.context.tenant, not req.user
-  const context = (req as any).context;
-  if (!context?.tenant?.id) {
-    return null;
-  }
-  return context.tenant.id;
-}
 
 async function getPlanByCode(code: string) {
   const [plan] = await db
@@ -89,37 +60,19 @@ async function getPendingPayment(tenantId: string): Promise<BillingPayment | nul
 
 router.get("/subscription", requiredAuth, async (req: Request, res: Response) => {
   try {
-    // First check if we have auth at all
-    // Auth middleware sets req.context, not req.user
-    const context = (req as any).context;
-    if (!context?.user) {
-      return res.status(401).json({ code: "AUTH_REQUIRED", error: "Authentication required" });
-    }
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "GET /subscription");
 
-    // SECURITY: Only trust tenantId from JWT (via req.context.tenant), never from header alone
-    // This prevents cross-tenant data access via header spoofing
-    const tenantId = context.tenant?.id;
-    
-    // If user has no tenant binding (new signup in progress), return graceful NONE
-    if (!tenantId) {
-      return res.json({ 
-        subscription: null, 
-        plan: null, 
-        status: "NONE", 
-        planCode: null,
-        isActive: false,
-        message: "No tenant context - please complete signup"
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
       });
     }
 
-    // Validate header matches JWT if provided (defense in depth)
-    const headerTenantId = req.headers["x-tenant-id"] as string;
-    if (headerTenantId && headerTenantId !== tenantId) {
-      console.warn(`[billing] Tenant ID mismatch: header=${headerTenantId}, jwt=${tenantId}`);
-      return res.status(403).json({ code: "TENANT_MISMATCH", error: "Tenant context mismatch" });
-    }
-
+    const tenantId = resolution.tenantId!;
     const subscription = await getSubscription(tenantId);
+    
     if (!subscription) {
       return res.json({ 
         subscription: null, 
@@ -141,7 +94,7 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
     });
   } catch (error) {
     console.error("[billing] Error fetching subscription:", error);
-    res.status(500).json({ code: "SERVER_ERROR", error: "Failed to fetch subscription" });
+    res.status(500).json({ code: "SERVER_ERROR", message: "Failed to fetch subscription" });
   }
 });
 
@@ -205,11 +158,17 @@ router.get("/plans", async (req: Request, res: Response) => {
 
 router.post("/select-plan", requiredAuth, async (req: Request, res: Response) => {
   try {
-    const tenantId = requireTenantMatch(req);
-    if (!tenantId) {
-      return res.status(401).json({ error: "Authentication required with valid tenant context" });
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "POST /select-plan");
+
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
     }
 
+    const tenantId = resolution.tenantId!;
     const { planCode } = selectPlanSchema.parse(req.body);
     const plan = await getPlanByCode(planCode);
     
@@ -330,11 +289,17 @@ router.post("/select-plan", requiredAuth, async (req: Request, res: Response) =>
 
 router.post("/checkout/create", requiredAuth, async (req: Request, res: Response) => {
   try {
-    const tenantId = requireTenantMatch(req);
-    if (!tenantId) {
-      return res.status(401).json({ error: "Authentication required with valid tenant context" });
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "POST /checkout/create");
+
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
     }
 
+    const tenantId = resolution.tenantId!;
     const pendingPayment = await getPendingPayment(tenantId);
     if (!pendingPayment) {
       return res.status(404).json({ error: "No pending payment found" });
@@ -414,11 +379,17 @@ router.post("/checkout/create", requiredAuth, async (req: Request, res: Response
 
 router.post("/checkout/verify", requiredAuth, async (req: Request, res: Response) => {
   try {
-    const tenantId = requireTenantMatch(req);
-    if (!tenantId) {
-      return res.status(401).json({ error: "Authentication required with valid tenant context" });
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "POST /checkout/verify");
+
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
     }
 
+    const tenantId = resolution.tenantId!;
     const { paymentId, providerPaymentId, providerSignature } = verifyPaymentSchema.parse(req.body);
 
     const [payment] = await db
@@ -511,11 +482,17 @@ router.post("/checkout/verify", requiredAuth, async (req: Request, res: Response
 
 router.get("/pending-payment", requiredAuth, async (req: Request, res: Response) => {
   try {
-    const tenantId = requireTenantMatch(req);
-    if (!tenantId) {
-      return res.status(401).json({ error: "Authentication required with valid tenant context" });
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "GET /pending-payment");
+
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
     }
 
+    const tenantId = resolution.tenantId!;
     const payment = await getPendingPayment(tenantId);
     if (!payment) {
       return res.json({ payment: null });
