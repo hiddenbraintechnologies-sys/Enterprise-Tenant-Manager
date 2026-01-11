@@ -158,12 +158,13 @@ export const INDIA_PLAN_ORDER: Record<string, number> = {
   "india_pro": 3,
 };
 
-export async function seedIndiaPricingPlans(): Promise<void> {
-  console.log("[india-pricing] Seeding India pricing plans...");
-
-  // ONLY deactivate legacy plans (no country prefix) - never touch other countries' plans
-  // This is safe because legacy codes don't have country prefixes like uk_, ae_, sg_, my_
-  await db
+/**
+ * One-time cleanup: Deactivate legacy plans that don't have country prefixes.
+ * This is safe to run multiple times but should ideally be a one-time migration.
+ * It ONLY affects plans in LEGACY_PLAN_CODES - never touches uk_, ae_, sg_, my_, us_ plans.
+ */
+export async function cleanupLegacyPlans(): Promise<number> {
+  const result = await db
     .update(globalPricingPlans)
     .set({ isActive: false, updatedAt: new Date() })
     .where(
@@ -171,7 +172,20 @@ export async function seedIndiaPricingPlans(): Promise<void> {
         eq(globalPricingPlans.isActive, true),
         sql`${globalPricingPlans.code} IN (${sql.raw(LEGACY_PLAN_CODES.map(c => `'${c}'`).join(','))})`
       )
-    );
+    )
+    .returning({ id: globalPricingPlans.id });
+  
+  return result.length;
+}
+
+export async function seedIndiaPricingPlans(): Promise<void> {
+  console.log("[india-pricing] Seeding India pricing plans...");
+
+  // Run legacy cleanup as part of India seeding (safe, idempotent)
+  const deactivatedCount = await cleanupLegacyPlans();
+  if (deactivatedCount > 0) {
+    console.log(`[india-pricing] Deactivated ${deactivatedCount} legacy plans`);
+  }
 
   // UPSERT India plans with correct displayOrder
   for (const config of Object.values(INDIA_PRICING_CONFIG)) {

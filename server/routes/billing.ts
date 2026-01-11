@@ -110,32 +110,52 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
   }
 });
 
-// Valid India plan codes in display order
-const INDIA_PLAN_CODES = ["india_free", "india_basic", "india_pro"];
-const INDIA_PLAN_ORDER: Record<string, number> = {
-  "india_free": 0,
-  "india_basic": 1,
-  "india_pro": 2,
+// Country-specific plan code prefixes and mappings
+const COUNTRY_PLAN_PREFIXES: Record<string, string> = {
+  "IN": "india_",
+  "india": "india_",
+  "UK": "uk_",
+  "AE": "ae_",
+  "SG": "sg_",
+  "MY": "my_",
+  "US": "us_",
+};
+
+const COUNTRY_CURRENCIES: Record<string, string> = {
+  "IN": "INR",
+  "india": "INR",
+  "UK": "GBP",
+  "AE": "AED",
+  "SG": "SGD",
+  "MY": "MYR",
+  "US": "USD",
 };
 
 router.get("/plans", async (req: Request, res: Response) => {
   try {
     const allPlans = await subscriptionService.getAllPlans();
-    const country = (req.query.country as string) || "india";
+    // Support both countryCode (ISO) and country (legacy) parameters
+    const countryCode = (req.query.countryCode as string) || (req.query.country as string) || "IN";
+    const normalizedCountry = countryCode.toUpperCase() === "INDIA" ? "IN" : countryCode.toUpperCase();
     
-    // Filter to only India plans and sort by display order
-    const indiaPlans = allPlans
-      .filter(plan => INDIA_PLAN_CODES.includes(plan.code))
-      .sort((a, b) => (INDIA_PLAN_ORDER[a.code] ?? 99) - (INDIA_PLAN_ORDER[b.code] ?? 99));
+    // Get the plan prefix for this country
+    const planPrefix = COUNTRY_PLAN_PREFIXES[normalizedCountry] || COUNTRY_PLAN_PREFIXES[countryCode] || "india_";
     
-    const plansWithPricing = await Promise.all(indiaPlans.map(async (plan) => {
+    // Filter to plans matching this country's prefix and sort by sortOrder
+    const countryPlans = allPlans
+      .filter(plan => plan.code.startsWith(planPrefix))
+      .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
+    
+    const currency = COUNTRY_CURRENCIES[normalizedCountry] || COUNTRY_CURRENCIES[countryCode] || "INR";
+    
+    const plansWithPricing = await Promise.all(countryPlans.map(async (plan) => {
       const localPrices = await subscriptionService.getLocalPrices(plan.id);
-      const countryPrice = localPrices.find(p => p.country === country);
+      const countryPrice = localPrices.find(p => p.country?.toUpperCase() === normalizedCountry);
       
       return {
         ...plan,
         localPrice: countryPrice?.localPrice || plan.basePrice,
-        currency: country === "india" ? "INR" : "USD",
+        currency,
         moduleAccess: subscriptionService.getAllModuleAccess(plan.tier),
         features: subscriptionService.getSubscriptionFeatures(plan.tier),
       };
