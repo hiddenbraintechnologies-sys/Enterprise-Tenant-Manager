@@ -45,6 +45,7 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
     
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       if (options.required) {
+        console.log(`[auth] Missing auth header for ${req.method} ${req.path}`);
         return res.status(401).json({ 
           message: "Missing authorization header",
           code: "MISSING_TOKEN"
@@ -54,9 +55,11 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
     }
 
     const token = authHeader.slice(7);
+    console.log(`[auth] Token received for ${req.method} ${req.path}: ${token.substring(0, 20)}...`);
     const decoded = await jwtAuthService.verifyAccessToken(token);
 
     if (!decoded) {
+      console.log(`[auth] Token verification FAILED for ${req.method} ${req.path}`);
       if (options.required) {
         return res.status(401).json({ 
           message: "Invalid or expired token",
@@ -65,6 +68,7 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
       }
       return next();
     }
+    console.log(`[auth] Token verified for userId=${decoded.userId}, tenantId=${decoded.tenantId}`);
 
     req.tokenPayload = decoded;
 
