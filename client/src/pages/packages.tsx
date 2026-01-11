@@ -12,7 +12,7 @@ import {
   Check, X, Zap, Star, Sparkles, ArrowRight, Loader2,
   Users, Database, MessageCircle, FileText, Headphones, AlertTriangle, RefreshCw
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -132,7 +132,15 @@ export default function PackagesPage() {
   // Fetch subscription when user is authenticated (backend handles NO_TENANT gracefully)
   const canFetchSubscription = Boolean(accessToken);
   
-  // Use default query function from queryClient (includes getAuthHeaders with X-Tenant-ID)
+  // Clear stale subscription cache on mount to avoid cached 401 errors
+  useEffect(() => {
+    if (canFetchSubscription) {
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
+    }
+  }, [canFetchSubscription, queryClient]);
+  
+  // Use custom queryFn that returns null on 401 instead of throwing
+  // This handles the case where user is authenticated but server returns 401 for some reason
   const { 
     data: subscriptionData, 
     isLoading: isLoadingSubscription, 
@@ -140,8 +148,9 @@ export default function PackagesPage() {
     error: subscriptionError,
     refetch: refetchSubscription, 
     isSuccess: isSubscriptionSuccess 
-  } = useQuery<SubscriptionData>({
+  } = useQuery<SubscriptionData | null>({
     queryKey: ["/api/billing/subscription"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
     enabled: canFetchSubscription,
     staleTime: 10000,
     retry: 2,
@@ -149,7 +158,8 @@ export default function PackagesPage() {
 
   // Determine if this is a real error vs expected onboarding states
   // NO_TENANT and NO_SUBSCRIPTION are valid onboarding states, not errors
-  const isOnboardingState = ["NO_TENANT", "NO_SUBSCRIPTION", "NONE"].includes(subscriptionData?.status || "");
+  // null from 401 is also treated as onboarding state (user can select plan)
+  const isOnboardingState = subscriptionData === null || ["NO_TENANT", "NO_SUBSCRIPTION", "NONE"].includes(subscriptionData?.status || "");
   const hasRealSubscriptionError = isSubscriptionError && !isOnboardingState;
 
   const { data: plansData, isLoading, isError: isPlansError, refetch: refetchPlans } = useQuery<PlansResponse>({
@@ -181,9 +191,9 @@ export default function PackagesPage() {
     refetchPlans();
   };
 
-  // Show guidance when subscription check succeeded but no active subscription
-  // This includes NO_TENANT, NO_SUBSCRIPTION, and NONE states
-  const showNoSubscriptionPrompt = isSubscriptionSuccess && !isLoadingSubscription && !subscriptionData?.isActive;
+  // Show guidance when subscription check completed but no active subscription
+  // This includes NO_TENANT, NO_SUBSCRIPTION, NONE states, and 401 (null) response
+  const showNoSubscriptionPrompt = !isLoadingSubscription && (isSubscriptionSuccess || subscriptionData === null) && !subscriptionData?.isActive;
 
   const selectPlanMutation = useMutation({
     mutationFn: async (planCode: string) => {
