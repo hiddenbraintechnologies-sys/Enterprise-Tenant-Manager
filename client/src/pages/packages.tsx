@@ -99,6 +99,8 @@ interface SubscriptionData {
   planCode: string | null;
   isActive: boolean;
   message?: string;
+  tenantId?: string;
+  canSelectPlan?: boolean;
 }
 
 const DASHBOARD_ROUTES: Record<string, string> = {
@@ -127,9 +129,8 @@ export default function PackagesPage() {
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
   const accessToken = localStorage.getItem("accessToken");
   
-
-  // CRITICAL: Only fetch subscription when tenantId is available
-  const canFetchSubscription = Boolean(tenantId) && Boolean(accessToken);
+  // Fetch subscription when user is authenticated (backend handles NO_TENANT gracefully)
+  const canFetchSubscription = Boolean(accessToken);
   
   // Use default query function from queryClient (includes getAuthHeaders with X-Tenant-ID)
   const { 
@@ -141,14 +142,15 @@ export default function PackagesPage() {
     isSuccess: isSubscriptionSuccess 
   } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription"],
-    enabled: canFetchSubscription, // 🔑 NEVER run when tenantId is null/undefined
+    enabled: canFetchSubscription,
     staleTime: 10000,
-    retry: canFetchSubscription ? 2 : false, // Don't retry if missing tenant
+    retry: 2,
   });
 
-  // Determine if this is a real error vs expected "NONE" state
-  const isNoneStatus = subscriptionData?.status === "NONE";
-  const hasRealSubscriptionError = isSubscriptionError && !isNoneStatus;
+  // Determine if this is a real error vs expected onboarding states
+  // NO_TENANT and NO_SUBSCRIPTION are valid onboarding states, not errors
+  const isOnboardingState = ["NO_TENANT", "NO_SUBSCRIPTION", "NONE"].includes(subscriptionData?.status || "");
+  const hasRealSubscriptionError = isSubscriptionError && !isOnboardingState;
 
   const { data: plansData, isLoading, isError: isPlansError, refetch: refetchPlans } = useQuery<PlansResponse>({
     queryKey: ["/api/billing/plans", { country: "india" }],
@@ -179,8 +181,9 @@ export default function PackagesPage() {
     refetchPlans();
   };
 
-  // Show guidance when subscription check succeeded but no active subscription (including NONE status)
-  const showNoSubscriptionPrompt = (isSubscriptionSuccess || isNoneStatus) && !isLoadingSubscription && !subscriptionData?.isActive;
+  // Show guidance when subscription check succeeded but no active subscription
+  // This includes NO_TENANT, NO_SUBSCRIPTION, and NONE states
+  const showNoSubscriptionPrompt = isSubscriptionSuccess && !isLoadingSubscription && !subscriptionData?.isActive;
 
   const selectPlanMutation = useMutation({
     mutationFn: async (planCode: string) => {
@@ -222,11 +225,21 @@ export default function PackagesPage() {
   });
 
   const handleSelectPlan = (planCode: string) => {
-    if (!tenantId || !accessToken) {
+    if (!accessToken) {
       toast({ title: "Please log in", description: "You need to be logged in to select a plan.", variant: "destructive" });
       setLocation("/login");
       return;
     }
+    
+    // If user has no tenant yet, redirect to tenant signup first
+    if (subscriptionData?.status === "NO_TENANT" || !tenantId) {
+      // Store selected plan for after tenant creation
+      localStorage.setItem("pendingPlanCode", planCode);
+      toast({ title: "Create your business first", description: "Set up your business details to continue." });
+      setLocation("/tenant-signup");
+      return;
+    }
+    
     setSelectedPlan(planCode);
     selectPlanMutation.mutate(planCode);
   };
@@ -245,9 +258,9 @@ export default function PackagesPage() {
 
   const displayPlans = plansData?.plans || [];
 
-  // 🔑 EARLY RETURN: Show loading state while waiting for tenant context
-  // This is a bootstrap state, NOT an error
-  if (!tenantId) {
+  // 🔑 EARLY RETURN: Show loading state while waiting for subscription check
+  // This applies when user is authenticated but we're still checking subscription status
+  if (isLoadingSubscription && !subscriptionData) {
     return (
       <div className="min-h-screen bg-background">
         <header className="border-b">

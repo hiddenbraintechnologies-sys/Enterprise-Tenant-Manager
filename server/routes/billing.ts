@@ -63,7 +63,21 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
     const resolution = await resolveTenantId(req);
     logTenantResolution(req, resolution, "GET /subscription");
 
+    // Handle no-tenant case gracefully for onboarding flow
+    // Users may be authenticated but not yet have a tenant
     if (resolution.error) {
+      if (resolution.error.code === "TENANT_REQUIRED" || resolution.error.code === "TENANT_NOT_FOUND") {
+        // User is authenticated but has no tenant yet - allow plan selection
+        return res.json({
+          subscription: null,
+          plan: null,
+          status: "NO_TENANT",
+          planCode: null,
+          isActive: false,
+          canSelectPlan: true,
+        });
+      }
+      // Only return 401 for actual auth issues
       return res.status(resolution.error.status).json({
         code: resolution.error.code,
         message: resolution.error.message,
@@ -77,20 +91,24 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
       return res.json({ 
         subscription: null, 
         plan: null, 
-        status: "NONE", 
+        status: "NO_SUBSCRIPTION", 
         planCode: null,
-        isActive: false 
+        isActive: false,
+        tenantId,
+        canSelectPlan: true,
       });
     }
 
     const plan = await subscriptionService.getPlan(subscription.planId);
     
+    const subStatus = subscription.status || "unknown";
     return res.json({
       subscription,
       plan,
-      status: subscription.status,
+      status: subStatus === "active" || subStatus === "trialing" ? "ACTIVE" : subStatus.toUpperCase(),
       planCode: plan?.code || null,
-      isActive: subscription.status === "active" || subscription.status === "trialing",
+      isActive: subStatus === "active" || subStatus === "trialing",
+      tenantId,
     });
   } catch (error) {
     console.error("[billing] Error fetching subscription:", error);
