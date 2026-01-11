@@ -133,7 +133,7 @@ export default function PackagesPage() {
   });
 
   const { data: plansData, isLoading, isError: isPlansError, refetch: refetchPlans } = useQuery<PlansResponse>({
-    queryKey: ["/api/billing/plans", "country=india"],
+    queryKey: ["/api/billing/plans", { country: "india" }],
     retry: 2,
   });
 
@@ -157,6 +157,7 @@ export default function PackagesPage() {
   };
 
   const handleRetryPlans = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/billing/plans"] });
     refetchPlans();
   };
 
