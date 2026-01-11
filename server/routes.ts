@@ -93,6 +93,7 @@ import furnitureRoutes from "./routes/furniture";
 import hrmsRoutes from "./routes/hrms";
 import servicesRoutes from "./routes/services";
 import subscriptionRoutes from "./routes/subscriptions";
+import billingRoutes from "./routes/billing";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
@@ -254,6 +255,9 @@ export async function registerRoutes(
 
   // Subscription & Pricing routes
   app.use('/api/subscriptions', subscriptionRoutes);
+  
+  // Billing & Checkout routes (for tenant onboarding)
+  app.use('/api/billing', billingRoutes);
 
   // Phase 3: Onboarding, Subscription Selection & Dashboard APIs
   app.use('/api/auth', phase3OnboardingRoutes);

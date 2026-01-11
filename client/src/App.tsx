@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
-import { TenantProvider, DashboardGuard, ModuleGuard, FeatureGuard, useTenant } from "@/contexts/tenant-context";
+import { TenantProvider, DashboardGuard, ModuleGuard, FeatureGuard, useTenant, OnboardingGuard } from "@/contexts/tenant-context";
 import { TourProvider } from "@/contexts/tour-context";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { CountryProvider } from "@/contexts/country-context";
@@ -95,6 +95,8 @@ import TenantSignup from "@/pages/tenant-signup";
 import SubscriptionSelect from "@/pages/subscription-select";
 import SubscriptionDashboard from "@/pages/subscription-dashboard";
 import Pricing from "@/pages/pricing";
+import Packages from "@/pages/packages";
+import Checkout from "@/pages/checkout";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -512,6 +514,8 @@ function AppRouter() {
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
         <Route path="/signup" component={TenantSignup} />
+        <Route path="/packages" component={Packages} />
+        <Route path="/checkout" component={Checkout} />
         <Route path="/pricing" component={Pricing} />
         <Route path="/subscription/select" component={SubscriptionSelect} />
         <Route path="/subscription-dashboard" component={SubscriptionDashboard} />
@@ -530,7 +534,15 @@ function AppRouter() {
 
   return (
     <TenantProvider>
-      <AuthenticatedRoutes />
+      <OnboardingGuard>
+        <Switch>
+          <Route path="/packages" component={Packages} />
+          <Route path="/checkout" component={Checkout} />
+          <Route>
+            <AuthenticatedRoutes />
+          </Route>
+        </Switch>
+      </OnboardingGuard>
     </TenantProvider>
   );
 }

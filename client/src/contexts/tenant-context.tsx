@@ -1,6 +1,7 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
 
@@ -309,6 +310,71 @@ export function FeatureGuard({ children, featureId, fallback = null }: FeatureGu
       return <>{fallback}</>;
     }
     return <Redirect to={dashboardRoute} />;
+  }
+
+  return <>{children}</>;
+}
+
+interface OnboardingGuardProps {
+  children: ReactNode;
+}
+
+interface SubscriptionData {
+  subscription: {
+    id: string;
+    status: string;
+  } | null;
+  plan: {
+    id: string;
+    tier: string;
+    name: string;
+  } | null;
+  status: string;
+  isActive: boolean;
+}
+
+export function OnboardingGuard({ children }: OnboardingGuardProps) {
+  const [location] = useLocation();
+  const { isAuthenticated, tenantId } = useAuth();
+
+  const { data: subscriptionData, isLoading, isError } = useQuery<SubscriptionData>({
+    queryKey: ["/api/billing/subscription", tenantId],
+    enabled: !!tenantId && isAuthenticated,
+    staleTime: 30000,
+    retry: 1,
+  });
+
+  const allowedPaths = ["/packages", "/checkout", "/pricing", "/subscription/select", "/onboarding"];
+  const isAllowedPath = allowedPaths.some(path => location.startsWith(path));
+
+  if (isAllowedPath) {
+    return <>{children}</>;
+  }
+
+  if (!isAuthenticated || !tenantId) {
+    return <>{children}</>;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading subscription...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <Redirect to="/packages" />;
+  }
+
+  const isActive = subscriptionData?.isActive === true;
+  const status = subscriptionData?.subscription?.status;
+  
+  if (!isActive && status !== "active" && status !== "trialing") {
+    return <Redirect to="/packages" />;
   }
 
   return <>{children}</>;

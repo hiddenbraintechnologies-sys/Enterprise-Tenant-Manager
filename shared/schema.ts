@@ -1505,7 +1505,7 @@ export const usageMetrics = pgTable("usage_metrics", {
 // ============================================
 
 export const paymentGatewayEnum = pgEnum("payment_gateway", ["stripe", "razorpay", "paytabs", "billplz"]);
-export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "suspended", "cancelled", "trialing"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "suspended", "cancelled", "trialing", "pending_payment"]);
 export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "yearly"]);
 export const currencyEnum = pgEnum("currency_code", ["INR", "AED", "GBP", "MYR", "SGD", "USD", "EUR", "AUD", "CAD", "JPY", "CNY", "SAR", "ZAR", "NGN", "BRL"]);
 
@@ -1767,6 +1767,35 @@ export const paymentAttempts = pgTable("payment_attempts", {
   index("idx_payment_attempts_tenant").on(table.tenantId),
   index("idx_payment_attempts_invoice").on(table.invoiceId),
   index("idx_payment_attempts_status").on(table.status),
+]);
+
+// Billing payment status enum for checkout flow
+export const billingPaymentStatusEnum = pgEnum("billing_payment_status", ["created", "processing", "paid", "failed", "cancelled", "refunded"]);
+
+// Billing payments for subscription checkout
+export const billingPayments = pgTable("billing_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  subscriptionId: varchar("subscription_id").references(() => tenantSubscriptions.id, { onDelete: "set null" }),
+  planId: varchar("plan_id").notNull().references(() => globalPricingPlans.id),
+  provider: varchar("provider", { length: 50 }).notNull().default("mock"), // mock, razorpay, stripe
+  status: billingPaymentStatusEnum("status").notNull().default("created"),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 5 }).notNull().default("INR"),
+  providerOrderId: varchar("provider_order_id", { length: 255 }),
+  providerPaymentId: varchar("provider_payment_id", { length: 255 }),
+  providerSignature: varchar("provider_signature", { length: 500 }),
+  errorCode: varchar("error_code", { length: 100 }),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").default({}),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_billing_payments_tenant").on(table.tenantId),
+  index("idx_billing_payments_subscription").on(table.subscriptionId),
+  index("idx_billing_payments_status").on(table.status),
+  index("idx_billing_payments_provider_order").on(table.providerOrderId),
 ]);
 
 // ============================================
@@ -2320,6 +2349,7 @@ export const insertInvoiceTemplateSchema = createInsertSchema(invoiceTemplates).
 export const insertTransactionLogSchema = createInsertSchema(transactionLogs).omit({ id: true, createdAt: true });
 export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, createdAt: true });
 export const insertPaymentAttemptSchema = createInsertSchema(paymentAttempts).omit({ id: true, createdAt: true });
+export const insertBillingPaymentSchema = createInsertSchema(billingPayments).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Usage-based billing insert schemas
 export const insertPlanUsageLimitsSchema = createInsertSchema(planUsageLimits).omit({ id: true, createdAt: true, updatedAt: true });
@@ -2500,6 +2530,9 @@ export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
 
 export type PaymentAttempt = typeof paymentAttempts.$inferSelect;
 export type InsertPaymentAttempt = z.infer<typeof insertPaymentAttemptSchema>;
+
+export type BillingPayment = typeof billingPayments.$inferSelect;
+export type InsertBillingPayment = z.infer<typeof insertBillingPaymentSchema>;
 
 // Usage-based billing types
 export type PlanUsageLimits = typeof planUsageLimits.$inferSelect;

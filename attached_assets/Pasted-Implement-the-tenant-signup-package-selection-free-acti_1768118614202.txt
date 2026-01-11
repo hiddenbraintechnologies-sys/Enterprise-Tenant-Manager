@@ -1,0 +1,72 @@
+Implement the tenant signup → package selection → (free activates OR paid requires payment) → dashboard flow.
+Razorpay will be integrated later, so build the system with proper states and server-side activation.
+Do NOT change auth/RBAC. Only onboarding/subscription flow + stubs.
+
+1) Routing & UX
+- After tenant registration success, redirect to /packages (not dashboard).
+- Create /packages page:
+  - show Free / Basic ₹99 / Pro ₹199
+  - selecting Free activates immediately
+  - selecting Basic/Pro routes to /checkout
+
+- Create /checkout page:
+  - shows plan summary and amount
+  - uses a payment provider abstraction:
+    - "mock payment" in dev (simulate success/failure)
+    - later plug Razorpay
+  - On successful payment verification from backend, redirect to tenant dashboard.
+
+2) Subscription & Payment States
+- Add DB tables:
+  a) subscriptions: tenantId, planCode, status, timestamps
+  b) payments: tenantId, subscriptionId, provider, status, amount, currency, provider ids fields
+
+- Status rules:
+  - Free selection: subscription ACTIVE immediately
+  - Paid selection: subscription PENDING_PAYMENT + payment CREATED
+  - Payment success: payment PAID + subscription ACTIVE
+  - Payment fail: payment FAILED, subscription remains PENDING_PAYMENT (or CANCELLED)
+
+3) Backend APIs
+- POST /api/billing/select-plan
+  body: { planCode }
+  behavior:
+    - if FREE: create subscription ACTIVE, apply plan flags, return redirectUrl to dashboard
+    - if BASIC/PRO: create subscription PENDING_PAYMENT, create payment CREATED, return checkoutSession info
+
+- POST /api/billing/checkout/create
+  behavior:
+    - in dev: return mock checkout token
+    - later: create Razorpay order and return orderId + keyId
+
+- POST /api/billing/checkout/verify
+  body: payment proof (mock or provider fields)
+  behavior:
+    - verify server-side
+    - on success: mark payment PAID, subscription ACTIVE, apply feature flags, return redirectUrl
+
+- GET /api/billing/subscription (tenant scoped) to show current plan/status.
+
+4) Apply Feature Flags on Activation
+- Ensure plan activation updates tenant feature flags in the existing feature flag system.
+- Dashboard must render correct features based on plan and flags.
+
+5) Guardrails
+- Tenant cannot access dashboard pages while subscription status is PENDING_PAYMENT (except /packages and /checkout).
+- Add an onboarding guard:
+  - if no ACTIVE subscription: force redirect to /packages
+- Ensure idempotency:
+  - selecting plan twice doesn’t create duplicates
+  - verify endpoint is safe to retry
+
+6) Tests (required)
+- After signup → redirected to /packages
+- Free selection → subscription ACTIVE → dashboard reachable
+- Paid selection → subscription PENDING_PAYMENT → dashboard blocked until payment verified
+- Verify success → subscription ACTIVE → dashboard reachable
+- Cross-tenant isolation preserved
+
+Deliverable:
+- working flow using mock payment now
+- Razorpay integration points clearly marked and ready to swap later
+- all tests passing

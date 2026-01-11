@@ -140,7 +140,7 @@ export default function TenantSignupPage() {
       });
 
       setTimeout(() => {
-        setLocation("/subscription/select");
+        setLocation("/packages");
       }, 100);
     },
     onError: (error: Error) => {
