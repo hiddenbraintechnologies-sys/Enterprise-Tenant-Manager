@@ -89,9 +89,10 @@ export default function Register() {
     queryClient.removeQueries({ queryKey: ["/api/billing/select-plan"] });
     queryClient.removeQueries({ queryKey: ["/api/auth"] });
     
-    // Clear localStorage tokens
+    // Clear ALL auth tokens from localStorage (including admin token)
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
+    localStorage.removeItem("mybizstream_admin_token"); // Admin token that getAuthHeaders checks first!
     localStorage.removeItem("tenantId");
     localStorage.removeItem("lastTenantId");
   }, []);
@@ -156,9 +157,10 @@ export default function Register() {
       queryClient.removeQueries({ queryKey: ["/api/billing/select-plan"] });
       queryClient.removeQueries({ queryKey: ["/api/auth"] });
       
-      // 2. Clear any stale tokens, then persist new auth tokens
+      // 2. Clear ALL stale tokens (including admin token), then persist new auth tokens
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
+      localStorage.removeItem("mybizstream_admin_token"); // Clear admin token too!
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
       
