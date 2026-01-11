@@ -35,13 +35,20 @@ interface PendingPayment {
   } | null;
 }
 
+interface CheckoutPayload {
+  orderId: string;
+  amountPaise: number;
+  currency: string;
+  mode: string;
+  paymentId: string;
+  subscriptionId: string;
+}
+
 interface CheckoutSession {
   success: boolean;
   provider: string;
-  orderId: string;
-  amount: number;
-  currency: string;
   paymentId: string;
+  checkoutPayload: CheckoutPayload;
   plan: {
     name: string;
     code: string;
@@ -80,10 +87,10 @@ export default function CheckoutPage() {
   });
 
   const verifyPaymentMutation = useMutation({
-    mutationFn: async (params: { paymentId: string; mockSuccess: boolean }) => {
+    mutationFn: async (params: { paymentId: string; providerPaymentId: string }) => {
       const response = await apiRequest("POST", "/api/billing/checkout/verify", {
         paymentId: params.paymentId,
-        mockSuccess: params.mockSuccess,
+        providerPaymentId: params.providerPaymentId,
       });
       return response.json();
     },
@@ -112,9 +119,10 @@ export default function CheckoutPage() {
   const handleMockPayment = (success: boolean) => {
     if (!pendingData?.payment?.id) return;
     setPaymentStatus("processing");
+    const mockId = `mock_pay_${success ? "success" : "fail"}_${Date.now()}`;
     verifyPaymentMutation.mutate({
       paymentId: pendingData.payment.id,
-      mockSuccess: success,
+      providerPaymentId: mockId,
     });
   };
 

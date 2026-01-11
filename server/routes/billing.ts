@@ -7,8 +7,8 @@ import {
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { subscriptionService } from "../services/subscription";
-import crypto from "crypto";
 import { authenticateJWT } from "../core/auth-middleware";
+import { getPaymentProvider } from "../core/payments/provider-factory";
 
 const router = Router();
 
@@ -21,9 +21,8 @@ const selectPlanSchema = z.object({
 
 const verifyPaymentSchema = z.object({
   paymentId: z.string().min(1),
-  providerPaymentId: z.string().optional(),
+  providerPaymentId: z.string().min(1),
   providerSignature: z.string().optional(),
-  mockSuccess: z.boolean().optional(),
 });
 
 function getTenantIdFromRequest(req: Request, requireAuth: boolean = false): string | null {
@@ -273,46 +272,66 @@ router.post("/checkout/create", requiredAuth, async (req: Request, res: Response
       return res.status(404).json({ error: "No pending payment found" });
     }
 
+    if (!pendingPayment.subscriptionId) {
+      return res.status(400).json({ error: "Payment not linked to subscription" });
+    }
+
     const plan = await subscriptionService.getPlan(pendingPayment.planId);
     if (!plan) {
       return res.status(404).json({ error: "Plan not found" });
     }
 
-    const isDev = process.env.NODE_ENV !== "production";
-    
-    if (isDev) {
-      const mockOrderId = `mock_order_${crypto.randomBytes(8).toString("hex")}`;
-      
-      await db
-        .update(billingPayments)
-        .set({ 
-          providerOrderId: mockOrderId,
-          updatedAt: new Date(),
-        })
-        .where(eq(billingPayments.id, pendingPayment.id));
+    const provider = getPaymentProvider();
+    const amountPaise = Math.round(parseFloat(pendingPayment.amount) * 100);
 
-      return res.json({
-        success: true,
-        provider: "mock",
-        orderId: mockOrderId,
-        amount: parseFloat(pendingPayment.amount),
-        currency: pendingPayment.currency,
-        paymentId: pendingPayment.id,
-        plan: {
-          name: plan.name,
-          code: plan.code,
-          tier: plan.tier,
-        },
-      });
+    if (pendingPayment.providerOrderId && pendingPayment.metadata) {
+      const storedPayload = (pendingPayment.metadata as any).checkoutPayload;
+      if (storedPayload) {
+        console.log(`[billing] Reusing existing order ${pendingPayment.providerOrderId} for payment ${pendingPayment.id}`);
+        return res.json({
+          success: true,
+          provider: provider.name.toLowerCase(),
+          paymentId: pendingPayment.id,
+          checkoutPayload: storedPayload,
+          plan: {
+            name: plan.name,
+            code: plan.code,
+            tier: plan.tier,
+          },
+        });
+      }
     }
+    
+    const orderResult = await provider.createOrder({
+      tenantId,
+      subscriptionId: pendingPayment.subscriptionId,
+      paymentId: pendingPayment.id,
+      amountPaise,
+      currency: "INR",
+      receipt: `rcpt_${pendingPayment.id}`,
+      notes: {
+        planCode: plan.code,
+        planName: plan.name,
+      },
+    });
+
+    await db
+      .update(billingPayments)
+      .set({ 
+        providerOrderId: orderResult.providerOrderId,
+        metadata: {
+          ...(pendingPayment.metadata as object || {}),
+          checkoutPayload: orderResult.checkoutPayload,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(billingPayments.id, pendingPayment.id));
 
     return res.json({
       success: true,
-      provider: "razorpay",
-      orderId: null,
-      amount: parseFloat(pendingPayment.amount),
-      currency: pendingPayment.currency,
+      provider: orderResult.provider.toLowerCase(),
       paymentId: pendingPayment.id,
+      checkoutPayload: orderResult.checkoutPayload,
       plan: {
         name: plan.name,
         code: plan.code,
@@ -332,7 +351,7 @@ router.post("/checkout/verify", requiredAuth, async (req: Request, res: Response
       return res.status(401).json({ error: "Authentication required with valid tenant context" });
     }
 
-    const { paymentId, providerPaymentId, providerSignature, mockSuccess } = verifyPaymentSchema.parse(req.body);
+    const { paymentId, providerPaymentId, providerSignature } = verifyPaymentSchema.parse(req.body);
 
     const [payment] = await db
       .select()
@@ -355,28 +374,32 @@ router.post("/checkout/verify", requiredAuth, async (req: Request, res: Response
       });
     }
 
-    const isDev = process.env.NODE_ENV !== "production";
-    let verified = false;
-
-    if (isDev) {
-      verified = mockSuccess !== false;
-    } else {
-      verified = true;
+    if (!payment.providerOrderId) {
+      return res.status(400).json({ error: "No order created for this payment" });
     }
 
-    if (!verified) {
+    const provider = getPaymentProvider();
+    const verifyResult = await provider.verifyPayment({
+      providerOrderId: payment.providerOrderId,
+      providerPaymentId,
+      providerSignature,
+      paymentId,
+      tenantId,
+    });
+
+    if (!verifyResult.verified) {
       await db
         .update(billingPayments)
         .set({ 
           status: "failed",
-          errorMessage: "Payment verification failed",
+          errorMessage: verifyResult.reason || "Payment verification failed",
           updatedAt: new Date(),
         })
         .where(eq(billingPayments.id, paymentId));
 
       return res.status(400).json({ 
         success: false, 
-        error: "Payment verification failed" 
+        error: verifyResult.reason || "Payment verification failed" 
       });
     }
 
@@ -384,7 +407,7 @@ router.post("/checkout/verify", requiredAuth, async (req: Request, res: Response
       .update(billingPayments)
       .set({ 
         status: "paid",
-        providerPaymentId: providerPaymentId || `mock_pay_${crypto.randomBytes(8).toString("hex")}`,
+        providerPaymentId,
         providerSignature: providerSignature || null,
         paidAt: new Date(),
         updatedAt: new Date(),
