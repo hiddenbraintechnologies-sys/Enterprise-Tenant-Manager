@@ -342,7 +342,7 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const recentlyActivated = localStorage.getItem("subscriptionJustActivated") === "true";
 
   const { data: subscriptionData, isLoading, isError, isSuccess, refetch, isFetching } = useQuery<SubscriptionData>({
-    queryKey: ["/api/billing/subscription", tenantId],
+    queryKey: ["/api/billing/subscription"],
     enabled: !!tenantId && isAuthenticated,
     staleTime: 30000,
     retry: 2,

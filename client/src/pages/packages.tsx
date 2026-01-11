@@ -138,7 +138,7 @@ export default function PackagesPage() {
     refetch: refetchSubscription, 
     isSuccess: isSubscriptionSuccess 
   } = useQuery<SubscriptionData>({
-    queryKey: ["/api/billing/subscription", { _tenant: tenantId }],
+    queryKey: ["/api/billing/subscription"],
     enabled: !!accessToken && !!tenantId, // Require BOTH auth AND tenant context
     staleTime: 10000,
     retry: 2,
@@ -197,7 +197,7 @@ export default function PackagesPage() {
         
         // Wait for subscription query to reflect active status before navigating
         // This prevents OnboardingGuard from seeing stale inactive data
-        await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription", { _tenant: tenantId }] });
+        await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
         
         // Refetch and wait for the data to be active
         const result = await refetchSubscription();
