@@ -126,6 +126,9 @@ export default function PackagesPage() {
 
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
   const accessToken = localStorage.getItem("accessToken");
+  
+  // Track if we're waiting for tenant context to be available
+  const isWaitingForTenant = !!accessToken && !tenantId;
 
   const { 
     data: subscriptionData, 
@@ -136,7 +139,7 @@ export default function PackagesPage() {
     isSuccess: isSubscriptionSuccess 
   } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription", tenantId],
-    enabled: !!accessToken, // Only require auth, tenant may be pending
+    enabled: !!accessToken && !!tenantId, // Require BOTH auth AND tenant context
     staleTime: 10000,
     retry: 2,
   });
@@ -296,7 +299,12 @@ export default function PackagesPage() {
           </Alert>
         )}
 
-        {(isLoading || isLoadingSubscription) ? (
+        {isWaitingForTenant ? (
+          <div className="flex flex-col items-center justify-center py-12" data-testid="loading-workspace">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mb-4" />
+            <p className="text-muted-foreground">Loading your workspace...</p>
+          </div>
+        ) : (isLoading || isLoadingSubscription) ? (
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
