@@ -55,7 +55,8 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
     }
 
     const token = authHeader.slice(7);
-    console.log(`[auth] Token received for ${req.method} ${req.path}: ${token.substring(0, 20)}...`);
+    // Log more of the token to identify if different tokens are being sent
+    console.log(`[auth] Token for ${req.method} ${req.path}: ...${token.substring(token.length - 30)}`);
     const decoded = await jwtAuthService.verifyAccessToken(token);
 
     if (!decoded) {
