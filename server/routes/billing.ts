@@ -110,12 +110,25 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
   }
 });
 
+// Valid India plan codes in display order
+const INDIA_PLAN_CODES = ["india_free", "india_basic", "india_pro"];
+const INDIA_PLAN_ORDER: Record<string, number> = {
+  "india_free": 0,
+  "india_basic": 1,
+  "india_pro": 2,
+};
+
 router.get("/plans", async (req: Request, res: Response) => {
   try {
-    const plans = await subscriptionService.getAllPlans();
+    const allPlans = await subscriptionService.getAllPlans();
     const country = (req.query.country as string) || "india";
     
-    const plansWithPricing = await Promise.all(plans.map(async (plan) => {
+    // Filter to only India plans and sort by display order
+    const indiaPlans = allPlans
+      .filter(plan => INDIA_PLAN_CODES.includes(plan.code))
+      .sort((a, b) => (INDIA_PLAN_ORDER[a.code] ?? 99) - (INDIA_PLAN_ORDER[b.code] ?? 99));
+    
+    const plansWithPricing = await Promise.all(indiaPlans.map(async (plan) => {
       const localPrices = await subscriptionService.getLocalPrices(plan.id);
       const countryPrice = localPrices.find(p => p.country === country);
       

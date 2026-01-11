@@ -54,7 +54,7 @@ const PLAN_FEATURES: Record<string, { included: string[]; excluded: string[] }> 
       "Priority support",
     ],
   },
-  starter: {
+  basic: {
     included: [
       "Up to 500 records",
       "Advanced analytics",
@@ -215,13 +215,13 @@ export default function PackagesPage() {
 
   const tierIcons: Record<string, React.ReactNode> = {
     free: <Zap className="h-5 w-5" />,
-    starter: <Star className="h-5 w-5" />,
+    basic: <Star className="h-5 w-5" />,
     pro: <Sparkles className="h-5 w-5" />,
   };
 
   const tierColors: Record<string, string> = {
     free: "bg-muted",
-    starter: "bg-blue-100 dark:bg-blue-900",
+    basic: "bg-blue-100 dark:bg-blue-900",
     pro: "bg-purple-100 dark:bg-purple-900",
   };
 
@@ -309,7 +309,7 @@ export default function PackagesPage() {
         ) : (
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {displayPlans.map((plan) => {
-              const isPopular = plan.tier === "starter" || plan.code.includes("basic");
+              const isPopular = plan.tier === "basic";
               const features = PLAN_FEATURES[plan.tier] || PLAN_FEATURES.free;
               const isSelected = selectedPlan === plan.code;
               const isFree = plan.tier === "free" || parseFloat(plan.basePrice) === 0;

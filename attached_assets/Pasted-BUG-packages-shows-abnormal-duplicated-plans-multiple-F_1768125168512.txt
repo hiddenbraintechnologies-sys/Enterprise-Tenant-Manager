@@ -1,0 +1,73 @@
+BUG: /packages shows abnormal duplicated plans (multiple “Free” cards) and unexpected tiers (Enterprise/Professional) not in our India plan (₹0/₹99/₹199).
+Fix must be permanent: enforce unique plans, cleanup duplicates, and filter UI correctly.
+
+Do NOT change auth/RBAC. Only billing plan data + packages UI filtering.
+All tests must pass.
+
+================================================
+1) Database: enforce uniqueness
+================================================
+Add a unique constraint so duplicates cannot exist:
+- unique(countryCode, planCode)
+(or if you use currency instead of country: unique(regionCode, planCode))
+
+If planCode is global-only, then unique(planCode) is OK, but we prefer countryCode+planCode.
+
+Create migration.
+
+================================================
+2) Cleanup existing duplicates + unwanted plans
+================================================
+Write a safe one-time migration/script that:
+- Keeps only these India plans for countryCode="IN":
+  FREE, BASIC, PRO
+- Deletes other plan codes for IN (Enterprise/Professional/etc.)
+- Deduplicates:
+  If multiple rows exist for (IN, FREE), keep the newest active one and delete others.
+
+Do NOT touch other countries unless needed.
+
+================================================
+3) Make seed idempotent (no more duplicates)
+================================================
+Update pricing auto-seed to use UPSERT, not INSERT:
+- For each (countryCode, planCode) do:
+  insert ... on conflict (countryCode, planCode) do update set price, limits, features, updatedAt
+
+Ensure seed does NOT create Enterprise/Professional tiers anymore unless explicitly planned.
+
+================================================
+4) Packages API / Query logic
+================================================
+If /packages calls an endpoint like GET /api/billing/plans:
+- Ensure it accepts countryCode
+- It must return only ACTIVE plans for that country, sorted by displayOrder
+
+If country is not passed, derive it from:
+- selected country cookie/localStorage
+- or tenant.countryCode fallback
+
+================================================
+5) Fix /packages UI rendering
+================================================
+Update /packages to:
+- request plans for countryCode="IN" for India tenants OR from selected country
+- filter allowed plan codes:
+  ["FREE", "BASIC", "PRO"]
+- enforce exact order: FREE -> BASIC -> PRO
+- render exactly 3 cards (no duplicates)
+- display correct prices:
+  FREE ₹0, BASIC ₹99, PRO ₹199
+- remove any “trial” copy if not planned
+
+================================================
+6) Verification + tests
+================================================
+Add/Update tests:
+- Plan seeding is idempotent (running twice does not increase count)
+- /api/billing/plans?countryCode=IN returns exactly 3 plans
+- /packages shows exactly 3 cards in correct order
+
+Finally:
+- Print a short report of before/after counts in plans table for IN
+- Confirm /packages shows the correct 3 cards only

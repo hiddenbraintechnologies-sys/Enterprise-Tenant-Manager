@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { globalPricingPlans, countryPricingConfigs, featureFlags } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export const INDIA_PRICING_TIERS = {
   FREE: "free",
@@ -136,8 +136,22 @@ export const INDIA_TIER_LIMITS: Record<string, {
   pro: { maxUsers: 10, maxCustomers: -1, maxRecords: -1, apiRateLimit: 10000 },
 };
 
+// Valid India plan codes
+export const INDIA_PLAN_CODES = ["india_free", "india_basic", "india_pro"] as const;
+
 export async function seedIndiaPricingPlans(): Promise<void> {
   console.log("[india-pricing] Seeding India pricing plans...");
+
+  // Deactivate all non-India plans in a single query using NOT IN
+  await db
+    .update(globalPricingPlans)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(globalPricingPlans.isActive, true),
+        sql`${globalPricingPlans.code} NOT IN ('india_free', 'india_basic', 'india_pro')`
+      )
+    );
 
   for (const [tierKey, config] of Object.entries(INDIA_PRICING_CONFIG)) {
     const existing = await db
