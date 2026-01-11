@@ -288,7 +288,52 @@ export default function PackagesPage() {
           </Alert>
         )}
 
-        {showNoSubscriptionPrompt && (
+        {/* Status: ACTIVE - show current plan with dashboard link */}
+        {subscriptionData?.isActive && (
+          <Alert className="max-w-md mx-auto mb-6 border-green-500/50 bg-green-50 dark:bg-green-900/20">
+            <AlertDescription className="flex items-center justify-between">
+              <div>
+                <span className="font-medium text-green-700 dark:text-green-300">
+                  Current plan: {subscriptionData?.plan?.name || "Active"}
+                </span>
+                <span className="block text-sm text-muted-foreground mt-1">
+                  Your subscription is active.
+                </span>
+              </div>
+              <Link href={DASHBOARD_ROUTES[tenant?.businessType || "service"] || "/dashboard/service"}>
+                <Button variant="outline" size="sm" data-testid="button-go-to-dashboard">
+                  Go to dashboard
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Status: PENDING_PAYMENT - show payment required message */}
+        {subscriptionData?.status?.toLowerCase() === "pending_payment" && (
+          <Alert className="max-w-md mx-auto mb-6 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20">
+            <AlertDescription className="flex items-center justify-between">
+              <div>
+                <span className="font-medium text-yellow-700 dark:text-yellow-300">
+                  Payment required for {subscriptionData?.plan?.name || "your plan"}
+                </span>
+                <span className="block text-sm text-muted-foreground mt-1">
+                  Complete payment to activate your subscription.
+                </span>
+              </div>
+              <Link href="/checkout">
+                <Button variant="default" size="sm" data-testid="button-continue-checkout">
+                  Continue to checkout
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Status: NONE - show choose plan prompt */}
+        {showNoSubscriptionPrompt && !subscriptionData?.isActive && subscriptionData?.status?.toLowerCase() !== "pending_payment" && (
           <Alert className="max-w-md mx-auto mb-6 border-primary/50 bg-primary/5">
             <AlertDescription className="text-center">
               <span className="font-medium">Choose a plan to get started.</span>

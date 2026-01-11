@@ -430,14 +430,21 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     return <Redirect to="/packages" />;
   }
 
-  // Check subscription status - allow access only if active or trialing
+  // Normalize status to lowercase for consistent comparison
   const isActive = subscriptionData?.isActive === true;
-  const status = subscriptionData?.subscription?.status;
+  const rawStatus = subscriptionData?.status || subscriptionData?.subscription?.status || "";
+  const status = rawStatus.toLowerCase();
   
+  // ACTIVE/TRIALING - allow access to dashboard routes
   if (isActive || status === "active" || status === "trialing") {
     return <>{children}</>;
   }
 
-  // No active subscription - redirect to packages
+  // PENDING_PAYMENT - redirect to checkout to complete payment
+  if (status === "pending_payment") {
+    return <Redirect to="/checkout" />;
+  }
+
+  // No subscription (NONE) or other states - redirect to packages
   return <Redirect to="/packages" />;
 }

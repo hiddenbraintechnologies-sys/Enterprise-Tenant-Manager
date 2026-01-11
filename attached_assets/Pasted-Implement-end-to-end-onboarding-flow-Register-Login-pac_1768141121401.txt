@@ -1,0 +1,129 @@
+Implement end-to-end onboarding flow:
+
+Register/Login → /packages → choose plan → activate subscription → redirect to correct dashboard with features.
+
+Razorpay integration will be done later, so for now:
+- Free activates immediately
+- Paid creates a PENDING_PAYMENT subscription and shows a friendly “Payment setup pending” UI
+- No user should ever see 401/tenant-context errors in this flow
+
+Do NOT modify auth/RBAC. Only onboarding/subscription logic + minimal UI.
+
+================================================
+1) Subscription States & Rules
+================================================
+Add/confirm subscription states:
+- NONE (no subscription yet)
+- ACTIVE (plan active)
+- PENDING_PAYMENT (user selected paid plan but hasn’t paid)
+- CANCELLED (optional)
+
+Plan codes:
+- FREE
+- BASIC
+- PRO
+
+Rules:
+- New signup → subscription = NONE → must go to /packages
+- Selecting FREE → subscription ACTIVE immediately
+- Selecting BASIC/PRO → subscription PENDING_PAYMENT (until Razorpay)
+- If subscription is PENDING_PAYMENT:
+  - block /dashboard/* access
+  - allow only /packages and /checkout (checkout can be placeholder for now)
+
+================================================
+2) Backend APIs (Tenant-scoped)
+================================================
+A) GET /api/billing/subscription
+Return always 200:
+- If no subscription exists: { status:"NONE", planCode:null }
+- If exists: { status, planCode, limits/flags summary }
+
+B) POST /api/billing/select-plan
+Body: { planCode: "FREE"|"BASIC"|"PRO" }
+
+Behavior:
+- Validate tenant context + auth
+- If FREE:
+  - upsert subscription ACTIVE
+  - apply feature flags for FREE
+  - return { status:"ACTIVE", redirectUrl: <dashboardUrl> }
+- If BASIC/PRO:
+  - upsert subscription PENDING_PAYMENT
+  - store selected plan and intended flags but DO NOT activate
+  - return { status:"PENDING_PAYMENT", redirectUrl:"/checkout?plan=BASIC" }
+
+C) GET /api/billing/plans
+Return India plans ordered: FREE, BASIC, PRO with INR pricing
+
+================================================
+3) Feature Flags by Plan (already used in system)
+================================================
+On ACTIVE plan:
+- FREE: 1 user, 50 records, core dashboard
+- BASIC: 3 users, 500 records, gst_features
+- PRO: 10 users, unlimited_records, whatsapp_automation, priority_support
+
+Store flags in existing feature flag system (per-tenant).
+
+For PENDING_PAYMENT:
+- do NOT enable paid flags yet.
+
+================================================
+4) Frontend Pages
+================================================
+A) /packages page
+- Must load subscription status and plans (no error banners for NONE)
+- Shows current status:
+  - NONE → “Choose a plan”
+  - ACTIVE → “Current plan: <plan>” + “Go to dashboard”
+  - PENDING_PAYMENT → “Payment required to activate <plan>” + “Continue to checkout”
+
+Buttons:
+- Free card button: “Start free”
+- Basic/Pro button: “Continue” (takes to /checkout)
+
+B) /checkout page (placeholder until Razorpay)
+- Show selected plan and message:
+  “Payment integration (Razorpay) will be enabled soon.”
+- Provide:
+  - “Back to plans”
+  - (dev-only) “Mark as Paid (simulate)” button behind DEV flag
+    -> calls POST /api/billing/dev/activate-plan (optional)
+This lets us test the end-to-end flow without Razorpay.
+
+================================================
+5) Guards / Redirects
+================================================
+A) After signup success:
+- redirect to /packages always
+
+B) OnboardingGuard logic:
+- If subscription status is NONE:
+  - redirect to /packages
+- If PENDING_PAYMENT:
+  - block /dashboard/* and redirect to /checkout
+- If ACTIVE:
+  - allow /dashboard/*
+
+Ensure these guards run only in authenticated route tree and only after tenant context bootstrap is ready.
+
+================================================
+6) Tests (must pass)
+================================================
+Add/adjust integration tests:
+- New tenant signup → visiting /packages shows plans (subscription NONE)
+- Selecting FREE → subscription ACTIVE → dashboard allowed
+- Selecting BASIC → subscription PENDING_PAYMENT → dashboard blocked → redirected to /checkout
+- Subscription endpoint returns 200 for NONE (no 404/500)
+- Tenant isolation preserved
+
+================================================
+Deliverables
+================================================
+- Stable onboarding flow with no tenant-context 401 errors
+- /packages always works post-signup
+- Free activates immediately and routes to dashboard
+- Paid plans create PENDING_PAYMENT and route to checkout placeholder
+- Feature flags applied only on ACTIVE plans
+- All tests passing
