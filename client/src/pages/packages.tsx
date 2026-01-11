@@ -1,18 +1,20 @@
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   Check, X, Zap, Star, Sparkles, ArrowRight, Loader2,
-  Users, Database, MessageCircle, FileText, Headphones
+  Users, Database, MessageCircle, FileText, Headphones, AlertTriangle, RefreshCw
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Plan {
   id: string;
@@ -90,24 +92,83 @@ function formatPrice(price: string, currency: string): string {
   }).format(num);
 }
 
+interface SubscriptionData {
+  subscription: { id: string; status: string } | null;
+  plan: { id: string; tier: string; name: string } | null;
+  status: string;
+  isActive: boolean;
+}
+
+const DASHBOARD_ROUTES: Record<string, string> = {
+  clinic: "/dashboard/clinic",
+  salon: "/dashboard/salon",
+  pg: "/dashboard/pg",
+  coworking: "/dashboard/coworking",
+  service: "/dashboard/service",
+  real_estate: "/dashboard/real-estate",
+  tourism: "/dashboard/tourism",
+  education: "/dashboard/education",
+  logistics: "/dashboard/logistics",
+  legal: "/dashboard/legal",
+  furniture_manufacturing: "/dashboard/furniture",
+  software_services: "/dashboard/software-services",
+  consulting: "/dashboard/consulting",
+};
+
 export default function PackagesPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const { tenant, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
 
-  const tenantId = localStorage.getItem("tenantId");
+  const tenantId = tenant?.id || localStorage.getItem("tenantId");
   const accessToken = localStorage.getItem("accessToken");
 
-  const { data: plansData, isLoading } = useQuery<PlansResponse>({
-    queryKey: ["/api/billing/plans", "country=india"],
+  const { data: subscriptionData, isLoading: isLoadingSubscription, isError: isSubscriptionError, refetch: refetchSubscription, isSuccess: isSubscriptionSuccess } = useQuery<SubscriptionData>({
+    queryKey: ["/api/billing/subscription", tenantId],
+    enabled: !!tenantId && !!accessToken,
+    staleTime: 10000,
+    retry: 2,
   });
+
+  const { data: plansData, isLoading, isError: isPlansError, refetch: refetchPlans } = useQuery<PlansResponse>({
+    queryKey: ["/api/billing/plans", "country=india"],
+    retry: 2,
+  });
+
+  // Redirect to dashboard if already has active subscription
+  // Only redirect after subscription query has succeeded and we have valid data
+  useEffect(() => {
+    // Don't redirect while still loading subscription data
+    if (isLoadingSubscription || !isSubscriptionSuccess) {
+      return;
+    }
+    // Only redirect if subscription is confirmed active and we have a valid business type
+    if (subscriptionData?.isActive === true && tenant?.businessType) {
+      const dashboardRoute = DASHBOARD_ROUTES[tenant.businessType] || "/dashboard/service";
+      setLocation(dashboardRoute);
+    }
+  }, [subscriptionData, tenant, setLocation, isLoadingSubscription, isSubscriptionSuccess]);
+
+  // Use refetch directly - invalidation happens automatically with staleTime
+  const handleRetrySubscription = () => {
+    refetchSubscription();
+  };
+
+  const handleRetryPlans = () => {
+    refetchPlans();
+  };
+
+  // Show guidance when subscription check succeeded but no active subscription
+  const showNoSubscriptionPrompt = isSubscriptionSuccess && !isLoadingSubscription && !subscriptionData?.isActive;
 
   const selectPlanMutation = useMutation({
     mutationFn: async (planCode: string) => {
       const response = await apiRequest("POST", "/api/billing/select-plan", { planCode });
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.requiresPayment) {
         localStorage.setItem("pendingPaymentId", data.payment?.id || "");
         localStorage.setItem("pendingPlanCode", data.plan?.code || "");
@@ -116,8 +177,23 @@ export default function PackagesPage() {
       } else {
         localStorage.setItem("subscriptionStatus", "active");
         localStorage.setItem("subscriptionTier", data.plan?.tier || "free");
+        
+        // Wait for subscription query to reflect active status before navigating
+        // This prevents OnboardingGuard from seeing stale inactive data
+        await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription", tenantId] });
+        
+        // Refetch and wait for the data to be active
+        const result = await refetchSubscription();
+        
         toast({ title: "Plan activated", description: `Your ${data.plan?.name || "Free"} plan is now active.` });
-        setLocation(data.redirectUrl || "/dashboard");
+        
+        // Only navigate once we confirm subscription is active
+        if (result.data?.isActive) {
+          setLocation(data.redirectUrl || "/dashboard");
+        } else {
+          // If not active yet, set a flag and let the useEffect handle redirect once active
+          localStorage.setItem("subscriptionJustActivated", "true");
+        }
       }
     },
     onError: (error: Error) => {
@@ -169,7 +245,44 @@ export default function PackagesPage() {
           </p>
         </div>
 
-        {isLoading ? (
+        {isSubscriptionError && (
+          <Alert variant="destructive" className="max-w-md mx-auto mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Unable to verify subscription status.</span>
+              <Button variant="outline" size="sm" onClick={handleRetrySubscription} data-testid="button-retry-subscription">
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isPlansError && (
+          <Alert variant="destructive" className="max-w-md mx-auto mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Unable to load pricing plans.</span>
+              <Button variant="outline" size="sm" onClick={handleRetryPlans} data-testid="button-retry-plans">
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {showNoSubscriptionPrompt && (
+          <Alert className="max-w-md mx-auto mb-6 border-primary/50 bg-primary/5">
+            <AlertDescription className="text-center">
+              <span className="font-medium">Choose a plan to get started.</span>
+              <span className="block text-sm text-muted-foreground mt-1">
+                Select Free to start immediately, or choose a paid plan for more features.
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {(isLoading || isLoadingSubscription) ? (
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[1, 2, 3].map((i) => (
               <Card key={i}>

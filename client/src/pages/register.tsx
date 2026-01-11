@@ -77,26 +77,6 @@ const businessTypeOptions = [
   { value: "consulting", label: "Consulting / Professional Services" },
 ];
 
-const DASHBOARD_ROUTES: Record<string, string> = {
-  clinic: "/dashboard/clinic",
-  salon: "/dashboard/salon",
-  pg: "/dashboard/pg",
-  coworking: "/dashboard/coworking",
-  service: "/dashboard/service",
-  real_estate: "/dashboard/real-estate",
-  tourism: "/dashboard/tourism",
-  education: "/dashboard/education",
-  logistics: "/dashboard/logistics",
-  legal: "/dashboard/legal",
-  furniture_manufacturing: "/dashboard/furniture",
-  software_services: "/dashboard/software-services",
-  consulting: "/dashboard/consulting",
-};
-
-function getDashboardRoute(businessType: string): string {
-  return DASHBOARD_ROUTES[businessType] || DASHBOARD_ROUTES.service;
-}
-
 export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -168,11 +148,9 @@ export default function Register() {
         description: `Welcome to MyBizStream, ${data.user.firstName}!`,
       });
 
-      const businessType = data.tenant.businessType || "service";
-      const dashboardRoute = getDashboardRoute(businessType);
-      
+      // Always redirect to packages for new signups to select a plan
       setTimeout(() => {
-        setLocation(dashboardRoute);
+        setLocation("/packages");
       }, 100);
     },
     onError: (error: Error) => {

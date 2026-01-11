@@ -1,0 +1,128 @@
+BUG: New tenants can still sign up and land directly on dashboard. Pricing cards (/packages) are not implemented or not reachable.
+Fix the onboarding workflow so signup ALWAYS goes to packages first, and dashboards are blocked until plan is active.
+
+Do NOT change auth/RBAC. Only routing + onboarding subscription gate + packages UI.
+All tests must pass.
+
+================================================
+1) Identify current post-signup redirect
+================================================
+Locate where signup success redirects to dashboard (likely in:
+- client signup page handler
+- auth callback handler
+- tenant onboarding logic
+- backend signup response payload)
+
+Change behavior:
+- After successful tenant creation/signup, ALWAYS redirect to:
+  /packages
+NOT dashboard.
+
+If backend returns redirectUrl, set it to /packages.
+If frontend hardcodes dashboard redirect, change it.
+
+================================================
+2) Implement /packages page with pricing cards
+================================================
+Create (or fix) route:
+- /packages
+
+UI requirements:
+- 3 cards:
+  - FREE: ₹0
+  - BASIC: ₹99
+  - PRO: ₹199
+- Each card shows key limits (users, records) and feature highlights
+- Buttons:
+  - FREE: "Start Free" -> activates immediately
+  - BASIC/PRO: "Continue" -> goes to /checkout?plan=BASIC or PRO
+- Must be tenant-scoped and use existing UI components (shadcn)
+
+================================================
+3) Add Subscription Gate (NO BYPASS)
+================================================
+Implement an OnboardingGuard that runs on all tenant dashboard routes:
+
+Rules:
+- Allow access to:
+  /packages
+  /checkout
+  /logout
+  /health (if applicable)
+- Block access to any /dashboard/* if subscription status is not ACTIVE.
+- If subscription missing OR status != ACTIVE:
+  redirect -> /packages
+
+Where to apply:
+- In your DashboardGuard wrapper OR router guard layer.
+- Ensure it runs after authentication but before rendering dashboards.
+
+Also handle edge case:
+- If tenant already has ACTIVE subscription, /packages should redirect to dashboard (optional but nice).
+
+================================================
+4) Subscription state (minimal implementation)
+================================================
+If you already have plan system (FREE/BASIC/PRO feature flags) from India pricing:
+- Reuse it.
+
+Add/confirm an endpoint:
+- GET /api/billing/subscription (tenant scoped)
+Returns:
+{ planCode, status, limits, features }
+
+If none exists, implement minimal:
+- On tenant creation, create FREE subscription by default OR create NONE and force plan selection.
+Recommended: create FREE by default but still show /packages once (optional).
+However per your requirement: user should choose plan, so default can be "NONE" until selected.
+
+================================================
+5) Activate Free plan
+================================================
+Implement:
+POST /api/billing/select-plan
+body: { planCode: "FREE" | "BASIC" | "PRO" }
+
+Behavior:
+- If FREE:
+  - set subscription ACTIVE immediately
+  - apply feature flags for FREE
+  - return redirectUrl to correct dashboard
+- If BASIC/PRO:
+  - create subscription PENDING_PAYMENT
+  - return checkoutUrl (/checkout?plan=...)
+  - do NOT activate features yet
+
+================================================
+6) Checkout page stub (for now)
+================================================
+Create/fix:
+- /checkout?plan=BASIC|PRO
+
+For now:
+- Show plan summary and a "Pay Now" button (mock payment)
+- On clicking Pay Now:
+  call POST /api/billing/checkout/verify (mock success)
+  backend marks subscription ACTIVE and applies flags
+  redirect to dashboard
+
+Keep clear TODO markers for Razorpay integration later.
+
+================================================
+7) Tests (must add / update)
+================================================
+Add tests to prevent regression:
+- After signup: response/redirect leads to /packages (not dashboard)
+- Dashboard access without ACTIVE subscription redirects to /packages
+- /packages renders the 3 pricing cards
+- Selecting FREE sets subscription ACTIVE and dashboard becomes reachable
+- BASIC/PRO sets PENDING_PAYMENT and dashboard remains blocked until verify
+
+================================================
+8) Output required
+================================================
+After fixing, report:
+- Which file controlled signup redirect and what changed
+- Which guard blocks dashboard access
+- Screenshot or description of /packages showing 3 cards
+- Test results summary (all passing)

@@ -335,27 +335,48 @@ interface SubscriptionData {
 
 export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [location] = useLocation();
-  const { isAuthenticated, tenantId } = useAuth();
+  const { isAuthenticated, tenant } = useAuth();
+  const tenantId = tenant?.id;
 
-  const { data: subscriptionData, isLoading, isError } = useQuery<SubscriptionData>({
+  // Check for recently activated subscription flag (set by packages page on activation)
+  const recentlyActivated = localStorage.getItem("subscriptionJustActivated") === "true";
+
+  const { data: subscriptionData, isLoading, isError, isSuccess, refetch, isFetching } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription", tenantId],
     enabled: !!tenantId && isAuthenticated,
     staleTime: 30000,
-    retry: 1,
+    retry: 2,
   });
+
+  // When activation flag is detected and subscription is active, clear the flag
+  useEffect(() => {
+    if (recentlyActivated && subscriptionData?.isActive === true) {
+      localStorage.removeItem("subscriptionJustActivated");
+    }
+  }, [recentlyActivated, subscriptionData]);
+
+  // If activation flag is set but subscription still shows inactive, refetch
+  useEffect(() => {
+    if (recentlyActivated && tenantId && isAuthenticated && !isFetching && !subscriptionData?.isActive) {
+      refetch();
+    }
+  }, [recentlyActivated, tenantId, isAuthenticated, isFetching, subscriptionData, refetch]);
 
   const allowedPaths = ["/packages", "/checkout", "/pricing", "/subscription/select", "/onboarding"];
   const isAllowedPath = allowedPaths.some(path => location.startsWith(path));
 
+  // Always allow access to onboarding-related paths
   if (isAllowedPath) {
     return <>{children}</>;
   }
 
+  // Allow access if not authenticated (login/register pages handle this)
   if (!isAuthenticated || !tenantId) {
     return <>{children}</>;
   }
 
-  if (isLoading) {
+  // Wait for subscription query to complete before making redirect decisions
+  if (isLoading || isFetching) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -366,16 +387,57 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     );
   }
 
+  // If query failed after retries, show error with retry option instead of blind redirect
   if (isError) {
+    // Use refetch directly - simpler and avoids duplicate requests
+    const handleRetry = () => {
+      refetch();
+    };
+
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 max-w-md text-center px-4">
+          <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+            <span className="text-2xl">!</span>
+          </div>
+          <h2 className="text-lg font-semibold">Unable to load subscription</h2>
+          <p className="text-sm text-muted-foreground">
+            We couldn't verify your subscription status. This may be a temporary network issue.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRetry}
+              className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              data-testid="button-retry-subscription"
+            >
+              Try again
+            </button>
+            <a
+              href="/packages"
+              className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
+              data-testid="link-select-plan"
+            >
+              Select a plan
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Only proceed if query succeeded - don't allow access on null/undefined data
+  if (!isSuccess) {
     return <Redirect to="/packages" />;
   }
 
+  // Check subscription status - allow access only if active or trialing
   const isActive = subscriptionData?.isActive === true;
   const status = subscriptionData?.subscription?.status;
   
-  if (!isActive && status !== "active" && status !== "trialing") {
-    return <Redirect to="/packages" />;
+  if (isActive || status === "active" || status === "trialing") {
+    return <>{children}</>;
   }
 
-  return <>{children}</>;
+  // No active subscription - redirect to packages
+  return <Redirect to="/packages" />;
 }

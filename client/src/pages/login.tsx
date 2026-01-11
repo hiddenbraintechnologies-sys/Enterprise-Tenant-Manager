@@ -45,25 +45,6 @@ interface TenantOption {
   businessType: string | null;
 }
 
-const DASHBOARD_ROUTES: Record<string, string> = {
-  clinic: "/dashboard/clinic",
-  salon: "/dashboard/salon",
-  pg: "/dashboard/pg",
-  coworking: "/dashboard/coworking",
-  service: "/dashboard/service",
-  real_estate: "/dashboard/real-estate",
-  tourism: "/dashboard/tourism",
-  education: "/dashboard/education",
-  logistics: "/dashboard/logistics",
-  legal: "/dashboard/legal",
-  furniture_manufacturing: "/dashboard/furniture",
-  software_services: "/dashboard/software-services",
-  consulting: "/dashboard/consulting",
-};
-
-function getDashboardRoute(businessType: string): string {
-  return DASHBOARD_ROUTES[businessType] || DASHBOARD_ROUTES.service;
-}
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -135,11 +116,9 @@ export default function Login() {
         description: `Signed in as ${data.user.email}`,
       });
 
-      const businessType = data.tenant?.businessType || "service";
-      const dashboardRoute = getDashboardRoute(businessType);
-      
+      // Redirect to packages - OnboardingGuard will handle redirect to dashboard if subscription is active
       setTimeout(() => {
-        setLocation(dashboardRoute);
+        setLocation("/packages");
       }, 100);
     },
     onError: (error: Error) => {
@@ -177,11 +156,9 @@ export default function Login() {
         description: `Signed in as ${data.user.email}`,
       });
 
-      const businessType = data.tenant?.businessType || "service";
-      const dashboardRoute = getDashboardRoute(businessType);
-      
+      // Redirect to packages - OnboardingGuard will handle redirect to dashboard if subscription is active
       setTimeout(() => {
-        setLocation(dashboardRoute);
+        setLocation("/packages");
       }, 100);
     },
     onError: (error: Error) => {
