@@ -218,8 +218,10 @@ export default function PackagesPage() {
         localStorage.setItem("subscriptionStatus", "active");
         localStorage.setItem("subscriptionTier", data.plan?.tier || "free");
         
+        // Refresh auth data to get updated tenant info
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        
         // Wait for subscription query to reflect active status before navigating
-        // This prevents OnboardingGuard from seeing stale inactive data
         await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
         
         // Refetch and wait for the data to be active
@@ -227,12 +229,18 @@ export default function PackagesPage() {
         
         toast({ title: "Plan activated", description: `Your ${data.plan?.name || "Free"} plan is now active.` });
         
+        // Navigate to business-type-specific dashboard
+        const businessType = tenant?.businessType || "service";
+        const dashboardRoute = DASHBOARD_ROUTES[businessType] || "/dashboard/service";
+        
         // Only navigate once we confirm subscription is active
         if (result.data?.isActive) {
-          setLocation(data.redirectUrl || "/dashboard");
+          setLocation(dashboardRoute);
         } else {
           // If not active yet, set a flag and let the useEffect handle redirect once active
           localStorage.setItem("subscriptionJustActivated", "true");
+          // Still navigate - the subscription should be active
+          setLocation(dashboardRoute);
         }
       }
     },
