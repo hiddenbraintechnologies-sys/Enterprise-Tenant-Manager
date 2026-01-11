@@ -176,22 +176,47 @@ router.get("/plans", async (req: Request, res: Response) => {
 
 router.post("/select-plan", requiredAuth, async (req: Request, res: Response) => {
   try {
-    const resolution = await resolveTenantId(req);
-    logTenantResolution(req, resolution, "POST /select-plan");
-
-    if (resolution.error) {
-      return res.status(resolution.error.status).json({
-        code: resolution.error.code,
-        message: resolution.error.message,
-      });
+    const context = (req as any).context;
+    const userId = context?.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ code: "AUTH_REQUIRED", message: "Authentication required" });
     }
 
-    const tenantId = resolution.tenantId!;
     const { planCode } = selectPlanSchema.parse(req.body);
     const plan = await getPlanByCode(planCode);
     
     if (!plan) {
       return res.status(404).json({ error: "Plan not found" });
+    }
+
+    // Try to resolve existing tenant, but don't fail if none exists
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "POST /select-plan");
+
+    let tenantId: string;
+
+    // If no tenant exists, return response guiding user to complete tenant setup first
+    if (resolution.error?.code === "TENANT_REQUIRED" || resolution.error?.code === "TENANT_NOT_FOUND") {
+      console.log(`[billing] User ${userId} has no tenant - redirecting to tenant signup`);
+      
+      // Return a response that tells frontend to redirect to tenant signup
+      // The plan code is included so it can be restored after tenant creation
+      return res.json({
+        success: false,
+        requiresTenantSetup: true,
+        message: "Please complete your business setup first",
+        redirectUrl: "/tenant-signup",
+        pendingPlanCode: planCode,
+      });
+    } else if (resolution.error) {
+      // Only return error for actual auth issues
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    } else {
+      tenantId = resolution.tenantId!;
     }
 
     const existingSub = await getSubscription(tenantId);

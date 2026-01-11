@@ -191,12 +191,20 @@ export default function PackagesPage() {
       return response.json();
     },
     onSuccess: async (data) => {
+      // Handle case where user needs to create tenant first
+      if (data.requiresTenantSetup) {
+        localStorage.setItem("pendingPlanCode", data.pendingPlanCode || "");
+        toast({ title: "Business setup required", description: "Please complete your business details first." });
+        setLocation(data.redirectUrl || "/tenant-signup");
+        return;
+      }
+      
       if (data.requiresPayment) {
         localStorage.setItem("pendingPaymentId", data.payment?.id || "");
         localStorage.setItem("pendingPlanCode", data.plan?.code || "");
         toast({ title: "Plan selected", description: "Proceed to payment to activate your subscription." });
         setLocation("/checkout");
-      } else {
+      } else if (data.success) {
         localStorage.setItem("subscriptionStatus", "active");
         localStorage.setItem("subscriptionTier", data.plan?.tier || "free");
         
@@ -231,15 +239,7 @@ export default function PackagesPage() {
       return;
     }
     
-    // If user has no tenant yet, redirect to tenant signup first
-    if (subscriptionData?.status === "NO_TENANT" || !tenantId) {
-      // Store selected plan for after tenant creation
-      localStorage.setItem("pendingPlanCode", planCode);
-      toast({ title: "Create your business first", description: "Set up your business details to continue." });
-      setLocation("/tenant-signup");
-      return;
-    }
-    
+    // Backend will create tenant if needed during plan selection
     setSelectedPlan(planCode);
     selectPlanMutation.mutate(planCode);
   };
