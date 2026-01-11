@@ -2,12 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   Building2,
   Calendar,
   Users,
@@ -22,75 +16,9 @@ import {
   UserCheck,
   ClipboardList,
   BadgeIndianRupee,
-  Star,
-  TrendingUp,
-  Zap,
-  Headphones,
 } from "lucide-react";
 import { LandingLayout } from "@/components/landing/landing-layout";
 import { Seo } from "@/components/seo";
-
-const stats = [
-  { value: "500+", label: "Indian SMBs" },
-  { value: "10K+", label: "GST invoices" },
-  { value: "99.9%", label: "Uptime" },
-  { value: "1 hr", label: "Avg. support response" },
-];
-
-const testimonials = [
-  {
-    name: "Rahul Sharma",
-    role: "Founder, TechSoft Solutions, Mumbai",
-    content: "MyBizStream simplified our invoicing and project tracking. We save hours every week on GST compliance.",
-    rating: 5,
-  },
-  {
-    name: "Priya Patel",
-    role: "Owner, Aura Wellness Spa, Bangalore",
-    content: "The booking system is intuitive. Our clients love the WhatsApp reminders.",
-    rating: 5,
-  },
-  {
-    name: "Amit Kumar",
-    role: "Director, Kumar Consulting, Delhi",
-    content: "Finally, a platform that understands Indian business needs. GST filing is now seamless.",
-    rating: 5,
-  },
-];
-
-const faqs = [
-  {
-    question: "Is there really a free plan?",
-    answer: "Yes! Our Free plan includes core features for 1 user with up to 50 records. No credit card required to start.",
-  },
-  {
-    question: "How does GST compliance work?",
-    answer: "All invoices are automatically formatted with GST details (CGST, SGST, IGST). You can generate GST-ready reports for filing. We support both regular and composition scheme businesses.",
-  },
-  {
-    question: "Can I upgrade or downgrade anytime?",
-    answer: "Absolutely. You can change your plan at any time. When upgrading, you pay the prorated difference. When downgrading, changes take effect at the next billing cycle.",
-  },
-  {
-    question: "What payment methods do you accept?",
-    answer: "We accept all major payment methods including UPI, credit/debit cards, net banking, and wallets through Razorpay.",
-  },
-  {
-    question: "Is my data secure?",
-    answer: "Yes. We use industry-standard encryption, secure authentication, and role-based access controls. Your data is stored in India and backed up regularly.",
-  },
-  {
-    question: "Do you offer WhatsApp notifications?",
-    answer: "Yes! Pro plan users get WhatsApp automation for appointment reminders, invoice notifications, and payment confirmations.",
-  },
-];
-
-const trustBadges = [
-  { icon: Shield, text: "Bank-grade security" },
-  { icon: BadgeIndianRupee, text: "Made for India" },
-  { icon: Headphones, text: "Indian support team" },
-  { icon: TrendingUp, text: "Regular updates" },
-];
 
 const businessTypes = [
   { name: "Software Services & IT Companies", icon: LayoutDashboard },
@@ -199,45 +127,6 @@ export default function LandingIndia() {
                 </div>
                 <span className="font-medium">{feature.text}</span>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t bg-primary/5 px-6 py-16">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="text-center" data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                <div className="text-3xl font-bold text-primary sm:text-4xl">{stat.value}</div>
-                <div className="mt-2 text-sm text-muted-foreground">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-center text-2xl font-semibold sm:text-3xl" data-testid="text-testimonials-title">
-            Trusted by Indian businesses
-          </h2>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {testimonials.map((testimonial) => (
-              <Card key={testimonial.name} className="bg-card" data-testid={`testimonial-${testimonial.name.toLowerCase().replace(/\s+/g, "-")}`}>
-                <CardContent className="pt-6">
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: testimonial.rating }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-primary text-primary" />
-                    ))}
-                  </div>
-                  <p className="mt-4 text-sm text-muted-foreground">"{testimonial.content}"</p>
-                  <div className="mt-4">
-                    <div className="font-medium">{testimonial.name}</div>
-                    <div className="text-sm text-muted-foreground">{testimonial.role}</div>
-                  </div>
-                </CardContent>
-              </Card>
             ))}
           </div>
         </div>
@@ -393,49 +282,11 @@ export default function LandingIndia() {
         </div>
       </section>
 
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-3xl">
-          <h2 className="text-center text-2xl font-semibold sm:text-3xl" data-testid="text-faq-title">
-            Frequently asked questions
-          </h2>
-          <Accordion type="single" collapsible className="mt-10">
-            {faqs.map((faq, index) => (
-              <AccordionItem key={index} value={`item-${index}`} data-testid={`faq-item-${index}`}>
-                <AccordionTrigger className="text-left">{faq.question}</AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  {faq.answer}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-      </section>
-
-      <section className="border-t bg-muted/30 px-6 py-16">
-        <div className="mx-auto max-w-4xl">
-          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
-            {trustBadges.map((badge) => (
-              <div
-                key={badge.text}
-                className="flex items-center gap-2"
-                data-testid={`trust-${badge.text.toLowerCase().replace(/\s+/g, "-")}`}
-              >
-                <badge.icon className="h-5 w-5 text-primary" />
-                <span className="text-sm font-medium">{badge.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <section className="px-6 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="text-2xl font-semibold sm:text-3xl" data-testid="text-final-cta-title">
             Start free today
           </h2>
-          <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-            Join 500+ Indian businesses already using MyBizStream to simplify their operations.
-          </p>
           <Button size="lg" className="mt-8" asChild data-testid="button-cta-signup">
             <a href="/register">
               Create Free Account
