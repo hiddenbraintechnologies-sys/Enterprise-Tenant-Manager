@@ -11,7 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   Check, X, Zap, Star, Sparkles, ArrowRight, Loader2,
   Users, Database, MessageCircle, FileText, Headphones, AlertTriangle, RefreshCw,
-  ArrowUp, ArrowDown, Clock, XCircle
+  ArrowUp, ArrowDown, Clock, XCircle, CreditCard
 } from "lucide-react";
 import {
   Dialog,
@@ -102,15 +102,17 @@ function formatPrice(price: string, currency: string): string {
 }
 
 interface SubscriptionData {
-  subscription: { id: string; status: string; pendingPlanId?: string; cancelAtPeriodEnd?: boolean } | null;
+  subscription: { id: string; status: string; pendingPlanId?: string; pendingPaymentId?: string; cancelAtPeriodEnd?: boolean } | null;
   plan: { id: string; tier: string; name: string; basePrice: string } | null;
   pendingPlan?: { id: string; tier: string; name: string; basePrice: string } | null;
   status: string;
   planCode: string | null;
   isActive: boolean;
   isDowngrading?: boolean;
+  isPendingPayment?: boolean;
   currentPeriodEnd?: string;
   pendingPlanId?: string;
+  pendingPaymentId?: string;
   cancelAtPeriodEnd?: boolean;
   message?: string;
   tenantId?: string;
@@ -498,20 +500,21 @@ export default function PackagesPage() {
         )}
 
         {/* Status: PENDING_PAYMENT - show payment required message */}
-        {subscriptionData?.status?.toLowerCase() === "pending_payment" && (
+        {(subscriptionData?.isPendingPayment || subscriptionData?.status?.toLowerCase() === "pending_payment") && (
           <Alert className="max-w-md mx-auto mb-6 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20">
-            <AlertDescription className="flex items-center justify-between">
+            <CreditCard className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <span className="font-medium text-yellow-700 dark:text-yellow-300">
-                  Payment required for {subscriptionData?.plan?.name || "your plan"}
+                  Payment pending for {subscriptionData?.pendingPlan?.name || subscriptionData?.plan?.name || "upgrade"}
                 </span>
                 <span className="block text-sm text-muted-foreground mt-1">
                   Complete payment to activate your subscription.
                 </span>
               </div>
-              <Link href="/checkout">
+              <Link href={subscriptionData?.pendingPaymentId ? `/checkout?paymentId=${subscriptionData.pendingPaymentId}` : "/checkout"}>
                 <Button variant="default" size="sm" data-testid="button-continue-checkout">
-                  Continue to checkout
+                  Continue to payment
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </Link>

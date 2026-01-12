@@ -108,12 +108,14 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
     
     const subStatus = subscription.status || "unknown";
     const isDowngrading = subStatus === "downgrading";
+    const isPendingPayment = subStatus === "pending_payment";
     const isActive = subStatus === "active" || subStatus === "trialing" || isDowngrading;
     
     return res.json({
       subscription: {
         ...subscription,
         pendingPlanId: subscription.pendingPlanId,
+        pendingPaymentId: subscription.pendingPaymentId,
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       },
       plan,
@@ -122,8 +124,10 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
       planCode: plan?.code || null,
       isActive,
       isDowngrading,
+      isPendingPayment,
       currentPeriodEnd: subscription.currentPeriodEnd,
       pendingPlanId: subscription.pendingPlanId,
+      pendingPaymentId: subscription.pendingPaymentId,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       tenantId,
     });
@@ -437,7 +441,7 @@ router.post("/checkout/create", requiredAuth, async (req: Request, res: Response
   }
 });
 
-router.post("/checkout/verify", requiredAuth, async (req: Request, res: Response) => {
+router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBSCRIPTION_CHANGE), async (req: Request, res: Response) => {
   try {
     const resolution = await resolveTenantId(req);
     logTenantResolution(req, resolution, "POST /checkout/verify");
@@ -514,17 +518,49 @@ router.post("/checkout/verify", requiredAuth, async (req: Request, res: Response
       .where(eq(billingPayments.id, paymentId));
 
     if (payment.subscriptionId) {
-      await db
-        .update(tenantSubscriptions)
-        .set({ 
-          status: "active",
-          lastPaymentAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(tenantSubscriptions.id, payment.subscriptionId));
+      // Fetch the subscription to get pendingPlanId
+      const [subscription] = await db
+        .select()
+        .from(tenantSubscriptions)
+        .where(eq(tenantSubscriptions.id, payment.subscriptionId))
+        .limit(1);
+
+      if (subscription) {
+        const oldPlanId = subscription.planId;
+        const newPlanId = subscription.pendingPlanId || payment.planId;
+
+        // Activate the upgrade: set planId to pendingPlanId, clear pending fields
+        await db
+          .update(tenantSubscriptions)
+          .set({ 
+            planId: newPlanId,
+            pendingPlanId: null,
+            pendingPaymentId: null,
+            status: "active",
+            cancelAtPeriodEnd: false,
+            lastPaymentAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(tenantSubscriptions.id, payment.subscriptionId));
+
+        const userId = req.context?.user?.id || req.tokenPayload?.userId;
+        await auditService.log({
+          userId: userId || "unknown",
+          action: "update",
+          resource: "subscription",
+          resourceId: subscription.id,
+          oldValue: { planId: oldPlanId, status: subscription.status },
+          newValue: { planId: newPlanId, status: "active" },
+          metadata: { operation: "upgrade_activated", tenantId, paymentId },
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+
+        console.log(`[billing] Payment verified, subscription upgraded from ${oldPlanId} to ${newPlanId} for tenant ${tenantId}`);
+      }
     }
 
-    console.log(`[billing] Payment verified for tenant ${tenantId}, subscription activated`);
+    console.log(`[billing] Payment verified for tenant ${tenantId}`);
 
     return res.json({
       success: true,
@@ -669,25 +705,54 @@ router.post(
           });
         }
 
+        // Create a payment record for the upgrade
+        const [payment] = await db
+          .insert(billingPayments)
+          .values({
+            tenantId,
+            subscriptionId: subscription.id,
+            planId: newPlan.id,
+            provider: "mock",
+            status: "created",
+            amount: newPlan.basePrice,
+            currency: "INR",
+            metadata: { upgradeFrom: subscription.planId, upgradeTo: newPlan.id },
+          })
+          .returning();
+
+        // Update subscription to pending_payment status
+        const [updatedSubscription] = await db
+          .update(tenantSubscriptions)
+          .set({
+            status: "pending_payment",
+            pendingPlanId: newPlan.id,
+            pendingPaymentId: payment.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(tenantSubscriptions.id, subscription.id))
+          .returning();
+
         await auditService.log({
           userId: userId || "unknown",
           action: "update",
           resource: "subscription",
           resourceId: subscription.id,
-          oldValue: { planId: subscription.planId },
-          newValue: { planId: newPlan.id, pendingPayment: true },
-          metadata: { operation: "upgrade_initiated", tenantId, targetPlanId: planId },
+          oldValue: { planId: subscription.planId, status: subscription.status },
+          newValue: { pendingPlanId: newPlan.id, status: "pending_payment", pendingPaymentId: payment.id },
+          metadata: { operation: "upgrade_initiated", tenantId, targetPlanId: planId, paymentId: payment.id },
           ipAddress: req.ip,
           userAgent: req.headers["user-agent"],
         });
 
-        console.log(`[billing] Upgrade initiated for tenant ${tenantId} to plan ${planId}`);
+        console.log(`[billing] Upgrade initiated for tenant ${tenantId} to plan ${planId}, payment ${payment.id}`);
         return res.json({
           success: true,
           requiresPayment: true,
-          planId: newPlan.id,
+          paymentId: payment.id,
+          pendingPlanId: newPlan.id,
           plan: newPlan,
-          tenantId,
+          subscription: updatedSubscription,
+          redirectUrl: `/checkout?paymentId=${payment.id}`,
         });
       }
 
