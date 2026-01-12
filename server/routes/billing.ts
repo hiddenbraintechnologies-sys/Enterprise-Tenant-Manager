@@ -12,6 +12,7 @@ import { getPaymentProvider } from "../core/payments/provider-factory";
 import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
 import { requirePermission, Permissions } from "../rbac/guards";
 import { auditService } from "../core/audit";
+import { razorpayService } from "../services/razorpay";
 
 const router = Router();
 
@@ -1083,6 +1084,343 @@ router.post(
     }
   }
 );
+
+const razorpayOrderSchema = z.object({});
+
+const razorpayVerifySchema = z.object({
+  razorpay_order_id: z.string().min(1),
+  razorpay_payment_id: z.string().min(1),
+  razorpay_signature: z.string().min(1),
+});
+
+router.post(
+  "/razorpay/order",
+  requiredAuth,
+  requirePermission(Permissions.SUBSCRIPTION_CHANGE),
+  async (req: Request, res: Response) => {
+    try {
+      const resolution = await resolveTenantId(req);
+      if (resolution.error) {
+        return res.status(resolution.error.status).json({
+          code: resolution.error.code,
+          message: resolution.error.message,
+        });
+      }
+      const tenantId = resolution.tenantId!;
+
+      if (!razorpayService.isConfigured()) {
+        return res.status(503).json({
+          code: "PAYMENT_PROVIDER_NOT_CONFIGURED",
+          message: "Razorpay is not configured",
+        });
+      }
+
+      const subscription = await getSubscription(tenantId);
+      if (!subscription) {
+        return res.status(404).json({
+          code: "SUBSCRIPTION_NOT_FOUND",
+          message: "No subscription found",
+        });
+      }
+
+      if (subscription.status !== "pending_payment") {
+        return res.status(400).json({
+          code: "INVALID_SUBSCRIPTION_STATUS",
+          message: "No pending payment for this subscription",
+        });
+      }
+
+      const pendingPayment = await getPendingPayment(tenantId);
+      if (!pendingPayment) {
+        return res.status(404).json({
+          code: "NO_PENDING_PAYMENT",
+          message: "No pending payment found",
+        });
+      }
+
+      const plan = subscription.pendingPlanId
+        ? await subscriptionService.getPlan(subscription.pendingPlanId)
+        : null;
+
+      const amountPaise = Math.round(parseFloat(pendingPayment.amount) * 100);
+      const currency = pendingPayment.currency || "INR";
+
+      const order = await razorpayService.createOrder({
+        amount: amountPaise,
+        currency: currency.toUpperCase(),
+        receipt: pendingPayment.id,
+        notes: {
+          tenantId,
+          paymentId: pendingPayment.id,
+          planId: subscription.pendingPlanId || "",
+        },
+      });
+
+      await db
+        .update(billingPayments)
+        .set({
+          providerOrderId: order.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(billingPayments.id, pendingPayment.id));
+
+      console.log(`[razorpay] Order created: ${order.id} for payment ${pendingPayment.id}`);
+
+      res.json({
+        success: true,
+        orderId: order.id,
+        amount: amountPaise,
+        currency: currency.toUpperCase(),
+        keyId: razorpayService.getKeyId(),
+        paymentId: pendingPayment.id,
+        plan: plan ? { name: plan.name, tier: plan.tier } : null,
+      });
+    } catch (error) {
+      console.error("[razorpay] Error creating order:", error);
+      res.status(500).json({ error: "Failed to create Razorpay order" });
+    }
+  }
+);
+
+router.post(
+  "/razorpay/verify",
+  requiredAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const resolution = await resolveTenantId(req);
+      if (resolution.error) {
+        return res.status(resolution.error.status).json({
+          code: resolution.error.code,
+          message: resolution.error.message,
+        });
+      }
+      const tenantId = resolution.tenantId!;
+
+      const parsed = razorpayVerifySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          code: "VALIDATION_ERROR",
+          message: "Invalid request body",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = parsed.data;
+
+      const isValidSignature = razorpayService.verifyPaymentSignature({
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+      });
+
+      if (!isValidSignature) {
+        console.warn(`[razorpay] Invalid signature for order ${razorpay_order_id}`);
+        return res.status(400).json({
+          code: "INVALID_SIGNATURE",
+          message: "Payment signature verification failed",
+        });
+      }
+
+      const [payment] = await db
+        .select()
+        .from(billingPayments)
+        .where(
+          and(
+            eq(billingPayments.tenantId, tenantId),
+            eq(billingPayments.providerOrderId, razorpay_order_id)
+          )
+        )
+        .limit(1);
+
+      if (!payment) {
+        return res.status(404).json({
+          code: "PAYMENT_NOT_FOUND",
+          message: "Payment not found for this order",
+        });
+      }
+
+      if (payment.status === "paid") {
+        return res.json({
+          success: true,
+          message: "Payment already verified",
+          redirectUrl: "/dashboard",
+        });
+      }
+
+      await db
+        .update(billingPayments)
+        .set({
+          status: "paid",
+          providerTransactionId: razorpay_payment_id,
+          paidAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(billingPayments.id, payment.id));
+
+      const subscription = await getSubscription(tenantId);
+      if (!subscription || !subscription.pendingPlanId) {
+        return res.status(400).json({
+          code: "SUBSCRIPTION_ERROR",
+          message: "No pending plan to activate",
+        });
+      }
+
+      const newPlan = await subscriptionService.getPlan(subscription.pendingPlanId);
+      if (!newPlan) {
+        return res.status(500).json({
+          code: "PLAN_NOT_FOUND",
+          message: "Pending plan not found",
+        });
+      }
+
+      const newPeriodStart = new Date();
+      const newPeriodEnd = new Date();
+      newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+
+      await db
+        .update(tenantSubscriptions)
+        .set({
+          planId: subscription.pendingPlanId,
+          pendingPlanId: null,
+          pendingPaymentId: null,
+          status: "active",
+          currentPeriodStart: newPeriodStart,
+          currentPeriodEnd: newPeriodEnd,
+          updatedAt: new Date(),
+        })
+        .where(eq(tenantSubscriptions.id, subscription.id));
+
+      const tenant = await getTenant(tenantId);
+      if (tenant) {
+        const planFeatures = newPlan.features as Record<string, boolean> || {};
+        await db
+          .update(tenants)
+          .set({
+            featureFlags: planFeatures,
+            updatedAt: new Date(),
+          })
+          .where(eq(tenants.id, tenantId));
+      }
+
+      await auditService.log({
+        userId: (req as any).user?.userId || "system",
+        tenantId,
+        action: "update",
+        resource: "subscription",
+        resourceId: subscription.id,
+        oldValue: { planId: subscription.planId, status: "pending_payment" },
+        newValue: { planId: subscription.pendingPlanId, status: "active" },
+        metadata: {
+          operation: "upgrade_activated",
+          razorpayOrderId: razorpay_order_id,
+          razorpayPaymentId: razorpay_payment_id,
+        },
+      });
+
+      console.log(`[razorpay] Payment verified and subscription activated: ${subscription.id}`);
+
+      res.json({
+        success: true,
+        message: "Payment verified and subscription activated",
+        redirectUrl: "/dashboard",
+        planId: subscription.pendingPlanId,
+        planName: newPlan.name,
+      });
+    } catch (error) {
+      console.error("[razorpay] Error verifying payment:", error);
+      res.status(500).json({ error: "Failed to verify payment" });
+    }
+  }
+);
+
+router.post("/razorpay/webhook", async (req: Request, res: Response) => {
+  try {
+    const signature = req.headers["x-razorpay-signature"] as string;
+    const body = JSON.stringify(req.body);
+
+    if (!signature) {
+      return res.status(400).json({ error: "Missing signature" });
+    }
+
+    const isValid = razorpayService.verifyWebhookSignature(body, signature);
+    if (!isValid) {
+      console.warn("[razorpay-webhook] Invalid webhook signature");
+      return res.status(400).json({ error: "Invalid signature" });
+    }
+
+    const event = req.body;
+    const eventType = event.event;
+
+    console.log(`[razorpay-webhook] Received event: ${eventType}`);
+
+    if (eventType === "payment.captured") {
+      const paymentEntity = event.payload?.payment?.entity;
+      const orderId = paymentEntity?.order_id;
+      const paymentId = paymentEntity?.id;
+
+      if (orderId) {
+        const [payment] = await db
+          .select()
+          .from(billingPayments)
+          .where(eq(billingPayments.providerOrderId, orderId))
+          .limit(1);
+
+        if (payment && payment.status !== "paid") {
+          await db
+            .update(billingPayments)
+            .set({
+              status: "paid",
+              providerTransactionId: paymentId,
+              paidAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(billingPayments.id, payment.id));
+
+          const subscription = await getSubscription(payment.tenantId);
+          if (subscription?.pendingPlanId) {
+            const newPlan = await subscriptionService.getPlan(subscription.pendingPlanId);
+            if (newPlan) {
+              const newPeriodEnd = new Date();
+              newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+
+              await db
+                .update(tenantSubscriptions)
+                .set({
+                  planId: subscription.pendingPlanId,
+                  pendingPlanId: null,
+                  pendingPaymentId: null,
+                  status: "active",
+                  currentPeriodStart: new Date(),
+                  currentPeriodEnd: newPeriodEnd,
+                  updatedAt: new Date(),
+                })
+                .where(eq(tenantSubscriptions.id, subscription.id));
+
+              const tenant = await getTenant(payment.tenantId);
+              if (tenant) {
+                const planFeatures = newPlan.features as Record<string, boolean> || {};
+                await db
+                  .update(tenants)
+                  .set({
+                    featureFlags: planFeatures,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(tenants.id, payment.tenantId));
+              }
+
+              console.log(`[razorpay-webhook] Subscription activated via webhook: ${subscription.id}`);
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error("[razorpay-webhook] Error processing webhook:", error);
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
 
 export async function processScheduledDowngrades(): Promise<number> {
   const now = new Date();

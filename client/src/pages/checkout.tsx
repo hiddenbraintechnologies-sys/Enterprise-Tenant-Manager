@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -18,6 +18,12 @@ import {
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 interface PendingPayment {
   payment: {
     id: string;
@@ -35,20 +41,31 @@ interface PendingPayment {
   } | null;
 }
 
-interface CheckoutPayload {
+interface RazorpayOrderResponse {
+  success: boolean;
   orderId: string;
-  amountPaise: number;
+  amount: number;
   currency: string;
-  mode: string;
+  keyId: string;
   paymentId: string;
-  subscriptionId: string;
+  plan: {
+    name: string;
+    tier: string;
+  } | null;
 }
 
 interface CheckoutSession {
   success: boolean;
   provider: string;
   paymentId: string;
-  checkoutPayload: CheckoutPayload;
+  checkoutPayload: {
+    orderId: string;
+    amountPaise: number;
+    currency: string;
+    mode: string;
+    paymentId: string;
+    subscriptionId: string;
+  };
   plan: {
     name: string;
     code: string;
@@ -66,17 +83,68 @@ function formatPrice(price: string | number, currency: string): string {
   }).format(num);
 }
 
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 export default function CheckoutPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [mockUpiRef, setMockUpiRef] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "failed">("idle");
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+
+  useEffect(() => {
+    loadRazorpayScript().then(setRazorpayLoaded);
+  }, []);
 
   const tenantId = localStorage.getItem("tenantId");
   const accessToken = localStorage.getItem("accessToken");
 
   const { data: pendingData, isLoading: isPendingLoading } = useQuery<PendingPayment>({
     queryKey: ["/api/billing/pending-payment"],
+  });
+
+  const createRazorpayOrderMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/billing/razorpay/order", {});
+      return response.json() as Promise<RazorpayOrderResponse>;
+    },
+  });
+
+  const verifyRazorpayMutation = useMutation({
+    mutationFn: async (params: {
+      razorpay_order_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+    }) => {
+      const response = await apiRequest("POST", "/api/billing/razorpay/verify", params);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setPaymentStatus("success");
+      localStorage.setItem("subscriptionStatus", "active");
+      localStorage.removeItem("pendingPaymentId");
+      localStorage.removeItem("pendingPlanCode");
+      toast({ title: "Payment successful", description: "Your subscription is now active." });
+      setTimeout(() => {
+        setLocation(data.redirectUrl || "/dashboard");
+      }, 2000);
+    },
+    onError: (error: Error) => {
+      setPaymentStatus("failed");
+      toast({ title: "Payment verification failed", description: error.message, variant: "destructive" });
+    },
   });
 
   const createCheckoutMutation = useMutation({
@@ -110,6 +178,78 @@ export default function CheckoutPage() {
     },
   });
 
+  const handleRazorpayPayment = useCallback(async () => {
+    if (!razorpayLoaded) {
+      toast({ title: "Loading payment", description: "Please wait...", variant: "default" });
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        toast({ title: "Error", description: "Failed to load payment gateway", variant: "destructive" });
+        return;
+      }
+    }
+
+    setPaymentStatus("processing");
+
+    try {
+      const orderData = await createRazorpayOrderMutation.mutateAsync();
+
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "MyBizStream",
+        description: `${orderData.plan?.name || "Plan"} Subscription`,
+        order_id: orderData.orderId,
+        handler: async function (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) {
+          verifyRazorpayMutation.mutate({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          });
+        },
+        prefill: {
+          name: localStorage.getItem("userName") || "",
+          email: localStorage.getItem("userEmail") || "",
+        },
+        theme: {
+          color: "#3B82F6",
+        },
+        modal: {
+          ondismiss: function () {
+            setPaymentStatus("idle");
+            toast({
+              title: "Payment cancelled",
+              description: "You can try again or cancel the upgrade.",
+              variant: "default",
+            });
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.on("payment.failed", function (response: any) {
+        setPaymentStatus("failed");
+        toast({
+          title: "Payment failed",
+          description: response.error?.description || "Please try again",
+          variant: "destructive",
+        });
+      });
+      razorpay.open();
+    } catch (error: any) {
+      setPaymentStatus("failed");
+      toast({
+        title: "Error",
+        description: error.message || "Failed to initiate payment",
+        variant: "destructive",
+      });
+    }
+  }, [razorpayLoaded, createRazorpayOrderMutation, verifyRazorpayMutation, toast]);
+
   useEffect(() => {
     if (pendingData?.payment && !createCheckoutMutation.data) {
       createCheckoutMutation.mutate();
@@ -129,6 +269,7 @@ export default function CheckoutPage() {
   const payment = pendingData?.payment;
   const plan = pendingData?.plan;
   const checkout = createCheckoutMutation.data;
+  const isRazorpayMode = checkout?.provider !== "mock";
 
   if (isPendingLoading) {
     return (
@@ -307,6 +448,19 @@ export default function CheckoutPage() {
               </div>
             )}
 
+            {isRazorpayMode && (
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <CreditCard className="h-5 w-5" />
+                  <span className="font-medium">Pay with Razorpay</span>
+                  <Badge variant="outline" className="ml-auto">Secure</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Pay securely using UPI, Cards, Net Banking, or Wallets.
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Lock className="h-4 w-4" />
               <span>Your payment is secured with 256-bit encryption</span>
@@ -346,18 +500,24 @@ export default function CheckoutPage() {
             ) : (
               <Button
                 className="w-full"
-                disabled={createCheckoutMutation.isPending || paymentStatus !== "idle"}
+                disabled={
+                  paymentStatus === "processing" ||
+                  paymentStatus === "success" ||
+                  createRazorpayOrderMutation.isPending ||
+                  verifyRazorpayMutation.isPending
+                }
+                onClick={handleRazorpayPayment}
                 data-testid="button-pay-razorpay"
               >
-                {createCheckoutMutation.isPending ? (
+                {paymentStatus === "processing" || createRazorpayOrderMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Preparing payment...
+                    Processing...
                   </>
                 ) : (
                   <>
                     <CreditCard className="h-4 w-4 mr-2" />
-                    Pay with Razorpay
+                    Pay {formatPrice(payment.amount, payment.currency)}
                   </>
                 )}
               </Button>
