@@ -25,6 +25,10 @@ import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { formatPriceOrFree } from "@/lib/formatPrice";
+import {
+  FEATURE_CATALOG,
+  type FeatureCatalogItem,
+} from "@shared/billing/feature-catalog";
 
 interface Plan {
   id: string;
@@ -36,8 +40,12 @@ interface Plan {
   localPrice: string;
   currency: string;
   currencyCode?: string;
+  billingCycle?: string;
   maxUsers: number;
   maxCustomers: number;
+  featureFlags?: Record<string, boolean>;
+  limits?: Record<string, number>;
+  isRecommended?: boolean;
   features: {
     modules?: string[];
     addons?: string[];
@@ -51,46 +59,46 @@ interface PlansResponse {
   plans: Plan[];
 }
 
-const PLAN_FEATURES: Record<string, { included: string[]; excluded: string[] }> = {
-  free: {
-    included: [
-      "Up to 50 records",
-      "Basic analytics",
-      "Email notifications",
-      "1 team member",
-    ],
-    excluded: [
-      "WhatsApp automation",
-      "GST invoicing",
-      "Priority support",
-    ],
-  },
-  basic: {
-    included: [
-      "Up to 500 records",
-      "Advanced analytics",
-      "Email + SMS notifications",
-      "GST invoicing",
-      "3 team members",
-    ],
-    excluded: [
-      "WhatsApp automation",
-      "Priority support",
-    ],
-  },
-  pro: {
-    included: [
-      "Unlimited records",
-      "Advanced analytics",
-      "All notifications",
-      "WhatsApp automation",
-      "GST invoicing",
-      "Priority support",
-      "10 team members",
-    ],
-    excluded: [],
-  },
-};
+function getPlanFeatures(plan: Plan): { included: string[]; excluded: string[] } {
+  const included: string[] = [];
+  const excluded: string[] = [];
+  
+  const featureFlags = plan.featureFlags || {};
+  const limits = plan.limits || {};
+  
+  if (limits.users !== undefined && limits.users > 0) {
+    included.push(`${limits.users === -1 ? "Unlimited" : limits.users} team member${limits.users !== 1 ? "s" : ""}`);
+  } else if (plan.maxUsers) {
+    included.push(`${plan.maxUsers === -1 ? "Unlimited" : plan.maxUsers} team member${plan.maxUsers !== 1 ? "s" : ""}`);
+  }
+  
+  if (limits.records !== undefined) {
+    if (limits.records === -1 || featureFlags.unlimited_records) {
+      included.push("Unlimited records");
+    } else if (limits.records > 0) {
+      included.push(`Up to ${limits.records.toLocaleString()} records`);
+    }
+  }
+  
+  if (limits.customers !== undefined && limits.customers > 0) {
+    included.push(`${limits.customers === -1 ? "Unlimited" : limits.customers.toLocaleString()} customers`);
+  } else if (plan.maxCustomers && plan.maxCustomers > 0) {
+    included.push(`${plan.maxCustomers === -1 ? "Unlimited" : plan.maxCustomers.toLocaleString()} customers`);
+  }
+  
+  FEATURE_CATALOG.forEach((feature: FeatureCatalogItem) => {
+    if (feature.key === "record_limit" || feature.key === "unlimited_records") return;
+    
+    const isEnabled = featureFlags[feature.key] === true;
+    if (isEnabled) {
+      included.push(feature.label);
+    } else {
+      excluded.push(feature.label);
+    }
+  });
+  
+  return { included, excluded };
+}
 
 
 interface SubscriptionData {
@@ -579,13 +587,14 @@ export default function PackagesPage() {
         ) : (
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {displayPlans.map((plan) => {
-              const isPopular = plan.tier === "basic";
-              const features = PLAN_FEATURES[plan.tier] || PLAN_FEATURES.free;
+              const isPopular = plan.isRecommended || plan.tier === "basic";
+              const features = getPlanFeatures(plan);
               const isSelected = selectedPlan === plan.code || selectedPlan === plan.id;
               const isFree = plan.tier === "free" || parseFloat(plan.basePrice) === 0;
               const planAction = getPlanAction(plan);
               const isCurrentPlan = planAction === "current";
               const isPending = selectPlanMutation.isPending || changeSubscriptionMutation.isPending;
+              const billingInterval = plan.billingCycle === "yearly" ? "/year" : "/month";
 
               return (
                 <Card 
@@ -626,18 +635,18 @@ export default function PackagesPage() {
                         {formatPriceOrFree(plan.localPrice || plan.basePrice, plan.currencyCode || plan.currency || "INR")}
                       </span>
                       {!isFree && (
-                        <span className="text-muted-foreground">/month</span>
+                        <span className="text-muted-foreground">{billingInterval}</span>
                       )}
                     </div>
 
                     <ul className="space-y-3">
-                      {features.included.map((feature, idx) => (
+                      {features.included.map((feature: string, idx: number) => (
                         <li key={idx} className="flex items-center gap-2 text-sm">
                           <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
                           <span>{feature}</span>
                         </li>
                       ))}
-                      {features.excluded.map((feature, idx) => (
+                      {features.excluded.slice(0, 3).map((feature: string, idx: number) => (
                         <li key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
                           <X className="h-4 w-4 flex-shrink-0" />
                           <span>{feature}</span>
