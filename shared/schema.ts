@@ -1505,7 +1505,7 @@ export const usageMetrics = pgTable("usage_metrics", {
 // ============================================
 
 export const paymentGatewayEnum = pgEnum("payment_gateway", ["stripe", "razorpay", "paytabs", "billplz"]);
-export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "suspended", "cancelled", "trialing", "pending_payment"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "suspended", "cancelled", "trialing", "pending_payment", "downgrading"]);
 export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "yearly"]);
 export const currencyEnum = pgEnum("currency_code", ["INR", "AED", "GBP", "MYR", "SGD", "USD", "EUR", "AUD", "CAD", "JPY", "CNY", "SAR", "ZAR", "NGN", "BRL"]);
 
@@ -1585,6 +1585,7 @@ export const tenantSubscriptions = pgTable("tenant_subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   planId: varchar("plan_id").notNull().references(() => globalPricingPlans.id),
+  pendingPlanId: varchar("pending_plan_id").references(() => globalPricingPlans.id),
   status: subscriptionStatusEnum("status").default("active"),
   currentPeriodStart: timestamp("current_period_start").notNull(),
   currentPeriodEnd: timestamp("current_period_end").notNull(),

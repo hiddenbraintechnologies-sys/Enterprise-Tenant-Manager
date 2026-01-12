@@ -307,6 +307,9 @@ app.use((req, res, next) => {
   isInitialized = true;
   log("Server fully initialized");
   
+  // Start background job for processing scheduled downgrades
+  startScheduledDowngradeProcessor();
+  
   // Server is already listening (started at the top of this async block)
   // This ensures Replit health checks pass immediately
   } catch (error) {
@@ -316,3 +319,23 @@ app.use((req, res, next) => {
   }
   })(); // End of initPromise async function
 })();
+
+function startScheduledDowngradeProcessor() {
+  const INTERVAL_MS = 60 * 60 * 1000;
+  
+  const runProcessor = async () => {
+    try {
+      const { processScheduledDowngrades } = await import("./routes/billing");
+      const count = await processScheduledDowngrades();
+      if (count > 0) {
+        log(`Processed ${count} scheduled downgrades`, "billing-job");
+      }
+    } catch (error) {
+      console.error("[billing-job] Error processing scheduled downgrades:", error);
+    }
+  };
+
+  runProcessor();
+  setInterval(runProcessor, INTERVAL_MS);
+  log("Scheduled downgrade processor started (runs hourly)", "billing-job");
+}

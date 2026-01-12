@@ -10,8 +10,17 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   Check, X, Zap, Star, Sparkles, ArrowRight, Loader2,
-  Users, Database, MessageCircle, FileText, Headphones, AlertTriangle, RefreshCw
+  Users, Database, MessageCircle, FileText, Headphones, AlertTriangle, RefreshCw,
+  ArrowUp, ArrowDown, Clock, XCircle
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -93,11 +102,16 @@ function formatPrice(price: string, currency: string): string {
 }
 
 interface SubscriptionData {
-  subscription: { id: string; status: string } | null;
-  plan: { id: string; tier: string; name: string } | null;
+  subscription: { id: string; status: string; pendingPlanId?: string; cancelAtPeriodEnd?: boolean } | null;
+  plan: { id: string; tier: string; name: string; basePrice: string } | null;
+  pendingPlan?: { id: string; tier: string; name: string; basePrice: string } | null;
   status: string;
   planCode: string | null;
   isActive: boolean;
+  isDowngrading?: boolean;
+  currentPeriodEnd?: string;
+  pendingPlanId?: string;
+  cancelAtPeriodEnd?: boolean;
   message?: string;
   tenantId?: string;
   canSelectPlan?: boolean;
@@ -123,6 +137,8 @@ export default function PackagesPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
+  const [pendingDowngradePlan, setPendingDowngradePlan] = useState<Plan | null>(null);
   const { tenant, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
 
@@ -262,6 +278,88 @@ export default function PackagesPage() {
     selectPlanMutation.mutate(planCode);
   };
 
+  const changeSubscriptionMutation = useMutation({
+    mutationFn: async ({ planId, action }: { planId: string; action: "upgrade" | "downgrade" }) => {
+      const response = await apiRequest("POST", "/api/billing/subscription/change", { planId, action });
+      return response.json();
+    },
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
+      
+      if (data.requiresPayment) {
+        toast({ title: "Upgrade initiated", description: "Proceed to payment to complete upgrade." });
+        setLocation("/checkout");
+      } else if (data.effectiveAt) {
+        const effectiveDate = new Date(data.effectiveAt).toLocaleDateString();
+        toast({ 
+          title: "Downgrade scheduled", 
+          description: `Your plan will change on ${effectiveDate}.` 
+        });
+        setShowDowngradeModal(false);
+        setPendingDowngradePlan(null);
+      } else {
+        toast({ title: "Plan changed", description: "Your subscription has been updated." });
+      }
+      setSelectedPlan(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setSelectedPlan(null);
+      setShowDowngradeModal(false);
+    },
+  });
+
+  const cancelDowngradeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/billing/subscription/cancel-downgrade", {});
+      return response.json();
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
+      toast({ title: "Downgrade cancelled", description: "Your subscription will continue on the current plan." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleUpgrade = (plan: Plan) => {
+    if (!isAuthenticated) {
+      toast({ title: "Please log in", description: "You need to be logged in to upgrade.", variant: "destructive" });
+      return;
+    }
+    setSelectedPlan(plan.id);
+    changeSubscriptionMutation.mutate({ planId: plan.id, action: "upgrade" });
+  };
+
+  const handleDowngrade = (plan: Plan) => {
+    if (!isAuthenticated) {
+      toast({ title: "Please log in", description: "You need to be logged in to downgrade.", variant: "destructive" });
+      return;
+    }
+    setPendingDowngradePlan(plan);
+    setShowDowngradeModal(true);
+  };
+
+  const confirmDowngrade = () => {
+    if (!pendingDowngradePlan) return;
+    setSelectedPlan(pendingDowngradePlan.id);
+    changeSubscriptionMutation.mutate({ planId: pendingDowngradePlan.id, action: "downgrade" });
+  };
+
+  const currentPlanPrice = subscriptionData?.plan?.basePrice ? parseFloat(subscriptionData.plan.basePrice) : 0;
+  const currentPlanTier = subscriptionData?.plan?.tier || null;
+
+  const getPlanAction = (plan: Plan): "current" | "upgrade" | "downgrade" | "select" => {
+    if (!subscriptionData?.isActive) return "select";
+    if (plan.id === subscriptionData?.plan?.id) return "current";
+    
+    const planPrice = parseFloat(plan.basePrice);
+    if (planPrice > currentPlanPrice) return "upgrade";
+    if (planPrice < currentPlanPrice) return "downgrade";
+    return "current";
+  };
+
   const tierIcons: Record<string, React.ReactNode> = {
     free: <Zap className="h-5 w-5" />,
     basic: <Star className="h-5 w-5" />,
@@ -344,8 +442,41 @@ export default function PackagesPage() {
           </Alert>
         )}
 
+        {/* Status: DOWNGRADING - show scheduled downgrade banner */}
+        {subscriptionData?.isDowngrading && subscriptionData?.pendingPlan && (
+          <Alert className="max-w-2xl mx-auto mb-6 border-orange-500/50 bg-orange-50 dark:bg-orange-900/20">
+            <Clock className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <span className="font-medium text-orange-700 dark:text-orange-300">
+                  Downgrade scheduled
+                </span>
+                <span className="block text-sm text-muted-foreground mt-1">
+                  Your plan will change to {subscriptionData.pendingPlan.name} on {subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString() : "end of billing period"}
+                </span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => cancelDowngradeMutation.mutate()}
+                disabled={cancelDowngradeMutation.isPending}
+                data-testid="button-cancel-downgrade"
+              >
+                {cancelDowngradeMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Cancel downgrade
+                  </>
+                )}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Status: ACTIVE - show current plan with dashboard link */}
-        {subscriptionData?.isActive && (
+        {subscriptionData?.isActive && !subscriptionData?.isDowngrading && (
           <Alert className="max-w-md mx-auto mb-6 border-green-500/50 bg-green-50 dark:bg-green-900/20">
             <AlertDescription className="flex items-center justify-between">
               <div>
@@ -428,19 +559,28 @@ export default function PackagesPage() {
             {displayPlans.map((plan) => {
               const isPopular = plan.tier === "basic";
               const features = PLAN_FEATURES[plan.tier] || PLAN_FEATURES.free;
-              const isSelected = selectedPlan === plan.code;
+              const isSelected = selectedPlan === plan.code || selectedPlan === plan.id;
               const isFree = plan.tier === "free" || parseFloat(plan.basePrice) === 0;
+              const planAction = getPlanAction(plan);
+              const isCurrentPlan = planAction === "current";
+              const isPending = selectPlanMutation.isPending || changeSubscriptionMutation.isPending;
 
               return (
                 <Card 
                   key={plan.id} 
                   className={cn(
                     "relative flex flex-col",
-                    isPopular && "border-primary shadow-lg scale-105 z-10"
+                    isPopular && "border-primary shadow-lg scale-105 z-10",
+                    isCurrentPlan && "ring-2 ring-green-500"
                   )}
                   data-testid={`card-package-${plan.tier}`}
                 >
-                  {isPopular && (
+                  {isCurrentPlan && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-green-600 text-white">Current Plan</Badge>
+                    </div>
+                  )}
+                  {!isCurrentPlan && isPopular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                       <Badge className="bg-primary text-primary-foreground">Recommended</Badge>
                     </div>
@@ -484,27 +624,79 @@ export default function PackagesPage() {
                     </ul>
                   </CardContent>
                   <CardFooter>
-                    <Button 
-                      className="w-full" 
-                      variant={isPopular ? "default" : "outline"}
-                      disabled={selectPlanMutation.isPending}
-                      onClick={() => handleSelectPlan(plan.code)}
-                      data-testid={`button-select-package-${plan.tier}`}
-                    >
-                      {isSelected && selectPlanMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Processing...
-                        </>
-                      ) : isFree ? (
-                        "Start free"
-                      ) : (
-                        <>
-                          Get {plan.name}
-                          <ArrowRight className="h-4 w-4 ml-1" />
-                        </>
-                      )}
-                    </Button>
+                    {planAction === "current" ? (
+                      <Button 
+                        className="w-full" 
+                        variant="secondary"
+                        disabled
+                        data-testid={`button-current-plan-${plan.tier}`}
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Current Plan
+                      </Button>
+                    ) : planAction === "upgrade" ? (
+                      <Button 
+                        className="w-full" 
+                        variant="default"
+                        disabled={isPending}
+                        onClick={() => handleUpgrade(plan)}
+                        data-testid={`button-upgrade-${plan.tier}`}
+                      >
+                        {isSelected && isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <ArrowUp className="h-4 w-4 mr-2" />
+                            Upgrade
+                          </>
+                        )}
+                      </Button>
+                    ) : planAction === "downgrade" ? (
+                      <Button 
+                        className="w-full" 
+                        variant="outline"
+                        disabled={isPending || subscriptionData?.isDowngrading}
+                        onClick={() => handleDowngrade(plan)}
+                        data-testid={`button-downgrade-${plan.tier}`}
+                      >
+                        {isSelected && isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <ArrowDown className="h-4 w-4 mr-2" />
+                            Downgrade
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button 
+                        className="w-full" 
+                        variant={isPopular ? "default" : "outline"}
+                        disabled={isPending}
+                        onClick={() => handleSelectPlan(plan.code)}
+                        data-testid={`button-select-package-${plan.tier}`}
+                      >
+                        {isSelected && isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : isFree ? (
+                          "Start free"
+                        ) : (
+                          <>
+                            Get {plan.name}
+                            <ArrowRight className="h-4 w-4 ml-1" />
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </CardFooter>
                 </Card>
               );
@@ -517,6 +709,52 @@ export default function PackagesPage() {
           <p className="mt-1">You can upgrade or downgrade at any time.</p>
         </div>
       </main>
+
+      <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Downgrade</DialogTitle>
+            <DialogDescription>
+              {pendingDowngradePlan && subscriptionData?.currentPeriodEnd && (
+                <>
+                  You are about to downgrade to the <strong>{pendingDowngradePlan.name}</strong> plan.
+                  <br /><br />
+                  Your current plan will remain active until{" "}
+                  <strong>{new Date(subscriptionData.currentPeriodEnd).toLocaleDateString()}</strong>.
+                  After that date, your plan will automatically switch to {pendingDowngradePlan.name}.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDowngradeModal(false);
+                setPendingDowngradePlan(null);
+              }}
+              data-testid="button-cancel-downgrade-modal"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmDowngrade}
+              disabled={changeSubscriptionMutation.isPending}
+              data-testid="button-confirm-downgrade"
+            >
+              {changeSubscriptionMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Confirm Downgrade"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -5,11 +5,13 @@ import {
   globalPricingPlans, tenantSubscriptions, billingPayments, tenants,
   type TenantSubscription, type BillingPayment,
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, lte } from "drizzle-orm";
 import { subscriptionService } from "../services/subscription";
 import { authenticateJWT } from "../core/auth-middleware";
 import { getPaymentProvider } from "../core/payments/provider-factory";
 import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
+import { requirePermission, Permissions } from "../rbac/guards";
+import { auditService } from "../core/audit";
 
 const router = Router();
 
@@ -100,14 +102,29 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
     }
 
     const plan = await subscriptionService.getPlan(subscription.planId);
+    const pendingPlan = subscription.pendingPlanId 
+      ? await subscriptionService.getPlan(subscription.pendingPlanId) 
+      : null;
     
     const subStatus = subscription.status || "unknown";
+    const isDowngrading = subStatus === "downgrading";
+    const isActive = subStatus === "active" || subStatus === "trialing" || isDowngrading;
+    
     return res.json({
-      subscription,
+      subscription: {
+        ...subscription,
+        pendingPlanId: subscription.pendingPlanId,
+        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      },
       plan,
-      status: subStatus === "active" || subStatus === "trialing" ? "ACTIVE" : subStatus.toUpperCase(),
+      pendingPlan,
+      status: isActive ? (isDowngrading ? "DOWNGRADING" : "ACTIVE") : subStatus.toUpperCase(),
       planCode: plan?.code || null,
-      isActive: subStatus === "active" || subStatus === "trialing",
+      isActive,
+      isDowngrading,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      pendingPlanId: subscription.pendingPlanId,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       tenantId,
     });
   } catch (error) {
@@ -552,5 +569,331 @@ router.get("/pending-payment", requiredAuth, async (req: Request, res: Response)
     res.status(500).json({ error: "Failed to fetch pending payment" });
   }
 });
+
+const changeSubscriptionSchema = z.object({
+  planId: z.string().min(1),
+  action: z.enum(["upgrade", "downgrade"]),
+});
+
+router.post(
+  "/subscription/change",
+  requiredAuth,
+  requirePermission(Permissions.SUBSCRIPTION_CHANGE),
+  async (req: Request, res: Response) => {
+    try {
+      const resolution = await resolveTenantId(req);
+      logTenantResolution(req, resolution, "POST /subscription/change");
+
+      if (resolution.error) {
+        return res.status(resolution.error.status).json({
+          code: resolution.error.code,
+          message: resolution.error.message,
+        });
+      }
+
+      const tenantId = resolution.tenantId!;
+      const { planId, action } = changeSubscriptionSchema.parse(req.body);
+
+      const subscription = await getSubscription(tenantId);
+      if (!subscription) {
+        return res.status(404).json({
+          code: "NO_SUBSCRIPTION",
+          message: "No active subscription found",
+        });
+      }
+
+      if (subscription.status !== "active" && subscription.status !== "trialing" && subscription.status !== "downgrading") {
+        return res.status(400).json({
+          code: "INVALID_SUBSCRIPTION_STATUS",
+          message: "Cannot change subscription in current status",
+        });
+      }
+
+      const newPlan = await subscriptionService.getPlan(planId);
+      if (!newPlan || !newPlan.isActive) {
+        return res.status(404).json({
+          code: "PLAN_NOT_FOUND",
+          message: "Target plan not found or not active",
+        });
+      }
+
+      const currentPlan = await subscriptionService.getPlan(subscription.planId);
+      if (!currentPlan) {
+        return res.status(500).json({
+          code: "CURRENT_PLAN_NOT_FOUND",
+          message: "Current plan not found",
+        });
+      }
+
+      const currentPrice = parseFloat(currentPlan.basePrice);
+      const newPrice = parseFloat(newPlan.basePrice);
+      const userId = req.context?.user?.id || req.tokenPayload?.userId;
+
+      if (action === "upgrade") {
+        if (newPrice <= currentPrice) {
+          return res.status(400).json({
+            code: "INVALID_UPGRADE",
+            message: "Target plan is not a higher tier than current plan",
+          });
+        }
+
+        if (newPlan.tier === "free" || newPrice === 0) {
+          await db
+            .update(tenantSubscriptions)
+            .set({
+              planId: newPlan.id,
+              pendingPlanId: null,
+              cancelAtPeriodEnd: false,
+              status: "active",
+              updatedAt: new Date(),
+            })
+            .where(eq(tenantSubscriptions.id, subscription.id));
+
+          await auditService.log({
+            userId: userId || "unknown",
+            action: "update",
+            resource: "subscription",
+            resourceId: subscription.id,
+            oldValue: { planId: subscription.planId },
+            newValue: { planId: newPlan.id },
+            metadata: { operation: "upgrade_to_free", tenantId },
+            ipAddress: req.ip,
+            userAgent: req.headers["user-agent"],
+          });
+
+          console.log(`[billing] Subscription upgraded to free for tenant ${tenantId}`);
+          return res.json({
+            success: true,
+            requiresPayment: false,
+            message: "Subscription upgraded successfully",
+          });
+        }
+
+        await auditService.log({
+          userId: userId || "unknown",
+          action: "update",
+          resource: "subscription",
+          resourceId: subscription.id,
+          oldValue: { planId: subscription.planId },
+          newValue: { planId: newPlan.id, pendingPayment: true },
+          metadata: { operation: "upgrade_initiated", tenantId, targetPlanId: planId },
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+
+        console.log(`[billing] Upgrade initiated for tenant ${tenantId} to plan ${planId}`);
+        return res.json({
+          success: true,
+          requiresPayment: true,
+          planId: newPlan.id,
+          plan: newPlan,
+          tenantId,
+        });
+      }
+
+      if (action === "downgrade") {
+        if (newPrice >= currentPrice && currentPlan.tier !== "free") {
+          return res.status(400).json({
+            code: "INVALID_DOWNGRADE",
+            message: "Target plan is not a lower tier than current plan",
+          });
+        }
+
+        const [updatedSubscription] = await db
+          .update(tenantSubscriptions)
+          .set({
+            status: "downgrading",
+            pendingPlanId: newPlan.id,
+            cancelAtPeriodEnd: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(tenantSubscriptions.id, subscription.id))
+          .returning();
+
+        await auditService.log({
+          userId: userId || "unknown",
+          action: "update",
+          resource: "subscription",
+          resourceId: subscription.id,
+          oldValue: { planId: subscription.planId, status: subscription.status },
+          newValue: { pendingPlanId: newPlan.id, status: "downgrading", cancelAtPeriodEnd: true },
+          metadata: {
+            operation: "downgrade_scheduled",
+            tenantId,
+            effectiveAt: subscription.currentPeriodEnd,
+          },
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+
+        console.log(`[billing] Downgrade scheduled for tenant ${tenantId} to plan ${planId} effective ${subscription.currentPeriodEnd}`);
+
+        return res.json({
+          success: true,
+          subscription: updatedSubscription,
+          pendingPlan: newPlan,
+          effectiveAt: subscription.currentPeriodEnd,
+          message: "Downgrade scheduled for end of billing period",
+        });
+      }
+
+      return res.status(400).json({ code: "INVALID_ACTION", message: "Invalid action" });
+    } catch (error) {
+      console.error("[billing] Error changing subscription:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to change subscription" });
+    }
+  }
+);
+
+router.post(
+  "/subscription/cancel-downgrade",
+  requiredAuth,
+  requirePermission(Permissions.SUBSCRIPTION_CHANGE),
+  async (req: Request, res: Response) => {
+    try {
+      const resolution = await resolveTenantId(req);
+      logTenantResolution(req, resolution, "POST /subscription/cancel-downgrade");
+
+      if (resolution.error) {
+        return res.status(resolution.error.status).json({
+          code: resolution.error.code,
+          message: resolution.error.message,
+        });
+      }
+
+      const tenantId = resolution.tenantId!;
+      const subscription = await getSubscription(tenantId);
+
+      if (!subscription) {
+        return res.status(404).json({
+          code: "NO_SUBSCRIPTION",
+          message: "No subscription found",
+        });
+      }
+
+      if (subscription.status !== "downgrading" || !subscription.pendingPlanId) {
+        return res.status(400).json({
+          code: "NO_PENDING_DOWNGRADE",
+          message: "No pending downgrade to cancel",
+        });
+      }
+
+      const userId = req.context?.user?.id || req.tokenPayload?.userId;
+
+      const [updatedSubscription] = await db
+        .update(tenantSubscriptions)
+        .set({
+          status: "active",
+          pendingPlanId: null,
+          cancelAtPeriodEnd: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(tenantSubscriptions.id, subscription.id))
+        .returning();
+
+      await auditService.log({
+        userId: userId || "unknown",
+        action: "update",
+        resource: "subscription",
+        resourceId: subscription.id,
+        oldValue: { status: "downgrading", pendingPlanId: subscription.pendingPlanId },
+        newValue: { status: "active", pendingPlanId: null },
+        metadata: { operation: "downgrade_cancelled", tenantId },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      console.log(`[billing] Downgrade cancelled for tenant ${tenantId}`);
+
+      return res.json({
+        success: true,
+        subscription: updatedSubscription,
+        message: "Downgrade cancelled successfully",
+      });
+    } catch (error) {
+      console.error("[billing] Error cancelling downgrade:", error);
+      res.status(500).json({ error: "Failed to cancel downgrade" });
+    }
+  }
+);
+
+export async function processScheduledDowngrades(): Promise<number> {
+  const now = new Date();
+  let processedCount = 0;
+
+  try {
+    const pendingDowngrades = await db
+      .select()
+      .from(tenantSubscriptions)
+      .where(
+        and(
+          eq(tenantSubscriptions.cancelAtPeriodEnd, true),
+          lte(tenantSubscriptions.currentPeriodEnd, now)
+        )
+      );
+
+    for (const subscription of pendingDowngrades) {
+      if (!subscription.pendingPlanId) {
+        continue;
+      }
+
+      const newPlan = await subscriptionService.getPlan(subscription.pendingPlanId);
+      if (!newPlan) {
+        console.error(`[billing] Pending plan ${subscription.pendingPlanId} not found for subscription ${subscription.id}`);
+        continue;
+      }
+
+      const newPeriodStart = new Date();
+      const newPeriodEnd = new Date();
+      if (newPlan.tier === "free" || parseFloat(newPlan.basePrice) === 0) {
+        newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 100);
+      } else {
+        newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+      }
+
+      await db
+        .update(tenantSubscriptions)
+        .set({
+          planId: subscription.pendingPlanId,
+          pendingPlanId: null,
+          cancelAtPeriodEnd: false,
+          status: "active",
+          currentPeriodStart: newPeriodStart,
+          currentPeriodEnd: newPeriodEnd,
+          updatedAt: new Date(),
+        })
+        .where(eq(tenantSubscriptions.id, subscription.id));
+
+      await auditService.log({
+        userId: "system",
+        action: "update",
+        resource: "subscription",
+        resourceId: subscription.id,
+        oldValue: { planId: subscription.planId, status: "downgrading" },
+        newValue: { planId: subscription.pendingPlanId, status: "active" },
+        metadata: {
+          operation: "downgrade_applied",
+          tenantId: subscription.tenantId,
+          previousPlanId: subscription.planId,
+          newPlanId: subscription.pendingPlanId,
+        },
+      });
+
+      console.log(`[billing] Downgrade applied for subscription ${subscription.id}: ${subscription.planId} -> ${subscription.pendingPlanId}`);
+      processedCount++;
+    }
+
+    if (processedCount > 0) {
+      console.log(`[billing] Processed ${processedCount} scheduled downgrades`);
+    }
+  } catch (error) {
+    console.error("[billing] Error processing scheduled downgrades:", error);
+  }
+
+  return processedCount;
+}
 
 export default router;

@@ -78,6 +78,12 @@ export const Permissions = {
   RECORD_PAYMENTS: "RECORD_PAYMENTS",
   VIEW_ANALYTICS: "VIEW_ANALYTICS",
   MANAGE_SETTINGS: "MANAGE_SETTINGS",
+
+  // Tenant subscription permissions
+  SUBSCRIPTION_VIEW: "SUBSCRIPTION_VIEW",
+  SUBSCRIPTION_CHANGE: "SUBSCRIPTION_CHANGE",
+  INVOICES_VIEW: "INVOICES_VIEW",
+  PAYMENTS_VIEW: "PAYMENTS_VIEW",
 } as const;
 
 export type Permission = (typeof Permissions)[keyof typeof Permissions];
@@ -186,6 +192,10 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
       Permissions.RECORD_PAYMENTS,
       Permissions.VIEW_ANALYTICS,
       Permissions.MANAGE_SETTINGS,
+      Permissions.SUBSCRIPTION_VIEW,
+      Permissions.SUBSCRIPTION_CHANGE,
+      Permissions.INVOICES_VIEW,
+      Permissions.PAYMENTS_VIEW,
     ],
   },
 
@@ -197,6 +207,8 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
       Permissions.MANAGE_PROJECTS,
       Permissions.MANAGE_TIMESHEETS,
       Permissions.VIEW_INVOICES,
+      Permissions.SUBSCRIPTION_VIEW,
+      Permissions.INVOICES_VIEW,
     ],
   },
 
@@ -206,6 +218,7 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
     permissions: [
       Permissions.VIEW_DASHBOARD,
       Permissions.VIEW_INVOICES,
+      Permissions.SUBSCRIPTION_VIEW,
     ],
   },
 };

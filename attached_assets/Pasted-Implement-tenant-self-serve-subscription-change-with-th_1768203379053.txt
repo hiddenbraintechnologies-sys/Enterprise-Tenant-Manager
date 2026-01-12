@@ -1,0 +1,135 @@
+Implement tenant self-serve subscription change with the rule:
+PAID upgrades become ACTIVE ONLY after server-confirmed payment success.
+No activation on “select plan”.
+
+Tenants cannot edit plans. Only platform admins can manage plans/pricing.
+
+================================================
+1) Permissions (Tenant RBAC)
+================================================
+Add tenant permissions:
+- SUBSCRIPTION_VIEW
+- SUBSCRIPTION_CHANGE  (only OWNER + ADMIN)
+- INVOICES_VIEW
+- PAYMENTS_VIEW
+
+Ensure STAFF/MANAGER cannot change subscription.
+
+================================================
+2) Subscription fields required
+================================================
+Ensure subscription supports:
+- planId (current active plan)
+- status: active | pending_payment | downgrading | canceled
+- pendingPlanId (for requested upgrade/downgrade)
+- currentPeriodStart, currentPeriodEnd
+- cancelAtPeriodEnd boolean
+- pendingPaymentId (nullable)  // link to payment record
+
+================================================
+3) Endpoints (Tenant self-serve)
+================================================
+
+A) POST /api/billing/subscription/change
+Auth: requireAuth + tenant context + requirePermission(SUBSCRIPTION_CHANGE)
+
+Body:
+{ planId: "FREE"|"BASIC"|"PRO", action: "upgrade"|"downgrade" }
+
+Behavior:
+
+- Validate plan exists, active, matches tenant country availability.
+- If action="upgrade":
+    * If planId is FREE:
+        - downgrade to FREE should be treated as downgrade (scheduled or immediate based on your model)
+        - do NOT treat as “upgrade”
+    * If planId is BASIC/PRO:
+        - DO NOT activate subscription yet
+        - Create/Update subscription:
+            status = "pending_payment"
+            pendingPlanId = planId
+        - Create a Payment row:
+            status = "CREATED"
+            amountPaise = plan.pricePaise
+            currency = tenant.currency or "INR"
+            link payment to subscription via pendingPaymentId
+        - Return:
+            { requiresPayment: true, paymentId, pendingPlanId: planId, redirectUrl: "/checkout?paymentId=..." }
+
+- If action="downgrade":
+    - Schedule downgrade at period end:
+        status="downgrading"
+        pendingPlanId=planId
+        cancelAtPeriodEnd=true
+        return { success:true, effectiveAt: currentPeriodEnd }
+
+B) GET /api/billing/subscription
+Return:
+{ planId, status, pendingPlanId, cancelAtPeriodEnd, currentPeriodEnd }
+
+C) POST /api/billing/checkout/verify  (already exists / mock now, Razorpay later)
+Input includes providerPaymentId/signature etc.
+Behavior:
+- Verify payment server-side (PaymentProvider)
+- If verified:
+    - Mark payment PAID
+    - Fetch subscription linked to paymentId (pendingPaymentId)
+    - Activate upgrade:
+        subscription.planId = subscription.pendingPlanId
+        subscription.pendingPlanId = null
+        subscription.status = "active"
+        subscription.pendingPaymentId = null
+        cancelAtPeriodEnd=false
+    - Apply feature flags for the new plan NOW (only here)
+    - Return { success:true, redirectUrl: "<dashboard>" }
+- If not verified:
+    - Mark payment FAILED
+    - Keep subscription status pending_payment (or revert to active with old plan, choose one)
+    - Return { success:false, message:"Payment verification failed" }
+
+IMPORTANT:
+- Never activate BASIC/PRO until payment verified.
+- Never apply paid feature flags until verification.
+
+================================================
+4) Frontend behavior
+================================================
+A) /packages
+- If user clicks upgrade to BASIC/PRO:
+  call POST /api/billing/subscription/change
+  if requiresPayment → go to /checkout?paymentId=...
+- Show banner if status="pending_payment":
+  “Payment pending for <pendingPlanId>” + button “Continue to payment”
+
+B) /checkout
+- Load payment record by paymentId
+- Start payment (mock now / Razorpay later)
+- On success, call /api/billing/checkout/verify
+- Only after verify success redirect to dashboard
+
+================================================
+5) Downgrade scheduler job
+================================================
+Implement a daily job (safe simple runner):
+- Find subs where cancelAtPeriodEnd=true AND currentPeriodEnd <= now
+- Apply pendingPlanId as planId
+- Clear pendingPlanId, cancelAtPeriodEnd=false, status="active"
+- Apply feature flags for the downgraded plan at that time
+- Audit log
+
+================================================
+6) Tests
+================================================
+Add integration tests:
+- Tenant STAFF cannot change plan (403)
+- Upgrade BASIC returns requiresPayment and subscription stays old plan until payment verified
+- After verify success → subscription becomes active BASIC and flags applied
+- Verify failure does not activate plan
+- Downgrade schedules pendingPlanId and does not change current plan until period end
+- Tenant isolation enforced (404 for other tenant)
+
+Deliverables:
+- Tenant self-service upgrade (paid only after verification)
+- Scheduled downgrade
+- Feature flags only applied on activation
+- All tests passing
