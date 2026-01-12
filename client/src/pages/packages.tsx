@@ -27,7 +27,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { formatPriceOrFree } from "@/lib/formatPrice";
 import {
   FEATURE_CATALOG,
+  LIMIT_CATALOG,
   type FeatureCatalogItem,
+  type LimitCatalogItem,
 } from "@shared/billing/feature-catalog";
 
 interface Plan {
@@ -66,33 +68,35 @@ function getPlanFeatures(plan: Plan): { included: string[]; excluded: string[] }
   const featureFlags = plan.featureFlags || {};
   const limits = plan.limits || {};
   
-  if (limits.users !== undefined && limits.users > 0) {
-    included.push(`${limits.users === -1 ? "Unlimited" : limits.users} team member${limits.users !== 1 ? "s" : ""}`);
-  } else if (plan.maxUsers) {
-    included.push(`${plan.maxUsers === -1 ? "Unlimited" : plan.maxUsers} team member${plan.maxUsers !== 1 ? "s" : ""}`);
-  }
-  
-  if (limits.records !== undefined) {
-    if (limits.records === -1 || featureFlags.unlimited_records) {
-      included.push("Unlimited records");
-    } else if (limits.records > 0) {
-      included.push(`Up to ${limits.records.toLocaleString()} records`);
+  LIMIT_CATALOG.forEach((limitItem: LimitCatalogItem) => {
+    const value = limits[limitItem.key];
+    if (value === undefined) {
+      if (limitItem.key === "users" && plan.maxUsers) {
+        const v = plan.maxUsers;
+        included.push(v === -1 ? `Unlimited ${limitItem.label.toLowerCase()}` : `${v.toLocaleString()} ${limitItem.label.toLowerCase()}`);
+      } else if (limitItem.key === "customers" && plan.maxCustomers) {
+        const v = plan.maxCustomers;
+        included.push(v === -1 ? `Unlimited ${limitItem.label.toLowerCase()}` : `${v.toLocaleString()} ${limitItem.label.toLowerCase()}`);
+      }
+      return;
     }
-  }
-  
-  if (limits.customers !== undefined && limits.customers > 0) {
-    included.push(`${limits.customers === -1 ? "Unlimited" : limits.customers.toLocaleString()} customers`);
-  } else if (plan.maxCustomers && plan.maxCustomers > 0) {
-    included.push(`${plan.maxCustomers === -1 ? "Unlimited" : plan.maxCustomers.toLocaleString()} customers`);
-  }
+    
+    if (value === -1) {
+      included.push(`Unlimited ${limitItem.label.toLowerCase()}`);
+    } else if (value === 0) {
+      // Skip limits set to 0 - not included in plan
+    } else {
+      included.push(`${value.toLocaleString()} ${limitItem.label.toLowerCase()}`);
+    }
+  });
   
   FEATURE_CATALOG.forEach((feature: FeatureCatalogItem) => {
     if (feature.key === "record_limit" || feature.key === "unlimited_records") return;
     
-    const isEnabled = featureFlags[feature.key] === true;
-    if (isEnabled) {
+    const flagValue = featureFlags[feature.key];
+    if (flagValue === true) {
       included.push(feature.label);
-    } else {
+    } else if (flagValue === false) {
       excluded.push(feature.label);
     }
   });
