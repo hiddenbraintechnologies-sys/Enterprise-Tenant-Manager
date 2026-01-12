@@ -1,0 +1,83 @@
+Add a downgrade confirmation UX that shows what features/limits the tenant will lose when switching from current plan to the pending downgrade plan at period-end.
+
+We already have:
+- FEATURE_CATALOG (feature key, label, description)
+- LIMIT_CATALOG (users, customers, records, etc.)
+- Plans include featureFlags json + limits json
+- /packages page is API-driven
+
+GOAL:
+When tenant admin schedules or changes a downgrade plan:
+Show a modal that clearly lists:
+1) Features that will be LOST (enabled now, disabled after downgrade)
+2) Limits that will get tighter (e.g. users 10 -> 3, records unlimited -> 500)
+3) Effective date: currentPeriodEnd
+Require confirmation before scheduling/changing downgrade.
+
+------------------------------------------------
+Frontend implementation
+------------------------------------------------
+1) Create helper functions:
+- getLostFeatures(currentPlan, targetPlan):
+  returns FEATURE_CATALOG items where:
+  currentPlan.featureFlags[key] === true AND targetPlan.featureFlags[key] !== true
+
+- getReducedLimits(currentPlan, targetPlan):
+  For each key in LIMIT_CATALOG:
+   - interpret -1 as Unlimited
+   - if current is Unlimited and target is finite => reduced
+   - if both finite and target < current => reduced
+   return list with: { key, label, from, to }
+
+2) Add DowngradeConfirmModal component:
+Props:
+- currentPlan
+- targetPlan
+- effectiveAt (date)
+- onConfirm()
+- onCancel()
+
+Modal sections:
+A) Title: “Confirm downgrade”
+B) Subtitle: “Downgrade will take effect on <effectiveAt>. You keep current features until then.”
+C) Lost features list:
+   - show label + short description
+   - if none: show “No feature removals”
+D) Reduced limits list:
+   - “Users: 10 → 3”
+   - “Records: Unlimited → 500”
+   - “Customers: 200 → 25”
+   - if none: “No limit reductions”
+E) Buttons:
+   - Cancel
+   - Confirm downgrade
+
+3) Wire it into /packages:
+- When user clicks “Downgrade” or “Switch downgrade to this plan”
+  - open modal
+  - onConfirm -> call POST /api/billing/subscription/change action="downgrade"
+
+4) Improve banner:
+- If status="downgrading":
+  “Downgrade scheduled on <date> to <planName>”
+  Add links/buttons:
+  - Change plan
+  - Cancel downgrade
+
+------------------------------------------------
+Backend (no big changes required)
+------------------------------------------------
+5) No backend changes required, but ensure subscription endpoint returns currentPeriodEnd.
+
+------------------------------------------------
+Tests
+------------------------------------------------
+6) Add UI unit tests for helper logic:
+- Lost features computed correctly
+- Reduced limits computed correctly including Unlimited (-1)
+
+Acceptance:
+- Tenant admin sees exactly what they will lose before confirming downgrade
+- Unlimited -> finite limit is shown clearly
+- Feature removals derived from FEATURE_CATALOG
+- Works both for initial downgrade scheduling and changing pending downgrade plan

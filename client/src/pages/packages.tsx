@@ -31,6 +31,7 @@ import {
   type FeatureCatalogItem,
   type LimitCatalogItem,
 } from "@shared/billing/feature-catalog";
+import { DowngradeConfirmModal } from "@/components/downgrade-confirm-modal";
 
 interface Plan {
   id: string;
@@ -105,10 +106,21 @@ function getPlanFeatures(plan: Plan): { included: string[]; excluded: string[] }
 }
 
 
+interface SubscriptionPlanDetails {
+  id: string;
+  tier: string;
+  name: string;
+  basePrice: string;
+  featureFlags?: Record<string, boolean>;
+  limits?: Record<string, number>;
+  maxUsers?: number;
+  maxCustomers?: number;
+}
+
 interface SubscriptionData {
   subscription: { id: string; status: string; pendingPlanId?: string; pendingPaymentId?: string; cancelAtPeriodEnd?: boolean } | null;
-  plan: { id: string; tier: string; name: string; basePrice: string } | null;
-  pendingPlan?: { id: string; tier: string; name: string; basePrice: string } | null;
+  plan: SubscriptionPlanDetails | null;
+  pendingPlan?: SubscriptionPlanDetails | null;
   status: string;
   planCode: string | null;
   isActive: boolean;
@@ -468,31 +480,39 @@ export default function PackagesPage() {
         {subscriptionData?.isDowngrading && subscriptionData?.pendingPlan && (
           <Alert className="max-w-2xl mx-auto mb-6 border-orange-500/50 bg-orange-50 dark:bg-orange-900/20">
             <Clock className="h-4 w-4 text-orange-600" />
-            <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <span className="font-medium text-orange-700 dark:text-orange-300">
-                  Downgrade scheduled
-                </span>
-                <span className="block text-sm text-muted-foreground mt-1">
-                  Your plan will change to {subscriptionData.pendingPlan.name} on {subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString() : "end of billing period"}
-                </span>
+            <AlertDescription>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <span className="font-medium text-orange-700 dark:text-orange-300">
+                    Downgrade scheduled to {subscriptionData.pendingPlan.name}
+                  </span>
+                  <span className="block text-sm text-muted-foreground mt-1">
+                    Effective {subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "at end of billing period"}.
+                    You keep all current features until then.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => cancelDowngradeMutation.mutate()}
+                    disabled={cancelDowngradeMutation.isPending}
+                    data-testid="button-cancel-downgrade"
+                  >
+                    {cancelDowngradeMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Cancel downgrade
+                      </>
+                    )}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    or select a different plan below to change your scheduled downgrade
+                  </span>
+                </div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => cancelDowngradeMutation.mutate()}
-                disabled={cancelDowngradeMutation.isPending}
-                data-testid="button-cancel-downgrade"
-              >
-                {cancelDowngradeMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <XCircle className="h-4 w-4 mr-1" />
-                    Cancel downgrade
-                  </>
-                )}
-              </Button>
             </AlertDescription>
           </Alert>
         )}
@@ -745,51 +765,37 @@ export default function PackagesPage() {
         </div>
       </main>
 
-      <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Downgrade</DialogTitle>
-            <DialogDescription>
-              {pendingDowngradePlan && subscriptionData?.currentPeriodEnd && (
-                <>
-                  You are about to downgrade to the <strong>{pendingDowngradePlan.name}</strong> plan.
-                  <br /><br />
-                  Your current plan will remain active until{" "}
-                  <strong>{new Date(subscriptionData.currentPeriodEnd).toLocaleDateString()}</strong>.
-                  After that date, your plan will automatically switch to {pendingDowngradePlan.name}.
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowDowngradeModal(false);
-                setPendingDowngradePlan(null);
-              }}
-              data-testid="button-cancel-downgrade-modal"
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={confirmDowngrade}
-              disabled={changeSubscriptionMutation.isPending}
-              data-testid="button-confirm-downgrade"
-            >
-              {changeSubscriptionMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                "Confirm Downgrade"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {subscriptionData?.plan && pendingDowngradePlan && (
+        <DowngradeConfirmModal
+          open={showDowngradeModal}
+          onOpenChange={setShowDowngradeModal}
+          currentPlan={{
+            id: subscriptionData.plan.id,
+            name: subscriptionData.plan.name,
+            tier: subscriptionData.plan.tier,
+            featureFlags: subscriptionData.plan.featureFlags,
+            limits: subscriptionData.plan.limits,
+            maxUsers: subscriptionData.plan.maxUsers,
+            maxCustomers: subscriptionData.plan.maxCustomers,
+          }}
+          targetPlan={{
+            id: pendingDowngradePlan.id,
+            name: pendingDowngradePlan.name,
+            tier: pendingDowngradePlan.tier,
+            featureFlags: pendingDowngradePlan.featureFlags,
+            limits: pendingDowngradePlan.limits,
+            maxUsers: pendingDowngradePlan.maxUsers,
+            maxCustomers: pendingDowngradePlan.maxCustomers,
+          }}
+          effectiveAt={subscriptionData.currentPeriodEnd || new Date()}
+          onConfirm={confirmDowngrade}
+          onCancel={() => {
+            setShowDowngradeModal(false);
+            setPendingDowngradePlan(null);
+          }}
+          isLoading={changeSubscriptionMutation.isPending}
+        />
+      )}
 
       <Dialog open={showCancelUpgradeModal} onOpenChange={setShowCancelUpgradeModal}>
         <DialogContent>
