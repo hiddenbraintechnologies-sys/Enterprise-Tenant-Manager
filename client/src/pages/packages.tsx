@@ -390,7 +390,7 @@ export default function PackagesPage() {
     changeSubscriptionMutation.mutate({ planId: pendingUpgradePlan.id, action: "upgrade" });
   };
 
-  const getNewBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
+  const getComputedBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
     const benefits: { label: string; description?: string }[] = [];
     const currentFlags = currentPlan?.featureFlags || {};
     const targetFlags = targetPlan.featureFlags || {};
@@ -420,7 +420,17 @@ export default function PackagesPage() {
       benefits.push({ label: `Records: ${fromStr} → ${toStr}` });
     }
     
-    return benefits.slice(0, 5);
+    return benefits;
+  };
+
+  const getNewBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
+    const computedGains = getComputedBenefits(currentPlan, targetPlan);
+    
+    if (computedGains.length >= 2) {
+      return computedGains.slice(0, 5);
+    }
+    
+    return [];
   };
 
   const handleDowngrade = (plan: Plan) => {
