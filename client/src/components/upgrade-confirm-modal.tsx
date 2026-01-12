@@ -57,29 +57,29 @@ const DEFAULT_BENEFITS_BASIC_TO_PRO: BilingualBenefit[] = [
   {
     label: { en: "WhatsApp automation", hi: "WhatsApp ऑटोमेशन" },
     description: {
-      en: "Send automated reminders and updates via WhatsApp.",
-      hi: "WhatsApp से automated reminders और updates भेजें।",
+      en: "Automate reminders, status updates, and payment follow-ups on WhatsApp.",
+      hi: "WhatsApp पर reminders, status updates और payment follow-ups ऑटोमेट करें।",
     },
   },
   {
-    label: { en: "Unlimited records", hi: "अनलिमिटेड रिकॉर्ड्स" },
+    label: { en: "Unlimited records & customers", hi: "Unlimited records और customers" },
     description: {
-      en: "No caps on customers, bookings, or transactions.",
-      hi: "Customers, bookings या transactions पर कोई limit नहीं।",
+      en: "No caps on records/customers so you can scale without limits.",
+      hi: "Records/customers पर कोई cap नहीं — बिना limits के scale करें।",
     },
   },
   {
-    label: { en: "Priority support", hi: "प्राथमिकता सपोर्ट" },
+    label: { en: "10 users (team-ready)", hi: "10 users (टीम के लिए)" },
     description: {
-      en: "Get faster response times from our support team.",
-      hi: "हमारी support team से तेज़ response पाएं।",
+      en: "Add up to 10 users for staff and managers.",
+      hi: "Staff और managers के लिए 10 users तक add करें।",
     },
   },
   {
-    label: { en: "Advanced analytics", hi: "Advanced एनालिटिक्स" },
+    label: { en: "Priority support", hi: "Priority सपोर्ट" },
     description: {
-      en: "Detailed reports and business insights.",
-      hi: "विस्तृत reports और business insights।",
+      en: "Faster support response for business-critical issues.",
+      hi: "Business-critical issues के लिए तेज़ support response।",
     },
   },
 ];
@@ -140,8 +140,8 @@ function getUpgradeSubtitle(lang: Lang, currentTier: string, targetTier: string,
   if (currentTier === "basic" && targetTier === "pro") {
     return t(
       lang,
-      `Get WhatsApp automation, unlimited records, and priority support for ${priceLabel}/month. Activates after payment success.`,
-      `${priceLabel}/महीना में WhatsApp ऑटोमेशन, अनलिमिटेड रिकॉर्ड्स और प्राथमिकता सपोर्ट पाएँ। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
+      `Unlock WhatsApp automation + unlimited growth for ${priceLabel}/month. Activates after payment success.`,
+      `${priceLabel}/महीना में WhatsApp automation + unlimited growth अनलॉक करें। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
     );
   }
   if (currentTier === "free" && targetTier === "pro") {
