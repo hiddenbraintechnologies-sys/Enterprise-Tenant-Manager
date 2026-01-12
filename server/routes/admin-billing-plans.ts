@@ -1,12 +1,13 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { db } from "../db";
-import { globalPricingPlans, planLocalPrices, insertGlobalPricingPlanSchema } from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { globalPricingPlans, planLocalPrices, tenantSubscriptions, insertGlobalPricingPlanSchema } from "@shared/schema";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { authenticateJWT, requirePlatformAdmin } from "../core/auth-middleware";
 import { requirePermission, getScopeContext } from "../rbac/guards";
 import { Permissions } from "@shared/rbac/permissions";
 import { auditService } from "../core";
+import { FEATURE_CATALOG, LIMIT_CATALOG } from "@shared/billing/feature-catalog";
 
 const router = Router();
 
@@ -57,11 +58,25 @@ function getAdminInfo(req: Request): { adminId: string; adminEmail: string } {
   };
 }
 
-const createPlanSchema = insertGlobalPricingPlanSchema.extend({
+const featureFlagsSchema = z.record(z.string(), z.boolean()).optional();
+const limitsSchema = z.record(z.string(), z.number().int().min(0)).optional();
+
+const createPlanSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1),
-  tier: z.enum(["free", "starter", "pro", "enterprise"]),
+  description: z.string().nullable().optional(),
+  tier: z.enum(["free", "starter", "basic", "pro", "enterprise"]),
+  countryCode: z.string().min(2).max(5),
+  currencyCode: z.string().min(3).max(5),
+  billingCycle: z.enum(["monthly", "quarterly", "yearly"]).optional(),
   basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  maxUsers: z.number().int().min(0).optional(),
+  maxCustomers: z.number().int().min(0).optional(),
+  features: z.array(z.string()).optional(),
+  featureFlags: featureFlagsSchema,
+  limits: limitsSchema,
+  isPublic: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
   localPrices: z.array(z.object({
     country: z.string(),
     localPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
@@ -71,11 +86,16 @@ const createPlanSchema = insertGlobalPricingPlanSchema.extend({
 const updatePlanSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
-  tier: z.enum(["free", "starter", "pro", "enterprise"]).optional(),
+  tier: z.enum(["free", "starter", "basic", "pro", "enterprise"]).optional(),
+  billingCycle: z.enum(["monthly", "quarterly", "yearly"]).optional(),
   basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
-  maxUsers: z.number().int().positive().optional(),
-  maxCustomers: z.number().int().positive().optional(),
+  maxUsers: z.number().int().min(0).optional(),
+  maxCustomers: z.number().int().min(0).optional(),
   features: z.array(z.string()).optional(),
+  featureFlags: featureFlagsSchema,
+  limits: limitsSchema,
+  isActive: z.boolean().optional(),
+  isPublic: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   localPrices: z.array(z.object({
     country: z.string(),
@@ -469,6 +489,106 @@ router.get(
       console.error("[admin-billing-plans] Error fetching plan:", error);
       res.status(500).json({ error: "Failed to fetch plan" });
     }
+  }
+);
+
+router.post(
+  "/plans/:id/archive",
+  requiredAuth,
+  requirePlatformAdmin(),
+  requirePermission(Permissions.MANAGE_PLANS_PRICING),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      
+      const [existingPlan] = await db.select()
+        .from(globalPricingPlans)
+        .where(eq(globalPricingPlans.id, id))
+        .limit(1);
+      
+      if (!existingPlan) {
+        return res.status(404).json({
+          code: "PLAN_NOT_FOUND",
+          message: "Plan not found",
+        });
+      }
+      
+      if (!canAdminManagePlan(req, existingPlan.code)) {
+        return res.status(403).json({
+          code: "COUNTRY_SCOPE_VIOLATION",
+          message: "You do not have permission to archive plans for this country",
+        });
+      }
+      
+      if (existingPlan.archivedAt) {
+        return res.status(400).json({
+          code: "PLAN_ALREADY_ARCHIVED",
+          message: "Plan is already archived",
+        });
+      }
+      
+      const activeSubscriptions = await db.select()
+        .from(tenantSubscriptions)
+        .where(and(
+          eq(tenantSubscriptions.planId, id),
+          eq(tenantSubscriptions.status, "active")
+        ))
+        .limit(1);
+      
+      if (activeSubscriptions.length > 0) {
+        return res.status(409).json({
+          code: "PLAN_HAS_ACTIVE_SUBSCRIBERS",
+          message: "Cannot archive plan with active subscribers. Please migrate them first.",
+        });
+      }
+      
+      const [archivedPlan] = await db.update(globalPricingPlans)
+        .set({
+          isActive: false,
+          isPublic: false,
+          archivedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(globalPricingPlans.id, id))
+        .returning();
+      
+      const { adminId, adminEmail } = getAdminInfo(req);
+      await auditService.log({
+        userId: adminId,
+        action: "update",
+        resource: "pricing_plan",
+        resourceId: id,
+        oldValue: { isActive: existingPlan.isActive, isPublic: existingPlan.isPublic, archivedAt: null },
+        newValue: { isActive: false, isPublic: false, archivedAt: archivedPlan.archivedAt },
+        metadata: {
+          adminEmail,
+          planCode: archivedPlan.code,
+          planName: archivedPlan.name,
+          operation: "archive",
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
+      console.log(`[admin-billing-plans] Plan archived: ${archivedPlan.code} by ${adminEmail}`);
+      
+      res.json({ plan: archivedPlan, message: "Plan archived successfully" });
+    } catch (error) {
+      console.error("[admin-billing-plans] Error archiving plan:", error);
+      res.status(500).json({ error: "Failed to archive plan" });
+    }
+  }
+);
+
+router.get(
+  "/catalog",
+  requiredAuth,
+  requirePlatformAdmin(),
+  async (_req: Request, res: Response) => {
+    res.json({
+      features: FEATURE_CATALOG,
+      limits: LIMIT_CATALOG,
+    });
   }
 );
 

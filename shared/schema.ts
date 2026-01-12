@@ -1515,19 +1515,27 @@ export const globalPricingPlans = pgTable("global_pricing_plans", {
   code: varchar("code", { length: 50 }).notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  tier: varchar("tier", { length: 20 }).notNull(), // free, starter, pro, enterprise
+  tier: varchar("tier", { length: 20 }).notNull(), // free, starter, basic, pro, enterprise
+  countryCode: varchar("country_code", { length: 5 }),
+  currencyCode: varchar("currency_code", { length: 5 }),
   billingCycle: billingCycleEnum("billing_cycle").default("monthly"),
-  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(), // in USD
+  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
   maxUsers: integer("max_users").default(5),
   maxCustomers: integer("max_customers").default(100),
   features: jsonb("features").default([]),
+  featureFlags: jsonb("feature_flags").default({}),
+  limits: jsonb("limits").default({}),
   isActive: boolean("is_active").default(true),
-  sortOrder: integer("sort_order").default(0),
+  isPublic: boolean("is_public").default(true),
+  sortOrder: integer("sort_order").default(100),
+  version: integer("version").default(1),
+  archivedAt: timestamp("archived_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("idx_global_pricing_plans_tier").on(table.tier),
   index("idx_global_pricing_plans_active").on(table.isActive),
+  index("idx_global_pricing_plans_country").on(table.countryCode),
 ]);
 
 // Country-specific pricing and tax configuration
