@@ -1,0 +1,399 @@
+/* ============================================================
+   Billing Copy + JSX Snippets (EN + HI)
+   - Downgrade Confirmation modal (with “features you’ll lose”)
+   - Upgrade Confirmation modal (opposite flow)
+   - Tuned copy: Free→Basic, Pro→Basic, Pro→Free, etc.
+   ============================================================ */
+
+type Lang = "en" | "hi";
+
+type PlanKey = "FREE" | "BASIC" | "PRO" | "ENTERPRISE" | string;
+
+type LostFeature = { label: string; description?: string };
+type LimitChange = { label: string; from: string; to: string };
+
+function formatDate(d: Date | string) {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** Lightweight bilingual helper */
+function t(lang: Lang, en: string, hi: string) {
+  return lang === "hi" ? hi : en;
+}
+
+/** Plan-specific tone helpers */
+function downgradeTitle(lang: Lang, current: PlanKey, target: PlanKey) {
+  if (current === "PRO" && target === "BASIC") {
+    return t(lang, "Confirm downgrade to Basic", "Basic में डाउनग्रेड कन्फर्म करें");
+  }
+  if (current === "BASIC" && target === "FREE") {
+    return t(lang, "Confirm downgrade to Free", "Free में डाउनग्रेड कन्फर्म करें");
+  }
+  return t(lang, "Confirm plan downgrade", "प्लान डाउनग्रेड कन्फर्म करें");
+}
+
+function downgradeSubtitle(lang: Lang, effectiveAt: Date | string) {
+  const dateStr = formatDate(effectiveAt);
+  return t(
+    lang,
+    `Your downgrade will take effect on ${dateStr}. You’ll keep your current features until then.`,
+    `आपका डाउनग्रेड ${dateStr} से लागू होगा। तब तक आप अपने मौजूदा फीचर्स इस्तेमाल कर सकते हैं।`
+  );
+}
+
+function reassuranceBlock(lang: Lang, effectiveAt: Date | string) {
+  const dateStr = formatDate(effectiveAt);
+  return (
+    <div className="rounded-xl border p-3 text-sm">
+      <div className="font-medium">{t(lang, "No immediate changes", "अभी कोई बदलाव नहीं")}</div>
+      <div className="mt-1 text-muted-foreground">
+        {t(
+          lang,
+          `You can continue using all current features until ${dateStr}. You can also cancel or change this downgrade anytime before that date.`,
+          `आप ${dateStr} तक सभी मौजूदा फीचर्स इस्तेमाल कर सकते हैं। आप उस तारीख से पहले कभी भी डाउनग्रेड को कैंसल या बदल सकते हैं।`
+        )}
+      </div>
+    </div>
+  );
+}
+
+function sectionHeading(lang: Lang, en: string, hi: string) {
+  return <div className="mt-4 text-sm font-semibold">{t(lang, en, hi)}</div>;
+}
+
+/* -------------------------
+   Downgrade Modal JSX
+-------------------------- */
+
+type DowngradeConfirmModalProps = {
+  open: boolean;
+  lang: Lang;
+  currentPlan: { key: PlanKey; name: string };
+  targetPlan: { key: PlanKey; name: string };
+  effectiveAt: Date | string;
+  lostFeatures: LostFeature[];
+  reducedLimits: LimitChange[];
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
+export function DowngradeConfirmModal(props: DowngradeConfirmModalProps) {
+  const { open, lang, currentPlan, targetPlan, effectiveAt, lostFeatures, reducedLimits, onConfirm, onCancel } = props;
+  if (!open) return null;
+
+  const primaryLabel =
+    currentPlan.key === "PRO" && targetPlan.key === "BASIC"
+      ? t(lang, "Confirm downgrade to Basic", "Basic में डाउनग्रेड कन्फर्म करें")
+      : t(lang, "Confirm downgrade", "डाउनग्रेड कन्फर्म करें");
+
+  const cancelLabel = t(lang, "Go back", "वापस जाएँ");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-background p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {downgradeTitle(lang, currentPlan.key, targetPlan.key)}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">{downgradeSubtitle(lang, effectiveAt)}</p>
+          </div>
+
+          <button
+            className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
+            onClick={onCancel}
+            aria-label={t(lang, "Close", "बंद करें")}
+          >
+            ✕
+          </button>
+        </div>
+
+        {sectionHeading(lang, "You’ll lose access to these features", "ये फीचर्स उपलब्ध नहीं रहेंगे")}
+        <div className="mt-2 space-y-2">
+          {lostFeatures.length > 0 ? (
+            lostFeatures.map((f) => (
+              <div key={f.label} className="rounded-xl border p-3">
+                <div className="font-medium">❌ {f.label}</div>
+                {f.description ? <div className="mt-1 text-sm text-muted-foreground">{f.description}</div> : null}
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border p-3 text-sm text-muted-foreground">
+              ✅ {t(lang, "No features will be removed.", "कोई फीचर हटाया नहीं जाएगा।")}
+            </div>
+          )}
+        </div>
+
+        {sectionHeading(lang, "Your limits will change", "आपकी लिमिट्स बदलेंगी")}
+        <div className="mt-2 space-y-2">
+          {reducedLimits.length > 0 ? (
+            reducedLimits.map((c) => (
+              <div key={c.label} className="flex items-center justify-between rounded-xl border p-3 text-sm">
+                <span className="font-medium">{c.label}</span>
+                <span className="text-muted-foreground">
+                  {c.from} → {c.to}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border p-3 text-sm text-muted-foreground">
+              ✅ {t(lang, "Your usage limits will remain the same.", "आपकी उपयोग लिमिट्स वही रहेंगी।")}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4">{reassuranceBlock(lang, effectiveAt)}</div>
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button onClick={onCancel} className="rounded-xl border px-4 py-2 text-sm hover:bg-muted">
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onConfirm}
+            className="rounded-xl bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90"
+          >
+            {primaryLabel}
+          </button>
+        </div>
+
+        {/* Optional microcopy */}
+        <div className="mt-3 text-xs text-muted-foreground">
+          {t(
+            lang,
+            "Tip: You can upgrade again anytime.",
+            "Tip: आप कभी भी फिर से अपग्रेड कर सकते हैं।"
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------
+   Banner JSX (after scheduling downgrade)
+-------------------------- */
+export function DowngradeScheduledBanner({
+  lang,
+  pendingPlanName,
+  effectiveAt,
+  onChange,
+  onCancel,
+}: {
+  lang: Lang;
+  pendingPlanName: string;
+  effectiveAt: Date | string;
+  onChange: () => void;
+  onCancel: () => void;
+}) {
+  const dateStr = formatDate(effectiveAt);
+  return (
+    <div className="rounded-2xl border p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="font-semibold">
+            ⬇️ {t(lang, "Downgrade scheduled", "डाउनग्रेड शेड्यूल हो गया")}
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            {t(
+              lang,
+              `Your plan will change to ${pendingPlanName} on ${dateStr}. You’ll keep your current features until then.`,
+              `आपका प्लान ${dateStr} को ${pendingPlanName} में बदल जाएगा। तब तक आपके मौजूदा फीचर्स उपलब्ध रहेंगे।`
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={onChange} className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            {t(lang, "Change downgrade plan", "डाउनग्रेड प्लान बदलें")}
+          </button>
+          <button onClick={onCancel} className="rounded-xl border px-3 py-2 text-sm hover:bg-muted">
+            {t(lang, "Cancel downgrade", "डाउनग्रेड कैंसल करें")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Upgrade Confirmation Copy (Opposite Flow)
+   - Tuned for Free→Basic
+   - General upgrade modal
+   - Payment success messaging
+   ============================================================ */
+
+function upgradeTitle(lang: Lang, current: PlanKey, target: PlanKey) {
+  if (current === "FREE" && target === "BASIC") {
+    return t(lang, "Upgrade to Basic", "Basic में अपग्रेड करें");
+  }
+  if (current === "BASIC" && target === "PRO") {
+    return t(lang, "Upgrade to Pro", "Pro में अपग्रेड करें");
+  }
+  return t(lang, "Confirm upgrade", "अपग्रेड कन्फर्म करें");
+}
+
+function upgradeSubtitle(lang: Lang, current: PlanKey, target: PlanKey, priceLabel: string) {
+  if (current === "FREE" && target === "BASIC") {
+    return t(
+      lang,
+      `Unlock GST + SMS + Analytics for just ${priceLabel}/month. You can cancel anytime.`,
+      `सिर्फ ${priceLabel}/महीना में GST + SMS + Analytics अनलॉक करें। आप कभी भी कैंसल कर सकते हैं।`
+    );
+  }
+  if (current === "PRO" && target === "BASIC") {
+    // This is actually a downgrade; shown here only if you want a “switch” copy elsewhere.
+    return t(
+      lang,
+      `Switching to Basic will reduce features. Changes apply at month-end.`,
+      `Basic में स्विच करने पर कुछ फीचर्स कम होंगे। बदलाव महीने के अंत में लागू होगा।`
+    );
+  }
+  return t(
+    lang,
+    `You’ll be redirected to payment. Your plan activates only after payment success.`,
+    `आपको पेमेंट पेज पर भेजा जाएगा। पेमेंट सफल होने के बाद ही प्लान एक्टिव होगा।`
+  );
+}
+
+type UpgradeConfirmModalProps = {
+  open: boolean;
+  lang: Lang;
+  currentPlan: { key: PlanKey; name: string };
+  targetPlan: { key: PlanKey; name: string };
+  priceLabel: string; // already formatted like "₹99"
+  newBenefits: LostFeature[]; // reuse type for “gains”
+  onProceedToPay: () => void;
+  onCancel: () => void;
+};
+
+export function UpgradeConfirmModal(props: UpgradeConfirmModalProps) {
+  const { open, lang, currentPlan, targetPlan, priceLabel, newBenefits, onProceedToPay, onCancel } = props;
+  if (!open) return null;
+
+  const primaryLabel =
+    currentPlan.key === "FREE" && targetPlan.key === "BASIC"
+      ? t(lang, `Proceed to pay ${priceLabel}`, `पेमेंट करें ${priceLabel}`)
+      : t(lang, "Proceed to payment", "पेमेंट के लिए आगे बढ़ें");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-background p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {upgradeTitle(lang, currentPlan.key, targetPlan.key)}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {upgradeSubtitle(lang, currentPlan.key, targetPlan.key, priceLabel)}
+            </p>
+          </div>
+
+          <button
+            className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
+            onClick={onCancel}
+            aria-label={t(lang, "Close", "बंद करें")}
+          >
+            ✕
+          </button>
+        </div>
+
+        {sectionHeading(lang, "What you’ll get", "आपको क्या मिलेगा")}
+        <div className="mt-2 space-y-2">
+          {newBenefits.length > 0 ? (
+            newBenefits.map((b) => (
+              <div key={b.label} className="rounded-xl border p-3">
+                <div className="font-medium">✅ {b.label}</div>
+                {b.description ? <div className="mt-1 text-sm text-muted-foreground">{b.description}</div> : null}
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border p-3 text-sm text-muted-foreground">
+              ✅ {t(lang, "All selected plan features will be enabled after successful payment.", "सफल पेमेंट के बाद चुने हुए प्लान के सभी फीचर्स चालू हो जाएंगे।")}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-xl border p-3 text-sm">
+          <div className="font-medium">{t(lang, "Important", "महत्वपूर्ण")}</div>
+          <div className="mt-1 text-muted-foreground">
+            {t(
+              lang,
+              "Your plan will be upgraded only after payment is verified successfully. No changes are applied before that.",
+              "पेमेंट सफलतापूर्वक वेरिफाई होने के बाद ही आपका प्लान अपग्रेड होगा। उससे पहले कोई बदलाव नहीं होगा।"
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button onClick={onCancel} className="rounded-xl border px-4 py-2 text-sm hover:bg-muted">
+            {t(lang, "Go back", "वापस जाएँ")}
+          </button>
+          <button
+            onClick={onProceedToPay}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            {primaryLabel}
+          </button>
+        </div>
+
+        <div className="mt-3 text-xs text-muted-foreground">
+          {t(
+            lang,
+            "You can cancel anytime from Billing settings.",
+            "आप Billing settings से कभी भी कैंसल कर सकते हैं।"
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Tuned Copy Examples (plan-specific)
+   - Free → Basic CTA
+   - Pro → Basic downgrade emphasis
+============================================================ */
+
+export function FreeToBasicCTA({ lang, priceLabel, onClick }: { lang: Lang; priceLabel: string; onClick: () => void }) {
+  return (
+    <div className="rounded-2xl border p-4">
+      <div className="text-base font-semibold">{t(lang, "Upgrade to Basic", "Basic में अपग्रेड करें")}</div>
+      <div className="mt-1 text-sm text-muted-foreground">
+        {t(
+          lang,
+          `Get GST + SMS + Analytics for just ${priceLabel}/month.`,
+          `सिर्फ ${priceLabel}/महीना में GST + SMS + Analytics पाएं।`
+        )}
+      </div>
+      <button onClick={onClick} className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+        {t(lang, `Upgrade for ${priceLabel}`, `${priceLabel} में अपग्रेड करें`)}
+      </button>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {t(lang, "Plan activates after successful payment.", "पेमेंट सफल होने के बाद ही प्लान एक्टिव होगा।")}
+      </div>
+    </div>
+  );
+}
+
+export function ProToBasicDowngradeHint({
+  lang,
+  effectiveAt,
+}: {
+  lang: Lang;
+  effectiveAt: Date | string;
+}) {
+  const dateStr = formatDate(effectiveAt);
+  return (
+    <div className="rounded-xl border p-3 text-sm">
+      <div className="font-medium">{t(lang, "Downgrade applies at month-end", "डाउनग्रेड महीने के अंत में लागू होगा")}</div>
+      <div className="mt-1 text-muted-foreground">
+        {t(
+          lang,
+          `You’ll keep Pro features until ${dateStr}. We’ll switch you to Basic after that.`,
+          `आप ${dateStr} तक Pro के फीचर्स इस्तेमाल कर सकते हैं। उसके बाद हम आपको Basic में स्विच कर देंगे।`
+        )}
+      </div>
+    </div>
+  );
+}
