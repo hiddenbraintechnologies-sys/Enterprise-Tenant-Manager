@@ -29,7 +29,12 @@ import {
   Mail,
   Copy,
   Users,
+  Package,
+  Edit,
+  Power,
+  PowerOff,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SiWhatsapp } from "react-icons/si";
 import {
   DropdownMenu,
@@ -105,6 +110,22 @@ interface Tenant {
   id: string;
   name: string;
   country?: string;
+}
+
+interface PricingPlan {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  tier: "free" | "starter" | "pro" | "enterprise";
+  billingCycle?: string;
+  basePrice: string;
+  maxUsers?: number;
+  maxCustomers?: number;
+  features?: string[];
+  isActive?: boolean;
+  sortOrder?: number;
+  localPrices?: Array<{ country: string; localPrice: string }>;
 }
 
 const CURRENCIES = [
@@ -793,9 +814,173 @@ support@mybizstream.app` : "";
   );
 }
 
+function PlansManagement() {
+  const { isSuperAdmin, hasPermission } = useAdmin();
+  const { toast } = useToast();
+  const canManagePlans = isSuperAdmin || hasPermission("MANAGE_PLANS_PRICING");
+
+  const { data: plansData, isLoading } = useQuery<{ plans: PricingPlan[] }>({
+    queryKey: ["/api/admin/billing/plans"],
+    staleTime: 60 * 1000,
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      return apiRequest("POST", `/api/admin/billing/plans/${planId}/activate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/plans"] });
+      toast({ title: "Plan activated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to activate plan", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      return apiRequest("POST", `/api/admin/billing/plans/${planId}/deactivate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/plans"] });
+      toast({ title: "Plan deactivated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to deactivate plan", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const getTierBadge = (tier: string) => {
+    switch (tier) {
+      case "free":
+        return <Badge variant="secondary">Free</Badge>;
+      case "starter":
+        return <Badge variant="outline">Starter</Badge>;
+      case "pro":
+        return <Badge variant="default">Pro</Badge>;
+      case "enterprise":
+        return <Badge className="bg-purple-500 hover:bg-purple-600">Enterprise</Badge>;
+      default:
+        return <Badge variant="outline">{tier}</Badge>;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4 flex-wrap">
+        <div>
+          <CardTitle>Pricing Plans</CardTitle>
+          <CardDescription>
+            {canManagePlans 
+              ? "Manage pricing plans, activate or deactivate plans" 
+              : "View available pricing plans"}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {plansData?.plans?.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No pricing plans found</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Tier</TableHead>
+                <TableHead>Base Price</TableHead>
+                <TableHead>Limits</TableHead>
+                <TableHead>Status</TableHead>
+                {canManagePlans && <TableHead className="w-[100px]">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {plansData?.plans?.map((plan) => (
+                <TableRow key={plan.id} data-testid={`row-plan-${plan.id}`}>
+                  <TableCell className="font-mono text-sm">{plan.code}</TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{plan.name}</p>
+                      {plan.description && (
+                        <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                          {plan.description}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>{getTierBadge(plan.tier)}</TableCell>
+                  <TableCell className="font-medium">${plan.basePrice}</TableCell>
+                  <TableCell>
+                    <div className="text-xs text-muted-foreground">
+                      <div>{plan.maxUsers || "Unlimited"} users</div>
+                      <div>{plan.maxCustomers || "Unlimited"} customers</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {plan.isActive ? (
+                      <Badge variant="default" className="bg-green-500 hover:bg-green-600">Active</Badge>
+                    ) : (
+                      <Badge variant="secondary">Inactive</Badge>
+                    )}
+                  </TableCell>
+                  {canManagePlans && (
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`button-plan-actions-${plan.id}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {plan.isActive ? (
+                            <DropdownMenuItem 
+                              onClick={() => deactivateMutation.mutate(plan.id)}
+                              disabled={deactivateMutation.isPending}
+                              data-testid={`menu-deactivate-plan-${plan.id}`}
+                            >
+                              <PowerOff className="h-4 w-4 mr-2" />
+                              Deactivate
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem 
+                              onClick={() => activateMutation.mutate(plan.id)}
+                              disabled={activateMutation.isPending}
+                              data-testid={`menu-activate-plan-${plan.id}`}
+                            >
+                              <Power className="h-4 w-4 mr-2" />
+                              Activate
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function BillingContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("invoices");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [businessTypeFilter, setBusinessTypeFilter] = useState<string>("all");
@@ -1036,6 +1221,19 @@ function BillingContent() {
         </Card>
       )}
 
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="invoices" data-testid="tab-invoices">
+            <Receipt className="h-4 w-4 mr-2" />
+            Invoices
+          </TabsTrigger>
+          <TabsTrigger value="plans" data-testid="tab-plans">
+            <Package className="h-4 w-4 mr-2" />
+            Pricing Plans
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="invoices">
       <Card>
         <CardHeader>
           <CardTitle>Recent Invoices</CardTitle>
@@ -1182,6 +1380,12 @@ function BillingContent() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="plans">
+          <PlansManagement />
+        </TabsContent>
+      </Tabs>
 
       <CreateInvoiceDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
       <InvoiceDetailDialog 

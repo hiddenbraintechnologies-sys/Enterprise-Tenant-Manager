@@ -94,6 +94,7 @@ import hrmsRoutes from "./routes/hrms";
 import servicesRoutes from "./routes/services";
 import subscriptionRoutes from "./routes/subscriptions";
 import billingRoutes from "./routes/billing";
+import adminBillingPlansRoutes from "./routes/admin-billing-plans";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
@@ -2230,6 +2231,9 @@ export async function registerRoutes(
 
   // Register Feature Registry routes (SuperAdmin only for management)
   app.use('/api/platform-admin/feature-registry', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), featureRegistryRoutes);
+
+  // Admin billing plans routes - RBAC protected, country-scoped
+  app.use('/api/admin/billing', adminBillingPlansRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
