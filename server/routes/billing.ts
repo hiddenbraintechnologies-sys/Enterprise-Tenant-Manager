@@ -46,15 +46,32 @@ async function getTenant(tenantId: string) {
   return tenant || null;
 }
 
-// Map tenant country enum to plan code prefix
+// Map tenant country enum to plan code prefix (must match all values from tenantCountryEnum)
+// Valid country values: india, uae, uk, malaysia, singapore, other
 const TENANT_COUNTRY_TO_PLAN_PREFIX: Record<string, string> = {
   india: "india_",
   uae: "ae_",
   uk: "uk_",
   singapore: "sg_",
   malaysia: "my_",
-  other: "us_",
+  other: "global_", // 'other' country uses global plans
 };
+
+// Validate plan code matches tenant country - returns error message if mismatch, null if valid
+function validatePlanCountryMatch(tenantCountry: string | null, planCode: string): string | null {
+  const country = tenantCountry || "india";
+  const expectedPrefix = TENANT_COUNTRY_TO_PLAN_PREFIX[country];
+  
+  if (!expectedPrefix) {
+    return `Unknown tenant country: ${country}. Valid countries: ${Object.keys(TENANT_COUNTRY_TO_PLAN_PREFIX).join(", ")}`;
+  }
+  
+  if (!planCode.startsWith(expectedPrefix)) {
+    return `Plan is not available for your region (${country}). Expected plans starting with '${expectedPrefix}'.`;
+  }
+  
+  return null;
+}
 
 async function getSubscription(tenantId: string): Promise<TenantSubscription | null> {
   const [sub] = await db
@@ -682,11 +699,11 @@ router.post(
       // Validate plan matches tenant country
       const tenant = await getTenant(tenantId);
       if (tenant) {
-        const expectedPrefix = TENANT_COUNTRY_TO_PLAN_PREFIX[tenant.country || "india"] || "india_";
-        if (!newPlan.code.startsWith(expectedPrefix)) {
+        const countryError = validatePlanCountryMatch(tenant.country, newPlan.code);
+        if (countryError) {
           return res.status(400).json({
             code: "PLAN_COUNTRY_MISMATCH",
-            message: `Plan is not available for your region. Expected plans starting with '${expectedPrefix}'.`,
+            message: countryError,
           });
         }
       }

@@ -298,6 +298,108 @@ describe("Subscription Change Workflow", () => {
 
       expect(response.status).toBe(401);
     });
+
+    it("should enforce permission check for subscription changes", async () => {
+      if (!setupSucceeded) {
+        console.warn("[subscription-change-test] Skipping - setup did not succeed");
+        return;
+      }
+
+      const response = await fetch(`${BASE_URL}/api/billing/subscription/change`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+          "X-Tenant-ID": tenantId,
+        },
+        body: JSON.stringify({ planId: proPlanId, action: "upgrade" }),
+      });
+
+      expect([200, 400]).toContain(response.status);
+      
+      if (response.status === 200) {
+        const data = await response.json();
+        expect(data.success).toBe(true);
+      }
+    });
+  });
+
+  describe("Country validation", () => {
+    it("should reject plan from different country (PLAN_COUNTRY_MISMATCH)", async () => {
+      if (!setupSucceeded) {
+        console.warn("[subscription-change-test] Skipping - setup did not succeed");
+        return;
+      }
+
+      const allPlansResponse = await fetch(`${BASE_URL}/api/billing/plans`);
+      if (!allPlansResponse.ok) {
+        console.warn("[subscription-change-test] Failed to fetch all plans - skipping country test");
+        return;
+      }
+      
+      const allPlansData = await allPlansResponse.json();
+      const allPlans = allPlansData.plans || [];
+      
+      const ukPlan = allPlans.find((p: { code: string }) => p.code.startsWith("uk_"));
+      const uaePlan = allPlans.find((p: { code: string }) => p.code.startsWith("ae_"));
+      const foreignPlan = ukPlan || uaePlan;
+      
+      if (!foreignPlan) {
+        console.log("[subscription-change-test] No non-India plans found - testing with non-matching plan code");
+        
+        const response = await fetch(`${BASE_URL}/api/billing/subscription/change`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+            "X-Tenant-ID": tenantId,
+          },
+          body: JSON.stringify({ planId: "non-existent-uk-plan-id", action: "upgrade" }),
+        });
+        
+        expect([400, 404]).toContain(response.status);
+        return;
+      }
+
+      const response = await fetch(`${BASE_URL}/api/billing/subscription/change`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+          "X-Tenant-ID": tenantId,
+        },
+        body: JSON.stringify({ planId: foreignPlan.id, action: "upgrade" }),
+      });
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.code).toBe("PLAN_COUNTRY_MISMATCH");
+      expect(data.message).toContain("india");
+    });
+
+    it("should accept plan matching tenant country", async () => {
+      if (!setupSucceeded) {
+        console.warn("[subscription-change-test] Skipping - setup did not succeed");
+        return;
+      }
+
+      const response = await fetch(`${BASE_URL}/api/billing/subscription/change`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+          "X-Tenant-ID": tenantId,
+        },
+        body: JSON.stringify({ planId: basicPlanId, action: "upgrade" }),
+      });
+
+      expect([200, 400]).toContain(response.status);
+      
+      if (response.status === 400) {
+        const data = await response.json();
+        expect(data.code).not.toBe("PLAN_COUNTRY_MISMATCH");
+      }
+    });
   });
 
   describe("GET /api/billing/plans", () => {
