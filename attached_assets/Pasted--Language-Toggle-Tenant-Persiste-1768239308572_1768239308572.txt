@@ -1,0 +1,299 @@
+/* ============================================================
+   Language Toggle + Tenant-Persisted Language (EN/HI)
+   + Helper functions for downgrade comparisons:
+   - getLostFeatures()
+   - getReducedLimits()
+   - getGainedFeatures() (for upgrade modal)
+   - getIncreasedLimits()
+
+   Assumptions:
+   - You have FEATURE_CATALOG and LIMIT_CATALOG as arrays.
+   - plan.featureFlags is Record<string, boolean>
+   - plan.limits is Record<string, number> (use -1 for Unlimited)
+   - You can store preference per tenant (localStorage key includes tenantId)
+   ============================================================ */
+
+import React from "react";
+
+/* ---------------------------
+   Catalog types (match yours)
+---------------------------- */
+export type FeatureCatalogItem = { key: string; label: string; description?: string };
+export type LimitCatalogItem = { key: string; label: string; unit?: string };
+
+export type Plan = {
+  id?: string;
+  code: string;
+  name: string;
+  featureFlags: Record<string, boolean | undefined>;
+  limits: Record<string, number | undefined>; // -1 means Unlimited
+};
+
+export type LostFeature = { key: string; label: string; description?: string };
+export type LimitChange = { key: string; label: string; from: string; to: string };
+
+/* ---------------------------
+   Language preference hook
+---------------------------- */
+export type Lang = "en" | "hi";
+
+function storageKey(tenantId?: string) {
+  return tenantId ? `tenant:${tenantId}:lang` : "app:lang";
+}
+
+export function useTenantLanguage(tenantId?: string) {
+  const key = storageKey(tenantId);
+
+  const [lang, setLangState] = React.useState<Lang>(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
+    return saved === "hi" || saved === "en" ? (saved as Lang) : "en";
+  });
+
+  const setLang = React.useCallback(
+    (next: Lang) => {
+      setLangState(next);
+      if (typeof window !== "undefined") window.localStorage.setItem(key, next);
+    },
+    [key]
+  );
+
+  return { lang, setLang };
+}
+
+/* ---------------------------
+   Language Toggle Component
+---------------------------- */
+export function LanguageToggle({
+  lang,
+  onChange,
+  className = "",
+}: {
+  lang: Lang;
+  onChange: (lang: Lang) => void;
+  className?: string;
+}) {
+  return (
+    <div className={`inline-flex rounded-xl border p-1 ${className}`}>
+      <button
+        type="button"
+        onClick={() => onChange("en")}
+        className={`rounded-lg px-3 py-1 text-sm ${
+          lang === "en" ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+        }`}
+        aria-pressed={lang === "en"}
+      >
+        EN
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("hi")}
+        className={`rounded-lg px-3 py-1 text-sm ${
+          lang === "hi" ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+        }`}
+        aria-pressed={lang === "hi"}
+      >
+        हिंदी
+      </button>
+    </div>
+  );
+}
+
+/* ============================================================
+   Plan comparison helpers
+============================================================ */
+
+/** Treat undefined/false as disabled */
+function isEnabled(plan: Plan, key: string) {
+  return plan.featureFlags?.[key] === true;
+}
+
+/** Limits: -1 = Unlimited, undefined = 0 (or treat as absent) */
+function normLimit(v: number | undefined) {
+  if (v === undefined || v === null) return 0;
+  return v;
+}
+
+function limitToLabel(v: number) {
+  return v === -1 ? "Unlimited" : String(v);
+}
+
+function isUnlimited(v: number) {
+  return v === -1;
+}
+
+/**
+ * Lost features = enabled in current, not enabled in target.
+ */
+export function getLostFeatures(
+  current: Plan,
+  target: Plan,
+  FEATURE_CATALOG: FeatureCatalogItem[]
+): LostFeature[] {
+  return FEATURE_CATALOG.filter((f) => isEnabled(current, f.key) && !isEnabled(target, f.key)).map((f) => ({
+    key: f.key,
+    label: f.label,
+    description: f.description,
+  }));
+}
+
+/**
+ * Gained features = enabled in target, not enabled in current.
+ * Useful for upgrade modal.
+ */
+export function getGainedFeatures(
+  current: Plan,
+  target: Plan,
+  FEATURE_CATALOG: FeatureCatalogItem[]
+): LostFeature[] {
+  return FEATURE_CATALOG.filter((f) => !isEnabled(current, f.key) && isEnabled(target, f.key)).map((f) => ({
+    key: f.key,
+    label: f.label,
+    description: f.description,
+  }));
+}
+
+/**
+ * Reduced limits = target < current OR Unlimited -> finite.
+ */
+export function getReducedLimits(
+  current: Plan,
+  target: Plan,
+  LIMIT_CATALOG: LimitCatalogItem[]
+): LimitChange[] {
+  const out: LimitChange[] = [];
+
+  for (const l of LIMIT_CATALOG) {
+    const cur = normLimit(current.limits?.[l.key]);
+    const nxt = normLimit(target.limits?.[l.key]);
+
+    // If current is Unlimited and target is finite => reduced
+    if (isUnlimited(cur) && !isUnlimited(nxt)) {
+      out.push({ key: l.key, label: l.label, from: limitToLabel(cur), to: limitToLabel(nxt) });
+      continue;
+    }
+
+    // Both finite numbers: reduced if target < current
+    if (!isUnlimited(cur) && !isUnlimited(nxt) && nxt > 0 && cur > 0 && nxt < cur) {
+      out.push({ key: l.key, label: l.label, from: limitToLabel(cur), to: limitToLabel(nxt) });
+      continue;
+    }
+
+    // If current has a positive limit and target is 0/absent -> treat as reduced
+    if (!isUnlimited(cur) && cur > 0 && (nxt === 0 || nxt < 0 === false && nxt === 0)) {
+      out.push({ key: l.key, label: l.label, from: limitToLabel(cur), to: limitToLabel(nxt) });
+      continue;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Increased limits = target > current OR finite -> Unlimited.
+ * Useful for upgrade modal.
+ */
+export function getIncreasedLimits(
+  current: Plan,
+  target: Plan,
+  LIMIT_CATALOG: LimitCatalogItem[]
+): LimitChange[] {
+  const out: LimitChange[] = [];
+
+  for (const l of LIMIT_CATALOG) {
+    const cur = normLimit(current.limits?.[l.key]);
+    const nxt = normLimit(target.limits?.[l.key]);
+
+    // Finite -> Unlimited
+    if (!isUnlimited(cur) && isUnlimited(nxt)) {
+      out.push({ key: l.key, label: l.label, from: limitToLabel(cur), to: limitToLabel(nxt) });
+      continue;
+    }
+
+    // Both finite: increased if target > current
+    if (!isUnlimited(cur) && !isUnlimited(nxt) && nxt > cur) {
+      out.push({ key: l.key, label: l.label, from: limitToLabel(cur), to: limitToLabel(nxt) });
+      continue;
+    }
+  }
+
+  return out;
+}
+
+/* ============================================================
+   Example usage on /packages page
+============================================================ */
+
+/*
+import { FEATURE_CATALOG } from "shared/billing/featureCatalog";
+import { LIMIT_CATALOG } from "shared/billing/limitCatalog";
+import { formatPrice } from "@/lib/formatPrice";
+import { DowngradeConfirmModal, UpgradeConfirmModal } from "@/components/BillingModals";
+
+function PackagesPage() {
+  const tenantId = useTenantId(); // your hook
+  const { lang, setLang } = useTenantLanguage(tenantId);
+
+  const { plans } = usePlans(); // API-driven
+  const { subscription } = useSubscription();
+
+  const currentPlan = plans.find(p => p.code === subscription.planId);
+  const [modal, setModal] = useState<{ type:"downgrade"|"upgrade", target?: Plan } | null>(null);
+
+  return (
+    <>
+      <LanguageToggle lang={lang} onChange={setLang} className="mb-4" />
+
+      // ... plan cards
+      // onClick downgrade:
+      // setModal({ type:"downgrade", target: plan })
+
+      {modal?.type === "downgrade" && currentPlan && modal.target ? (
+        <DowngradeConfirmModal
+          open
+          lang={lang}
+          currentPlan={{ key: currentPlan.code, name: currentPlan.name }}
+          targetPlan={{ key: modal.target.code, name: modal.target.name }}
+          effectiveAt={subscription.currentPeriodEnd}
+          lostFeatures={getLostFeatures(currentPlan, modal.target, FEATURE_CATALOG)}
+          reducedLimits={getReducedLimits(currentPlan, modal.target, LIMIT_CATALOG)}
+          onConfirm={async () => { await scheduleDowngrade(modal.target.code); setModal(null); }}
+          onCancel={() => setModal(null)}
+        />
+      ) : null}
+
+      {modal?.type === "upgrade" && currentPlan && modal.target ? (
+        <UpgradeConfirmModal
+          open
+          lang={lang}
+          currentPlan={{ key: currentPlan.code, name: currentPlan.name }}
+          targetPlan={{ key: modal.target.code, name: modal.target.name }}
+          priceLabel={formatPrice(modal.target.basePrice, modal.target.currencyCode)}
+          newBenefits={getGainedFeatures(currentPlan, modal.target, FEATURE_CATALOG)}
+          onProceedToPay={async () => { await startUpgrade(modal.target.code); setModal(null); }}
+          onCancel={() => setModal(null)}
+        />
+      ) : null}
+    </>
+  );
+}
+*/
+
+/* ============================================================
+   Recommended: tests for helpers
+============================================================ */
+
+export function __test__examplePlans() {
+  const pro: Plan = {
+    code: "PRO",
+    name: "Pro",
+    featureFlags: { gst_features: true, whatsapp_automation: true, priority_support: true, sms_notifications: true },
+    limits: { users: 10, customers: -1, records: -1 },
+  };
+  const basic: Plan = {
+    code: "BASIC",
+    name: "Basic",
+    featureFlags: { gst_features: true, whatsapp_automation: false, priority_support: false, sms_notifications: true },
+    limits: { users: 3, customers: 200, records: 500 },
+  };
+  return { pro, basic };
+}

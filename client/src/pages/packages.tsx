@@ -33,6 +33,9 @@ import {
 } from "@shared/billing/feature-catalog";
 import { DowngradeConfirmModal } from "@/components/downgrade-confirm-modal";
 import { UpgradeConfirmModal } from "@/components/upgrade-confirm-modal";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useTenantLanguage } from "@/hooks/use-tenant-language";
+import { getGainedFeatures, getIncreasedLimits, getLostFeatures, getReducedLimits } from "@shared/billing/language-helpers";
 
 interface Plan {
   id: string;
@@ -165,6 +168,7 @@ export default function PackagesPage() {
   const queryClient = useQueryClient();
 
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
+  const { lang, setLang } = useTenantLanguage(tenantId || undefined);
   
   // Fetch subscription when user is authenticated and auth is not loading
   // This prevents using stale tokens from previous sessions
@@ -486,9 +490,12 @@ export default function PackagesPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <h1 className="text-xl font-bold" data-testid="text-packages-logo">MyBizStream</h1>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <LanguageToggle lang={lang} onChange={setLang} />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -871,6 +878,7 @@ export default function PackagesPage() {
             setPendingDowngradePlan(null);
           }}
           isLoading={changeSubscriptionMutation.isPending}
+          lang={lang}
         />
       )}
 
@@ -911,6 +919,7 @@ export default function PackagesPage() {
             setPendingUpgradePlan(null);
           }}
           isLoading={changeSubscriptionMutation.isPending}
+          lang={lang}
         />
       )}
 
