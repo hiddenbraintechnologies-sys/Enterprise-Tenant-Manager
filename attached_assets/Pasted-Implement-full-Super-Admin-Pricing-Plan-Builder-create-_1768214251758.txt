@@ -1,0 +1,61 @@
+Implement full Super Admin Pricing Plan Builder (create/edit plans, configure features/limits).
+
+Current: Super Admin Billing list exists but lacks plan editing and creating plans with selectable features.
+
+Backend (admin-only):
+1) Create admin endpoints:
+- GET  /api/admin/billing/plans?country=IN (returns all including inactive)
+- POST /api/admin/billing/plans (create)
+- PATCH /api/admin/billing/plans/:id (edit)
+- POST /api/admin/billing/plans/:id/archive (archive instead of delete)
+
+2) RBAC:
+- Protect with requireSuperAdminOnly() or requirePermission("BILLING_PLANS_MANAGE")
+- Add audit logs for create/update/archive
+
+3) Validation:
+- countryCode="IN" must enforce currencyCode="INR" (already exists, ensure it applies here too)
+- basePrice >= 0, limits numeric >= 0
+- code immutable after create
+
+Shared catalogs:
+4) Create shared feature + limit catalogs (single source of truth):
+- shared/billing/featureCatalog.ts exports FEATURE_CATALOG (key/label/description)
+- shared/billing/limitCatalog.ts exports LIMIT_CATALOG (users, records, etc.)
+
+Frontend (Super Admin UI):
+5) In Admin Billing page:
+- Add "Create Plan" button
+- Add "Edit" action for each plan
+- Open Plan Builder modal
+
+Plan Builder modal fields:
+- Code (create only)
+- Name, Description
+- Country (IN/UK/AE/SG/MY/US)
+- Currency (locked to INR when country=IN)
+- Interval (month/year)
+- Base price
+- isPublic toggle
+- sortOrder
+- Limits section (render from LIMIT_CATALOG as number inputs)
+- Features section (render FEATURE_CATALOG as checkbox list)
+- Save button with inline validation errors
+
+Tenant pricing endpoint:
+6) Ensure tenant plan list (/api/billing/plans) returns only:
+- isActive=true AND isPublic=true
+- sorted by sortOrder
+- includes basePrice + currencyCode + interval + featureFlags + limits
+
+Tests:
+7) Add backend tests:
+- Super admin can create and edit a plan
+- Tenant endpoint returns only public+active
+- India currency constraint enforced
+- Archive blocked if tenants subscribed (if you already track that)
+
+Acceptance:
+- Super admin can create/edit plans and choose features + limits
+- Tenants can only view available plans, not edit
+- INR always shown for India plans
