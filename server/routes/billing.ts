@@ -1251,7 +1251,7 @@ router.post(
         .update(billingPayments)
         .set({
           status: "paid",
-          providerTransactionId: razorpay_payment_id,
+          providerPaymentId: razorpay_payment_id,
           paidAt: new Date(),
           updatedAt: new Date(),
         })
@@ -1289,18 +1289,6 @@ router.post(
           updatedAt: new Date(),
         })
         .where(eq(tenantSubscriptions.id, subscription.id));
-
-      const tenant = await getTenant(tenantId);
-      if (tenant) {
-        const planFeatures = newPlan.features as Record<string, boolean> || {};
-        await db
-          .update(tenants)
-          .set({
-            featureFlags: planFeatures,
-            updatedAt: new Date(),
-          })
-          .where(eq(tenants.id, tenantId));
-      }
 
       await auditService.log({
         userId: (req as any).user?.userId || "system",
@@ -1370,7 +1358,7 @@ router.post("/razorpay/webhook", async (req: Request, res: Response) => {
             .update(billingPayments)
             .set({
               status: "paid",
-              providerTransactionId: paymentId,
+              providerPaymentId: paymentId,
               paidAt: new Date(),
               updatedAt: new Date(),
             })
@@ -1395,18 +1383,6 @@ router.post("/razorpay/webhook", async (req: Request, res: Response) => {
                   updatedAt: new Date(),
                 })
                 .where(eq(tenantSubscriptions.id, subscription.id));
-
-              const tenant = await getTenant(payment.tenantId);
-              if (tenant) {
-                const planFeatures = newPlan.features as Record<string, boolean> || {};
-                await db
-                  .update(tenants)
-                  .set({
-                    featureFlags: planFeatures,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(tenants.id, payment.tenantId));
-              }
 
               console.log(`[razorpay-webhook] Subscription activated via webhook: ${subscription.id}`);
             }
