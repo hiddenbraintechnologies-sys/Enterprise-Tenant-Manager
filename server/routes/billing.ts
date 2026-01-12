@@ -37,6 +37,25 @@ async function getPlanByCode(code: string) {
   return plan || null;
 }
 
+async function getTenant(tenantId: string) {
+  const [tenant] = await db
+    .select()
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+  return tenant || null;
+}
+
+// Map tenant country enum to plan code prefix
+const TENANT_COUNTRY_TO_PLAN_PREFIX: Record<string, string> = {
+  india: "india_",
+  uae: "ae_",
+  uk: "uk_",
+  singapore: "sg_",
+  malaysia: "my_",
+  other: "us_",
+};
+
 async function getSubscription(tenantId: string): Promise<TenantSubscription | null> {
   const [sub] = await db
     .select()
@@ -657,6 +676,26 @@ router.post(
         return res.status(404).json({
           code: "PLAN_NOT_FOUND",
           message: "Target plan not found or not active",
+        });
+      }
+
+      // Validate plan matches tenant country
+      const tenant = await getTenant(tenantId);
+      if (tenant) {
+        const expectedPrefix = TENANT_COUNTRY_TO_PLAN_PREFIX[tenant.country || "india"] || "india_";
+        if (!newPlan.code.startsWith(expectedPrefix)) {
+          return res.status(400).json({
+            code: "PLAN_COUNTRY_MISMATCH",
+            message: `Plan is not available for your region. Expected plans starting with '${expectedPrefix}'.`,
+          });
+        }
+      }
+
+      // Validate plan is public (not a private/reseller-only plan)
+      if (newPlan.isPublic === false) {
+        return res.status(400).json({
+          code: "PLAN_NOT_PUBLIC",
+          message: "This plan is not available for self-service subscription changes.",
         });
       }
 

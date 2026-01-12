@@ -1,0 +1,56 @@
+Build the full tenant self-serve subscription change workflow end-to-end.
+
+Rules:
+- Paid upgrades (Basic/Pro) become ACTIVE only after payment success (server-verified).
+- Downgrades can be scheduled at period end.
+- Tenant admins only (SUBSCRIPTION_CHANGE) can change subscription.
+
+Backend:
+1) Create/confirm endpoints (tenant-scoped):
+- GET  /api/billing/subscription
+- POST /api/billing/subscription/change
+- POST /api/billing/subscription/cancel-pending-upgrade
+- POST /api/billing/subscription/cancel-scheduled-downgrade
+
+2) Subscription states:
+active | pending_payment | downgrading | canceled
+Fields:
+planId, status, pendingPlanId, pendingPaymentId, cancelAtPeriodEnd, currentPeriodStart, currentPeriodEnd
+
+3) POST /subscription/change logic:
+- Validate plan exists, active, public, matches tenant country
+- Upgrade to paid: set status=pending_payment, pendingPlanId=plan, create Payment(status=CREATED), set pendingPaymentId
+  return { requiresPayment:true, paymentId, redirectUrl:"/checkout?paymentId=..." }
+- Downgrade: set status=downgrading, pendingPlanId, cancelAtPeriodEnd=true
+  return { success:true, effectiveAt: currentPeriodEnd }
+
+4) Cancel endpoints:
+- cancel pending upgrade: revert status to active, clear pendingPlanId/pendingPaymentId, mark payment CANCELLED unless PAID
+- cancel scheduled downgrade: set status=active, clear pendingPlanId, cancelAtPeriodEnd=false
+
+5) Add expiry job (if not already):
+- Expire unpaid payments after TTL and revert subscription to active.
+
+Frontend:
+6) /packages:
+- Show current plan + status banners
+- Upgrade triggers /subscription/change and navigates to /checkout if requiresPayment
+- Downgrade schedules and shows effective date
+- Buttons to cancel pending upgrade / cancel downgrade
+
+7) /checkout:
+- Load payment record and show amount/currency/plan
+- “Pay now” placeholder button that simulates success by calling server verify endpoint (until Razorpay is integrated)
+
+Tests:
+8) Add integration tests for:
+- upgrade creates pending payment and does NOT change planId
+- cancel pending upgrade reverts cleanly
+- downgrade schedules and does not immediately change planId
+- cancel scheduled downgrade works
+- tenant isolation + permissions enforced
+
+Acceptance:
+- Tenant admin can upgrade/downgrade with correct status transitions
+- No paid activation without payment verification
+- UI reflects states correctly
