@@ -1586,6 +1586,7 @@ export const tenantSubscriptions = pgTable("tenant_subscriptions", {
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   planId: varchar("plan_id").notNull().references(() => globalPricingPlans.id),
   pendingPlanId: varchar("pending_plan_id").references(() => globalPricingPlans.id),
+  pendingPaymentId: varchar("pending_payment_id"),
   status: subscriptionStatusEnum("status").default("active"),
   currentPeriodStart: timestamp("current_period_start").notNull(),
   currentPeriodEnd: timestamp("current_period_end").notNull(),
