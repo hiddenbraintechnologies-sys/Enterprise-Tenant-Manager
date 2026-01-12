@@ -171,30 +171,35 @@ export function DowngradeConfirmModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            onClick={onCancel}
-            disabled={isLoading}
-            data-testid="button-cancel-downgrade-modal"
-          >
-            Go back
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={isLoading}
-            data-testid="button-confirm-downgrade"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              "Confirm downgrade"
-            )}
-          </Button>
+        <DialogFooter className="flex-col gap-3">
+          <div className="flex gap-2 w-full sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={onCancel}
+              disabled={isLoading}
+              data-testid="button-cancel-downgrade-modal"
+            >
+              Go back
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onConfirm}
+              disabled={isLoading}
+              data-testid="button-confirm-downgrade"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Confirm downgrade"
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground text-center sm:text-right">
+            Tip: If you only need fewer users temporarily, you can downgrade later — upgrades are instant anytime.
+          </p>
         </DialogFooter>
       </DialogContent>
     </Dialog>
