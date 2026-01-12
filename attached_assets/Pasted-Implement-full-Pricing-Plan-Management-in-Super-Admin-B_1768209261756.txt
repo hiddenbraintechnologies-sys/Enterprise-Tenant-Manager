@@ -1,0 +1,148 @@
+Implement full Pricing Plan Management in Super Admin Billing UI.
+
+Current state:
+Super Admin Billing → Pricing Plans list exists, but only Activate/Deactivate is supported.
+We need a full Plan Builder: create plan + edit plan + configure features/limits safely.
+
+================================================
+1) Data model expectations
+================================================
+We already have billingPlans table (or similar) with code, name, tier, price, currency, country, isActive, and metadata jsonb.
+
+If any of these are missing, add via migration:
+- description (string, nullable)
+- countryCode (string) e.g., "IN", "MY", "UK", "AE"
+- currencyCode (string) e.g., "INR"
+- interval (string enum: "month" | "year")
+- basePrice (numeric/decimal)
+- featureFlags jsonb  (e.g. { gst_features:true, whatsapp_automation:false, unlimited_records:false })
+- limits jsonb (e.g. { users:3, records:500, customers:200 })
+- isPublic boolean (default true) -> shown to tenants
+- sortOrder int (default 100)
+- version int (default 1)
+- archivedAt timestamp nullable
+
+Rules:
+- code must be unique (e.g., india_basic)
+- plans can be archived instead of deleted
+
+================================================
+2) Backend APIs (Super Admin only)
+================================================
+Add routes under /api/admin/billing/plans
+
+RBAC:
+requireAuth + requireSuperAdminOnly() OR requirePermission(MANAGE_PRICING_PLANS)
+
+Endpoints:
+1) GET /api/admin/billing/plans?country=IN
+   - returns all plans (active/inactive), sorted by sortOrder
+
+2) POST /api/admin/billing/plans
+   - create plan with validation:
+     - required: code, name, tier, countryCode, currencyCode, interval, basePrice
+     - featureFlags defaults to {}
+     - limits defaults to {}
+   - audit log: PLAN_CREATED
+
+3) PATCH /api/admin/billing/plans/:planId
+   - edit allowed fields:
+     name, description, basePrice, interval, isPublic, sortOrder, isActive,
+     featureFlags, limits
+   - Validation:
+     - basePrice >= 0
+     - limits values >= 0
+   - audit log: PLAN_UPDATED (before/after)
+
+4) POST /api/admin/billing/plans/:planId/archive
+   - archives the plan (archivedAt = now, isActive=false, isPublic=false)
+   - must block if any active tenant is currently on that plan
+   - audit log: PLAN_ARCHIVED
+
+Important:
+- Never break tenants currently subscribed:
+  - If plan is edited, existing tenants continue normally.
+  - If you want safer behavior, implement plan version bump:
+    - PATCH can optionally create a new version row and keep old row archived.
+    - For MVP, direct edit is ok, but block edits to code/country/currency.
+
+================================================
+3) Feature Flag Catalog (single source)
+================================================
+Create shared/billing/feature-catalog.ts containing:
+export const FEATURE_CATALOG = [
+  { key:"record_limit", label:"Record limits", description:"Enforce record caps" },
+  { key:"unlimited_records", label:"Unlimited records", description:"Removes record caps" },
+  { key:"gst_features", label:"GST invoicing", description:"GSTIN validation + tax breakdown" },
+  { key:"whatsapp_automation", label:"WhatsApp automation", description:"Automated reminders/updates" },
+  { key:"priority_support", label:"Priority support", description:"Faster support SLA" },
+  { key:"email_notifications", label:"Email notifications", description:"Automated emails" },
+  { key:"sms_notifications", label:"SMS notifications", description:"SMS alerts (if enabled)" }
+]
+
+Also define LIMIT_CATALOG:
+users, records, customers, staffSeats etc.
+
+This catalog drives BOTH:
+- Super Admin plan builder checkboxes
+- Tenant UI plan comparison display
+
+================================================
+4) Super Admin UI (Billing → Pricing Plans)
+================================================
+Add UI features:
+A) “Create Plan” button next to Pricing Plans tab
+B) Each plan row has actions: Edit, Activate/Deactivate, Archive
+C) Edit/Create opens a modal (Plan Builder)
+
+Plan Builder modal fields:
+- Code (create only, disabled in edit)
+- Name
+- Description (optional)
+- Tier (Free/Basic/Pro/Enterprise/custom string)
+- Country dropdown (IN, MY, UK, AE, SG, US)
+- Currency dropdown (INR, MYR, GBP, AED, SGD, USD)
+- Interval (Monthly/Yearly)
+- Base Price
+- isPublic toggle (visible to tenants)
+- sortOrder
+- Limits section (inputs from LIMIT_CATALOG)
+- Features section:
+  render FEATURE_CATALOG as checkbox list
+  store selected flags as featureFlags[key]=true/false
+
+Validation in UI:
+- required fields must show inline error
+- basePrice numeric
+- limits numeric
+- disable Save if invalid
+
+After Save:
+- refetch plans list
+- show toast “Plan saved”
+
+================================================
+5) Tenant Packages Page uses same plan data
+================================================
+Ensure /api/billing/plans?country=IN only returns:
+- isPublic=true
+- isActive=true
+- sorted by sortOrder
+No hard-coded plan list.
+
+================================================
+6) Tests
+================================================
+Add tests:
+- Super admin can create plan
+- Super admin can update featureFlags + limits
+- Tenant plans endpoint returns only public+active
+- Cannot archive plan if tenants subscribed
+- Audit log entries created
+
+Deliverables:
+- Backend admin billing plans CRUD
+- Feature catalog shared file
+- Plan Builder UI modal with feature selector and limits
+- Tenant plan list driven from DB
+- Tests passing
