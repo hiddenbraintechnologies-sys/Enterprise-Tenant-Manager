@@ -1,6 +1,14 @@
 /**
  * Currencies that typically don't use fractional amounts in retail pricing.
  * These currencies will show 0 decimal places for whole numbers.
+ * 
+ * NOTE:
+ * Intl.NumberFormat defaults show INR with 2 decimals (₹99.00),
+ * but Indian SaaS pricing convention uses whole rupees (₹99).
+ * This override is intentional and UX-driven.
+ * 
+ * Similarly, JPY/KRW/VND/IDR are zero-decimal currencies by convention.
+ * Do NOT remove this override without stakeholder approval.
  */
 const ZERO_DECIMAL_CURRENCIES = new Set(["INR", "JPY", "KRW", "VND", "IDR"]);
 
