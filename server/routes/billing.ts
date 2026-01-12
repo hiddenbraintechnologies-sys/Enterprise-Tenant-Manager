@@ -1460,10 +1460,11 @@ export async function processScheduledDowngrades(): Promise<number> {
         oldValue: { planId: subscription.planId, status: "downgrading" },
         newValue: { planId: subscription.pendingPlanId, status: "active" },
         metadata: {
-          operation: "downgrade_applied",
+          operation: "SUBSCRIPTION_DOWNGRADED_AT_PERIOD_END",
           tenantId: subscription.tenantId,
           previousPlanId: subscription.planId,
           newPlanId: subscription.pendingPlanId,
+          effectiveAt: subscription.currentPeriodEnd,
         },
       });
 
