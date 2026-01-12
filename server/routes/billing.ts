@@ -26,7 +26,7 @@ const selectPlanSchema = z.object({
 const verifyPaymentSchema = z.object({
   paymentId: z.string().min(1),
   providerPaymentId: z.string().min(1),
-  providerSignature: z.string().optional(),
+  providerSignature: z.string().min(1, "Signature is required for payment verification"),
 });
 
 async function getPlanByCode(code: string) {
@@ -555,7 +555,7 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
       .set({ 
         status: "paid",
         providerPaymentId,
-        providerSignature: providerSignature || null,
+        providerSignature,
         paidAt: new Date(),
         updatedAt: new Date(),
       })
@@ -1327,12 +1327,19 @@ router.post("/razorpay/webhook", async (req: Request, res: Response) => {
     const body = JSON.stringify(req.body);
 
     if (!signature) {
+      console.warn("[razorpay-webhook] Missing signature header");
       return res.status(400).json({ error: "Missing signature" });
+    }
+
+    if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+      console.warn("[razorpay-webhook] RAZORPAY_WEBHOOK_SECRET not configured - webhook processing disabled. Events will be logged but not processed.");
+      console.log(`[razorpay-webhook] Unprocessed event: ${req.body?.event}`);
+      return res.json({ received: true, warning: "Webhook secret not configured" });
     }
 
     const isValid = razorpayService.verifyWebhookSignature(body, signature);
     if (!isValid) {
-      console.warn("[razorpay-webhook] Invalid webhook signature");
+      console.warn("[razorpay-webhook] Invalid webhook signature - possible tampering or misconfigured secret");
       return res.status(400).json({ error: "Invalid signature" });
     }
 
