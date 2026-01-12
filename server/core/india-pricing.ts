@@ -227,15 +227,14 @@ export async function seedIndiaPricingPlans(): Promise<void> {
       .where(eq(globalPricingPlans.code, config.code))
       .limit(1);
 
-    const features = config.features as Record<string, boolean | undefined>;
-    const featureFlagsData = {
-      gst_features: features.gstFeatures || false,
-      whatsapp_automation: features.whatsappAutomation || false,
-      priority_support: features.prioritySupport || false,
-      email_notifications: features.emailNotifications || false,
-      sms_notifications: features.smsNotifications || false,
-      advanced_analytics: features.advancedAnalytics || false,
-      unlimited_records: features.unlimitedRecords || false,
+    const featureFlagsData: Record<string, boolean> = {
+      gst_features: Boolean(config.features.gstFeatures),
+      whatsapp_automation: Boolean(config.features.whatsappAutomation),
+      priority_support: "prioritySupport" in config.features ? Boolean(config.features.prioritySupport) : false,
+      email_notifications: Boolean(config.features.emailNotifications),
+      sms_notifications: "smsNotifications" in config.features ? Boolean(config.features.smsNotifications) : false,
+      advanced_analytics: "advancedAnalytics" in config.features ? Boolean(config.features.advancedAnalytics) : false,
+      unlimited_records: Boolean(config.features.unlimitedRecords),
     };
     
     const limitsData = {
