@@ -710,25 +710,42 @@ export default function PackagesPage() {
                         )}
                       </Button>
                     ) : planAction === "downgrade" ? (
-                      <Button 
-                        className="w-full" 
-                        variant="outline"
-                        disabled={isPending || subscriptionData?.isDowngrading}
-                        onClick={() => handleDowngrade(plan)}
-                        data-testid={`button-downgrade-${plan.tier}`}
-                      >
-                        {isSelected && isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <ArrowDown className="h-4 w-4 mr-2" />
-                            Downgrade
-                          </>
-                        )}
-                      </Button>
+                      plan.id === subscriptionData?.pendingPlanId ? (
+                        <Button 
+                          className="w-full" 
+                          variant="secondary"
+                          disabled
+                          data-testid={`button-pending-downgrade-${plan.tier}`}
+                        >
+                          <Clock className="h-4 w-4 mr-2" />
+                          Pending Downgrade
+                        </Button>
+                      ) : (
+                        <Button 
+                          className="w-full" 
+                          variant="outline"
+                          disabled={isPending}
+                          onClick={() => handleDowngrade(plan)}
+                          data-testid={`button-downgrade-${plan.tier}`}
+                        >
+                          {isSelected && isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Processing...
+                            </>
+                          ) : subscriptionData?.isDowngrading ? (
+                            <>
+                              <ArrowDown className="h-4 w-4 mr-2" />
+                              Change to this plan
+                            </>
+                          ) : (
+                            <>
+                              <ArrowDown className="h-4 w-4 mr-2" />
+                              Downgrade
+                            </>
+                          )}
+                        </Button>
+                      )
                     ) : (
                       <Button 
                         className="w-full" 
