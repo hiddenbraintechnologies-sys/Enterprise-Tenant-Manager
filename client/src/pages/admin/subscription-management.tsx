@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { formatPrice } from "@/lib/formatPrice";
 import {
   CreditCard,
   Globe,
@@ -32,6 +33,7 @@ interface PricingPlan {
   tier: string;
   billingCycle: string;
   basePrice: string;
+  currencyCode?: string;
   maxUsers: number;
   maxCustomers: number;
   features: Record<string, unknown>;
@@ -241,7 +243,7 @@ function PlansTab() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-3xl font-bold">
-                  ${plan.basePrice}
+                  {formatPrice(plan.basePrice, plan.currencyCode || "INR")}
                   <span className="text-sm font-normal text-muted-foreground">/month</span>
                 </div>
                 <div className="space-y-2 text-sm">

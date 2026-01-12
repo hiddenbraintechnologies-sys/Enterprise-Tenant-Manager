@@ -24,6 +24,7 @@ import {
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { formatPriceOrFree } from "@/lib/formatPrice";
 
 interface Plan {
   id: string;
@@ -34,6 +35,7 @@ interface Plan {
   basePrice: string;
   localPrice: string;
   currency: string;
+  currencyCode?: string;
   maxUsers: number;
   maxCustomers: number;
   features: {
@@ -90,16 +92,6 @@ const PLAN_FEATURES: Record<string, { included: string[]; excluded: string[] }> 
   },
 };
 
-function formatPrice(price: string, currency: string): string {
-  const num = parseFloat(price);
-  if (num === 0) return "Free";
-  if (currency === "INR") return `₹${num}`;
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-  }).format(num);
-}
 
 interface SubscriptionData {
   subscription: { id: string; status: string; pendingPlanId?: string; pendingPaymentId?: string; cancelAtPeriodEnd?: boolean } | null;
@@ -631,7 +623,7 @@ export default function PackagesPage() {
                   <CardContent className="flex-1 pb-4">
                     <div className="text-center mb-6">
                       <span className="text-4xl font-bold" data-testid={`text-package-price-${plan.tier}`}>
-                        {formatPrice(plan.localPrice || plan.basePrice, plan.currency || "INR")}
+                        {formatPriceOrFree(plan.localPrice || plan.basePrice, plan.currencyCode || plan.currency || "INR")}
                       </span>
                       {!isFree && (
                         <span className="text-muted-foreground">/month</span>

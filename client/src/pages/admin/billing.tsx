@@ -76,6 +76,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { formatPrice } from "@/lib/formatPrice";
 
 import {
   FEATURE_CATALOG,
@@ -1276,7 +1277,7 @@ function PlansManagement() {
                     </div>
                   </TableCell>
                   <TableCell>{getTierBadge(plan.tier)}</TableCell>
-                  <TableCell className="font-medium">${plan.basePrice}</TableCell>
+                  <TableCell className="font-medium">{formatPrice(plan.basePrice, plan.currencyCode || "INR")}</TableCell>
                   <TableCell>
                     <div className="text-xs text-muted-foreground">
                       <div>{plan.maxUsers || "Unlimited"} users</div>

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { formatPriceOrFree } from "@/lib/formatPrice";
 
 interface PricingPlan {
   id: string;
@@ -21,6 +22,7 @@ interface PricingPlan {
   tier: string;
   price: string;
   currency: string;
+  currencyCode?: string;
   maxUsers: number;
   maxRecords: number;
   features: Record<string, boolean>;
@@ -118,11 +120,6 @@ const COMPARISON_FEATURES = [
   { key: "prioritySupport", label: "Priority support" },
 ];
 
-function formatPrice(price: string, currency: string): string {
-  const num = parseFloat(price);
-  if (num === 0) return "Free";
-  return `₹${num}`;
-}
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
@@ -236,7 +233,7 @@ export default function PricingPage() {
               <CardContent className="flex-1 pb-4">
                 <div className="text-center mb-6">
                   <span className="text-4xl font-bold" data-testid={`text-plan-price-${plan.tier}`}>
-                    {formatPrice(plan.price, plan.currency)}
+                    {formatPriceOrFree(plan.price, plan.currencyCode || plan.currency)}
                   </span>
                   {parseFloat(plan.price) > 0 && (
                     <span className="text-muted-foreground">/month</span>

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertTriangle, ArrowRight, Lock, Sparkles, Users, Database, Zap } from "lucide-react";
 import { Link } from "wouter";
+import { formatPrice } from "@/lib/formatPrice";
 
 interface UpgradeNudgeProps {
   type: "record_limit" | "user_limit" | "pro_feature";
@@ -91,7 +92,7 @@ export function UpgradeNudgeModal({ type, currentTier, featureName, limit, curre
             "Priority support",
           ],
           recommendedPlan: "Pro",
-          price: "₹199",
+          price: formatPrice(199, "INR"),
         };
       case "user_limit":
         return {
@@ -104,7 +105,7 @@ export function UpgradeNudgeModal({ type, currentTier, featureName, limit, curre
             "Team collaboration features",
           ],
           recommendedPlan: "Basic",
-          price: "₹99",
+          price: formatPrice(99, "INR"),
         };
       case "pro_feature":
         return {
@@ -118,7 +119,7 @@ export function UpgradeNudgeModal({ type, currentTier, featureName, limit, curre
             "Priority support",
           ],
           recommendedPlan: "Pro",
-          price: "₹199",
+          price: formatPrice(199, "INR"),
         };
       default:
         return {
@@ -127,7 +128,7 @@ export function UpgradeNudgeModal({ type, currentTier, featureName, limit, curre
           description: "Get access to more features and higher limits.",
           benefits: ["More records", "More users", "Advanced features"],
           recommendedPlan: "Pro",
-          price: "₹199",
+          price: formatPrice(199, "INR"),
         };
     }
   };
