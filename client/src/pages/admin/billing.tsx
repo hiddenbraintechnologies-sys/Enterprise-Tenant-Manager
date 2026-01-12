@@ -31,8 +31,11 @@ import {
   Users,
   Package,
   Edit,
+  Pencil,
   Power,
   PowerOff,
+  Archive,
+  Loader2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SiWhatsapp } from "react-icons/si";
@@ -68,8 +71,21 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+
+import {
+  FEATURE_CATALOG,
+  LIMIT_CATALOG,
+  COUNTRIES as PLAN_COUNTRIES,
+  CURRENCIES as PLAN_CURRENCIES,
+  PLAN_TIERS,
+  type FeatureCatalogItem,
+  type LimitCatalogItem,
+} from "@shared/billing/feature-catalog";
 
 interface BillingStats {
   totalRevenue: number;
@@ -117,25 +133,22 @@ interface PricingPlan {
   code: string;
   name: string;
   description?: string | null;
-  tier: "free" | "starter" | "pro" | "enterprise";
+  tier: "free" | "starter" | "basic" | "pro" | "enterprise";
+  countryCode?: string;
+  currencyCode?: string;
   billingCycle?: string;
   basePrice: string;
   maxUsers?: number;
   maxCustomers?: number;
   features?: string[];
+  featureFlags?: Record<string, boolean>;
+  limits?: Record<string, number>;
   isActive?: boolean;
+  isPublic?: boolean;
   sortOrder?: number;
+  archivedAt?: string | null;
   localPrices?: Array<{ country: string; localPrice: string }>;
 }
-
-const CURRENCIES = [
-  { code: "USD", symbol: "$", name: "US Dollar" },
-  { code: "INR", symbol: "₹", name: "Indian Rupee" },
-  { code: "GBP", symbol: "£", name: "British Pound" },
-  { code: "AED", symbol: "د.إ", name: "UAE Dirham" },
-  { code: "MYR", symbol: "RM", name: "Malaysian Ringgit" },
-  { code: "SGD", symbol: "S$", name: "Singapore Dollar" },
-];
 
 const BUSINESS_TYPES = [
   { value: "clinic", label: "Clinic" },
@@ -814,10 +827,345 @@ support@mybizstream.app` : "";
   );
 }
 
+function getDefaultFeatureFlags(): Record<string, boolean> {
+  const flags: Record<string, boolean> = {};
+  FEATURE_CATALOG.forEach(f => { flags[f.key] = false; });
+  return flags;
+}
+
+function getDefaultLimits(): Record<string, number> {
+  const limits: Record<string, number> = {};
+  LIMIT_CATALOG.forEach(l => { limits[l.key] = l.defaultValue; });
+  return limits;
+}
+
+interface PlanBuilderDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  plan?: PricingPlan | null;
+}
+
+function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps) {
+  const { toast } = useToast();
+  const isEditing = !!plan;
+  
+  const [formData, setFormData] = useState(() => ({
+    code: "",
+    name: "",
+    description: "",
+    tier: "basic" as (typeof PLAN_TIERS)[number]["value"],
+    countryCode: "IN",
+    currencyCode: "INR",
+    billingCycle: "monthly" as "monthly" | "yearly",
+    basePrice: "0",
+    isPublic: true,
+    sortOrder: 100,
+    featureFlags: getDefaultFeatureFlags(),
+    limits: getDefaultLimits(),
+  }));
+
+  useEffect(() => {
+    if (plan) {
+      const defaultFlags = getDefaultFeatureFlags();
+      const defaultLimits = getDefaultLimits();
+      setFormData({
+        code: plan.code,
+        name: plan.name,
+        description: plan.description || "",
+        tier: plan.tier,
+        countryCode: plan.countryCode || "IN",
+        currencyCode: plan.currencyCode || "INR",
+        billingCycle: (plan.billingCycle as "monthly" | "yearly") || "monthly",
+        basePrice: plan.basePrice,
+        isPublic: plan.isPublic ?? true,
+        sortOrder: plan.sortOrder ?? 100,
+        featureFlags: { ...defaultFlags, ...(plan.featureFlags || {}) },
+        limits: { ...defaultLimits, ...(plan.limits || {}) },
+      });
+    } else {
+      setFormData({
+        code: "",
+        name: "",
+        description: "",
+        tier: "basic",
+        countryCode: "IN",
+        currencyCode: "INR",
+        billingCycle: "monthly",
+        basePrice: "0",
+        isPublic: true,
+        sortOrder: 100,
+        featureFlags: getDefaultFeatureFlags(),
+        limits: getDefaultLimits(),
+      });
+    }
+  }, [plan, open]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/admin/billing/plans", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/plans"] });
+      toast({ title: "Plan created successfully" });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create plan", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<typeof formData>) => {
+      return apiRequest("PATCH", `/api/admin/billing/plans/${plan?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/plans"] });
+      toast({ title: "Plan updated successfully" });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update plan", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!formData.code || !formData.name || !formData.basePrice) {
+      toast({ title: "Please fill required fields", variant: "destructive" });
+      return;
+    }
+    if (isEditing) {
+      const { code, ...updateData } = formData;
+      updateMutation.mutate(updateData);
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const handleCountryChange = (countryCode: string) => {
+    const country = PLAN_COUNTRIES.find(c => c.code === countryCode);
+    setFormData(prev => ({
+      ...prev,
+      countryCode,
+      currencyCode: country?.currency || prev.currencyCode,
+    }));
+  };
+
+  const toggleFeature = (key: string) => {
+    setFormData(prev => ({
+      ...prev,
+      featureFlags: {
+        ...prev.featureFlags,
+        [key]: !prev.featureFlags[key],
+      },
+    }));
+  };
+
+  const setLimit = (key: string, value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      limits: {
+        ...prev.limits,
+        [key]: value,
+      },
+    }));
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Plan" : "Create Plan"}</DialogTitle>
+          <DialogDescription>
+            {isEditing ? "Update plan details and features" : "Create a new pricing plan"}
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-[60vh] pr-4">
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="code">Code *</Label>
+                <Input
+                  id="code"
+                  placeholder="e.g., india_basic"
+                  value={formData.code}
+                  onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
+                  disabled={isEditing}
+                  data-testid="input-plan-code"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="e.g., Basic Plan"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  data-testid="input-plan-name"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Plan description..."
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                data-testid="input-plan-description"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Tier *</Label>
+                <Select value={formData.tier} onValueChange={(v) => setFormData(prev => ({ ...prev, tier: v as typeof PLAN_TIERS[number] }))}>
+                  <SelectTrigger data-testid="select-plan-tier">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLAN_TIERS.map(tier => (
+                      <SelectItem key={tier.value} value={tier.value}>{tier.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Country *</Label>
+                <Select value={formData.countryCode} onValueChange={handleCountryChange} disabled={isEditing}>
+                  <SelectTrigger data-testid="select-plan-country">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLAN_COUNTRIES.map(c => (
+                      <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Currency *</Label>
+                <Select value={formData.currencyCode} onValueChange={(v) => setFormData(prev => ({ ...prev, currencyCode: v }))} disabled={isEditing}>
+                  <SelectTrigger data-testid="select-plan-currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLAN_CURRENCIES.map(c => (
+                      <SelectItem key={c.code} value={c.code}>{c.code} ({c.symbol})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Billing Cycle</Label>
+                <Select value={formData.billingCycle} onValueChange={(v) => setFormData(prev => ({ ...prev, billingCycle: v as "monthly" | "yearly" }))}>
+                  <SelectTrigger data-testid="select-plan-cycle">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="basePrice">Base Price *</Label>
+                <Input
+                  id="basePrice"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.basePrice}
+                  onChange={(e) => setFormData(prev => ({ ...prev, basePrice: e.target.value }))}
+                  data-testid="input-plan-price"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sortOrder">Sort Order</Label>
+                <Input
+                  id="sortOrder"
+                  type="number"
+                  value={formData.sortOrder}
+                  onChange={(e) => setFormData(prev => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
+                  data-testid="input-plan-sort"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="isPublic"
+                checked={formData.isPublic}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isPublic: checked }))}
+                data-testid="switch-plan-public"
+              />
+              <Label htmlFor="isPublic">Visible to tenants</Label>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Features</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {FEATURE_CATALOG.map(feature => (
+                  <div key={feature.key} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`feature-${feature.key}`}
+                      checked={!!formData.featureFlags[feature.key]}
+                      onCheckedChange={() => toggleFeature(feature.key)}
+                      data-testid={`checkbox-feature-${feature.key}`}
+                    />
+                    <Label htmlFor={`feature-${feature.key}`} className="text-sm font-normal cursor-pointer">
+                      {feature.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Limits</Label>
+              <div className="grid grid-cols-3 gap-4">
+                {LIMIT_CATALOG.map(limit => (
+                  <div key={limit.key} className="space-y-1">
+                    <Label htmlFor={`limit-${limit.key}`} className="text-xs">{limit.label}</Label>
+                    <Input
+                      id={`limit-${limit.key}`}
+                      type="number"
+                      min="0"
+                      value={formData.limits[limit.key] ?? limit.defaultValue}
+                      onChange={(e) => setLimit(limit.key, parseInt(e.target.value) || 0)}
+                      data-testid={`input-limit-${limit.key}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-plan">
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isPending} data-testid="button-save-plan">
+            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isEditing ? "Update Plan" : "Create Plan"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PlansManagement() {
   const { isSuperAdmin, hasPermission } = useAdmin();
   const { toast } = useToast();
   const canManagePlans = isSuperAdmin || hasPermission("MANAGE_PLANS_PRICING");
+  const [showPlanBuilder, setShowPlanBuilder] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<PricingPlan | null>(null);
 
   const { data: plansData, isLoading } = useQuery<{ plans: PricingPlan[] }>({
     queryKey: ["/api/admin/billing/plans"],
@@ -876,16 +1224,23 @@ function PlansManagement() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4 flex-wrap">
         <div>
           <CardTitle>Pricing Plans</CardTitle>
           <CardDescription>
             {canManagePlans 
-              ? "Manage pricing plans, activate or deactivate plans" 
+              ? "Manage pricing plans, create, edit, or archive plans" 
               : "View available pricing plans"}
           </CardDescription>
         </div>
+        {canManagePlans && (
+          <Button onClick={() => { setEditingPlan(null); setShowPlanBuilder(true); }} data-testid="button-create-plan">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Plan
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {plansData?.plans?.length === 0 ? (
@@ -944,6 +1299,13 @@ function PlansManagement() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={() => { setEditingPlan(plan); setShowPlanBuilder(true); }}
+                            data-testid={`menu-edit-plan-${plan.id}`}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
                           {plan.isActive ? (
                             <DropdownMenuItem 
                               onClick={() => deactivateMutation.mutate(plan.id)}
@@ -974,6 +1336,15 @@ function PlansManagement() {
         )}
       </CardContent>
     </Card>
+    <PlanBuilderDialog
+      open={showPlanBuilder}
+      onOpenChange={(open) => {
+        setShowPlanBuilder(open);
+        if (!open) setEditingPlan(null);
+      }}
+      plan={editingPlan}
+    />
+    </>
   );
 }
 

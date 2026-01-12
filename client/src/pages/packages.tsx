@@ -141,6 +141,7 @@ export default function PackagesPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const [pendingDowngradePlan, setPendingDowngradePlan] = useState<Plan | null>(null);
+  const [showCancelUpgradeModal, setShowCancelUpgradeModal] = useState(false);
   const { tenant, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
 
@@ -325,6 +326,21 @@ export default function PackagesPage() {
     },
   });
 
+  const cancelUpgradeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/billing/subscription/cancel-pending-upgrade", {});
+      return response.json();
+    },
+    onSuccess: async () => {
+      setShowCancelUpgradeModal(false);
+      await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
+      toast({ title: "Upgrade cancelled", description: "Your current plan remains active. You can upgrade again anytime." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleUpgrade = (plan: Plan) => {
     if (!isAuthenticated) {
       toast({ title: "Please log in", description: "You need to be logged in to upgrade.", variant: "destructive" });
@@ -503,21 +519,32 @@ export default function PackagesPage() {
         {(subscriptionData?.isPendingPayment || subscriptionData?.status?.toLowerCase() === "pending_payment") && (
           <Alert className="max-w-md mx-auto mb-6 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20">
             <CreditCard className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+            <AlertDescription className="flex flex-col gap-3">
               <div>
                 <span className="font-medium text-yellow-700 dark:text-yellow-300">
-                  Payment pending for {subscriptionData?.pendingPlan?.name || subscriptionData?.plan?.name || "upgrade"}
+                  Upgrade pending for {subscriptionData?.pendingPlan?.name || "upgrade"}
                 </span>
                 <span className="block text-sm text-muted-foreground mt-1">
                   Complete payment to activate your subscription.
                 </span>
               </div>
-              <Link href={subscriptionData?.pendingPaymentId ? `/checkout?paymentId=${subscriptionData.pendingPaymentId}` : "/checkout"}>
-                <Button variant="default" size="sm" data-testid="button-continue-checkout">
-                  Continue to payment
-                  <ArrowRight className="h-4 w-4 ml-1" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <Link href={subscriptionData?.pendingPaymentId ? `/checkout?paymentId=${subscriptionData.pendingPaymentId}` : "/checkout"}>
+                  <Button variant="default" size="sm" data-testid="button-continue-checkout">
+                    Continue to payment
+                    <ArrowRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </Link>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowCancelUpgradeModal(true)}
+                  data-testid="button-cancel-upgrade"
+                >
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Cancel upgrade
                 </Button>
-              </Link>
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -753,6 +780,41 @@ export default function PackagesPage() {
                 </>
               ) : (
                 "Confirm Downgrade"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCancelUpgradeModal} onOpenChange={setShowCancelUpgradeModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel upgrade?</DialogTitle>
+            <DialogDescription>
+              Your current plan will remain active. You can upgrade again anytime.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCancelUpgradeModal(false)}
+              data-testid="button-dismiss-cancel-upgrade-modal"
+            >
+              Keep upgrade
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => cancelUpgradeMutation.mutate()}
+              disabled={cancelUpgradeMutation.isPending}
+              data-testid="button-confirm-cancel-upgrade"
+            >
+              {cancelUpgradeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                "Cancel upgrade"
               )}
             </Button>
           </DialogFooter>

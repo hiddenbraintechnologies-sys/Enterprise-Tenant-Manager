@@ -155,6 +155,38 @@ export default function CheckoutPage() {
     );
   }
 
+  if (payment?.status === "cancelled") {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 className="text-xl font-bold">MyBizStream</h1>
+            <ThemeToggle />
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-12 max-w-lg">
+          <Card>
+            <CardHeader className="text-center">
+              <XCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <CardTitle data-testid="text-payment-cancelled">Payment was cancelled</CardTitle>
+              <CardDescription>
+                This payment has been cancelled. Return to plans to upgrade again.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <Button className="w-full" asChild data-testid="button-back-to-plans">
+                <Link href="/packages">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to plans
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
   if (!payment || !plan) {
     return (
       <div className="min-h-screen bg-background">
