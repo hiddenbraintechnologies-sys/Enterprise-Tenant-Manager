@@ -309,10 +309,12 @@ export default function PackagesPage() {
         toast({ title: "Upgrade initiated", description: "Proceed to payment to complete upgrade." });
         setLocation("/checkout");
       } else if (data.effectiveAt) {
-        const effectiveDate = new Date(data.effectiveAt).toLocaleDateString();
+        const effectiveDate = new Date(data.effectiveAt).toLocaleDateString("en-IN", { 
+          day: "numeric", month: "long", year: "numeric" 
+        });
         toast({ 
           title: "Downgrade scheduled", 
-          description: `Your plan will change on ${effectiveDate}.` 
+          description: `Your plan will change on ${effectiveDate}. You'll keep your current features until then.` 
         });
         setShowDowngradeModal(false);
         setPendingDowngradePlan(null);
@@ -335,7 +337,7 @@ export default function PackagesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
-      toast({ title: "Downgrade cancelled", description: "Your subscription will continue on the current plan." });
+      toast({ title: "Downgrade cancelled", description: "Your subscription will continue as usual." });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -479,19 +481,32 @@ export default function PackagesPage() {
         {/* Status: DOWNGRADING - show scheduled downgrade banner */}
         {subscriptionData?.isDowngrading && subscriptionData?.pendingPlan && (
           <Alert className="max-w-2xl mx-auto mb-6 border-orange-500/50 bg-orange-50 dark:bg-orange-900/20">
-            <Clock className="h-4 w-4 text-orange-600" />
+            <ArrowDown className="h-4 w-4 text-orange-600" />
             <AlertDescription>
               <div className="flex flex-col gap-3">
                 <div>
                   <span className="font-medium text-orange-700 dark:text-orange-300">
-                    Downgrade scheduled to {subscriptionData.pendingPlan.name}
+                    Downgrade scheduled
                   </span>
                   <span className="block text-sm text-muted-foreground mt-1">
-                    Effective {subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "at end of billing period"}.
-                    You keep all current features until then.
+                    Your plan will change to <span className="font-medium">{subscriptionData.pendingPlan.name}</span> on {subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "your next billing date"}.
+                    <br />
+                    You'll keep your current features until then.
                   </span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-orange-700 hover:text-orange-800 hover:bg-orange-100 dark:text-orange-300 dark:hover:bg-orange-900/40"
+                    onClick={() => {
+                      const plansSection = document.getElementById("plans-section");
+                      plansSection?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    data-testid="button-change-downgrade-plan"
+                  >
+                    Change downgrade plan
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -502,15 +517,9 @@ export default function PackagesPage() {
                     {cancelDowngradeMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <>
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Cancel downgrade
-                      </>
+                      "Cancel downgrade"
                     )}
                   </Button>
-                  <span className="text-xs text-muted-foreground">
-                    or select a different plan below to change your scheduled downgrade
-                  </span>
                 </div>
               </div>
             </AlertDescription>
@@ -586,7 +595,7 @@ export default function PackagesPage() {
         )}
 
         {(isLoading || isLoadingSubscription) ? (
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div id="plans-section" className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
                 <CardHeader>
@@ -609,7 +618,7 @@ export default function PackagesPage() {
             ))}
           </div>
         ) : (
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div id="plans-section" className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {displayPlans.map((plan) => {
               const isPopular = plan.isRecommended || plan.tier === "basic";
               const features = getPlanFeatures(plan);
