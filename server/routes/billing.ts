@@ -885,6 +885,142 @@ router.post(
   }
 );
 
+router.post(
+  "/subscription/cancel-pending-upgrade",
+  requiredAuth,
+  requirePermission(Permissions.SUBSCRIPTION_CHANGE),
+  async (req: Request, res: Response) => {
+    try {
+      const resolution = await resolveTenantId(req);
+      logTenantResolution(req, resolution, "POST /subscription/cancel-pending-upgrade");
+
+      if (resolution.error) {
+        return res.status(resolution.error.status).json({
+          code: resolution.error.code,
+          message: resolution.error.message,
+        });
+      }
+
+      const tenantId = resolution.tenantId!;
+      const subscription = await getSubscription(tenantId);
+
+      if (!subscription) {
+        return res.status(404).json({
+          code: "NO_SUBSCRIPTION",
+          message: "No subscription found",
+        });
+      }
+
+      if (subscription.status !== "pending_payment") {
+        return res.json({
+          success: true,
+          message: "No pending upgrade",
+          planId: subscription.planId,
+          status: subscription.status,
+        });
+      }
+
+      const userId = req.context?.user?.id || req.tokenPayload?.userId;
+
+      if (subscription.pendingPaymentId) {
+        const [payment] = await db
+          .select()
+          .from(billingPayments)
+          .where(eq(billingPayments.id, subscription.pendingPaymentId))
+          .limit(1);
+
+        if (payment) {
+          if (payment.status === "paid") {
+            return res.status(409).json({
+              code: "PAYMENT_ALREADY_CAPTURED",
+              message: "Payment already completed; cannot cancel pending upgrade.",
+            });
+          }
+
+          await db
+            .update(billingPayments)
+            .set({
+              status: "cancelled",
+              updatedAt: new Date(),
+              metadata: {
+                ...(payment.metadata as object || {}),
+                cancelledAt: new Date().toISOString(),
+                cancelledBy: userId,
+                cancelReason: "USER_CANCELLED_UPGRADE",
+              },
+            })
+            .where(eq(billingPayments.id, payment.id));
+
+          await auditService.log({
+            userId: userId || "unknown",
+            action: "update",
+            resource: "payment",
+            resourceId: payment.id,
+            oldValue: { status: payment.status },
+            newValue: { status: "cancelled" },
+            metadata: {
+              operation: "payment_cancelled",
+              tenantId,
+              reason: "USER_CANCELLED_UPGRADE",
+            },
+            ipAddress: req.ip,
+            userAgent: req.headers["user-agent"],
+          });
+        }
+      }
+
+      const oldSubscriptionState = {
+        status: subscription.status,
+        pendingPlanId: subscription.pendingPlanId,
+        pendingPaymentId: subscription.pendingPaymentId,
+      };
+
+      const [updatedSubscription] = await db
+        .update(tenantSubscriptions)
+        .set({
+          status: "active",
+          pendingPlanId: null,
+          pendingPaymentId: null,
+          cancelAtPeriodEnd: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(tenantSubscriptions.id, subscription.id))
+        .returning();
+
+      await auditService.log({
+        userId: userId || "unknown",
+        action: "update",
+        resource: "subscription",
+        resourceId: subscription.id,
+        oldValue: oldSubscriptionState,
+        newValue: {
+          status: "active",
+          pendingPlanId: null,
+          pendingPaymentId: null,
+        },
+        metadata: {
+          operation: "pending_upgrade_cancelled",
+          tenantId,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      console.log(`[billing] Pending upgrade cancelled for tenant ${tenantId}`);
+
+      return res.json({
+        success: true,
+        planId: updatedSubscription.planId,
+        status: "active",
+        message: "Pending upgrade cancelled successfully",
+      });
+    } catch (error) {
+      console.error("[billing] Error cancelling pending upgrade:", error);
+      res.status(500).json({ error: "Failed to cancel pending upgrade" });
+    }
+  }
+);
+
 export async function processScheduledDowngrades(): Promise<number> {
   const now = new Date();
   let processedCount = 0;

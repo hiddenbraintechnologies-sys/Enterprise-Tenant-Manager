@@ -1,0 +1,95 @@
+Add a “Cancel pending upgrade” feature for tenants.
+
+Context:
+We support subscription upgrades where BASIC/PRO only become active after payment verification.
+While status = pending_payment, the tenant should be able to cancel the pending upgrade (and any unpaid payment intent).
+
+Rules:
+- Cancel should NOT affect the current active plan.
+- Cancel should ONLY be allowed if payment is not already PAID.
+- Must be tenant-scoped, RBAC protected, and idempotent.
+
+================================================
+1) Backend: Add endpoint
+================================================
+Create:
+POST /api/billing/subscription/cancel-pending-upgrade
+
+Auth:
+- requireAuth
+- requireTenantContext
+- requirePermission(SUBSCRIPTION_CHANGE)
+
+Behavior:
+1) Load current subscription for tenant.
+2) If subscription.status !== "pending_payment":
+   - return 200 { success:true, message:"No pending upgrade" }  (idempotent)
+3) If subscription.pendingPaymentId exists:
+   - Load payment row
+   - If payment.status === "PAID":
+       - return 409 { code:"PAYMENT_ALREADY_CAPTURED", message:"Payment already completed; cannot cancel pending upgrade." }
+   - Else (CREATED / PENDING / FAILED):
+       - mark payment.status = "CANCELLED"
+       - store cancelledAt timestamp
+       - audit log cancellation (reason: USER_CANCELLED_UPGRADE)
+4) Revert subscription:
+   - subscription.status = "active"
+   - subscription.pendingPlanId = null
+   - subscription.pendingPaymentId = null
+   - subscription.cancelAtPeriodEnd = false (if it was set by mistake)
+5) Return:
+   { success:true, planId:<current plan>, status:"active" }
+
+Important:
+- Do NOT modify subscription.planId (current active plan remains)
+- Do NOT apply any feature flags (no change to active plan)
+- Always enforce tenant isolation.
+- Add audit log with before/after.
+
+================================================
+2) Frontend: Packages page UI
+================================================
+On /packages:
+- If subscription.status === "pending_payment":
+  show a banner:
+  “Upgrade pending for <pendingPlanId>. Complete payment to activate.”
+  Buttons:
+   - “Continue to payment” (go to /checkout?paymentId=...)
+   - “Cancel upgrade” (new)
+
+When “Cancel upgrade” clicked:
+- Show confirmation modal:
+  Title: “Cancel upgrade?”
+  Body: “Your current plan will remain active. You can upgrade again anytime.”
+- On confirm -> call POST /api/billing/subscription/cancel-pending-upgrade
+- On success:
+  - refetch subscription query
+  - hide pending banner
+  - show toast “Upgrade cancelled”
+
+================================================
+3) Checkout page handling
+================================================
+If user lands on /checkout?paymentId=... but payment is CANCELLED or not found:
+- Show message: “Payment was cancelled. Return to plans.”
+- Button: “Back to plans” -> /packages
+
+================================================
+4) Tests
+================================================
+Add integration tests:
+- Tenant ADMIN can cancel pending upgrade:
+  - creates pending_payment subscription with pendingPaymentId
+  - cancel endpoint sets subscription back to active and clears pending fields
+  - payment becomes CANCELLED
+- Cancel is idempotent:
+  - calling again returns success and no changes
+- If payment already PAID -> 409 conflict
+- STAFF cannot cancel (403)
+- Tenant isolation: cannot cancel other tenant (404)
+
+Deliverables:
+- New cancel endpoint
+- UI banner + cancel button with modal
+- Checkout handles cancelled payments
+- All tests passing
