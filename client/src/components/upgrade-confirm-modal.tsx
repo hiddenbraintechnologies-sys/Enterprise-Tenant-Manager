@@ -84,19 +84,26 @@ const DEFAULT_BENEFITS_BASIC_TO_PRO: BilingualBenefit[] = [
   },
 ];
 
-function getDefaultBenefits(lang: Lang, currentTier: string, targetTier: string): NewBenefit[] {
-  let benefits: BilingualBenefit[] = [];
-  
-  if (currentTier === "free" && targetTier === "basic") {
-    benefits = DEFAULT_BENEFITS_FREE_TO_BASIC;
-  } else if ((currentTier === "basic" && targetTier === "pro") || (currentTier === "free" && targetTier === "pro")) {
-    benefits = DEFAULT_BENEFITS_BASIC_TO_PRO;
-  }
-  
+function localizeBenefits(
+  benefits: Array<{ label: { en: string; hi: string }; description?: { en: string; hi: string } }>,
+  lang: Lang
+): NewBenefit[] {
   return benefits.map((b) => ({
-    label: b.label[lang],
-    description: b.description[lang],
+    label: lang === "hi" ? b.label.hi : b.label.en,
+    description: b.description ? (lang === "hi" ? b.description.hi : b.description.en) : undefined,
   }));
+}
+
+function getDefaultUpgradeBenefits(currentKey: string, targetKey: string): BilingualBenefit[] {
+  if (currentKey === "free" && targetKey === "basic") return DEFAULT_BENEFITS_FREE_TO_BASIC;
+  if (currentKey === "basic" && targetKey === "pro") return DEFAULT_BENEFITS_BASIC_TO_PRO;
+  if (currentKey === "free" && targetKey === "pro") return DEFAULT_BENEFITS_BASIC_TO_PRO;
+  return [];
+}
+
+function getDefaultBenefits(lang: Lang, currentTier: string, targetTier: string): NewBenefit[] {
+  const benefits = getDefaultUpgradeBenefits(currentTier, targetTier);
+  return localizeBenefits(benefits, lang);
 }
 
 interface UpgradeConfirmModalProps {
