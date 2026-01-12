@@ -227,6 +227,25 @@ export async function seedIndiaPricingPlans(): Promise<void> {
       .where(eq(globalPricingPlans.code, config.code))
       .limit(1);
 
+    const features = config.features as Record<string, boolean | undefined>;
+    const featureFlagsData = {
+      gst_features: features.gstFeatures || false,
+      whatsapp_automation: features.whatsappAutomation || false,
+      priority_support: features.prioritySupport || false,
+      email_notifications: features.emailNotifications || false,
+      sms_notifications: features.smsNotifications || false,
+      advanced_analytics: features.advancedAnalytics || false,
+      unlimited_records: features.unlimitedRecords || false,
+    };
+    
+    const limitsData = {
+      users: config.maxUsers,
+      customers: config.maxCustomers,
+      records: config.maxRecords,
+    };
+    
+    const isRecommended = config.tier === "basic";
+    
     if (existing.length === 0) {
       await db.insert(globalPricingPlans).values({
         code: config.code,
@@ -237,7 +256,11 @@ export async function seedIndiaPricingPlans(): Promise<void> {
         maxUsers: config.maxUsers,
         maxCustomers: config.maxCustomers,
         features: config.features,
+        featureFlags: featureFlagsData,
+        limits: limitsData,
         isActive: true,
+        isPublic: true,
+        isRecommended,
         sortOrder: displayOrder,
         countryCode: "IN",
         currencyCode: "INR",
@@ -253,7 +276,11 @@ export async function seedIndiaPricingPlans(): Promise<void> {
           maxUsers: config.maxUsers,
           maxCustomers: config.maxCustomers,
           features: config.features,
+          featureFlags: featureFlagsData,
+          limits: limitsData,
           isActive: true,
+          isPublic: true,
+          isRecommended,
           sortOrder: displayOrder,
           countryCode: "IN",
           currencyCode: "INR",

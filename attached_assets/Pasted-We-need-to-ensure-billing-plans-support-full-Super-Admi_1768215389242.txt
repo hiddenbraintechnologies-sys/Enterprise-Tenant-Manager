@@ -1,0 +1,64 @@
+We need to ensure billing plans support full Super Admin Plan Builder and tenant dynamic pricing.
+Add missing plan fields in a migration-safe way (Postgres + Drizzle), with safe defaults and idempotency.
+
+GOAL FIELDS (billing_plans table or equivalent):
+- description TEXT NULL
+- interval TEXT NOT NULL DEFAULT 'month'  (values: 'month' | 'year')
+- is_public BOOLEAN NOT NULL DEFAULT true
+- sort_order INT NOT NULL DEFAULT 100
+- recommended BOOLEAN NOT NULL DEFAULT false
+- feature_flags JSONB NOT NULL DEFAULT '{}'::jsonb
+- limits JSONB NOT NULL DEFAULT '{}'::jsonb
+- version INT NOT NULL DEFAULT 1
+- archived_at TIMESTAMP NULL
+
+Also ensure existing columns exist:
+- country_code TEXT NOT NULL
+- currency_code TEXT NOT NULL
+- base_price NUMERIC NOT NULL DEFAULT 0
+
+TASKS:
+
+1) Create a new SQL migration (idempotent) that:
+A) Adds columns only if missing using DO blocks or ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+B) Sets safe defaults so existing rows remain valid.
+C) Backfills minimal data if needed:
+   - If interval is NULL -> set 'month'
+   - If is_public is NULL -> set true
+   - If sort_order is NULL -> set 100
+   - If feature_flags is NULL -> set '{}'
+   - If limits is NULL -> set '{}'
+   - If recommended is NULL -> set false
+   - If version is NULL -> set 1
+
+2) Update Drizzle schema model to include these columns with correct types:
+- featureFlags: jsonb
+- limits: jsonb
+- archivedAt: timestamp nullable
+and appropriate defaults.
+
+3) Preserve existing enforcement:
+- Keep/check the India currency check constraint (country_code='IN' => currency_code='INR')
+If not present, add it AFTER backfilling any invalid data.
+
+4) Add a one-time patch / seed fix:
+- Ensure India plans exist with:
+  india_free (0 INR), india_basic (99 INR), india_pro (199 INR)
+- Ensure these 3 have is_public=true, is_active=true, sort_order in correct order: free=10, basic=20, pro=30
+- Ensure recommended=true for basic (optional)
+
+5) Update APIs to use these fields:
+- Tenant endpoint GET /api/billing/plans returns only:
+  is_active=true AND is_public=true AND archived_at IS NULL
+  sorted by sort_order ASC
+- Admin endpoint returns all (including inactive) but excludes archived by default unless requested.
+
+6) Add migration verification test (or script):
+- Start app, run migrate, fetch plans
+- Assert no errors and expected columns exist.
+
+Acceptance:
+- Migration runs successfully on existing DB with data.
+- Existing plans remain valid and visible.
+- New plan builder fields are available and editable.
+- Tenant /packages renders fully from DB-driven plan definitions.

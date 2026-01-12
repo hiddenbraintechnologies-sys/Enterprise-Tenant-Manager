@@ -169,13 +169,13 @@ router.get("/plans", async (req: Request, res: Response) => {
     const planPrefix = COUNTRY_PLAN_PREFIXES[normalizedCountry] || COUNTRY_PLAN_PREFIXES[countryCode] || "india_";
     
     // Filter to plans matching this country's prefix
-    // Also filter: only show active and public plans to tenants
-    // isPublic defaults to true if undefined (backward compatibility)
+    // Only show: active, public, and non-archived plans to tenants
     const countryPlans = allPlans
       .filter(plan => 
         plan.code.startsWith(planPrefix) &&
         plan.isActive !== false &&
-        (plan.isPublic === true || plan.isPublic === undefined || plan.isPublic === null)
+        (plan.isPublic === true || plan.isPublic === undefined || plan.isPublic === null) &&
+        !plan.archivedAt
       )
       .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
     

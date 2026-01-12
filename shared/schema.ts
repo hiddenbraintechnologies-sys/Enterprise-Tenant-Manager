@@ -1527,6 +1527,7 @@ export const globalPricingPlans = pgTable("global_pricing_plans", {
   limits: jsonb("limits").default({}),
   isActive: boolean("is_active").default(true),
   isPublic: boolean("is_public").default(true),
+  isRecommended: boolean("is_recommended").default(false),
   sortOrder: integer("sort_order").default(100),
   version: integer("version").default(1),
   archivedAt: timestamp("archived_at"),
