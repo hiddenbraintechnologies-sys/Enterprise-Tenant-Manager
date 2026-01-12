@@ -273,7 +273,7 @@ function CreateInvoiceDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CURRENCIES.map((curr) => (
+                  {PLAN_CURRENCIES.map((curr) => (
                     <SelectItem key={curr.code} value={curr.code}>
                       {curr.symbol} {curr.code} - {curr.name}
                     </SelectItem>
@@ -853,7 +853,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
     code: "",
     name: "",
     description: "",
-    tier: "basic" as (typeof PLAN_TIERS)[number]["value"],
+    tier: "basic",
     countryCode: "IN",
     currencyCode: "INR",
     billingCycle: "monthly" as "monthly" | "yearly",
@@ -1021,7 +1021,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Tier *</Label>
-                <Select value={formData.tier} onValueChange={(v) => setFormData(prev => ({ ...prev, tier: v as typeof PLAN_TIERS[number] }))}>
+                <Select value={formData.tier} onValueChange={(v) => setFormData(prev => ({ ...prev, tier: v }))}>
                   <SelectTrigger data-testid="select-plan-tier">
                     <SelectValue />
                   </SelectTrigger>
@@ -1433,7 +1433,7 @@ function BillingContent() {
 
   const formatCurrency = (amount: number, currencyCode?: string) => {
     const code = currencyCode || displayCurrency;
-    const currency = CURRENCIES.find(c => c.code === code);
+    const currency = PLAN_CURRENCIES.find(c => c.code === code);
     return new Intl.NumberFormat(code === "INR" ? "en-IN" : "en-US", {
       style: "currency",
       currency: code,
@@ -1479,7 +1479,7 @@ function BillingContent() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CURRENCIES.map((curr) => (
+              {PLAN_CURRENCIES.map((curr) => (
                 <SelectItem key={curr.code} value={curr.code}>
                   {curr.symbol} {curr.code}
                 </SelectItem>

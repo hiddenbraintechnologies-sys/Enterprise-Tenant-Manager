@@ -159,6 +159,30 @@ export const INDIA_PLAN_ORDER: Record<string, number> = {
 };
 
 /**
+ * One-time patch: Fix any India plans that have incorrect currency codes.
+ * This ensures all india_* plans have countryCode='IN' and currencyCode='INR'.
+ * Safe to run multiple times (idempotent).
+ */
+export async function fixIndiaPlanCurrencies(): Promise<number> {
+  const result = await db
+    .update(globalPricingPlans)
+    .set({ 
+      countryCode: "IN",
+      currencyCode: "INR",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        sql`${globalPricingPlans.code} LIKE 'india_%'`,
+        sql`(${globalPricingPlans.currencyCode} IS NULL OR ${globalPricingPlans.currencyCode} != 'INR' OR ${globalPricingPlans.countryCode} IS NULL OR ${globalPricingPlans.countryCode} != 'IN')`
+      )
+    )
+    .returning({ id: globalPricingPlans.id });
+  
+  return result.length;
+}
+
+/**
  * One-time cleanup: Deactivate legacy plans that don't have country prefixes.
  * This is safe to run multiple times but should ideally be a one-time migration.
  * It ONLY affects plans in LEGACY_PLAN_CODES - never touches uk_, ae_, sg_, my_, us_ plans.
@@ -186,6 +210,12 @@ export async function seedIndiaPricingPlans(): Promise<void> {
   if (deactivatedCount > 0) {
     console.log(`[india-pricing] Deactivated ${deactivatedCount} legacy plans`);
   }
+  
+  // Fix any existing India plans with incorrect currency (one-time patch, idempotent)
+  const fixedCount = await fixIndiaPlanCurrencies();
+  if (fixedCount > 0) {
+    console.log(`[india-pricing] Fixed currency for ${fixedCount} India plans`);
+  }
 
   // UPSERT India plans with correct displayOrder
   for (const config of Object.values(INDIA_PRICING_CONFIG)) {
@@ -209,6 +239,8 @@ export async function seedIndiaPricingPlans(): Promise<void> {
         features: config.features,
         isActive: true,
         sortOrder: displayOrder,
+        countryCode: "IN",
+        currencyCode: "INR",
       });
       console.log(`[india-pricing] Created plan: ${config.name}`);
     } else {
@@ -223,6 +255,8 @@ export async function seedIndiaPricingPlans(): Promise<void> {
           features: config.features,
           isActive: true,
           sortOrder: displayOrder,
+          countryCode: "IN",
+          currencyCode: "INR",
           updatedAt: new Date(),
         })
         .where(eq(globalPricingPlans.code, config.code));

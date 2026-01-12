@@ -87,6 +87,7 @@ const updatePlanSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   tier: z.enum(["free", "starter", "basic", "pro", "enterprise"]).optional(),
+  currencyCode: z.string().min(3).max(5).optional(),
   billingCycle: z.enum(["monthly", "quarterly", "yearly"]).optional(),
   basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
   maxUsers: z.number().int().min(0).optional(),
@@ -163,6 +164,13 @@ router.post(
     try {
       const data = createPlanSchema.parse(req.body);
       const { localPrices, ...planData } = data;
+      
+      if (data.countryCode === "IN" && data.currencyCode !== "INR") {
+        return res.status(400).json({
+          code: "INVALID_CURRENCY_FOR_COUNTRY",
+          message: "India plans must use INR currency. Please select INR as the currency for this plan.",
+        });
+      }
       
       if (!canAdminManagePlan(req, data.code)) {
         return res.status(403).json({
@@ -255,6 +263,16 @@ router.patch(
         return res.status(403).json({
           code: "COUNTRY_SCOPE_VIOLATION",
           message: "You do not have permission to update plans for this country",
+        });
+      }
+      
+      const effectiveCountry = existingPlan.countryCode;
+      const effectiveCurrency = data.currencyCode || existingPlan.currencyCode;
+      
+      if (effectiveCountry === "IN" && effectiveCurrency !== "INR") {
+        return res.status(400).json({
+          code: "INVALID_CURRENCY_FOR_COUNTRY",
+          message: "India plans must use INR currency. Cannot change currency to a non-INR value for India plans.",
         });
       }
       

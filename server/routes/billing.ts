@@ -183,6 +183,7 @@ router.get("/plans", async (req: Request, res: Response) => {
         ...plan,
         localPrice: countryPrice?.localPrice || plan.basePrice,
         currency,
+        currencyCode: plan.currencyCode || currency,
         moduleAccess: subscriptionService.getAllModuleAccess(plan.tier),
         features: subscriptionService.getSubscriptionFeatures(plan.tier),
       };
