@@ -17,6 +17,88 @@ interface NewBenefit {
   description?: string;
 }
 
+interface BilingualBenefit {
+  label: { en: string; hi: string };
+  description: { en: string; hi: string };
+}
+
+const DEFAULT_BENEFITS_FREE_TO_BASIC: BilingualBenefit[] = [
+  {
+    label: { en: "GST invoicing", hi: "GST इनवॉइसिंग" },
+    description: {
+      en: "Create GST-ready invoices with tax breakup and GSTIN validation.",
+      hi: "GST-ready invoices बनाएं, tax breakup और GSTIN validation के साथ।",
+    },
+  },
+  {
+    label: { en: "SMS notifications", hi: "SMS नोटिफिकेशन" },
+    description: {
+      en: "Send reminders and updates to customers via SMS (when enabled).",
+      hi: "कस्टमर को SMS से reminders और updates भेजें (जब enabled हो)।",
+    },
+  },
+  {
+    label: { en: "Analytics dashboard", hi: "Analytics डैशबोर्ड" },
+    description: {
+      en: "Track sales, collections, and performance at a glance.",
+      hi: "Sales, collections और performance को एक नज़र में देखें।",
+    },
+  },
+  {
+    label: { en: "More users & limits", hi: "अधिक users और limits" },
+    description: {
+      en: "Add up to 3 users and handle higher customer/record limits.",
+      hi: "3 users तक add करें और अधिक customer/record limits पाएं।",
+    },
+  },
+];
+
+const DEFAULT_BENEFITS_BASIC_TO_PRO: BilingualBenefit[] = [
+  {
+    label: { en: "WhatsApp automation", hi: "WhatsApp ऑटोमेशन" },
+    description: {
+      en: "Send automated reminders and updates via WhatsApp.",
+      hi: "WhatsApp से automated reminders और updates भेजें।",
+    },
+  },
+  {
+    label: { en: "Unlimited records", hi: "अनलिमिटेड रिकॉर्ड्स" },
+    description: {
+      en: "No caps on customers, bookings, or transactions.",
+      hi: "Customers, bookings या transactions पर कोई limit नहीं।",
+    },
+  },
+  {
+    label: { en: "Priority support", hi: "प्राथमिकता सपोर्ट" },
+    description: {
+      en: "Get faster response times from our support team.",
+      hi: "हमारी support team से तेज़ response पाएं।",
+    },
+  },
+  {
+    label: { en: "Advanced analytics", hi: "Advanced एनालिटिक्स" },
+    description: {
+      en: "Detailed reports and business insights.",
+      hi: "विस्तृत reports और business insights।",
+    },
+  },
+];
+
+function getDefaultBenefits(lang: Lang, currentTier: string, targetTier: string): NewBenefit[] {
+  let benefits: BilingualBenefit[] = [];
+  
+  if (currentTier === "free" && targetTier === "basic") {
+    benefits = DEFAULT_BENEFITS_FREE_TO_BASIC;
+  } else if ((currentTier === "basic" && targetTier === "pro") || (currentTier === "free" && targetTier === "pro")) {
+    benefits = DEFAULT_BENEFITS_BASIC_TO_PRO;
+  }
+  
+  return benefits.map((b) => ({
+    label: b.label[lang],
+    description: b.description[lang],
+  }));
+}
+
 interface UpgradeConfirmModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -51,15 +133,22 @@ function getUpgradeSubtitle(lang: Lang, currentTier: string, targetTier: string,
   if (currentTier === "free" && targetTier === "basic") {
     return t(
       lang,
-      `Unlock GST + SMS + Analytics for just ${priceLabel}/month. You can cancel anytime.`,
-      `सिर्फ ${priceLabel}/महीना में GST + SMS + Analytics अनलॉक करें। आप कभी भी कैंसल कर सकते हैं।`
+      `Unlock GST + SMS + Analytics for just ${priceLabel}/month. Activates after payment success.`,
+      `सिर्फ ${priceLabel}/महीना में GST + SMS + Analytics अनलॉक करें। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
     );
   }
   if (currentTier === "basic" && targetTier === "pro") {
     return t(
       lang,
-      `Get WhatsApp automation, unlimited records, and priority support for ${priceLabel}/month.`,
-      `${priceLabel}/महीना में WhatsApp ऑटोमेशन, अनलिमिटेड रिकॉर्ड्स और प्राथमिकता सपोर्ट पाएँ।`
+      `Get WhatsApp automation, unlimited records, and priority support for ${priceLabel}/month. Activates after payment success.`,
+      `${priceLabel}/महीना में WhatsApp ऑटोमेशन, अनलिमिटेड रिकॉर्ड्स और प्राथमिकता सपोर्ट पाएँ। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
+    );
+  }
+  if (currentTier === "free" && targetTier === "pro") {
+    return t(
+      lang,
+      `Get all premium features for ${priceLabel}/month. Activates after payment success.`,
+      `${priceLabel}/महीना में सभी premium features पाएँ। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
     );
   }
   return t(
@@ -83,6 +172,10 @@ export function UpgradeConfirmModal({
 }: UpgradeConfirmModalProps) {
   const currentTier = currentPlan.tier.toLowerCase();
   const targetTier = targetPlan.tier.toLowerCase();
+
+  const displayBenefits = newBenefits.length > 0 
+    ? newBenefits 
+    : getDefaultBenefits(lang, currentTier, targetTier);
 
   const primaryLabel =
     currentTier === "free" && targetTier === "basic"
@@ -113,9 +206,9 @@ export function UpgradeConfirmModal({
               <Sparkles className="h-4 w-4 text-primary" />
               {t(lang, "What you'll get", "आपको क्या मिलेगा")}
             </h4>
-            {newBenefits.length > 0 ? (
+            {displayBenefits.length > 0 ? (
               <ul className="space-y-2">
-                {newBenefits.map((benefit) => (
+                {displayBenefits.map((benefit) => (
                   <li 
                     key={benefit.label} 
                     className="rounded-xl border p-3 border-primary/20 bg-primary/5"
