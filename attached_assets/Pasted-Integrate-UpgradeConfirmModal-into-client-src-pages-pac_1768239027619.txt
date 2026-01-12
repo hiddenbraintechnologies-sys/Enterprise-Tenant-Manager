@@ -1,0 +1,67 @@
+Integrate UpgradeConfirmModal into client/src/pages/packages.tsx so upgrades show a confirmation before proceeding to payment.
+
+Current:
+Upgrade button triggers upgrade flow and navigates directly to /checkout.
+
+Target behavior:
+1) When tenant admin clicks Upgrade on a paid plan (Basic/Pro):
+   - Open UpgradeConfirmModal
+   - Modal shows:
+     - priceLabel (formatPriceOrFree(plan.basePrice, plan.currencyCode))
+     - “What you’ll get” list (newBenefits)
+     - bilingual (lang="en"/"hi")
+   - If user confirms:
+     - proceed with existing upgrade API call
+     - then navigate to checkout using returned redirectUrl/paymentId
+   - If user cancels:
+     - do nothing
+
+2) For FREE plan selection:
+   - Keep existing behavior (no payment modal) OR show a simple confirm (optional)
+   - Do NOT block onboarding.
+
+Implementation steps:
+A) Add local state in packages.tsx:
+   - upgradeModalOpen boolean
+   - selectedTargetPlan object (plan)
+   - computed priceLabel string
+   - computed newBenefits array
+   - onProceedToPay handler
+
+B) Build newBenefits from FEATURE_CATALOG:
+   - Show features that are enabled in target but not enabled in current:
+     target.featureFlags[key] === true && current.featureFlags[key] !== true
+   - Map to { label, description } using FEATURE_CATALOG.
+   - Also include 1–2 limit improvements if helpful:
+     (e.g., Users 1→3, Records 50→500, WhatsApp enabled)
+   - Keep list short (max 5 items) to avoid clutter.
+
+C) Render <UpgradeConfirmModal />
+   - open={upgradeModalOpen}
+   - lang={lang ?? "en"}
+   - currentPlan, targetPlan
+   - priceLabel
+   - newBenefits
+   - onProceedToPay:
+       close modal
+       call existing upgrade flow (POST /api/billing/subscription/change action="upgrade")
+       handle response:
+         if requiresPayment -> navigate to /checkout?paymentId=...
+         else redirect to dashboard (should not happen for paid plans)
+   - onCancel: close modal
+
+D) Guardrails:
+   - Only show upgrade modal for paid plans (basePrice > 0 or tier != FREE)
+   - If subscription.status is pending_payment:
+     don’t open upgrade modal; show “Continue to payment” banner instead.
+   - Ensure permission check (SUBSCRIPTION_CHANGE) remains enforced; modal only appears if user can upgrade.
+
+E) Add a couple UI tests (optional):
+   - Clicking Upgrade opens modal
+   - Confirm calls upgrade handler and navigates to checkout
+
+Acceptance:
+- Upgrading to BASIC/PRO shows UpgradeConfirmModal first
+- Modal is bilingual and shows value (benefits)
+- Confirm continues to checkout; cancel stays on /packages
+- No regression to downgrade flow

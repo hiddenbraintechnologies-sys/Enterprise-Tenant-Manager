@@ -32,6 +32,7 @@ import {
   type LimitCatalogItem,
 } from "@shared/billing/feature-catalog";
 import { DowngradeConfirmModal } from "@/components/downgrade-confirm-modal";
+import { UpgradeConfirmModal } from "@/components/upgrade-confirm-modal";
 
 interface Plan {
   id: string;
@@ -157,6 +158,8 @@ export default function PackagesPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const [pendingDowngradePlan, setPendingDowngradePlan] = useState<Plan | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [pendingUpgradePlan, setPendingUpgradePlan] = useState<Plan | null>(null);
   const [showCancelUpgradeModal, setShowCancelUpgradeModal] = useState(false);
   const { tenant, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -364,8 +367,56 @@ export default function PackagesPage() {
       toast({ title: "Please log in", description: "You need to be logged in to upgrade.", variant: "destructive" });
       return;
     }
-    setSelectedPlan(plan.id);
-    changeSubscriptionMutation.mutate({ planId: plan.id, action: "upgrade" });
+    
+    const isPaidPlan = parseFloat(plan.basePrice) > 0 || plan.tier !== "free";
+    
+    if (isPaidPlan) {
+      setPendingUpgradePlan(plan);
+      setShowUpgradeModal(true);
+    } else {
+      setSelectedPlan(plan.id);
+      changeSubscriptionMutation.mutate({ planId: plan.id, action: "upgrade" });
+    }
+  };
+
+  const confirmUpgrade = () => {
+    if (!pendingUpgradePlan) return;
+    setSelectedPlan(pendingUpgradePlan.id);
+    setShowUpgradeModal(false);
+    changeSubscriptionMutation.mutate({ planId: pendingUpgradePlan.id, action: "upgrade" });
+  };
+
+  const getNewBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
+    const benefits: { label: string; description?: string }[] = [];
+    const currentFlags = currentPlan?.featureFlags || {};
+    const targetFlags = targetPlan.featureFlags || {};
+    const currentLimits = currentPlan?.limits || {};
+    const targetLimits = targetPlan.limits || {};
+    
+    FEATURE_CATALOG.forEach((feature) => {
+      if (feature.key === "record_limit" || feature.key === "unlimited_records") return;
+      if (targetFlags[feature.key] === true && currentFlags[feature.key] !== true) {
+        benefits.push({ label: feature.label, description: feature.description });
+      }
+    });
+    
+    const currentUsers = currentLimits.users ?? currentPlan?.maxUsers ?? 1;
+    const targetUsers = targetLimits.users ?? targetPlan.maxUsers;
+    if (targetUsers > currentUsers || targetUsers === -1) {
+      const fromStr = currentUsers === -1 ? "Unlimited" : String(currentUsers);
+      const toStr = targetUsers === -1 ? "Unlimited" : String(targetUsers);
+      benefits.push({ label: `Users: ${fromStr} → ${toStr}` });
+    }
+    
+    const currentRecords = currentLimits.records ?? 50;
+    const targetRecords = targetLimits.records ?? 50;
+    if (targetRecords > currentRecords || targetRecords === -1) {
+      const fromStr = currentRecords === -1 ? "Unlimited" : String(currentRecords);
+      const toStr = targetRecords === -1 ? "Unlimited" : String(targetRecords);
+      benefits.push({ label: `Records: ${fromStr} → ${toStr}` });
+    }
+    
+    return benefits.slice(0, 5);
   };
 
   const handleDowngrade = (plan: Plan) => {
@@ -818,6 +869,46 @@ export default function PackagesPage() {
           onCancel={() => {
             setShowDowngradeModal(false);
             setPendingDowngradePlan(null);
+          }}
+          isLoading={changeSubscriptionMutation.isPending}
+        />
+      )}
+
+      {pendingUpgradePlan && (
+        <UpgradeConfirmModal
+          open={showUpgradeModal}
+          onOpenChange={setShowUpgradeModal}
+          currentPlan={{
+            name: subscriptionData?.plan?.name || "Free",
+            tier: subscriptionData?.plan?.tier || "free",
+          }}
+          targetPlan={{
+            name: pendingUpgradePlan.name,
+            tier: pendingUpgradePlan.tier,
+          }}
+          priceLabel={formatPriceOrFree(pendingUpgradePlan.basePrice, pendingUpgradePlan.currencyCode || "INR")}
+          newBenefits={getNewBenefits(
+            subscriptionData?.plan ? {
+              id: subscriptionData.plan.id,
+              code: "",
+              name: subscriptionData.plan.name,
+              description: null,
+              tier: subscriptionData.plan.tier,
+              basePrice: subscriptionData.plan.basePrice,
+              localPrice: subscriptionData.plan.basePrice,
+              currency: "INR",
+              maxUsers: subscriptionData.plan.maxUsers ?? 1,
+              maxCustomers: subscriptionData.plan.maxCustomers ?? 25,
+              featureFlags: subscriptionData.plan.featureFlags,
+              limits: subscriptionData.plan.limits,
+              features: {},
+            } : null,
+            pendingUpgradePlan
+          )}
+          onProceedToPay={confirmUpgrade}
+          onCancel={() => {
+            setShowUpgradeModal(false);
+            setPendingUpgradePlan(null);
           }}
           isLoading={changeSubscriptionMutation.isPending}
         />
