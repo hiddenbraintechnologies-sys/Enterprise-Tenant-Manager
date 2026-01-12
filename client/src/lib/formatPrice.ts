@@ -9,6 +9,12 @@
  * 
  * Similarly, JPY/KRW/VND/IDR are zero-decimal currencies by convention.
  * Do NOT remove this override without stakeholder approval.
+ * 
+ * TODO: Future international expansion
+ * When adding Gulf region support, consider 3-decimal currencies:
+ * const THREE_DECIMAL_CURRENCIES = ["KWD", "BHD", "OMR"];
+ * These require maximumFractionDigits: 3 for correct display.
+ * Do NOT implement until there is actual business demand.
  */
 const ZERO_DECIMAL_CURRENCIES = new Set(["INR", "JPY", "KRW", "VND", "IDR"]);
 

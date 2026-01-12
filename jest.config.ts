@@ -3,7 +3,7 @@ import type { Config } from 'jest';
 const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/server'],
+  roots: ['<rootDir>/server', '<rootDir>/client/src/lib'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   moduleNameMapper: {
     '^@shared/(.*)$': '<rootDir>/shared/$1',
@@ -23,9 +23,11 @@ const config: Config = {
   verbose: true,
   collectCoverageFrom: [
     'server/**/*.ts',
+    'client/src/lib/**/*.ts',
     '!server/**/*.d.ts',
     '!server/__tests__/**',
     '!server/test-support/**',
+    '!client/src/lib/__tests__/**',
   ],
 };
 

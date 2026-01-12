@@ -94,7 +94,7 @@ jobs:
           SESSION_SECRET: test-session-secret
           JWT_SECRET: test-jwt-secret
           NODE_ENV: test
-        run: echo "Tests skipped - add test framework when needed"
+        run: npm test -- --ci --coverage
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
