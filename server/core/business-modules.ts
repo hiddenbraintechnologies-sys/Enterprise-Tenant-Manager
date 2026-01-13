@@ -9,9 +9,6 @@ export const BUSINESS_MODULES = {
   education: ['students', 'courses', 'batches', 'attendance', 'exams', 'fees'],
   logistics: ['vehicles', 'drivers', 'trips', 'shipments', 'tracking', 'maintenance'],
   legal: ['clients', 'cases', 'appointments', 'documents', 'billing'],
-  software_services: ['projects', 'timesheets', 'clients', 'invoices', 'billing'],
-  consulting: ['projects', 'timesheets', 'clients', 'invoices', 'billing'],
-  furniture_manufacturing: ['orders', 'production', 'inventory', 'customers', 'billing'],
 } as const;
 
 export type BusinessType = keyof typeof BUSINESS_MODULES;
