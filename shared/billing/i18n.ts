@@ -819,14 +819,15 @@ export function t(lang: Lang, key: keyof typeof BILLING_STRINGS): string {
 }
 
 export function getTierLabel(lang: Lang, tier: string): string {
+  const safeLang = lang || "en";
   const tierMap: Record<string, keyof typeof BILLING_STRINGS> = {
     free: "tierFree",
     basic: "tierBasic",
     pro: "tierPro",
     enterprise: "tierEnterprise",
   };
-  const key = tierMap[tier.toLowerCase()];
-  return key ? BILLING_STRINGS[key][lang] : tier;
+  const key = tierMap[tier?.toLowerCase() || "free"];
+  return key ? (BILLING_STRINGS[key]?.[safeLang] || tier) : tier;
 }
 
 const FEATURE_KEY_I18N_MAP: Record<string, keyof typeof BILLING_STRINGS> = {
@@ -842,27 +843,33 @@ const FEATURE_KEY_I18N_MAP: Record<string, keyof typeof BILLING_STRINGS> = {
 };
 
 export function getFeatureLabel(lang: Lang, featureKey: string): string {
+  const safeLang = lang || "en";
   const i18nKey = FEATURE_KEY_I18N_MAP[featureKey];
-  return i18nKey ? BILLING_STRINGS[i18nKey][lang] : featureKey;
+  return i18nKey ? (BILLING_STRINGS[i18nKey]?.[safeLang] || featureKey) : featureKey;
 }
 
 export function getLimitChangeText(lang: Lang, type: "users" | "records", from: number | string, to: number | string): string {
-  const label = type === "users" ? BILLING_STRINGS.usersLimit[lang] : BILLING_STRINGS.recordsLimit[lang];
-  const unlimitedStr = BILLING_STRINGS.unlimited[lang];
+  const safeLang = lang || "en";
+  const label = type === "users" 
+    ? (BILLING_STRINGS.usersLimit?.[safeLang] || "Users") 
+    : (BILLING_STRINGS.recordsLimit?.[safeLang] || "Records");
+  const unlimitedStr = BILLING_STRINGS.unlimited?.[safeLang] || "Unlimited";
   const fromStr = from === -1 || from === "Unlimited" ? unlimitedStr : String(from);
   const toStr = to === -1 || to === "Unlimited" ? unlimitedStr : String(to);
   return `${label}: ${fromStr} → ${toStr}`;
 }
 
 export function getLimitText(lang: Lang, limitKey: string, value: number): string {
-  const unlimitedStr = BILLING_STRINGS.unlimited[lang];
+  const safeLang = lang || "en";
+  const unlimitedStr = BILLING_STRINGS.unlimited[safeLang] || "Unlimited";
   const labelMap: Record<string, keyof typeof BILLING_STRINGS> = {
     users: "usersLimit",
     records: "recordsLimit",
     customers: "usersLimit",
   };
   const i18nKey = labelMap[limitKey];
-  const label = i18nKey ? BILLING_STRINGS[i18nKey][lang].toLowerCase() : limitKey;
+  const labelStr = i18nKey ? BILLING_STRINGS[i18nKey]?.[safeLang] : undefined;
+  const label = labelStr ? labelStr.toLowerCase() : limitKey;
   if (value === -1) {
     return `${unlimitedStr} ${label}`;
   }
