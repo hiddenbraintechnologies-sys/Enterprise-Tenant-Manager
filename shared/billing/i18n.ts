@@ -765,6 +765,33 @@ export function savingsBadgeText(lang: Lang, percent: number): string {
   return `Save ${percent}%`;
 }
 
+export function savingsAmountBadge(lang: Lang, amount: number, currency = "₹"): string {
+  if (amount <= 0) return "";
+  if (lang === "hi") {
+    return `${currency}${amount.toLocaleString("en-IN")} बचत`;
+  }
+  return `Save ${currency}${amount.toLocaleString("en-IN")}`;
+}
+
+export function yearlySavingsToggleLabel(lang: Lang, amount: number, currency = "₹"): string {
+  const yearlyLabel = lang === "hi" ? "वार्षिक" : "Yearly";
+  if (amount <= 0) {
+    return yearlyLabel;
+  }
+  if (lang === "hi") {
+    return `${yearlyLabel} (${currency}${amount.toLocaleString("en-IN")} बचत)`;
+  }
+  return `${yearlyLabel} (Save ${currency}${amount.toLocaleString("en-IN")})`;
+}
+
+export function savingsComparisonText(lang: Lang, amount: number, currency = "₹"): string {
+  if (amount <= 0) return "";
+  if (lang === "hi") {
+    return `मासिक बिलिंग की तुलना में आप ${currency}${amount.toLocaleString("en-IN")} बचाते हैं।`;
+  }
+  return `You save ${currency}${amount.toLocaleString("en-IN")} compared to monthly billing.`;
+}
+
 export function pricePerPeriod(lang: Lang, price: string | number, cycle: "monthly" | "yearly"): string {
   const priceStr = typeof price === "number" ? `₹${price.toLocaleString("en-IN")}` : price;
   if (lang === "hi") {

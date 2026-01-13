@@ -249,6 +249,15 @@ export class OfferService {
     const effectivePricePerMonth = cycleMonths > 0 ? Math.round((total / cycleMonths) * 100) / 100 : total;
     const amountInPaise = Math.round(total * 100);
 
+    let savingsAmount: number | undefined;
+    if (billingCycle === "yearly") {
+      const monthlyConfig = billingCycles.monthly;
+      if (monthlyConfig?.enabled) {
+        const monthlyPrice = monthlyConfig.price;
+        savingsAmount = Math.max(0, (monthlyPrice * 12) - cyclePrice);
+      }
+    }
+
     const breakdown: QuoteBreakdown = {
       basePrice,
       cyclePrice,
@@ -268,6 +277,7 @@ export class OfferService {
       breakdown,
       effectivePricePerMonth,
       amountInPaise,
+      savingsAmount,
       appliedOffer,
       appliedCoupon,
     };

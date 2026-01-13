@@ -40,7 +40,8 @@ import type { BillingCycleKey } from "@shared/billing/types";
 import { CYCLE_LABELS } from "@shared/billing/types";
 import { 
   BILLING_STRINGS, 
-  savingsBadgeText, 
+  savingsAmountBadge,
+  yearlySavingsToggleLabel,
   downgradeBannerText, 
   t as tStr,
   getFeatureLabel,
@@ -48,6 +49,7 @@ import {
   getLimitText,
   formatDateLocalized 
 } from "@shared/billing/i18n";
+import { getCurrencySymbol } from "@/lib/currency-service";
 import type { Lang } from "@shared/billing/i18n";
 
 interface PlanCycle {
@@ -76,6 +78,7 @@ interface Plan {
   limits?: Record<string, number>;
   isRecommended?: boolean;
   cycles?: PlanCycle[];
+  yearlySavingsAmount?: number;
   features?: {
     modules?: string[];
     addons?: string[];
@@ -418,28 +421,35 @@ export default function PackagesPage() {
       return { price: plan.basePrice, cycle: null };
     }
     const cycle = plan.cycles.find(c => c.key === selectedCycle) || plan.cycles[0];
+    const savingsAmount = cycle.key === "yearly" && plan.yearlySavingsAmount 
+      ? plan.yearlySavingsAmount 
+      : cycle.savings.amount;
+    const currSymbol = getCurrencySymbol(plan.currencyCode || "INR");
     return { 
       price: cycle.price, 
       cycle,
-      savingsBadge: cycle.savings.percent > 0 ? savingsBadgeText(lang as Lang, cycle.savings.percent) : undefined
+      savingsBadge: savingsAmount > 0 ? savingsAmountBadge(lang as Lang, savingsAmount, currSymbol) : undefined
     };
   };
 
-  const getYearlySavingsBadge = (): string | null => {
-    if (selectedCycle === "yearly") return null;
+  const getMaxYearlySavingsInfo = (): { amount: number; currencySymbol: string } => {
     const plans = plansData?.plans || [];
     const paidPlans = plans.filter(p => p.basePrice > 0);
-    if (paidPlans.length === 0) return null;
+    if (paidPlans.length === 0) return { amount: 0, currencySymbol: "₹" };
     
-    const yearlyCycle = paidPlans[0]?.cycles?.find(c => c.key === "yearly");
-    if (yearlyCycle && yearlyCycle.savings.percent > 0) {
-      return savingsBadgeText(lang, yearlyCycle.savings.percent);
-    }
-    return null;
+    const maxPlan = paidPlans.reduce((max, p) => 
+      (p.yearlySavingsAmount || 0) > (max?.yearlySavingsAmount || 0) ? p : max
+    , paidPlans[0]);
+    
+    return { 
+      amount: maxPlan?.yearlySavingsAmount || 0, 
+      currencySymbol: getCurrencySymbol(maxPlan?.currencyCode || "INR")
+    };
   };
 
   const t = (key: keyof typeof BILLING_STRINGS): string => tStr(lang as Lang, key);
   const billingInterval = selectedCycle === "yearly" ? t("perYear") : t("perMonth");
+  const maxYearlySavingsInfo = getMaxYearlySavingsInfo();
 
   const getComputedBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
     const benefits: { label: string; description?: string }[] = [];
@@ -581,12 +591,10 @@ export default function PackagesPage() {
               className="relative"
               data-testid="button-cycle-yearly"
             >
-              {lang === "hi" ? CYCLE_LABELS.yearly.hi : CYCLE_LABELS.yearly.en}
-              {getYearlySavingsBadge() && selectedCycle !== "yearly" && (
-                <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs bg-green-500 text-white">
-                  {getYearlySavingsBadge()}
-                </Badge>
-              )}
+              {selectedCycle !== "yearly" 
+                ? yearlySavingsToggleLabel(lang as Lang, maxYearlySavingsInfo.amount, maxYearlySavingsInfo.currencySymbol)
+                : (lang === "hi" ? CYCLE_LABELS.yearly.hi : CYCLE_LABELS.yearly.en)
+              }
             </Button>
           </div>
         </div>
@@ -772,8 +780,12 @@ export default function PackagesPage() {
               const planAction = getPlanAction(plan);
               const isCurrentPlan = planAction === "current";
               const isPending = selectPlanMutation.isPending || changeSubscriptionMutation.isPending;
-              const localizedSavingsBadge = activeCycle?.savings?.percent && activeCycle.savings.percent > 0 
-                ? savingsBadgeText(lang as Lang, activeCycle.savings.percent) 
+              const savingsAmount = selectedCycle === "yearly" && plan.yearlySavingsAmount 
+                ? plan.yearlySavingsAmount 
+                : (activeCycle?.savings?.amount || 0);
+              const currSymbol = getCurrencySymbol(plan.currencyCode || "INR");
+              const localizedSavingsBadge = savingsAmount > 0 
+                ? savingsAmountBadge(lang as Lang, savingsAmount, currSymbol) 
                 : null;
 
               return (
@@ -1012,6 +1024,9 @@ export default function PackagesPage() {
           }}
           isLoading={changeSubscriptionMutation.isPending}
           lang={lang}
+          billingCycle={selectedCycle === "yearly" ? "yearly" : "monthly"}
+          yearlySavingsAmount={pendingUpgradePlan.yearlySavingsAmount}
+          currencySymbol={getCurrencySymbol(pendingUpgradePlan.currencyCode || "INR")}
         />
       )}
 

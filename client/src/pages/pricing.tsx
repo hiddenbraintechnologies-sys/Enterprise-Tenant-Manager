@@ -16,10 +16,11 @@ import {
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { formatPriceOrFree } from "@/lib/formatPrice";
-import { BILLING_STRINGS, t as tStr, savingsBadgeText } from "@shared/billing/i18n";
+import { BILLING_STRINGS, t as tStr, savingsAmountBadge, yearlySavingsToggleLabel } from "@shared/billing/i18n";
 import type { Lang } from "@shared/billing/i18n";
 import { CYCLE_LABELS } from "@shared/billing/types";
 import type { BillingCycleKey } from "@shared/billing/types";
+import { getCurrencySymbol } from "@/lib/currency-service";
 
 interface PricingPlanBase {
   id: string;
@@ -163,7 +164,7 @@ export default function PricingPage() {
     },
   });
 
-  const handleSelectPlan = (plan: PricingPlan) => {
+  const handleSelectPlan = (plan: PricingPlanBase & { name: string; description: string }) => {
     if (!isLoggedIn) {
       setLocation("/register");
       return;
@@ -249,12 +250,10 @@ export default function PricingPage() {
               className="relative"
               data-testid="button-cycle-yearly"
             >
-              {t("yearly")}
-              {selectedCycle !== "yearly" && (
-                <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs bg-green-500 text-white">
-                  {savingsBadgeText(lang as Lang, 20)}
-                </Badge>
-              )}
+              {selectedCycle !== "yearly" 
+                ? yearlySavingsToggleLabel(lang as Lang, 189, getCurrencySymbol("INR"))
+                : t("yearly")
+              }
             </Button>
           </div>
         </div>

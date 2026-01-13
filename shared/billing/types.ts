@@ -34,6 +34,7 @@ export interface QuoteResponse {
   breakdown: QuoteBreakdown;
   effectivePricePerMonth: number;
   amountInPaise: number;
+  savingsAmount?: number;
   appliedOffer?: {
     id: string;
     name: string;

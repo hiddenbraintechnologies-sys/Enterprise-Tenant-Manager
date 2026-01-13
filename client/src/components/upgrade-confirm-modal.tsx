@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Check, Loader2, Sparkles, Zap } from "lucide-react";
+import { ArrowRight, Check, Loader2, Sparkles, Zap, Coins } from "lucide-react";
+import { savingsComparisonText } from "@shared/billing/i18n";
 
 type Lang = "en" | "hi";
 
@@ -117,6 +118,9 @@ interface UpgradeConfirmModalProps {
   onCancel: () => void;
   isLoading?: boolean;
   lang?: Lang;
+  billingCycle?: "monthly" | "yearly";
+  yearlySavingsAmount?: number;
+  currencySymbol?: string;
 }
 
 function t(lang: Lang, en: string, hi: string) {
@@ -176,6 +180,9 @@ export function UpgradeConfirmModal({
   onCancel,
   isLoading = false,
   lang = "en",
+  billingCycle,
+  yearlySavingsAmount,
+  currencySymbol = "₹",
 }: UpgradeConfirmModalProps) {
   const currentTier = currentPlan.tier.toLowerCase();
   const targetTier = targetPlan.tier.toLowerCase();
@@ -259,6 +266,22 @@ export function UpgradeConfirmModal({
               </div>
             </div>
           </div>
+
+          {billingCycle === "yearly" && yearlySavingsAmount && yearlySavingsAmount > 0 && (
+            <div className="rounded-xl border p-3 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <div className="flex items-start gap-2">
+                <Coins className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-blue-700 dark:text-blue-300">
+                    {t(lang, "Yearly savings", "वार्षिक बचत")}
+                  </p>
+                  <p className="text-blue-600 dark:text-blue-400 mt-1">
+                    {savingsComparisonText(lang, yearlySavingsAmount, currencySymbol)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-col gap-3">

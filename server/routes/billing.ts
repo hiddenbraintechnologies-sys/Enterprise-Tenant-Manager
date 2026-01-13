@@ -1690,6 +1690,12 @@ router.get("/plans-with-cycles", optionalAuth, async (req: Request, res: Respons
           };
         });
 
+      const yearlyCycle = cycles.find(c => c.key === "yearly");
+      const monthlyCycle = cycles.find(c => c.key === "monthly");
+      const yearlySavingsAmount = yearlyCycle && monthlyCycle 
+        ? Math.max(0, (monthlyCycle.price * 12) - yearlyCycle.price)
+        : 0;
+
       return {
         id: plan.id,
         code: plan.code,
@@ -1706,6 +1712,7 @@ router.get("/plans-with-cycles", optionalAuth, async (req: Request, res: Respons
         isRecommended: plan.isRecommended,
         sortOrder: plan.sortOrder,
         cycles,
+        yearlySavingsAmount,
       };
     });
 
