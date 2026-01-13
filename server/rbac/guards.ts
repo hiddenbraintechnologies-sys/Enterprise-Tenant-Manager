@@ -62,6 +62,10 @@ export interface DerivedScopeContext extends ScopeContext {
 /**
  * requireAuth - Ensures user is authenticated
  * Returns 401 if no authenticated user
+ * 
+ * Supports both:
+ * - JWT-based auth (req.context, req.platformAdminContext, req.tokenPayload)
+ * - Session-based auth (req.isAuthenticated(), req.user)
  */
 export function requireAuth() {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -70,13 +74,18 @@ export function requireAuth() {
       return next();
     }
 
-    // Check for tenant user context
+    // Check for tenant user context (set by JWT or hybrid auth middleware)
     if (req.context?.user) {
       return next();
     }
 
     // Check for token payload (JWT was valid but context not fully resolved)
     if (req.tokenPayload?.userId) {
+      return next();
+    }
+
+    // Check for session-based authentication (Replit Auth / passport)
+    if (req.isAuthenticated && req.isAuthenticated() && req.user) {
       return next();
     }
 

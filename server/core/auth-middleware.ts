@@ -394,6 +394,198 @@ export function requireScope(...requiredScopes: string[]) {
   };
 }
 
+/**
+ * Hybrid authentication middleware that supports both JWT and session-based auth.
+ * 
+ * 1. If Authorization header is present, use JWT auth
+ * 2. If no auth header but session auth (req.isAuthenticated()), populate context from session
+ * 3. Falls back to 401 if neither method works and `required` is true
+ */
+export function authenticateHybrid(options: { required?: boolean } = { required: true }) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const authHeader = req.headers.authorization;
+    
+    // If Authorization header is present, use JWT authentication
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const decoded = await jwtAuthService.verifyAccessToken(token);
+
+      if (!decoded) {
+        console.log(`[auth-hybrid] JWT verification FAILED for ${req.method} ${req.path}`);
+        if (options.required) {
+          return res.status(401).json({ 
+            message: "Invalid or expired token",
+            code: "INVALID_TOKEN"
+          });
+        }
+        return next();
+      }
+      
+      console.log(`[auth-hybrid] JWT verified for userId=${decoded.userId}, tenantId=${decoded.tenantId}`);
+      req.tokenPayload = decoded;
+
+      // Handle platform admin JWT
+      if (decoded.isPlatformAdmin) {
+        const [admin] = await db.select().from(platformAdmins).where(eq(platformAdmins.id, decoded.userId));
+        
+        if (!admin || !admin.isActive) {
+          return res.status(401).json({ 
+            message: "Platform admin not found or inactive",
+            code: "ADMIN_NOT_FOUND"
+          });
+        }
+
+        let countryIds: string[] = [];
+        if (admin.role !== "SUPER_ADMIN") {
+          const countryAssignments = await db.select()
+            .from(platformAdminCountryAssignments)
+            .where(eq(platformAdminCountryAssignments.adminId, admin.id));
+          countryIds = countryAssignments.map(ca => ca.countryCode);
+        }
+
+        const resolvedPermissions = resolveAdminPermissions(
+          admin.role,
+          countryIds,
+          []
+        );
+
+        req.platformAdminContext = {
+          platformAdmin: {
+            id: admin.id,
+            name: admin.name,
+            email: admin.email,
+            role: admin.role as PlatformAdminRole,
+          },
+          permissions: decoded.permissions,
+          resolvedPermissions,
+          scope: resolvedPermissions.scope,
+        };
+        
+        return next();
+      }
+
+      // Handle regular user JWT
+      if (decoded.userId) {
+        const [dbUser] = await db.select().from(users).where(eq(users.id, decoded.userId));
+        
+        if (!dbUser) {
+          return res.status(401).json({ 
+            message: "User not found",
+            code: "USER_NOT_FOUND"
+          });
+        }
+
+        let tenant = null;
+        let role = null;
+
+        if (decoded.tenantId) {
+          [tenant] = await db.select().from(tenants).where(eq(tenants.id, decoded.tenantId));
+        }
+
+        if (decoded.roleId) {
+          [role] = await db.select().from(roles).where(eq(roles.id, decoded.roleId));
+        }
+
+        const features = tenant ? await getTenantFeatures(tenant.id) : [];
+
+        req.context = {
+          user: {
+            id: dbUser.id,
+            email: dbUser.email,
+            firstName: dbUser.firstName,
+            lastName: dbUser.lastName,
+          },
+          tenant,
+          role,
+          permissions: decoded.permissions,
+          features,
+        };
+      }
+
+      return next();
+    }
+
+    // No Authorization header - check for session-based authentication
+    if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+      console.log(`[auth-hybrid] Session auth detected for ${req.method} ${req.path}`);
+      
+      // Session user data from Replit Auth
+      const sessionUser = req.user as any;
+      
+      // If context is already populated (by other middleware), proceed
+      if (req.context?.user) {
+        console.log(`[auth-hybrid] Context already populated for userId=${req.context.user.id}`);
+        return next();
+      }
+      
+      // Try to find the user in our database by email
+      const userEmail = sessionUser.email || sessionUser.claims?.email;
+      if (userEmail) {
+        const [dbUser] = await db.select().from(users).where(eq(users.email, userEmail));
+        
+        if (dbUser) {
+          // Find user's default tenant
+          const [defaultTenantResult] = await db.select({
+            tenant: tenants,
+            role: roles,
+          })
+          .from(userTenants)
+          .leftJoin(tenants, eq(userTenants.tenantId, tenants.id))
+          .leftJoin(roles, eq(userTenants.roleId, roles.id))
+          .where(and(
+            eq(userTenants.userId, dbUser.id),
+            eq(userTenants.isDefault, true),
+            eq(userTenants.isActive, true)
+          ))
+          .limit(1);
+
+          const tenant = defaultTenantResult?.tenant || null;
+          const role = defaultTenantResult?.role || null;
+          const features = tenant ? await getTenantFeatures(tenant.id) : [];
+
+          req.context = {
+            user: {
+              id: dbUser.id,
+              email: dbUser.email,
+              firstName: dbUser.firstName,
+              lastName: dbUser.lastName,
+            },
+            tenant,
+            role,
+            permissions: [],  // Permissions are loaded separately via role-permission mapping
+            features,
+          };
+          
+          console.log(`[auth-hybrid] Session context resolved for userId=${dbUser.id}, tenantId=${tenant?.id}`);
+          return next();
+        }
+      }
+      
+      // User is authenticated via session but not found in our DB
+      // This can happen for new Replit users - allow them through for registration flows
+      console.log(`[auth-hybrid] Session user not found in DB, email=${userEmail}`);
+      if (options.required) {
+        return res.status(401).json({ 
+          message: "User not found in system",
+          code: "USER_NOT_FOUND"
+        });
+      }
+      return next();
+    }
+
+    // No authentication found
+    if (options.required) {
+      console.log(`[auth-hybrid] No auth found for ${req.method} ${req.path}`);
+      return res.status(401).json({ 
+        message: "Authentication required",
+        code: "UNAUTHORIZED"
+      });
+    }
+    
+    return next();
+  };
+}
+
 export function isRateLimitBypassed(): boolean {
   const nodeEnv = process.env.NODE_ENV;
   if (!nodeEnv || nodeEnv === "production") {
