@@ -11,6 +11,16 @@ The user wants the AI to act as an expert developer and to follow all the archit
 ### Core Platform Features
 MyBizStream is built as a multi-tenant SaaS platform with robust authentication and authorization. It utilizes Replit Auth (OIDC) for initial authentication, complemented by JWT for session management and token rotation. Security features include login rate limiting, IP whitelisting/blacklisting, and readiness for 2FA.
 
+### Authentication Architecture
+The platform supports **hybrid authentication** for flexibility across different access patterns:
+- **JWT Authentication**: Primary method for API access, with tokens stored in localStorage and sent via `Authorization: Bearer` header
+- **Session Authentication**: Replit Auth (OIDC) creates sessions for browser-based access via cookies
+- **Hybrid Middleware**: The `authenticateHybrid` middleware (in `server/core/auth-middleware.ts`) supports both methods:
+  - Checks for JWT token first (takes precedence)
+  - Falls back to session-based auth via `req.isAuthenticated()`
+  - Used by consulting and software_services modules to allow dashboard users to access APIs without separate JWT tokens
+- **Tenant Context**: The middleware in `server/index.ts` (lines 198-289) populates `req.context` with user, tenant, role, permissions, and features before route handlers execute
+
 Multi-tenancy is enforced via JWT claims and an `X-Tenant-ID` header, supporting subdomain isolation and per-tenant feature flags. A comprehensive Role-Based Access Control (RBAC) system defines roles like Super Admin, Admin, Manager, Staff, and Customer, with a granular permission matrix (`resource:action`) and module-level access control.
 
 A five-tier platform administration system provides scoped access based on roles and country assignments, with full audit trail capabilities. The platform also includes a Customer Portal for self-service, a White-Label & Reseller System for hierarchical tenant management, and extensive Tenant Branding options for customization.
