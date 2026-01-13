@@ -1,0 +1,131 @@
+1️⃣ FREE PLAN (india_free)
+
+Entry plan – allows onboarding, limits growth, no revenue leakage
+
+{
+  "feature_flags": {
+    "consulting": true,
+    "software_services": false,
+    "invoicing": false,
+    "gst_features": false,
+    "email_notifications": true,
+    "sms_notifications": false,
+    "whatsapp_automation": false,
+    "analytics_basic": true,
+    "analytics_advanced": false,
+    "priority_support": false,
+    "custom_roles": false
+  },
+  "limits": {
+    "users": 1,
+    "clients": 25,
+    "records": 50,
+    "projects": 3,
+    "invoices_per_month": 0,
+    "storage_mb": 100
+  }
+}
+
+UX behavior
+
+Software Services menu ❌ hidden
+
+Invoices ❌ locked
+
+Upgrade nudges ✅ aggressive
+
+No payment info required
+
+2️⃣ BASIC PLAN (india_basic) ⭐ Recommended
+
+Sweet spot for Indian SMBs (₹99)
+
+{
+  "feature_flags": {
+    "consulting": true,
+    "software_services": true,
+    "invoicing": true,
+    "gst_features": true,
+    "email_notifications": true,
+    "sms_notifications": true,
+    "whatsapp_automation": false,
+    "analytics_basic": true,
+    "analytics_advanced": true,
+    "priority_support": false,
+    "custom_roles": true
+  },
+  "limits": {
+    "users": 3,
+    "clients": 200,
+    "records": 500,
+    "projects": 25,
+    "invoices_per_month": 100,
+    "storage_mb": 2048
+  }
+}
+
+UX behavior
+
+Consulting + Software Services ✅
+
+GST invoicing ✅
+
+WhatsApp ❌ upsell banner
+
+“Recommended” badge ✅
+
+Eligible for annual discount offers
+
+3️⃣ PRO PLAN (india_pro)
+
+For scaling businesses & agencies (₹199)
+
+{
+  "feature_flags": {
+    "consulting": true,
+    "software_services": true,
+    "invoicing": true,
+    "gst_features": true,
+    "email_notifications": true,
+    "sms_notifications": true,
+    "whatsapp_automation": true,
+    "analytics_basic": true,
+    "analytics_advanced": true,
+    "priority_support": true,
+    "custom_roles": true
+  },
+  "limits": {
+    "users": 10,
+    "clients": -1,
+    "records": -1,
+    "projects": -1,
+    "invoices_per_month": -1,
+    "storage_mb": 10240
+  }
+}
+
+UX behavior
+
+Everything unlocked ✅
+
+Unlimited = -1 (standardized)
+
+Priority support badge ✅
+
+No upgrade nudges
+
+🔹 STANDARDIZED LIMIT RULES (IMPORTANT)
+
+Use these rules everywhere (UI + backend):
+
+if (limit === -1) return "Unlimited";
+if (limit === 0) return "Not available";
+return limit;
+
+🔹 FEATURE ACCESS RULE (Backend Guard)
+requireFeature("software_services")
+
+
+Maps to:
+
+tenant.plan.feature_flags.software_services === true
