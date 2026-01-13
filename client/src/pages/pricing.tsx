@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LanguageToggle } from "@/components/language-toggle";
-import { useTenantLanguage } from "@/hooks/use-tenant-language";
+import { LanguageSelector } from "@/components/language-selector";
+import { useTranslation } from "react-i18next";
 import { 
   Check, X, Zap, Star, Sparkles, ArrowLeft, ArrowRight,
   Users, Database, MessageCircle, FileText, Headphones
@@ -135,8 +135,9 @@ export default function PricingPage() {
   const [selectedCycle, setSelectedCycle] = useState<BillingCycleKey>("monthly");
 
   const tenantId = localStorage.getItem("tenantId");
-  const { lang, setLang } = useTenantLanguage(tenantId || undefined);
-  const t = (key: keyof typeof BILLING_STRINGS): string => tStr(lang as Lang, key);
+  const { t: tBilling, i18n } = useTranslation();
+  const lang = (i18n.language || "en") as Lang;
+  const t = (key: string): string => tBilling(`billing.${key}`, { defaultValue: key });
 
   const currentTier = localStorage.getItem("subscriptionTier") || "free";
   const isLoggedIn = !!localStorage.getItem("accessToken");
@@ -214,7 +215,7 @@ export default function PricingPage() {
             <h1 className="text-xl font-bold">MyBizStream</h1>
           </div>
           <div className="flex items-center gap-3">
-            <LanguageToggle lang={lang} onChange={setLang} />
+            <LanguageSelector tenantId={tenantId || undefined} />
             <ThemeToggle />
             {!isLoggedIn && (
               <Button asChild data-testid="button-login">

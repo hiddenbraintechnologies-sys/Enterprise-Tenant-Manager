@@ -1,0 +1,73 @@
+Add Indian regional language support using i18n (scalable, key-based).
+
+Frontend stack: React + TS + Tailwind + shadcn.
+We already support EN/HI with manual strings. Replace with i18n.
+
+1) Add i18n framework
+Use i18next + react-i18next.
+
+Create:
+- client/src/i18n/index.ts (i18n init)
+- client/src/i18n/locales/en.json
+- client/src/i18n/locales/hi.json
+- client/src/i18n/locales/te.json (Telugu)
+- client/src/i18n/locales/ta.json (Tamil)
+- client/src/i18n/locales/kn.json (Kannada)
+- client/src/i18n/locales/ml.json (Malayalam)
+
+2) Translation keys (billing only first)
+Move the following billing strings into i18n keys:
+- Monthly / Yearly toggle labels
+- “Save ₹X” (dynamic)
+- “Recommended”
+- “Start Free”
+- “Upgrade to Basic/Pro”
+- Upgrade modal title, subtitle, confirmation lines
+- Downgrade modal title, subtitle, “No immediate changes”
+- Banner: “Downgrade scheduled …”
+- Buttons: Confirm/Cancel/Go back/Proceed to payment
+
+Use interpolation:
+Example:
+"billing.yearlySave": "Yearly (Save ₹{{amount}})"
+And in HI:
+"billing.yearlySave": "वार्षिक (₹{{amount}} बचत)"
+Also add TE/TA/KN/ML equivalents.
+
+3) Language selector UI
+Replace current LanguageToggle with a dropdown:
+- English (EN)
+- हिंदी (HI)
+- తెలుగు (TE)
+- தமிழ் (TA)
+- ಕನ್ನಡ (KN)
+- മലയാളം (ML)
+
+Show in header on /packages and /pricing (and optionally dashboard).
+
+4) Persistence
+A) localStorage key: tenant:<tenantId>:lang
+B) Also store in DB:
+- Add tenant_settings.language (nullable, default "en")
+Create endpoints:
+- GET /api/tenant/settings
+- PATCH /api/tenant/settings { language }
+
+On app load:
+- If tenant_settings.language exists, use it
+- Else fallback to localStorage
+- Else "en"
+
+5) RTL readiness (future)
+Do not implement RTL now, but ensure i18n setup supports it later.
+
+6) Tests
+Add simple tests:
+- Language switch persists
+- “Save ₹X” renders in each language without breaking interpolation
+- Ensure no “%” appears anywhere
+
+Acceptance:
+- Billing + packages + pricing pages fully translated in EN/HI/TE/TA/KN/ML
+- Switch language updates immediately and persists per tenant
+- No hardcoded billing strings remain in those pages

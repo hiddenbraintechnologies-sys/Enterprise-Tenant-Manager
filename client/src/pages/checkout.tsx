@@ -11,8 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LanguageToggle } from "@/components/language-toggle";
-import { useTenantLanguage } from "@/hooks/use-tenant-language";
+import { LanguageSelector } from "@/components/language-selector";
+import { useTranslation } from "react-i18next";
 import { 
   ArrowLeft, CreditCard, Shield, Loader2, CheckCircle, XCircle,
   AlertTriangle, Lock
@@ -109,8 +109,9 @@ export default function CheckoutPage() {
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
   const tenantId = localStorage.getItem("tenantId");
-  const { lang, setLang } = useTenantLanguage(tenantId || undefined);
-  const t = (key: keyof typeof BILLING_STRINGS): string => tStr(lang as Lang, key);
+  const { t: tBilling, i18n } = useTranslation();
+  const lang = (i18n.language || "en") as Lang;
+  const t = (key: string): string => tBilling(`billing.${key}`, { defaultValue: key });
 
   useEffect(() => {
     loadRazorpayScript().then(setRazorpayLoaded);
@@ -273,7 +274,7 @@ export default function CheckoutPage() {
           <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
             <h1 className="text-xl font-bold">MyBizStream</h1>
             <div className="flex items-center gap-3">
-              <LanguageToggle lang={lang} onChange={setLang} />
+              <LanguageSelector tenantId={tenantId || undefined} />
               <ThemeToggle />
             </div>
           </div>
@@ -301,7 +302,7 @@ export default function CheckoutPage() {
           <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
             <h1 className="text-xl font-bold">MyBizStream</h1>
             <div className="flex items-center gap-3">
-              <LanguageToggle lang={lang} onChange={setLang} />
+              <LanguageSelector tenantId={tenantId || undefined} />
               <ThemeToggle />
             </div>
           </div>
@@ -338,7 +339,7 @@ export default function CheckoutPage() {
           <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
             <h1 className="text-xl font-bold">MyBizStream</h1>
             <div className="flex items-center gap-3">
-              <LanguageToggle lang={lang} onChange={setLang} />
+              <LanguageSelector tenantId={tenantId || undefined} />
               <ThemeToggle />
             </div>
           </div>
@@ -383,7 +384,7 @@ export default function CheckoutPage() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <LanguageToggle lang={lang} onChange={setLang} />
+            <LanguageSelector tenantId={tenantId || undefined} />
             <ThemeToggle />
           </div>
         </div>

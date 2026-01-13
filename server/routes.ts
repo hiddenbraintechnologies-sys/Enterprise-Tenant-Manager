@@ -98,6 +98,7 @@ import adminBillingPlansRoutes from "./routes/admin-billing-plans";
 import adminBillingOffersRoutes from "./routes/admin-billing-offers";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
+import tenantSettingsRoutes from "./routes/tenant-settings";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
@@ -303,6 +304,9 @@ export async function registerRoutes(
   app.use('/api/auth', phase3OnboardingRoutes);
   app.use('/api/subscription', phase3OnboardingRoutes);
   app.use('/api/dashboard', dashboardApiRoutes);
+
+  // Tenant settings (language preference, etc.)
+  app.use(tenantSettingsRoutes);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
   app.use('/api/feature-flags', isAuthenticated, featureFlagsRoutes);

@@ -33,8 +33,8 @@ import {
 } from "@shared/billing/feature-catalog";
 import { DowngradeConfirmModal } from "@/components/downgrade-confirm-modal";
 import { UpgradeConfirmModal } from "@/components/upgrade-confirm-modal";
-import { LanguageToggle } from "@/components/language-toggle";
-import { useTenantLanguage } from "@/hooks/use-tenant-language";
+import { LanguageSelector } from "@/components/language-selector";
+import { useTranslation } from "react-i18next";
 import { getGainedFeatures, getIncreasedLimits, getLostFeatures, getReducedLimits } from "@shared/billing/language-helpers";
 import type { BillingCycleKey } from "@shared/billing/types";
 import { CYCLE_LABELS } from "@shared/billing/types";
@@ -195,7 +195,8 @@ export default function PackagesPage() {
   const queryClient = useQueryClient();
 
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
-  const { lang, setLang } = useTenantLanguage(tenantId || undefined);
+  const { t: tBilling, i18n } = useTranslation();
+  const lang = (i18n.language || "en") as Lang;
   
   // Fetch subscription when user is authenticated and auth is not loading
   // This prevents using stale tokens from previous sessions
@@ -273,7 +274,7 @@ export default function PackagesPage() {
       // Handle case where user needs to create tenant first
       if (data.requiresTenantSetup) {
         localStorage.setItem("pendingPlanCode", data.pendingPlanCode || "");
-        toast({ title: tStr(lang as Lang, "businessSetupRequired"), description: tStr(lang as Lang, "completeBusinessDetails") });
+        toast({ title: t( "businessSetupRequired"), description: t( "completeBusinessDetails") });
         setLocation(data.redirectUrl || "/tenant-signup");
         return;
       }
@@ -281,7 +282,7 @@ export default function PackagesPage() {
       if (data.requiresPayment) {
         localStorage.setItem("pendingPaymentId", data.payment?.id || "");
         localStorage.setItem("pendingPlanCode", data.plan?.code || "");
-        toast({ title: tStr(lang as Lang, "planSelectedTitle"), description: tStr(lang as Lang, "planSelectedDesc") });
+        toast({ title: t( "planSelectedTitle"), description: t( "planSelectedDesc") });
         setLocation("/checkout");
       } else if (data.success) {
         localStorage.setItem("subscriptionStatus", "active");
@@ -296,7 +297,7 @@ export default function PackagesPage() {
         // Refetch and wait for the data to be active
         const result = await refetchSubscription();
         
-        toast({ title: tStr(lang as Lang, "planActivated"), description: `${data.plan?.name || tStr(lang as Lang, "planNameFree")} ${tStr(lang as Lang, "planIsNowActive")}` });
+        toast({ title: t( "planActivated"), description: `${data.plan?.name || t( "planNameFree")} ${t( "planIsNowActive")}` });
         
         // Navigate to business-type-specific dashboard
         const businessType = tenant?.businessType || "service";
@@ -314,14 +315,14 @@ export default function PackagesPage() {
       }
     },
     onError: (error: Error) => {
-      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
+      toast({ title: t( "errorTitle"), description: error.message, variant: "destructive" });
       setSelectedPlan(null);
     },
   });
 
   const handleSelectPlan = (planCode: string) => {
     if (!isAuthenticated) {
-      toast({ title: tStr(lang as Lang, "pleaseLogIn"), description: tStr(lang as Lang, "needToLogInSelect"), variant: "destructive" });
+      toast({ title: t( "pleaseLogIn"), description: t( "needToLogInSelect"), variant: "destructive" });
       setLocation("/login");
       return;
     }
@@ -340,24 +341,24 @@ export default function PackagesPage() {
       await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
       
       if (data.requiresPayment) {
-        toast({ title: tStr(lang as Lang, "upgradeInitiated"), description: tStr(lang as Lang, "proceedToPayment") });
+        toast({ title: t( "upgradeInitiated"), description: t( "proceedToPayment") });
         setLocation("/checkout");
       } else if (data.effectiveAt) {
         const effectiveDate = formatDateLocalized(lang as Lang, data.effectiveAt);
         const targetPlanName = pendingDowngradePlan?.name || "";
         toast({ 
-          title: tStr(lang as Lang, "downgradeScheduled"), 
+          title: t( "downgradeScheduled"), 
           description: downgradeBannerText(lang as Lang, targetPlanName, effectiveDate)
         });
         setShowDowngradeModal(false);
         setPendingDowngradePlan(null);
       } else {
-        toast({ title: tStr(lang as Lang, "planChanged"), description: tStr(lang as Lang, "subscriptionUpdated") });
+        toast({ title: t( "planChanged"), description: t( "subscriptionUpdated") });
       }
       setSelectedPlan(null);
     },
     onError: (error: Error) => {
-      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
+      toast({ title: t( "errorTitle"), description: error.message, variant: "destructive" });
       setSelectedPlan(null);
       setShowDowngradeModal(false);
     },
@@ -370,10 +371,10 @@ export default function PackagesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
-      toast({ title: tStr(lang as Lang, "downgradeCancelledTitle"), description: tStr(lang as Lang, "downgradeCancelledDesc") });
+      toast({ title: t( "downgradeCancelledTitle"), description: t( "downgradeCancelledDesc") });
     },
     onError: (error: Error) => {
-      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
+      toast({ title: t( "errorTitle"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -385,16 +386,16 @@ export default function PackagesPage() {
     onSuccess: async () => {
       setShowCancelUpgradeModal(false);
       await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
-      toast({ title: tStr(lang as Lang, "upgradeCancelledTitle"), description: tStr(lang as Lang, "upgradeCancelledDesc") });
+      toast({ title: t( "upgradeCancelledTitle"), description: t( "upgradeCancelledDesc") });
     },
     onError: (error: Error) => {
-      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
+      toast({ title: t( "errorTitle"), description: error.message, variant: "destructive" });
     },
   });
 
   const handleUpgrade = (plan: Plan) => {
     if (!isAuthenticated) {
-      toast({ title: tStr(lang as Lang, "pleaseLogIn"), description: tStr(lang as Lang, "needToLogInUpgrade"), variant: "destructive" });
+      toast({ title: t( "pleaseLogIn"), description: t( "needToLogInUpgrade"), variant: "destructive" });
       return;
     }
     
@@ -447,7 +448,7 @@ export default function PackagesPage() {
     };
   };
 
-  const t = (key: keyof typeof BILLING_STRINGS): string => tStr(lang as Lang, key);
+  const t = (key: string): string => tBilling(`billing.${key}`, { defaultValue: key });
   const billingInterval = selectedCycle === "yearly" ? t("perYear") : t("perMonth");
   const maxYearlySavingsInfo = getMaxYearlySavingsInfo();
 
@@ -492,7 +493,7 @@ export default function PackagesPage() {
 
   const handleDowngrade = (plan: Plan) => {
     if (!isAuthenticated) {
-      toast({ title: tStr(lang as Lang, "pleaseLogIn"), description: tStr(lang as Lang, "needToLogInDowngrade"), variant: "destructive" });
+      toast({ title: t( "pleaseLogIn"), description: t( "needToLogInDowngrade"), variant: "destructive" });
       return;
     }
     setPendingDowngradePlan(plan);
@@ -560,7 +561,7 @@ export default function PackagesPage() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <h1 className="text-xl font-bold" data-testid="text-packages-logo">MyBizStream</h1>
           <div className="flex items-center gap-3">
-            <LanguageToggle lang={lang} onChange={setLang} />
+            <LanguageSelector tenantId={tenantId || undefined} />
             <ThemeToggle />
           </div>
         </div>

@@ -542,6 +542,7 @@ export const tenantDomains = pgTable("tenant_domains", {
 export const tenantSettings = pgTable("tenant_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }).unique(),
+  language: varchar("language", { length: 10 }).default("en"),
   businessHours: jsonb("business_hours").default({}),
   bookingRules: jsonb("booking_rules").default({}),
   notificationSettings: jsonb("notification_settings").default({}),
