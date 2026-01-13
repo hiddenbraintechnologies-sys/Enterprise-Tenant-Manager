@@ -574,8 +574,10 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
       return res.status(400).json({ code: "NO_ORDER", error: "No order created for this payment" });
     }
 
+    // For mock mode, providerOrderId may be generated during checkout create
+    // For real providers, it's guaranteed to exist due to the guard above
     const verifyResult = await provider.verifyPayment({
-      providerOrderId: payment.providerOrderId || "",
+      providerOrderId: payment.providerOrderId!,
       providerPaymentId,
       providerSignature,
       paymentId,
