@@ -59,22 +59,23 @@ import { cn } from "@/lib/utils";
 
 interface Project {
   id: string;
-  projectCode: string;
+  code: string | null;
   name: string;
   description: string | null;
-  clientName: string | null;
+  customerId: string | null;
   startDate: string | null;
   endDate: string | null;
-  status: "active" | "completed" | "on_hold" | "cancelled";
-  budget: string | null;
+  status: "draft" | "active" | "completed" | "on_hold" | "cancelled";
+  billingModel: "time_and_materials" | "fixed_price" | "retainer" | "milestone";
+  hourlyRate: string | null;
+  fixedBudget: string | null;
   currency: string;
-  isBillable: boolean;
-  billingRate: string | null;
+  estimatedHours: number | null;
 }
 
 interface ProjectResponse {
   data: Project[];
-  pagination: {
+  meta: {
     page: number;
     limit: number;
     total: number;
@@ -100,6 +101,8 @@ function getStatusBadge(status: string) {
   const baseClasses = "text-xs";
   
   switch (status) {
+    case "draft":
+      return <Badge variant="outline" className={cn(baseClasses, "border-gray-500 text-gray-600 dark:text-gray-400")}>Draft</Badge>;
     case "active":
       return <Badge variant="outline" className={cn(baseClasses, "border-green-500 text-green-600 dark:text-green-400")}>Active</Badge>;
     case "completed":
@@ -144,22 +147,23 @@ export default function ConsultingProjects() {
   });
 
   const { data: projectsData, isLoading } = useQuery<ProjectResponse>({
-    queryKey: ["/api/hr/projects", { page, limit: 10, status: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: ["/api/services/consulting/projects", { page, limit: 10, status: statusFilter !== "all" ? statusFilter : undefined }],
   });
 
   const createProjectMutation = useMutation({
     mutationFn: async (data: ProjectFormValues) => {
       const payload = {
         ...data,
+        code: data.projectCode,
         startDate: data.startDate ? format(data.startDate, "yyyy-MM-dd") : null,
         endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : null,
         budget: data.budget ? parseFloat(data.budget) : null,
-        billingRate: data.billingRate ? parseFloat(data.billingRate) : null,
+        hourlyRate: data.billingRate ? parseFloat(data.billingRate) : null,
       };
-      return apiRequest("POST", "/api/hr/projects", payload);
+      return apiRequest("POST", "/api/services/consulting/projects", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/services/consulting/projects"] });
       toast({
         title: "Engagement created",
         description: "The client engagement has been created successfully.",
@@ -181,7 +185,7 @@ export default function ConsultingProjects() {
   };
 
   const projects = projectsData?.data ?? [];
-  const pagination = projectsData?.pagination;
+  const pagination = projectsData?.meta;
 
   return (
     <DashboardLayout title="Engagements">
@@ -457,10 +461,10 @@ export default function ConsultingProjects() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{project.name}</p>
-                          <p className="text-sm text-muted-foreground">{project.projectCode}</p>
+                          <p className="text-sm text-muted-foreground">{project.code || "-"}</p>
                         </div>
                       </TableCell>
-                      <TableCell>{project.clientName || "-"}</TableCell>
+                      <TableCell>{project.customerId || "-"}</TableCell>
                       <TableCell>{getStatusBadge(project.status)}</TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -474,10 +478,10 @@ export default function ConsultingProjects() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(project.budget, project.currency)}
+                        {formatCurrency(project.fixedBudget, project.currency)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {project.isBillable ? formatCurrency(project.billingRate, project.currency) : "Non-billable"}
+                        {project.hourlyRate ? formatCurrency(project.hourlyRate, project.currency) : "-"}
                       </TableCell>
                     </TableRow>
                   ))}

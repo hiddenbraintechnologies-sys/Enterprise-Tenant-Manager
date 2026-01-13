@@ -30,7 +30,7 @@ import { hrmsStorage } from "../../storage/hrms";
 const router = Router();
 
 const FEATURE_FLAGS: Record<string, string[]> = {
-  hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "furniture_manufacturing"],
+  hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "furniture_manufacturing", "consulting", "software_services"],
 };
 
 function requireFeature(featureFlag: string) {

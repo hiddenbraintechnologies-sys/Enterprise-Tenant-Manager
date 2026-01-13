@@ -41,6 +41,8 @@ const MODULE_TIER_ACCESS: Record<string, Record<string, "included" | "addon" | "
   gym: { free: "included", starter: "included", pro: "included", enterprise: "included" },
   general_service: { free: "included", starter: "included", pro: "included", enterprise: "included" },
   service: { free: "included", starter: "included", pro: "included", enterprise: "included" },
+  consulting: { free: "included", starter: "included", pro: "included", enterprise: "included" },
+  software_services: { free: "included", starter: "included", pro: "included", enterprise: "included" },
   marketplace: { free: "unavailable", starter: "included", pro: "included", enterprise: "included" },
   analytics: { free: "unavailable", starter: "included", pro: "included", enterprise: "included" },
   bookings: { free: "included", starter: "included", pro: "included", enterprise: "included" },
