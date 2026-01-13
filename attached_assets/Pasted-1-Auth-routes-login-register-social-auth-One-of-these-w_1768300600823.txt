@@ -1,0 +1,125 @@
+1️⃣ Auth routes (login, register, social auth)
+
+👉 One of these will exist:
+
+server/routes/auth.ts
+server/routes/auth/index.ts
+server/routes/auth.routes.ts
+server/routes/auth-router.ts
+
+
+🔍 If unsure, run:
+
+rg "login|register|auth/login|POST.*login" server
+
+2️⃣ Auth controller / service (email + password logic)
+
+👉 Usually one of:
+
+server/controllers/auth.controller.ts
+server/services/auth.service.ts
+server/lib/auth.ts
+server/core/auth.ts
+
+
+🔍 Search:
+
+rg "validatePassword|comparePassword|bcrypt|loginUser" server
+
+3️⃣ Tenant–User mapping (CRITICAL)
+
+👉 One of:
+
+server/storage/user-tenants.ts
+server/storage/tenant-memberships.ts
+server/db/userTenants.ts
+shared/db/userTenants.ts
+shared/db/memberships.ts
+
+
+🔍 Search:
+
+rg "tenant_id.*user|user_id.*tenant|membership" server shared
+
+4️⃣ Billing / Subscription API (401 → 400 fix)
+
+👉 One of:
+
+server/routes/billing.ts
+server/routes/billing/index.ts
+server/routes/subscription.ts
+server/routes/billing/subscription.ts
+
+
+🔍 Search:
+
+rg "billing/subscription|getSubscription|subscription status" server
+
+5️⃣ Auth middleware (tenant requirement)
+
+👉 One of:
+
+server/middleware/requireTenant.ts
+server/middleware/tenant.ts
+server/middleware/authTenant.ts
+server/middleware/context.ts
+
+
+🔍 Search:
+
+rg "TENANT_REQUIRED|tenant context|x-tenant" server
+
+🖥️ FRONTEND (Client)
+6️⃣ Login page (this MUST be edited)
+
+👉 One of:
+
+client/src/pages/login.tsx
+client/src/pages/Login.tsx
+client/src/routes/login.tsx
+client/src/screens/Login.tsx
+
+
+🔍 Search:
+
+rg "Welcome Back|Sign In|Forgot password" client/src
+
+7️⃣ Auth API client
+
+👉 One of:
+
+client/src/api/auth.ts
+client/src/lib/auth.ts
+client/src/services/auth.ts
+client/src/api/client.ts
+
+
+🔍 Search:
+
+rg "/api/auth/login|login\\(" client/src
+
+8️⃣ Tenant context provider (DO NOT wrap login)
+
+👉 One of:
+
+client/src/contexts/tenant-context.tsx
+client/src/providers/TenantProvider.tsx
+client/src/context/TenantContext.tsx
+
+
+🔍 Search:
+
+rg "TenantProvider|tenantContext" client/src
+
+9️⃣ App router (public vs authenticated split)
+
+👉 One of:
+
+client/src/App.tsx
+client/src/router.tsx
+client/src/routes.tsx
+
+
+🔍 Search:
+
+rg "publicPaths|OnboardingGuard|Switch|Routes" client/src
