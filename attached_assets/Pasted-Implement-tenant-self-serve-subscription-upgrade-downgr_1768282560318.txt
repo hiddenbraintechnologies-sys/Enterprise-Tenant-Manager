@@ -1,0 +1,59 @@
+Implement tenant self-serve subscription upgrade/downgrade with RBAC.
+
+Requirements:
+- Tenants (OWNER/ADMIN) can upgrade/downgrade their own subscription.
+- Tenants cannot edit pricing plans (only platform admins can).
+- Use scheduled downgrade at period end (recommended).
+
+Backend:
+1) Add tenant permissions:
+   SUBSCRIPTION_VIEW, SUBSCRIPTION_CHANGE, INVOICES_VIEW, PAYMENTS_VIEW
+   Grant SUBSCRIPTION_CHANGE only to tenant OWNER and ADMIN.
+
+2) Create endpoint:
+   POST /api/billing/subscription/change
+   - requireAuth + requireTenantContext + requirePermission(SUBSCRIPTION_CHANGE)
+   - body: { planId: string, action: "upgrade"|"downgrade" }
+   - validate plan exists and is active for tenant country
+   - If action="upgrade":
+       - If plan is FREE -> apply immediately (planId=FREE, clear pendingPlanId)
+       - If paid plan -> return { requiresPayment: true, planId, tenantId } (Razorpay later)
+   - If action="downgrade":
+       - Set status="downgrading"
+       - Set pendingPlanId=planId
+       - Set cancelAtPeriodEnd=true
+       - return { success: true, effectiveAt: currentPeriodEnd }
+
+3) Add a server job/cron-like function (can be simple on startup for now):
+   - daily check subscriptions where cancelAtPeriodEnd=true AND currentPeriodEnd <= now
+   - apply pendingPlanId as new planId
+   - clear pendingPlanId, cancelAtPeriodEnd=false, status="active"
+   - audit log this change
+
+4) Ensure GET /api/billing/subscription returns:
+   { planId, status, currentPeriodEnd, pendingPlanId, cancelAtPeriodEnd }
+
+Frontend:
+1) On /packages:
+   - show current plan badge
+   - show “Upgrade” buttons for higher plans
+   - show “Downgrade” button for lower plans
+   - if subscription.status="downgrading", show banner:
+     “Downgrade scheduled on <date>” + option to cancel downgrade.
+
+2) When user clicks downgrade:
+   - call POST /api/billing/subscription/change with action="downgrade"
+   - show confirmation modal and effective date
+
+3) When user clicks upgrade:
+   - call POST /api/billing/subscription/change action="upgrade"
+   - if requiresPayment true -> navigate to /checkout (Razorpay later)
+   - else redirect to dashboard
+
+Testing:
+- Add integration tests:
+  - Tenant STAFF cannot change subscription (403)
+  - Tenant ADMIN can schedule downgrade
+  - Downgrade sets pendingPlanId and cancelAtPeriodEnd true
+  - Upgrade returns requiresPayment for paid plans
+  - Tenant isolation: cannot change another tenant subscription (404)
