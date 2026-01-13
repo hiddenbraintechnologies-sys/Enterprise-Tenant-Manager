@@ -142,16 +142,23 @@ export function requirePermission(permission: Permission) {
 
 /**
  * Map tenant role name to TenantRole type
+ * Handles various casing conventions from the database
  */
 function mapTenantRole(roleName: string): TenantRole | null {
   const roleMap: Record<string, TenantRole> = {
     "admin": "TENANT_ADMIN",
+    "Admin": "TENANT_ADMIN",
     "ADMIN": "TENANT_ADMIN",
     "TENANT_ADMIN": "TENANT_ADMIN",
+    "owner": "TENANT_ADMIN",
+    "Owner": "TENANT_ADMIN",
+    "OWNER": "TENANT_ADMIN",
     "staff": "TENANT_STAFF",
+    "Staff": "TENANT_STAFF",
     "STAFF": "TENANT_STAFF",
     "TENANT_STAFF": "TENANT_STAFF",
     "viewer": "TENANT_VIEWER",
+    "Viewer": "TENANT_VIEWER",
     "VIEWER": "TENANT_VIEWER",
     "TENANT_VIEWER": "TENANT_VIEWER",
   };

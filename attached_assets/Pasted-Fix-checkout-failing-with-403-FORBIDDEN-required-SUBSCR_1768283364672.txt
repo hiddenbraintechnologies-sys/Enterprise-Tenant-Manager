@@ -1,0 +1,45 @@
+Fix checkout failing with 403 FORBIDDEN required="SUBSCRIBE" when simulating successful payment (paid plans).
+
+Symptom:
+On /checkout, clicking "Simulate Successful Payment" returns:
+403 { message:"Insufficient permissions", code:"FORBIDDEN", required:"SUBSCRIBE" }
+Subscription does not activate.
+
+Goal:
+Tenant owners/admins must be able to complete checkout and activate subscription after payment success (including dev simulation).
+Free plan should work without payment.
+
+Tasks:
+
+1) Locate the endpoint called by "Simulate Successful Payment"
+- Find client checkout handler (simulate success button) and identify the API path (e.g., POST /api/billing/payments/:id/simulate-success OR /api/billing/checkout/confirm).
+- Confirm which backend route throws required="SUBSCRIBE".
+
+2) Fix RBAC permission mapping for tenant roles
+- In shared/rbac/permissions.ts (or equivalent), ensure:
+  TENANT_OWNER includes "SUBSCRIBE"
+  TENANT_ADMIN includes "SUBSCRIBE" (if you allow admins to manage billing)
+- If you already have "SUBSCRIPTION_CHANGE", you may replace required permission in billing routes from "SUBSCRIBE" -> "SUBSCRIPTION_CHANGE" to reuse existing matrix.
+
+3) Ensure guard checks tenant RBAC (not platform RBAC)
+- The permission check must evaluate req.context.role (tenant role) when in tenant routes.
+- If req.platformAdminContext exists, do not accidentally treat it as the user context for tenant billing flows.
+- Add a unit test: tenant owner can call checkout confirm endpoint.
+
+4) Ensure tenant context is sent on checkout requests
+- All billing/checkout API calls must include X-Tenant-ID header or tenantId derived from session/JWT.
+- If checkout is accessed before tenant is set, redirect user to tenant selection or auto-set default tenant immediately after signup.
+- Add server-side fallback: if X-Tenant-ID missing but user has exactly one tenant, use it.
+
+5) Validate onboarding flow permissions
+- New tenant signup should create tenant + userTenant OWNER mapping before redirecting to /packages and /checkout.
+- Confirm subscription endpoints run after tenant association exists.
+
+6) Tests (must pass)
+- New signup -> select BASIC -> checkout simulate success -> subscription becomes active and redirects to dashboard (200)
+- Endpoint returns 401 only when unauthenticated
+- Endpoint returns 403 only when user is staff role without billing privileges
+
+Acceptance:
+- Paid plan checkout simulation succeeds for tenant owner/admin
+- No more 403 required SUBSCRIBE during normal tenant onboarding
