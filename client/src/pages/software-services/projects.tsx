@@ -150,7 +150,7 @@ export default function SoftwareServicesProjects() {
   });
 
   const { data: projectsData, isLoading } = useQuery<ProjectResponse>({
-    queryKey: ["/api/hr/projects", { page, limit: 10, status: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: ["/api/services/software/projects", { page, limit: 10, status: statusFilter !== "all" ? statusFilter : undefined }],
   });
 
   const createProjectMutation = useMutation({
@@ -162,10 +162,10 @@ export default function SoftwareServicesProjects() {
         budget: data.budget ? parseFloat(data.budget) : null,
         billingRate: data.billingRate ? parseFloat(data.billingRate) : null,
       };
-      return apiRequest("POST", "/api/hr/projects", payload);
+      return apiRequest("POST", "/api/services/software/projects", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/services/software/projects"] });
       toast({
         title: "Project created",
         description: "The project has been created successfully.",
