@@ -585,6 +585,10 @@ export const BILLING_STRINGS = {
     en: "Plan changed",
     hi: "प्लान बदला गया"
   },
+  downgradeScheduled: {
+    en: "Downgrade scheduled",
+    hi: "डाउनग्रेड शेड्यूल किया गया"
+  },
   subscriptionUpdated: {
     en: "Your subscription has been updated.",
     hi: "आपकी सदस्यता अपडेट हो गई है।"

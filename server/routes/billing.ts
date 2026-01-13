@@ -390,11 +390,23 @@ router.post("/select-plan", requiredAuth, async (req: Request, res: Response) =>
       requiresPayment: true,
     });
   } catch (error) {
-    console.error("[billing] Error selecting plan:", error);
+    const context = (req as any).context;
+    const userId = context?.user?.id || "unknown";
+    const planCode = req.body?.planCode || "unknown";
+    console.error(`[billing] Error selecting plan - userId: ${userId}, planCode: ${planCode}:`, error);
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Invalid request", details: error.errors });
+      return res.status(400).json({ code: "VALIDATION_ERROR", error: "Invalid request", details: error.errors });
     }
-    res.status(500).json({ error: "Failed to select plan" });
+    // Return more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes("tenant")) {
+        return res.status(400).json({ code: "TENANT_ERROR", error: error.message });
+      }
+      if (error.message.includes("subscription")) {
+        return res.status(400).json({ code: "SUBSCRIPTION_ERROR", error: error.message });
+      }
+    }
+    res.status(500).json({ code: "INTERNAL_ERROR", error: "Failed to select plan" });
   }
 });
 

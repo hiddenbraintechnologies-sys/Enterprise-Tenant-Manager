@@ -1,0 +1,76 @@
+Fix FREE plan selection failing with 500 immediately after registration.
+
+Symptom:
+After register -> /packages -> click Start Free
+POST /select-plan returns 500 {"error":"Failed to select plan"}.
+User is stuck.
+
+Goal:
+Free plan activation must always succeed for a newly registered user with no subscription.
+
+Tasks:
+
+1) Identify the route being called:
+- The network shows: POST /select-plan
+Make sure this maps to the intended backend endpoint (likely /api/billing/select-plan).
+If frontend is calling a relative "/select-plan" without "/api", fix it to call "/api/billing/select-plan" (same-origin).
+
+2) Harden backend handler (must be safe for “no tenant yet”):
+In POST /api/billing/select-plan:
+- requireAuth ONLY (no requireTenant middleware)
+- Read { planId } from body (planId may be "FREE"/"BASIC"/"PRO" OR a code like "india_free")
+- Determine tenant country (default "IN" for India launch if missing)
+
+Tenant resolution:
+- Find tenantId for this user (userTenants where role OWNER/ADMIN).
+- If not found:
+   - Create a new tenant (name from registration/company name or fallback)
+   - Attach user to tenant as OWNER
+   - Set this tenant as user default tenant (if your system supports it)
+
+Plan resolution:
+- If planId in ["FREE","BASIC","PRO"], map to country-specific plan codes:
+   IN: FREE->india_free, BASIC->india_basic, PRO->india_pro
+- Else treat planId as plan code directly.
+- Fetch billing_plan by code + isActive + isPublic + countryCode.
+- If not found: return 400 { code:"PLAN_NOT_FOUND" }
+
+Free activation path:
+- If resolved plan price == 0:
+   - Upsert subscription for tenantId:
+       planId = plan.code
+       status = "active"
+       pendingPlanId = null
+       pendingPaymentId = null
+       cancelAtPeriodEnd = false
+       currentPeriodStart = now
+       currentPeriodEnd = now + 30 days (or 1 month)
+   - Apply feature flags for this plan
+   - Audit log: SUBSCRIPTION_ACTIVATED_FREE
+   - Return 200 { success:true, tenantId, redirectUrl:"/dashboard" }
+
+Paid path:
+- If price > 0:
+   - Set subscription status="pending_payment", pendingPlanId=plan.code and create Payment
+   - Return { requiresPayment:true, redirectUrl:"/checkout?paymentId=..." }
+
+3) Add error logging so 500 never hides root cause:
+- Wrap handler in try/catch
+- Log the actual exception + tenantId + userId + planId + resolvedPlanCode
+- Return meaningful 400/409 errors instead of generic 500 where possible.
+
+4) Frontend:
+- Ensure Start Free sends planId consistently.
+  Prefer sending "FREE" (and backend maps to india_free) OR send "india_free" directly.
+- After success, redirect to returned redirectUrl.
+
+5) Tests:
+Add integration tests:
+- New user with no tenant selects FREE -> creates tenant + activates subscription -> 200
+- PlanId mapping FREE->india_free works
+- If plan missing -> 400 PLAN_NOT_FOUND (not 500)
+
+Acceptance:
+- Fresh signup -> /packages -> Start Free activates successfully and redirects
+- No 500 errors
+- Works even when user has no tenant/subscription yet
