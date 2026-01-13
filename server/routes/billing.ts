@@ -29,7 +29,7 @@ const selectPlanSchema = z.object({
 const verifyPaymentSchema = z.object({
   paymentId: z.string().min(1),
   providerPaymentId: z.string().min(1),
-  providerSignature: z.string().min(1, "Signature is required for payment verification"),
+  providerSignature: z.string().optional(), // Optional for mock mode, required for real providers
 });
 
 async function getPlanByCode(code: string) {
@@ -513,7 +513,7 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
       .limit(1);
 
     if (!payment) {
-      return res.status(404).json({ error: "Payment not found" });
+      return res.status(404).json({ code: "PAYMENT_NOT_FOUND", error: "Payment not found" });
     }
 
     if (payment.status === "paid") {
@@ -524,13 +524,58 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
       });
     }
 
-    if (!payment.providerOrderId) {
-      return res.status(400).json({ error: "No order created for this payment" });
+    // State guard: check payment is in valid state for verification
+    if (payment.status !== "created") {
+      return res.status(409).json({ 
+        code: "INVALID_PAYMENT_STATE", 
+        error: `Payment cannot be verified in '${payment.status}' state` 
+      });
     }
 
+    // State guard: check subscription is in pending_payment status
+    if (payment.subscriptionId) {
+      const [subscription] = await db
+        .select()
+        .from(tenantSubscriptions)
+        .where(eq(tenantSubscriptions.id, payment.subscriptionId))
+        .limit(1);
+
+      if (!subscription) {
+        return res.status(404).json({ code: "SUBSCRIPTION_NOT_FOUND", error: "Associated subscription not found" });
+      }
+
+      if (subscription.status !== "pending_payment") {
+        return res.status(409).json({ 
+          code: "NO_PENDING_PAYMENT", 
+          error: "Subscription is not awaiting payment" 
+        });
+      }
+
+      // Verify pendingPaymentId matches
+      if (subscription.pendingPaymentId && subscription.pendingPaymentId !== paymentId) {
+        return res.status(409).json({ 
+          code: "PAYMENT_MISMATCH", 
+          error: "This payment does not match the pending payment for this subscription" 
+        });
+      }
+    }
+
+    // For mock mode, no signature required; for real providers, require signature
     const provider = getPaymentProvider();
+    const isMockMode = provider.name === "MOCK";
+    if (!isMockMode && !providerSignature) {
+      return res.status(400).json({ 
+        code: "SIGNATURE_REQUIRED", 
+        error: "Payment signature is required for verification" 
+      });
+    }
+
+    if (!payment.providerOrderId && !isMockMode) {
+      return res.status(400).json({ code: "NO_ORDER", error: "No order created for this payment" });
+    }
+
     const verifyResult = await provider.verifyPayment({
-      providerOrderId: payment.providerOrderId,
+      providerOrderId: payment.providerOrderId || "",
       providerPaymentId,
       providerSignature,
       paymentId,
