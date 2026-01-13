@@ -20,6 +20,10 @@ export const INDIA_PRICING_CONFIG = {
     maxUsers: 1,
     maxCustomers: 25,
     maxRecords: 50,
+    billingCycles: {
+      monthly: { price: 0, enabled: true },
+      yearly: { price: 0, enabled: true },
+    },
     features: {
       recordLimit: true,
       whatsappAutomation: false,
@@ -40,6 +44,10 @@ export const INDIA_PRICING_CONFIG = {
     maxUsers: 3,
     maxCustomers: 200,
     maxRecords: 500,
+    billingCycles: {
+      monthly: { price: 99, enabled: true },
+      yearly: { price: 999, enabled: true, badge: "Save 16%" },
+    },
     features: {
       recordLimit: true,
       whatsappAutomation: false,
@@ -62,6 +70,10 @@ export const INDIA_PRICING_CONFIG = {
     maxUsers: 10,
     maxCustomers: -1,
     maxRecords: -1,
+    billingCycles: {
+      monthly: { price: 199, enabled: true },
+      yearly: { price: 1999, enabled: true, badge: "Save 16%" },
+    },
     features: {
       recordLimit: false,
       whatsappAutomation: true,
@@ -252,6 +264,7 @@ export async function seedIndiaPricingPlans(): Promise<void> {
         description: config.description,
         tier: config.tier,
         basePrice: config.basePrice,
+        billingCycles: config.billingCycles,
         maxUsers: config.maxUsers,
         maxCustomers: config.maxCustomers,
         features: config.features,
@@ -272,6 +285,7 @@ export async function seedIndiaPricingPlans(): Promise<void> {
           name: config.name,
           description: config.description,
           basePrice: config.basePrice,
+          billingCycles: config.billingCycles,
           maxUsers: config.maxUsers,
           maxCustomers: config.maxCustomers,
           features: config.features,

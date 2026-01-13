@@ -1,0 +1,75 @@
+You are working on a multi-tenant SaaS with India plans (Free ₹0, Basic ₹99, Pro ₹199). Currently Monthly/Yearly toggle only changes the label; the price stays the same. Fix this properly by introducing real billing intervals with different prices, and allow Super Admin to configure both.
+
+GOAL
+- Monthly and Yearly must have different prices.
+- Switching toggle must change pricing values dynamically.
+- Works for all business categories (not hardcoded).
+- Super Admin can set monthly + yearly prices (or yearly discount) per plan.
+- Tenant subscription stores interval (MONTHLY/YEARLY).
+- Downgrades apply only at period end (already decided).
+
+BACKEND REQUIREMENTS
+1) Database
+- Add support for interval-specific plan pricing.
+- Preferred design:
+  - pricing_plans table stays (code, name, countryCode, tier, featureFlags, limits, isRecommended, archivedAt)
+  - NEW pricing_plan_prices table:
+    - id, planId (FK), billingInterval ENUM('MONTHLY','YEARLY'),
+    - amount INTEGER (minor units or rupees as you already do),
+    - currencyCode TEXT,
+    - optional discountPercent INTEGER NULL,
+    - createdAt/updatedAt
+  - Unique constraint: (planId, billingInterval)
+- Add migration.
+
+2) Seed
+- Seed BOTH MONTHLY and YEARLY prices for India:
+  - india_free: 0 monthly + 0 yearly
+  - india_basic: 99 monthly + 999 yearly (or use discountPercent 15–20)
+  - india_pro: 199 monthly + 1999 yearly
+- Keep idempotent seed behavior.
+
+3) API
+- Update GET /api/billing/plans to accept query params:
+  - country (existing)
+  - interval=MONTHLY|YEARLY (new, default MONTHLY)
+- Response should include:
+  - plan info + price for that interval (amount, currencyCode, interval)
+- Ensure tenant isolation and RBAC remain unchanged.
+
+4) Admin API
+- Update create/update plan endpoints to accept both monthlyPrice and yearlyPrice (or discount).
+- Persist in pricing_plan_prices.
+
+FRONTEND REQUIREMENTS
+5) Packages page (/packages)
+- Add/keep Monthly/Yearly toggle.
+- Store billingInterval state.
+- When user toggles, refetch plans from /api/billing/plans?country=IN&interval=<state>.
+- Display the returned amount; do NOT just change the label.
+- Ensure Free shows "Free" not ₹0.
+- Buttons:
+  - Monthly: “Get Basic (₹99/mo)”
+  - Yearly: “Get Basic (₹999/yr) Save X%”
+- Add a small “Save X%” badge for yearly if discount exists.
+
+6) Pricing page (/in pricing)
+- Same logic as /packages.
+
+7) Admin Billing > Pricing Plans
+- Add UI to edit monthly + yearly pricing for each plan.
+- Add validation:
+  - India currency must be INR for both.
+  - Yearly price must be <= monthly*12 (unless explicitly allowed).
+- Show computed savings.
+
+TESTS
+8) Add/Update tests:
+- Plans endpoint returns correct price for requested interval.
+- Toggle changes pricing values.
+- Seed creates two prices per plan.
+- Admin updates both prices.
+
+DELIVERABLE
+- Provide the exact files changed with a short summary.
+- Ensure TypeScript builds and tests pass.
