@@ -17,6 +17,8 @@ function getAuthHeaders(): Record<string, string> {
   
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+  } else {
+    console.warn("[getAuthHeaders] No token found in localStorage. Keys checked: mybizstream_admin_token, accessToken");
   }
   
   // Include tenant context for API isolation

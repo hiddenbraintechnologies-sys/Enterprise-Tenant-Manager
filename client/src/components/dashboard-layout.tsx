@@ -5,9 +5,13 @@ import { CountrySelector } from "@/components/country-selector";
 import { NotificationBell } from "@/components/notification-bell";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { HelpCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { HelpCircle, Loader2 } from "lucide-react";
 import { useTour } from "@/contexts/tour-context";
 import { dashboardTour } from "@/lib/tours";
+import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -31,11 +35,45 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, title, breadcrumbs = [] }: DashboardLayoutProps) {
   const { startTour, completedTours } = useTour();
   const hasCompletedDashboardTour = completedTours.includes(dashboardTour.id);
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  
+  // Redirect to login if not authenticated after auth check completes
+  useEffect(() => {
+    if (!isAuthLoading && !isAuthenticated) {
+      setLocation("/login");
+    }
+  }, [isAuthLoading, isAuthenticated, setLocation]);
   
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
+  
+  // Show loading state while checking authentication
+  // This prevents child components from making API calls before tokens are ready
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Don't render dashboard content if not authenticated (redirect is happening)
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
