@@ -5840,7 +5840,7 @@ export async function registerRoutes(
 
   // ==================== BUSINESS ROUTES ====================
 
-  app.get("/api/dashboard/stats", isAuthenticated, async (req, res) => {
+  app.get("/api/dashboard/stats", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -5854,7 +5854,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/analytics", isAuthenticated, async (req, res) => {
+  app.get("/api/analytics", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -5868,7 +5868,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/customers", isAuthenticated, async (req, res) => {
+  app.get("/api/customers", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -5882,7 +5882,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/customers/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/customers/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -5899,7 +5899,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/customers", isAuthenticated, async (req, res) => {
+  app.post("/api/customers", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -5929,7 +5929,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/customers/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/customers/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -5960,7 +5960,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/customers/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/customers/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -5987,7 +5987,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/services", isAuthenticated, async (req, res) => {
+  app.get("/api/services", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6001,7 +6001,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/services/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/services/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6018,7 +6018,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/services", isAuthenticated, async (req, res) => {
+  app.post("/api/services", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6048,7 +6048,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/services/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/services/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6079,7 +6079,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/services/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/services/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6106,7 +6106,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/bookings", isAuthenticated, async (req, res) => {
+  app.get("/api/bookings", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6120,7 +6120,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/bookings/upcoming", isAuthenticated, async (req, res) => {
+  app.get("/api/bookings/upcoming", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6135,7 +6135,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/bookings/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/bookings/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6152,7 +6152,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/bookings", isAuthenticated, async (req, res) => {
+  app.post("/api/bookings", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6182,7 +6182,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/bookings/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/bookings/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6213,7 +6213,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/bookings/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/bookings/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6240,7 +6240,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/context", isAuthenticated, async (req, res) => {
+  app.get("/api/context", authenticateHybrid(), async (req, res) => {
     try {
       const context = req.context;
       res.json({
@@ -6265,7 +6265,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/features", isAuthenticated, async (req, res) => {
+  app.get("/api/features", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6283,7 +6283,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/audit-logs", isAuthenticated, async (req, res) => {
+  app.get("/api/audit-logs", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6373,7 +6373,7 @@ export async function registerRoutes(
   });
 
   // ==================== INVOICES ====================
-  app.get("/api/invoices", isAuthenticated, async (req, res) => {
+  app.get("/api/invoices", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -6385,7 +6385,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/invoices/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/invoices/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -6401,7 +6401,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/invoices", isAuthenticated, async (req, res) => {
+  app.post("/api/invoices", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -6470,7 +6470,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/invoices/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/invoices/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -6486,7 +6486,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/invoices/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/invoices/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -6503,7 +6503,7 @@ export async function registerRoutes(
   });
 
   // ==================== PAYMENTS ====================
-  app.get("/api/payments", isAuthenticated, async (req, res) => {
+  app.get("/api/payments", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -6515,7 +6515,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/payments", isAuthenticated, async (req, res) => {
+  app.post("/api/payments", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -9777,9 +9777,9 @@ export async function registerRoutes(
   // ==================== IN-APP NOTIFICATIONS ====================
 
   // Get notifications for current user
-  app.get("/api/notifications", authenticateJWT(), async (req, res) => {
+  app.get("/api/notifications", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -9797,9 +9797,9 @@ export async function registerRoutes(
   });
 
   // Get unread notification count
-  app.get("/api/notifications/unread-count", authenticateJWT(), async (req, res) => {
+  app.get("/api/notifications/unread-count", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -9813,9 +9813,9 @@ export async function registerRoutes(
   });
 
   // Mark single notification as read
-  app.post("/api/notifications/:id/read", authenticateJWT(), async (req, res) => {
+  app.post("/api/notifications/:id/read", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -9832,9 +9832,9 @@ export async function registerRoutes(
   });
 
   // Mark all notifications as read
-  app.post("/api/notifications/mark-all-read", authenticateJWT(), async (req, res) => {
+  app.post("/api/notifications/mark-all-read", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -9848,9 +9848,9 @@ export async function registerRoutes(
   });
 
   // Delete notification
-  app.delete("/api/notifications/:id", authenticateJWT(), async (req, res) => {
+  app.delete("/api/notifications/:id", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -9864,9 +9864,9 @@ export async function registerRoutes(
   });
 
   // Create notification (internal/admin use)
-  app.post("/api/notifications", authenticateJWT(), async (req, res) => {
+  app.post("/api/notifications", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }

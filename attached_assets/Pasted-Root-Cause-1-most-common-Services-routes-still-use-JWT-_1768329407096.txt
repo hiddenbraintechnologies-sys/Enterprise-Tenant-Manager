@@ -1,0 +1,108 @@
+Root Cause 1 (most common): Services routes still use JWT-only middleware
+
+Even if someone updated guards.ts or created “hybridAuth”, the services/projects router may still be protected by a different middleware that only checks Authorization header.
+
+How to confirm in 10 seconds
+
+In Replit, search for the string:
+
+MISSING_TOKEN
+
+Whatever file returns that is the middleware currently running.
+
+The fix
+
+Wherever /api/services/* or /api/hr/* router is mounted, replace the JWT-only guard with the shared guard that supports session:
+
+Replace requireToken() / authMiddleware / requireApiAuth (JWT-only)
+
+With requireAuth() (session OR bearer) OR your “hybridAuth” function
+
+Also confirm the router is mounted after session + passport middleware.
+
+✅ After this, Create Project / Create Engagement will work with normal login.
+
+Root Cause 2: Cookies/session not being sent (credentials missing)
+
+If the frontend fetch doesn’t send cookies, the backend won’t see a session, so it falls back to “missing token”.
+
+Quick check
+
+Open DevTools → Network → click the failing projects request → Request Headers
+
+Do you see a Cookie: header?
+
+✅ Yes → it’s Root Cause #1 (wrong middleware)
+
+❌ No → you must set credentials: "include" in your API client and ensure CORS/cookies allow it.
+
+Fix (frontend)
+
+In your shared API client (commonly one of these):
+
+client/src/lib/api.ts
+
+client/src/lib/queryClient.ts
+
+client/src/lib/fetcher.ts
+
+Make sure every fetch includes:
+
+fetch(url, {
+  method,
+  headers,
+  credentials: "include",
+  body
+})
+
+
+And backend CORS must be:
+
+credentials: true
+
+origin: <your site origin> (not *)
+
+And cookie config must allow cross-site if Replit preview iframe is involved:
+
+SameSite: "none"
+
+Secure: true
+
+plus app.set("trust proxy", 1) if behind proxy
+
+Exact files to open (copy/paste list)
+Backend
+
+Search hit for MISSING_TOKEN (this will reveal the wrong middleware)
+
+server/routes/services/index.ts (or wherever services router is)
+
+server/rbac/guards.ts (your requireAuth())
+
+server/routes.ts (where session/passport + routers are wired)
+
+Frontend
+
+client/src/lib/queryClient.ts (or your shared fetch wrapper)
+
+client/src/pages/software-services/projects.tsx
+
+client/src/pages/consulting/projects.tsx
+
+Replit prompt (use this exactly)
+
+The “Create Project/Engagement” API calls still return 401 with {code:"MISSING_TOKEN"}. That error indicates the JWT-only middleware is still protecting /api/services/projects (or cookies aren’t being sent).
+
+Do this:
+
+Search the codebase for the exact string MISSING_TOKEN and identify which middleware returns it.
+
+Ensure /api/services/* (and consulting/software projects endpoints) use requireAuth() (session OR bearer) or the hybrid middleware, NOT a JWT-only guard.
+
+Confirm middleware order: session + passport must run before mounting services routes.
+
+On the frontend, ensure the shared API fetch wrapper uses credentials: "include" for all requests.
+
+Add a regression test: session-authenticated request can POST /api/services/projects and returns 201. Unauthenticated returns 401.
+
+Deliverable: Creating a project/engagement should succeed after normal login without any Authorization header.
