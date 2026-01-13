@@ -1,0 +1,132 @@
+TENANT NOT FOUND AFTER CLEARING CACHE — IMPLEMENT TENANT DISCOVERY LOGIN (AUTO-FIND FILES)
+
+Bug:
+After signup → payment success → dashboard → logout → clear browser data → login fails with:
+“Tenant not found. Check the tenant URL or select a tenant.”
+
+Cause:
+Tenant context is stored client-side (cookie/localStorage). Clearing data removes tenantId. Login/subscription endpoints require tenant context and fail.
+
+Goal:
+Make /login work with ZERO cookies/localStorage by discovering tenant(s) by email server-side.
+Implement 2-step login:
+1) Email → discover tenant memberships
+2) Password → login with selected tenant (or auto-select if only one)
+
+========================================================
+A) BACKEND (Express) — add tenant discovery + improve login
+========================================================
+
+1) FIND CURRENT AUTH ROUTES + USER-TENANT TABLES
+- Use rg to locate:
+  - existing login endpoint: rg -n "POST.*login|/login\"|auth/login" server
+  - existing me endpoint: rg -n "/api/me|auth/me|GET.*me" server
+  - tenant header usage: rg -n "X-Tenant-ID|x-tenant-id" server
+  - user tenant mapping table: rg -n "userTenants|user_tenants|tenant_id.*user|membership" server shared
+
+2) ADD PUBLIC endpoint (NO tenant required):
+POST /api/auth/tenant-discovery
+Body: { email: string }
+Response: { tenants: [{ id, name, slug, countryCode }] }
+
+Rules:
+- MUST NOT require X-Tenant-ID
+- MUST be behind existing auth rate-limiter (same as login limiter)
+- Do not leak sensitive info: If email not found, return { tenants: [] } (200 OK)
+- Normalize email to lowercase/trim
+- Query user by email, then join userTenants -> tenants
+- Return minimal fields: id, name, slug (if exists), countryCode (if exists)
+
+3) UPDATE existing email/password login to support missing tenantId:
+POST /api/auth/login
+Body: { email, password, tenantId?: string }
+
+Behavior:
+- If tenantId provided:
+   - validate user belongs to tenantId
+   - proceed existing login behavior
+- If tenantId missing:
+   - look up tenant memberships for this email
+   - if 0 -> return 401 INVALID_CREDENTIALS (generic)
+   - if 1 -> use that tenantId and proceed login
+   - if >1 -> return 409 MULTIPLE_TENANTS with { tenants:[...] }
+
+IMPORTANT:
+- On successful login, set a server cookie for tenant context (whatever you already use)
+  Example: res.cookie("tenantId", tenantId, { httpOnly:true, sameSite:"lax", secure: true in prod })
+- If you already store tenantId in JWT claims, ensure it is included/updated.
+- Keep existing social login unchanged.
+
+4) FIX /api/billing/subscription behavior:
+Currently it returns 401 when tenant missing.
+Change: if user is authenticated but tenant context missing, return:
+400 { code:"TENANT_REQUIRED", message:"Tenant context required" }
+(Do NOT return 401 for this case.)
+
+Find it via:
+rg -n "/billing/subscription|subscription.*router|getSubscription" server
+
+========================================================
+B) FRONTEND — make /login tenant-aware (2-step)
+========================================================
+
+5) FIND LOGIN PAGE
+Locate the tenant login page:
+rg -n "function Login|/login|Welcome Back|Forgot password" client/src
+
+You likely have: client/src/pages/login.tsx
+
+6) IMPLEMENT 2-STEP LOGIN UI (Email → Tenant → Password)
+Modify tenant login (/login) only (NOT /admin-login).
+
+Step A: Email
+- Input email + Continue button
+- On Continue:
+  POST /api/auth/tenant-discovery { email }
+  - if tenants.length === 1: auto-select tenantId and advance to password step
+  - if tenants.length > 1: show tenant picker list (name + country badge), require selection
+  - if tenants.length === 0: still allow password step, but tenantId stays null (backend will 401)
+
+Step B: Password
+- Input password + Sign in button
+- POST /api/auth/login { email, password, tenantId }
+- If 409 MULTIPLE_TENANTS returned, show tenant picker and require selection
+- On success, redirect to your existing post-login route (same logic as before)
+
+UI requirements:
+- Keep your existing shadcn UI style.
+- Show tenant picker only when needed.
+- If user clears cache, this flow MUST still work.
+
+7) DO NOT WRAP /login with TenantProvider/OnboardingGuard
+Ensure /login and /register remain public (no subscription checks).
+(You already refactored publicPaths; keep it.)
+
+========================================================
+C) TESTS — minimal but essential
+========================================================
+
+8) Add server tests (Jest/Supertest):
+- tenant-discovery works without X-Tenant-ID
+- login without tenantId:
+   - single-tenant user succeeds
+   - multi-tenant user returns 409 MULTIPLE_TENANTS
+- billing/subscription:
+   - authenticated without tenant context returns 400 TENANT_REQUIRED
+
+Find test folder:
+ls server/__tests__ or server/tests
+and follow existing patterns.
+
+========================================================
+D) Acceptance Criteria (must pass)
+========================================================
+
+- Register -> payment success -> dashboard ok (unchanged)
+- Logout -> clear cache -> login works (email -> tenant -> password)
+- Login works on new device/browser/phone
+- No “Tenant not found” error for valid users after cache clear
+- /api/billing/subscription no longer returns 401 for missing tenant; returns 400 TENANT_REQUIRED
+- All tests pass
+
+Proceed to implement now with clean code and minimal diffs.
