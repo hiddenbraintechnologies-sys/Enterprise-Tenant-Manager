@@ -146,7 +146,7 @@ export default function ConsultingTimesheets() {
   });
 
   const { data: timesheetsData, isLoading } = useQuery<TimesheetResponse>({
-    queryKey: ["/api/hr/timesheets/my", { page, limit: 10, status: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: ["/api/hr/projects/timesheets", { page, limit: 10, status: statusFilter !== "all" ? statusFilter : undefined }],
   });
 
   const { data: projectsData } = useQuery<ProjectResponse>({
@@ -160,10 +160,10 @@ export default function ConsultingTimesheets() {
         timesheetDate: format(data.timesheetDate, "yyyy-MM-dd"),
         hoursWorked: parseFloat(data.hoursWorked),
       };
-      return apiRequest("POST", "/api/hr/timesheets", payload);
+      return apiRequest("POST", "/api/hr/projects/timesheets", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/timesheets/my"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/projects/timesheets"] });
       toast({
         title: "Time logged",
         description: "Your time entry has been recorded.",
