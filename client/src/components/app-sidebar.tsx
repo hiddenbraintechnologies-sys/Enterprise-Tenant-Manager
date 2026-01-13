@@ -1,4 +1,5 @@
 import { useLocation, Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   Users,
@@ -175,6 +176,7 @@ const MODULE_GATED_BUSINESS_TYPES: BusinessType[] = ["software_services", "consu
 
 export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
+  const { t } = useTranslation();
   const { user, logout, isLoggingOut, businessType: authBusinessType } = useAuth();
   const { canAccessModule, getModuleAccessInfo } = useModuleAccess();
 
@@ -234,32 +236,26 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
               ) : (
                 <>
                   <SidebarMenuItem>
-                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md">
-                      <Lock className="h-4 w-4" />
-                      <span>Module locked</span>
-                    </div>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="px-3 py-2 text-xs text-muted-foreground">
-                          {moduleAccessInfo?.reason || "Upgrade your plan to access this module"}
+                        <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-not-allowed">
+                          <Lock className="h-4 w-4" />
+                          <span>{t("lockedFeature.title")}</span>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>This module is not available on your current plan.</p>
-                        <p className="text-xs mt-1">Upgrade to Basic or Pro to unlock.</p>
+                        <p>{t("lockedFeature.sidebarTooltip")}</p>
                       </TooltipContent>
                     </Tooltip>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <Link 
-                        href="/packages" 
+                        href={`/packages?reason=locked&module=${encodeURIComponent(effectiveBusinessType)}`}
                         data-testid="link-upgrade-plan"
                       >
                         <Package className="h-4 w-4" />
-                        <span>Upgrade Plan</span>
+                        <span>{t("lockedFeature.upgradeButton")}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

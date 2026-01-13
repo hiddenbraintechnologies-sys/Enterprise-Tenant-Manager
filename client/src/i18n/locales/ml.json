@@ -127,5 +127,11 @@
     "error": "പിശക്",
     "success": "വിജയം",
     "language": "ഭാഷ"
+  },
+  "lockedFeature": {
+    "title": "ഈ ഫീച്ചർ നിങ്ങളുടെ നിലവിലെ പ്ലാനിൽ ഇല്ല",
+    "body": "Software Services ഉപയോഗിക്കാൻ Basic അല്ലെങ്കിൽ Pro-ലേക്ക് അപ്‌ഗ്രേഡ് ചെയ്യുക.",
+    "upgradeButton": "പ്ലാൻ അപ്‌ഗ്രേഡ് ചെയ്യുക",
+    "sidebarTooltip": "Software Services ആക്‌സസ് ചെയ്യാൻ അപ്‌ഗ്രേഡ് ചെയ്യുക"
   }
 }

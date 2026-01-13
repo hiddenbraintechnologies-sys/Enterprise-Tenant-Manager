@@ -127,5 +127,11 @@
     "error": "பிழை",
     "success": "வெற்றி",
     "language": "மொழி"
+  },
+  "lockedFeature": {
+    "title": "இந்த அம்சம் உங்கள் தற்போதைய திட்டத்தில் இல்லை",
+    "body": "Software Services பயன்படுத்த Basic அல்லது Pro க்கு மேம்படுத்தவும்.",
+    "upgradeButton": "திட்டத்தை மேம்படுத்தவும்",
+    "sidebarTooltip": "Software Services அணுக மேம்படுத்தவும்"
   }
 }

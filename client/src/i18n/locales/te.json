@@ -127,5 +127,11 @@
     "error": "లోపం",
     "success": "విజయవంతం",
     "language": "భాష"
+  },
+  "lockedFeature": {
+    "title": "ఈ ఫీచర్ మీ ప్రస్తుత ప్లాన్‌లో లేదు",
+    "body": "Software Services కోసం Basic లేదా Pro కి అప్‌గ్రేడ్ చేయండి.",
+    "upgradeButton": "ప్లాన్ అప్‌గ్రేడ్ చేయండి",
+    "sidebarTooltip": "Software Services యాక్సెస్ కోసం అప్‌గ్రేడ్ చేయండి"
   }
 }

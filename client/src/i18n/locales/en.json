@@ -127,5 +127,11 @@
     "error": "Error",
     "success": "Success",
     "language": "Language"
+  },
+  "lockedFeature": {
+    "title": "This feature is not in your current plan",
+    "body": "Upgrade to Basic or Pro to use Software Services.",
+    "upgradeButton": "Upgrade plan",
+    "sidebarTooltip": "Upgrade to access Software Services"
   }
 }

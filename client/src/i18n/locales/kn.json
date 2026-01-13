@@ -127,5 +127,11 @@
     "error": "ದೋಷ",
     "success": "ಯಶಸ್ವಿ",
     "language": "ಭಾಷೆ"
+  },
+  "lockedFeature": {
+    "title": "ಈ ವೈಶಿಷ್ಟ್ಯ ನಿಮ್ಮ ಪ್ರಸ್ತುತ ಯೋಜನೆಯಲ್ಲಿ ಇಲ್ಲ",
+    "body": "Software Services ಬಳಸಲು Basic ಅಥವಾ Pro ಗೆ ಅಪ್‌ಗ್ರೇಡ್ ಮಾಡಿ.",
+    "upgradeButton": "ಯೋಜನೆ ಅಪ್‌ಗ್ರೇಡ್ ಮಾಡಿ",
+    "sidebarTooltip": "Software Services ಪ್ರವೇಶಕ್ಕಾಗಿ ಅಪ್‌ಗ್ರೇಡ್ ಮಾಡಿ"
   }
 }

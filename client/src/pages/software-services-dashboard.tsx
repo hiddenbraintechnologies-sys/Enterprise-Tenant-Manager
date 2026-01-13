@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { useCountry } from "@/contexts/country-context";
+import { useModuleAccess } from "@/hooks/use-module-access";
+import { LockedFeature } from "@/components/billing/LockedFeature";
 
 interface DashboardStats {
   totalProjects: number;
@@ -143,21 +145,60 @@ function getTimesheetStatusVariant(status: string) {
 
 export default function SoftwareServicesDashboard() {
   const { formatCurrency } = useCountry();
+  const { canAccessModule, isLoading: moduleAccessLoading } = useModuleAccess();
+  
+  const hasAccess = canAccessModule("software_services");
+  const shouldFetchData = hasAccess && !moduleAccessLoading;
   
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/services/software/dashboard/stats"],
+    enabled: shouldFetchData,
   });
 
   const { data: projectsResponse, isLoading: projectsLoading } = useQuery<{ data: Project[]; meta: any }>({
     queryKey: ["/api/services/software/projects", { limit: 5 }],
+    enabled: shouldFetchData,
   });
 
   const { data: timesheetsResponse, isLoading: timesheetsLoading } = useQuery<{ data: Timesheet[]; meta: any }>({
     queryKey: ["/api/services/software/timesheets/my", { limit: 5 }],
+    enabled: shouldFetchData,
   });
 
   const projects = projectsResponse?.data || [];
   const timesheets = timesheetsResponse?.data || [];
+
+  if (moduleAccessLoading) {
+    return (
+      <DashboardLayout title="Software Services" breadcrumbs={[{ label: "Software Services" }]}>
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-8 w-16" />
+                    </div>
+                    <Skeleton className="h-12 w-12 rounded-md" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <DashboardLayout title="Software Services" breadcrumbs={[{ label: "Software Services" }]}>
+        <LockedFeature moduleKey="software_services" />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Software Services Dashboard" breadcrumbs={[{ label: "Dashboard" }]}>

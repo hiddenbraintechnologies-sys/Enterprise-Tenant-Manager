@@ -1,0 +1,123 @@
+1) Upgrade CTA copy (locked module)
+Tooltip (sidebar)
+
+EN: “Upgrade to access Software Services”
+
+HI: “Software Services इस्तेमाल करने के लिए Upgrade करें”
+
+Banner inside page (if user lands via URL)
+
+EN Title: “This feature is not in your current plan”
+
+EN Body: “Upgrade to Basic or Pro to use Software Services.”
+
+EN Button: “Upgrade plan”
+
+HI Title: “यह फीचर आपके प्लान में शामिल नहीं है”
+
+HI Body: “Software Services के लिए Basic या Pro में Upgrade करें।”
+
+HI Button: “Upgrade करें”
+
+2) Auto-redirect behavior (Zoho style)
+Rule
+
+If user tries to open /dashboard/software-services/* but feature disabled:
+✅ Redirect to /packages?reason=locked&module=software_services
+✅ Show toast/banner with copy above
+✅ Keep the URL clean (no blank/404 page)
+
+3) Exact JSX snippet for “Locked Feature” component
+// client/src/components/billing/LockedFeature.tsx
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useLocation } from "wouter";
+
+type Props = {
+  moduleKey: string; // "software_services"
+  titleEn: string;
+  bodyEn: string;
+  titleHi: string;
+  bodyHi: string;
+  lang?: "en" | "hi";
+};
+
+export function LockedFeature({
+  moduleKey,
+  titleEn,
+  bodyEn,
+  titleHi,
+  bodyHi,
+  lang = "en",
+}: Props) {
+  const [, setLocation] = useLocation();
+
+  const title = lang === "hi" ? titleHi : titleEn;
+  const body = lang === "hi" ? bodyHi : bodyEn;
+  const button = lang === "hi" ? "Upgrade करें" : "Upgrade plan";
+
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center p-6">
+      <Card className="max-w-xl w-full p-6 space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <p className="text-sm text-muted-foreground">{body}</p>
+        </div>
+
+        <Button
+          className="w-full"
+          onClick={() =>
+            setLocation(`/packages?reason=locked&module=${encodeURIComponent(moduleKey)}`)
+          }
+        >
+          {button}
+        </Button>
+      </Card>
+    </div>
+  );
+}
+
+Use it in Software Services routes/pages:
+// inside software-services page (or guard wrapper)
+import { LockedFeature } from "@/components/billing/LockedFeature";
+import { useTenant } from "@/contexts/tenant-context";
+
+export default function SoftwareServicesProjects() {
+  const { features } = useTenant(); // must come from backend plan feature_flags
+
+  if (!features?.software_services) {
+    return (
+      <LockedFeature
+        moduleKey="software_services"
+        titleEn="This feature is not in your current plan"
+        bodyEn="Upgrade to Basic or Pro to use Software Services."
+        titleHi="यह फीचर आपके प्लान में शामिल नहीं है"
+        bodyHi="Software Services के लिए Basic या Pro में Upgrade करें।"
+        lang="en"
+      />
+    );
+  }
+
+  return <div>{/* normal page */}</div>;
+}
+
+4) Sidebar behavior (hide or disable)
+Option A (Recommended): Hide completely
+const canSeeSoftware = !!features?.software_services;
+{canSeeSoftware && (
+  <SidebarItem to="/dashboard/software-services/projects" label="Software Services" />
+)}
+
+Option B: Show disabled + tooltip
+<SidebarItem
+  to={features?.software_services ? "/dashboard/software-services/projects" : "/packages?reason=locked&module=software_services"}
+  label="Software Services"
+  disabled={!features?.software_services}
+  tooltip={!features?.software_services ? "Upgrade to access Software Services" : undefined}
+/>
+
+5) Plan comparison rule (Consulting vs Software Services)
+
+✅ Free: Consulting only (basic)
+✅ Basic: Consulting + Software Services
+✅ Pro: Everything + WhatsApp automation + priority support
