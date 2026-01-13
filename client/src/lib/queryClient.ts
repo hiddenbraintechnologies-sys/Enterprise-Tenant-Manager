@@ -38,7 +38,10 @@ function getAuthHeaders(): Record<string, string> {
 
 async function refreshAccessToken(): Promise<boolean> {
   const refreshToken = localStorage.getItem("refreshToken");
-  if (!refreshToken) return false;
+  if (!refreshToken) {
+    console.log("[queryClient] No refresh token available");
+    return false;
+  }
   
   try {
     const response = await fetch("/api/auth/refresh", {
@@ -52,16 +55,22 @@ async function refreshAccessToken(): Promise<boolean> {
       const tokens = await response.json();
       localStorage.setItem("accessToken", tokens.accessToken);
       localStorage.setItem("refreshToken", tokens.refreshToken);
+      console.log("[queryClient] Token refreshed successfully");
       return true;
     }
-  } catch {
-    // Refresh failed
+    
+    // Only clear tokens if server explicitly rejected them
+    if (response.status === 401 || response.status === 403) {
+      console.log("[queryClient] Token refresh rejected, clearing tokens");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+    }
+    return false;
+  } catch (err) {
+    // Network error - don't clear tokens, might be temporary
+    console.warn("[queryClient] Token refresh network error:", err);
+    return false;
   }
-  
-  // Clear invalid tokens
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
-  return false;
 }
 
 export async function apiRequest(

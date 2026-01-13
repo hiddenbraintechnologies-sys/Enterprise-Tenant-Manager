@@ -87,24 +87,36 @@ async function fetchUser(): Promise<AuthUser | null> {
     if (response.status === 401) {
       const refreshToken = localStorage.getItem("refreshToken");
       if (refreshToken) {
-        const refreshResponse = await fetch("/api/auth/refresh", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken }),
-        });
-        
-        if (refreshResponse.ok) {
-          const tokens = await refreshResponse.json();
-          localStorage.setItem("accessToken", tokens.accessToken);
-          localStorage.setItem("refreshToken", tokens.refreshToken);
-          return fetchUser();
+        try {
+          const refreshResponse = await fetch("/api/auth/refresh", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+          });
+          
+          if (refreshResponse.ok) {
+            const tokens = await refreshResponse.json();
+            localStorage.setItem("accessToken", tokens.accessToken);
+            localStorage.setItem("refreshToken", tokens.refreshToken);
+            return fetchUser();
+          }
+          
+          // Only clear tokens if refresh explicitly failed (not network error)
+          if (refreshResponse.status === 401 || refreshResponse.status === 403) {
+            console.log("[useAuth] Token refresh rejected by server, clearing tokens");
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+          }
+        } catch (err) {
+          // Network error during refresh - don't clear tokens, might be temporary
+          console.warn("[useAuth] Token refresh network error, keeping tokens:", err);
         }
+      } else {
+        // No refresh token available - clear access token
+        console.log("[useAuth] No refresh token available, clearing access token");
+        localStorage.removeItem("accessToken");
       }
-      // JWT auth failed completely - clear tokens and return null
-      // Do NOT fall through to Replit Auth - user needs to re-login
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
       return null;
     }
     
