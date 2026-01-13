@@ -30,6 +30,15 @@ Deployment strategies include global deployment on AWS (EKS, RDS, ElastiCache, S
 
 API structure is organized into Core APIs, module-specific APIs (e.g., Furniture Module APIs), and Admin APIs, facilitating clear separation of concerns. Production operations are secured with health endpoints, startup validation for environment variables, security guards against dev endpoints, and robust scripting for migrations and smoke tests.
 
+### Billing & Pricing
+The platform uses a flexible billing system with:
+- **Multi-interval pricing**: Plans support multiple billing cycles (monthly, quarterly, yearly) stored in the `billingCycles` JSONB column
+- **India pricing** (seeded): Free ₹0/₹0, Basic ₹99/₹999, Pro ₹199/₹1999 (monthly/yearly)
+- **Automatic savings calculation**: Yearly savings badges show absolute amounts (e.g., "Save ₹189")
+- **Admin management**: Platform admins can configure monthly/yearly prices via the billing admin UI
+- **API endpoint**: `/api/billing/plans-with-cycles` returns plans with full cycle data for frontend consumption
+- **Frontend pages**: Both `/packages` and `/pricing` pages fetch dynamic pricing and display based on selected billing cycle
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
 - **PostgreSQL**: Primary database
