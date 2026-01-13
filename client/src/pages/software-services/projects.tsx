@@ -62,6 +62,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProjectHealthBadge } from "@/components/project-health-indicator";
 
 interface Project {
   id: string;
@@ -76,6 +77,8 @@ interface Project {
   currency: string;
   isBillable: boolean;
   billingRate: string | null;
+  estimatedHours?: string | null;
+  actualHours?: string | null;
 }
 
 interface ProjectResponse {
@@ -452,6 +455,7 @@ export default function SoftwareServicesProjects() {
                     <TableHead>Project</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Health</TableHead>
                     <TableHead>Timeline</TableHead>
                     <TableHead className="text-right">Budget</TableHead>
                     <TableHead className="text-right">Rate/hr</TableHead>
@@ -468,6 +472,17 @@ export default function SoftwareServicesProjects() {
                       </TableCell>
                       <TableCell>{project.clientName || "-"}</TableCell>
                       <TableCell>{getStatusBadge(project.status)}</TableCell>
+                      <TableCell>
+                        <ProjectHealthBadge
+                          budget={project.budget}
+                          estimatedHours={project.estimatedHours}
+                          actualHours={project.actualHours}
+                          hourlyRate={project.billingRate}
+                          startDate={project.startDate}
+                          endDate={project.endDate}
+                          status={project.status}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="text-sm">
                           {project.startDate ? format(parseISO(project.startDate), "MMM d, yyyy") : "-"}
