@@ -11,7 +11,7 @@ import { LanguageSelector } from "@/components/language-selector";
 import { useTranslation } from "react-i18next";
 import { 
   Check, X, Zap, Star, Sparkles, ArrowLeft, ArrowRight,
-  Users, Database, MessageCircle, FileText, Headphones
+  Users, Database
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -22,88 +22,39 @@ import { CYCLE_LABELS } from "@shared/billing/types";
 import type { BillingCycleKey } from "@shared/billing/types";
 import { getCurrencySymbol } from "@/lib/currency-service";
 
-interface PricingPlanBase {
-  id: string;
-  code: string;
-  tier: string;
-  price: string;
-  currency: string;
-  currencyCode?: string;
-  maxUsers: number;
-  maxRecords: number;
-  features: Record<string, boolean>;
-  isPopular?: boolean;
-  nameKey: keyof typeof BILLING_STRINGS;
-  descKey: keyof typeof BILLING_STRINGS;
+interface PlanCycle {
+  key: BillingCycleKey;
+  price: number;
+  months: number;
+  badge?: string;
+  savings: { amount: number; percent: number };
+  effectiveMonthlyPrice: number;
 }
 
-const INDIA_PLANS_BASE: PricingPlanBase[] = [
-  {
-    id: "free",
-    code: "india_free",
-    tier: "free",
-    price: "0",
-    currency: "INR",
-    maxUsers: 1,
-    maxRecords: 50,
-    features: {
-      recordLimit: true,
-      basicAnalytics: true,
-      emailNotifications: true,
-      whatsappAutomation: false,
-      gstFeatures: false,
-      prioritySupport: false,
-      unlimitedRecords: false,
-    },
-    nameKey: "planNameFree",
-    descKey: "planDescFree",
-  },
-  {
-    id: "basic",
-    code: "india_basic",
-    tier: "basic",
-    price: "99",
-    currency: "INR",
-    maxUsers: 3,
-    maxRecords: 500,
-    features: {
-      recordLimit: true,
-      basicAnalytics: true,
-      advancedAnalytics: true,
-      emailNotifications: true,
-      smsNotifications: true,
-      gstFeatures: true,
-      whatsappAutomation: false,
-      prioritySupport: false,
-      unlimitedRecords: false,
-    },
-    isPopular: true,
-    nameKey: "planNameBasic",
-    descKey: "planDescBasic",
-  },
-  {
-    id: "pro",
-    code: "india_pro",
-    tier: "pro",
-    price: "199",
-    currency: "INR",
-    maxUsers: 10,
-    maxRecords: -1,
-    features: {
-      unlimitedRecords: true,
-      basicAnalytics: true,
-      advancedAnalytics: true,
-      emailNotifications: true,
-      smsNotifications: true,
-      whatsappAutomation: true,
-      gstFeatures: true,
-      prioritySupport: true,
-      recordLimit: false,
-    },
-    nameKey: "planNamePro",
-    descKey: "planDescPro",
-  },
-];
+interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  tier: string;
+  basePrice: number;
+  localPrice?: string;
+  currency?: string;
+  currencyCode?: string;
+  maxUsers: number;
+  maxCustomers?: number;
+  featureFlags?: Record<string, boolean>;
+  limits?: Record<string, number>;
+  isRecommended?: boolean;
+  cycles?: PlanCycle[];
+  yearlySavingsAmount?: number;
+}
+
+interface PlansResponse {
+  plans: Plan[];
+  countryCode?: string;
+  currencyCode?: string;
+}
 
 type FeatureKey = "basicAnalytics" | "advancedAnalytics" | "emailNotifications" | "smsNotifications" | "whatsappAutomation" | "gstFeatures" | "prioritySupport";
 
@@ -144,12 +95,39 @@ export default function PricingPage() {
 
   const billingInterval = selectedCycle === "yearly" ? t("perYear") : t("perMonth");
 
+  const { data: plansData, isLoading } = useQuery<PlansResponse>({
+    queryKey: ["/api/billing/plans-with-cycles"],
+    retry: 2,
+  });
+
+  const plans = plansData?.plans || [];
+
+  const getMaxYearlySavingsAmount = (): number => {
+    if (!plans.length) return 189;
+    const maxPlan = plans.reduce((max, p) => 
+      (p.yearlySavingsAmount || 0) > (max?.yearlySavingsAmount || 0) ? p : max
+    , plans[0]);
+    return maxPlan?.yearlySavingsAmount || 189;
+  };
+
+  const getPlanCyclePrice = (plan: Plan): { price: number; savings: number } => {
+    if (!plan.cycles?.length) {
+      return { price: plan.basePrice, savings: 0 };
+    }
+    const cycle = plan.cycles.find(c => c.key === selectedCycle) || plan.cycles[0];
+    const savingsAmount = cycle.key === "yearly" && plan.yearlySavingsAmount 
+      ? plan.yearlySavingsAmount 
+      : cycle.savings.amount;
+    return { price: cycle.price, savings: savingsAmount };
+  };
+
   const selectPlanMutation = useMutation({
     mutationFn: async (planCode: string) => {
       const tenantId = localStorage.getItem("tenantId");
       const res = await apiRequest("POST", "/api/subscription/select", {
         tenantId,
         planCode,
+        billingCycle: selectedCycle,
       });
       return res.json();
     },
@@ -165,7 +143,7 @@ export default function PricingPage() {
     },
   });
 
-  const handleSelectPlan = (plan: PricingPlanBase & { name: string; description: string }) => {
+  const handleSelectPlan = (plan: Plan) => {
     if (!isLoggedIn) {
       setLocation("/register");
       return;
@@ -187,18 +165,60 @@ export default function PricingPage() {
     return `${maxUsers} ${t("teamMembers")}`;
   };
 
-  const getRecordsText = (maxRecords: number): string => {
+  const getRecordsText = (plan: Plan): string => {
+    const maxRecords = plan.limits?.records ?? -1;
     if (maxRecords === -1) return t("unlimitedRecords");
     return `${maxRecords} ${t("records")}`;
   };
 
-  const getLocalizedPlans = () => INDIA_PLANS_BASE.map(plan => ({
-    ...plan,
-    name: t(plan.nameKey),
-    description: t(plan.descKey),
-  }));
+  const getFeatureEnabled = (plan: Plan, key: string): boolean => {
+    const featureFlags = plan.featureFlags || {};
+    const snakeCaseKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+    return featureFlags[key] || featureFlags[snakeCaseKey] || false;
+  };
 
-  const localizedPlans = getLocalizedPlans();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
+            <h1 className="text-xl font-bold">MyBizStream</h1>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-12">
+          <div className="text-center mb-12">
+            <Skeleton className="h-10 w-64 mx-auto mb-4" />
+            <Skeleton className="h-6 w-96 mx-auto" />
+          </div>
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="flex flex-col">
+                <CardHeader>
+                  <Skeleton className="h-12 w-12 rounded-full mx-auto mb-2" />
+                  <Skeleton className="h-6 w-24 mx-auto" />
+                  <Skeleton className="h-4 w-32 mx-auto" />
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <Skeleton className="h-10 w-20 mx-auto mb-6" />
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map((j) => (
+                      <Skeleton key={j} className="h-5 w-full" />
+                    ))}
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Skeleton className="h-10 w-full" />
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -242,7 +262,7 @@ export default function PricingPage() {
               onClick={() => setSelectedCycle("monthly")}
               data-testid="button-cycle-monthly"
             >
-              {t("monthly")}
+              {lang === "hi" ? CYCLE_LABELS.monthly.hi : CYCLE_LABELS.monthly.en}
             </Button>
             <Button
               variant={selectedCycle === "yearly" ? "default" : "outline"}
@@ -252,106 +272,117 @@ export default function PricingPage() {
               data-testid="button-cycle-yearly"
             >
               {selectedCycle !== "yearly" 
-                ? yearlySavingsToggleLabel(lang as Lang, 189, getCurrencySymbol("INR"))
-                : t("yearly")
+                ? yearlySavingsToggleLabel(lang as Lang, getMaxYearlySavingsAmount(), getCurrencySymbol("INR"))
+                : (lang === "hi" ? CYCLE_LABELS.yearly.hi : CYCLE_LABELS.yearly.en)
               }
             </Button>
           </div>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16">
-          {localizedPlans.map((plan) => (
-            <Card 
-              key={plan.id} 
-              className={cn(
-                "relative flex flex-col",
-                plan.isPopular && "border-primary shadow-lg scale-105 z-10"
-              )}
-              data-testid={`card-plan-${plan.tier}`}
-            >
-              {plan.isPopular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-primary text-primary-foreground">{t("popular")}</Badge>
-                </div>
-              )}
-              <CardHeader className="text-center pb-2">
-                <div className="flex justify-center mb-2">
-                  <div className={cn(
-                    "p-3 rounded-full",
-                    plan.tier === "free" ? "bg-muted" :
-                    plan.tier === "basic" ? "bg-blue-100 dark:bg-blue-900" :
-                    "bg-purple-100 dark:bg-purple-900"
-                  )}>
-                    {tierIcons[plan.tier]}
+          {plans.map((plan) => {
+            const { price, savings } = getPlanCyclePrice(plan);
+            const currSymbol = getCurrencySymbol(plan.currencyCode || "INR");
+            
+            return (
+              <Card 
+                key={plan.id} 
+                className={cn(
+                  "relative flex flex-col",
+                  plan.isRecommended && "border-primary shadow-lg scale-105 z-10"
+                )}
+                data-testid={`card-plan-${plan.tier}`}
+              >
+                {plan.isRecommended && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-primary text-primary-foreground">{t("popular")}</Badge>
                   </div>
-                </div>
-                <CardTitle className="text-xl" data-testid={`text-plan-name-${plan.tier}`}>{plan.name}</CardTitle>
-                <CardDescription data-testid={`text-plan-desc-${plan.tier}`}>{plan.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 pb-4">
-                <div className="text-center mb-6">
-                  <span className="text-4xl font-bold" data-testid={`text-plan-price-${plan.tier}`}>
-                    {formatPriceOrFree(plan.price, plan.currencyCode || plan.currency)}
-                  </span>
-                  {parseFloat(plan.price) > 0 && (
-                    <span className="text-muted-foreground">{billingInterval}</span>
-                  )}
-                </div>
+                )}
+                <CardHeader className="text-center pb-2">
+                  <div className="flex justify-center mb-2">
+                    <div className={cn(
+                      "p-3 rounded-full",
+                      plan.tier === "free" ? "bg-muted" :
+                      plan.tier === "basic" ? "bg-blue-100 dark:bg-blue-900" :
+                      "bg-purple-100 dark:bg-purple-900"
+                    )}>
+                      {tierIcons[plan.tier]}
+                    </div>
+                  </div>
+                  <CardTitle className="text-xl" data-testid={`text-plan-name-${plan.tier}`}>{plan.name}</CardTitle>
+                  <CardDescription data-testid={`text-plan-desc-${plan.tier}`}>{plan.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1 pb-4">
+                  <div className="text-center mb-6">
+                    <span className="text-4xl font-bold" data-testid={`text-plan-price-${plan.tier}`}>
+                      {formatPriceOrFree(String(price), plan.currencyCode || "INR")}
+                    </span>
+                    {price > 0 && (
+                      <span className="text-muted-foreground">{billingInterval}</span>
+                    )}
+                    {selectedCycle === "yearly" && savings > 0 && (
+                      <div className="mt-2">
+                        <Badge variant="secondary" className="text-green-600" data-testid={`badge-savings-${plan.tier}`}>
+                          {savingsAmountBadge(lang, savings, currSymbol)}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
 
-                <ul className="space-y-3">
-                  <li className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-primary" />
-                    <span data-testid={`text-plan-users-${plan.tier}`}>
-                      {getTeamMembersText(plan.maxUsers)}
-                    </span>
-                  </li>
-                  <li className="flex items-center gap-2 text-sm">
-                    <Database className="h-4 w-4 text-primary" />
-                    <span data-testid={`text-plan-records-${plan.tier}`}>
-                      {getRecordsText(plan.maxRecords)}
-                    </span>
-                  </li>
-                  {Object.entries(plan.features).map(([key, enabled]) => {
-                    if (key === "recordLimit" || key === "unlimitedRecords") return null;
-                    const i18nKey = FEATURE_I18N_KEYS[key as FeatureKey];
-                    if (!i18nKey) return null;
-                    return (
-                      <li key={key} className="flex items-center gap-2 text-sm">
-                        {enabled ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <X className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className={!enabled ? "text-muted-foreground" : ""}>
-                          {t(i18nKey)}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  className="w-full" 
-                  variant={plan.isPopular ? "default" : "outline"}
-                  disabled={plan.tier === currentTier || selectPlanMutation.isPending}
-                  onClick={() => handleSelectPlan(plan)}
-                  data-testid={`button-select-${plan.tier}`}
-                >
-                  {plan.tier === currentTier ? (
-                    t("currentPlan")
-                  ) : plan.tier === "free" ? (
-                    t("startFree")
-                  ) : (
-                    <>
-                      {t("getPlan")} {plan.name}
-                      <ArrowRight className="h-4 w-4 ml-1" />
-                    </>
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+                  <ul className="space-y-3">
+                    <li className="flex items-center gap-2 text-sm">
+                      <Users className="h-4 w-4 text-primary" />
+                      <span data-testid={`text-plan-users-${plan.tier}`}>
+                        {getTeamMembersText(plan.maxUsers)}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2 text-sm">
+                      <Database className="h-4 w-4 text-primary" />
+                      <span data-testid={`text-plan-records-${plan.tier}`}>
+                        {getRecordsText(plan)}
+                      </span>
+                    </li>
+                    {(["basicAnalytics", "advancedAnalytics", "emailNotifications", "smsNotifications", "whatsappAutomation", "gstFeatures", "prioritySupport"] as FeatureKey[]).map((key) => {
+                      const enabled = getFeatureEnabled(plan, key);
+                      const i18nKey = FEATURE_I18N_KEYS[key];
+                      return (
+                        <li key={key} className="flex items-center gap-2 text-sm">
+                          {enabled ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <X className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className={!enabled ? "text-muted-foreground" : ""}>
+                            {t(i18nKey)}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    className="w-full" 
+                    variant={plan.isRecommended ? "default" : "outline"}
+                    disabled={plan.tier === currentTier || selectPlanMutation.isPending}
+                    onClick={() => handleSelectPlan(plan)}
+                    data-testid={`button-select-${plan.tier}`}
+                  >
+                    {plan.tier === currentTier ? (
+                      t("currentPlan")
+                    ) : plan.tier === "free" ? (
+                      t("startFree")
+                    ) : (
+                      <>
+                        {t("getPlan")} {plan.name}
+                        <ArrowRight className="h-4 w-4 ml-1" />
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
 
         <div className="max-w-4xl mx-auto">
@@ -363,7 +394,7 @@ export default function PricingPage() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-4 px-2 font-medium">{t("feature")}</th>
-                  {localizedPlans.map((plan) => (
+                  {plans.map((plan) => (
                     <th key={plan.id} className="text-center py-4 px-4 font-medium">
                       {plan.name}
                     </th>
@@ -374,14 +405,15 @@ export default function PricingPage() {
                 {COMPARISON_FEATURE_KEYS.map((feature) => (
                   <tr key={feature.key} className="border-b">
                     <td className="py-3 px-2 text-sm">{t(feature.i18nKey)}</td>
-                    {localizedPlans.map((plan) => {
+                    {plans.map((plan) => {
                       let value: React.ReactNode;
                       if (feature.key === "maxUsers") {
                         value = plan.maxUsers === -1 ? t("unlimited") : plan.maxUsers;
                       } else if (feature.key === "maxRecords") {
-                        value = plan.maxRecords === -1 ? t("unlimited") : plan.maxRecords;
+                        const records = plan.limits?.records ?? -1;
+                        value = records === -1 ? t("unlimited") : records;
                       } else {
-                        const enabled = plan.features[feature.key];
+                        const enabled = getFeatureEnabled(plan, feature.key);
                         value = enabled ? (
                           <Check className="h-5 w-5 text-green-600 mx-auto" />
                         ) : (
