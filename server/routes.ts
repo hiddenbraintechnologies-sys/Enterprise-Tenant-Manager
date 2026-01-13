@@ -693,7 +693,73 @@ export async function registerRoutes(
     }
   });
 
-  // Tenant lookup by email - allows root domain login to discover user's tenants
+  // Tenant discovery by email - allows login without stored tenant context
+  // PUBLIC endpoint - does NOT require X-Tenant-ID header
+  // Returns empty array if user not found (to avoid leaking user existence)
+  app.post("/api/auth/tenant-discovery", authRateLimit, async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ 
+          message: "Email is required",
+          code: "EMAIL_REQUIRED"
+        });
+      }
+
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+      
+      // Return empty array if user not found - don't leak existence info
+      if (!existingUser) {
+        return res.json({ tenants: [], count: 0, hasMultiple: false });
+      }
+
+      // Get all tenants the user belongs to
+      const userTenantRecords = await db.select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, existingUser.id),
+          eq(userTenants.isActive, true)
+        ));
+
+      if (userTenantRecords.length === 0) {
+        return res.json({ tenants: [], count: 0, hasMultiple: false });
+      }
+
+      // Fetch tenant details for each membership
+      const tenantOptions = await Promise.all(
+        userTenantRecords.map(async (ut) => {
+          const [t] = await db.select().from(tenants).where(
+            and(
+              eq(tenants.id, ut.tenantId),
+              eq(tenants.status, "active")
+            )
+          );
+          return t ? { 
+            id: t.id, 
+            name: t.name, 
+            slug: t.slug,
+            country: t.country,
+            businessType: t.businessType,
+            isDefault: ut.isDefault,
+          } : null;
+        })
+      );
+
+      const activeTenants = tenantOptions.filter(Boolean);
+      
+      res.json({
+        tenants: activeTenants,
+        count: activeTenants.length,
+        hasMultiple: activeTenants.length > 1,
+      });
+    } catch (error) {
+      console.error("Tenant discovery error:", error);
+      res.status(500).json({ message: "Failed to discover tenants" });
+    }
+  });
+
+  // Legacy endpoint - kept for backwards compatibility
   app.post("/api/auth/tenants/lookup", authRateLimit, async (req, res) => {
     try {
       const { email } = req.body;

@@ -1,0 +1,65 @@
+FIX LOGIN “TENANT NOT FOUND” AFTER CLEARING CACHE (TENANT DISCOVERY FLOW)
+
+Context:
+Multi-tenant app. After signup + plan selection + payment, user can access dashboard.
+But when user clears browsing data (cookies/localStorage) and tries to login again, login fails with:
+“Tenant not found. Check the tenant URL or select a tenant.”
+This happens because tenant selection is client-stored and gets wiped.
+
+Goal:
+Make /login work even when the browser has no stored tenant context.
+Implement server-driven tenant discovery by email:
+- Step 1: user enters email
+- Call backend to list tenants for that email
+- If 1 tenant: auto-select it and proceed to password step
+- If multiple: show tenant selection dropdown/list then proceed
+- Then login works and sets tenant context cookie/header again
+
+Backend changes (Express):
+1) Add a PUBLIC endpoint (NO tenant required):
+   POST /api/auth/tenant-discovery
+   body: { email: string }
+   response:
+     { tenants: [{ id, name, slug, countryCode }] }
+   - If email not found, return { tenants: [] } (do NOT leak extra info)
+   - Add rate limiting (reuse existing auth rate limiter)
+   - This endpoint must NOT require X-Tenant-ID.
+
+2) Update existing email/password login endpoint to support missing tenantId:
+   POST /api/auth/login
+   body: { email, password, tenantId?: string }
+   Behavior:
+   - If tenantId provided -> validate membership and login as usual
+   - If tenantId missing:
+       - fetch tenant memberships for this email
+       - if exactly 1 -> use it
+       - if >1 -> return 409 MULTIPLE_TENANTS with { tenants: [...] }
+       - if 0 -> return 401 invalid credentials (generic)
+   - On successful login set a cookie “tenantId” (or your existing tenant cookie) so subsequent requests have tenant context.
+   - Also persist lastTenantId for that user in DB (optional but recommended) and update it on successful login.
+
+3) Ensure /api/billing/subscription and other tenant-required endpoints return 400 TENANT_REQUIRED (not 401) if auth ok but tenant missing.
+
+Frontend changes (React):
+4) Update /login page to a 2-step UI:
+   Step A: Email input + “Continue”
+     - calls /api/auth/tenant-discovery
+     - if 0 tenants: still allow password entry but login will fail normally (generic)
+     - if 1 tenant: store selectedTenantId and show password step
+     - if multiple: show tenant selector list (name + country badge), require selection
+   Step B: Password input + “Sign in”
+     - calls /api/auth/login with tenantId
+     - on success redirect to tenant dashboard as before
+
+5) Keep social logins unchanged, but after social callback, if multiple tenants exist, route user to a tenant-picker screen once, then proceed.
+
+Testing:
+6) Add integration tests:
+   - user with 1 tenant can login after clearing cookies (no tenant context) -> success
+   - user with multiple tenants -> login returns 409 MULTIPLE_TENANTS, UI shows picker
+   - tenant-discovery endpoint works without X-Tenant-ID
+   - billing/subscription returns 400 TENANT_REQUIRED when tenant missing but auth present
+
+Deliverables:
+- Minimal diff, don’t break existing onboarding/plan purchase flows
+- Fix the reproduced bug exactly.
