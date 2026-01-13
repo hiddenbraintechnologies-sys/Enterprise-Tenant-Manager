@@ -283,13 +283,14 @@ export async function registerRoutes(
   app.use('/api/services/consulting', ...moduleProtectedMiddleware("consulting"), servicesRoutes);
 
   // Register HRMS module routes (protected, cross-business horizontal module)
-  app.use('/api/hr', isAuthenticated, requireModule("hrms"), hrmsRoutes);
+  // Uses JWT auth (not session-based) to match frontend token-based auth
+  app.use('/api/hr', authenticateJWT({ required: true }), enforceTenantBoundary(), requireModule("hrms"), hrmsRoutes);
 
   // Register Reseller/White-label routes
   app.use('/api/resellers', authenticateJWT({ required: true }), resellerRoutes);
 
   // Register Branding/Theming routes
-  app.use('/api/branding', isAuthenticated, brandingRoutes);
+  app.use('/api/branding', authenticateJWT({ required: true }), enforceTenantBoundary(), brandingRoutes);
 
   // Register Add-on Marketplace routes
   app.use('/api/addons', addonRoutes);
@@ -309,10 +310,10 @@ export async function registerRoutes(
   app.use(tenantSettingsRoutes);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
-  app.use('/api/feature-flags', isAuthenticated, featureFlagsRoutes);
+  app.use('/api/feature-flags', authenticateJWT({ required: true }), enforceTenantBoundary(), featureFlagsRoutes);
 
   // Register Business Version management routes (SuperAdmin only)
-  app.use('/api/business-versions', isAuthenticated, businessVersionRoutes);
+  app.use('/api/business-versions', authenticateJWT({ required: true }), businessVersionRoutes);
 
   // Register Region Lock management routes (SuperAdmin + public check endpoints)
   // Note: Public endpoints (enabled, check/registration, check/billing) are unprotected
