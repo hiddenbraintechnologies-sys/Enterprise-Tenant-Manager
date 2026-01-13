@@ -7,12 +7,15 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, lte } from "drizzle-orm";
 import { subscriptionService } from "../services/subscription";
+import { offerService } from "../services/offers";
 import { authenticateJWT } from "../core/auth-middleware";
 import { getPaymentProvider } from "../core/payments/provider-factory";
 import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
 import { requirePermission, Permissions } from "../rbac/guards";
 import { auditService } from "../core/audit";
 import { razorpayService } from "../services/razorpay";
+import type { BillingCycleKey, BillingCyclesMap } from "@shared/billing/types";
+import { CYCLE_MONTHS, calculateSavings } from "@shared/billing/types";
 
 const router = Router();
 
@@ -1481,5 +1484,162 @@ export async function processScheduledDowngrades(): Promise<number> {
 
   return processedCount;
 }
+
+const quoteSchema = z.object({
+  planCode: z.string().min(1),
+  billingCycle: z.enum(["monthly", "quarterly", "half_yearly", "yearly"]),
+  couponCode: z.string().optional(),
+  countryCode: z.string().optional(),
+});
+
+router.post("/quote", optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const parsed = quoteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ 
+        error: "Invalid request", 
+        details: parsed.error.flatten().fieldErrors 
+      });
+    }
+
+    const { planCode, billingCycle, couponCode, countryCode: reqCountryCode } = parsed.data;
+
+    let tenantId: string | undefined;
+    let countryCode = reqCountryCode || "IN";
+
+    const resolution = await resolveTenantId(req);
+    if (!resolution.error && resolution.tenantId) {
+      tenantId = resolution.tenantId;
+      const tenant = await getTenant(tenantId);
+      if (tenant?.country) {
+        const countryMap: Record<string, string> = {
+          india: "IN",
+          uae: "AE",
+          uk: "GB",
+          malaysia: "MY",
+          singapore: "SG",
+          other: "IN",
+        };
+        countryCode = countryMap[tenant.country] || "IN";
+      }
+    }
+
+    const result = await offerService.calculateQuote(
+      planCode,
+      billingCycle as BillingCycleKey,
+      countryCode,
+      tenantId,
+      couponCode
+    );
+
+    if ("error" in result) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    console.error("[billing/quote] Error:", error);
+    return res.status(500).json({ error: "Failed to calculate quote" });
+  }
+});
+
+router.get("/plans-with-cycles", optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const countryParam = req.query.country as string | undefined;
+    let countryCode = countryParam || "IN";
+    let tenantCountry = "india";
+
+    const resolution = await resolveTenantId(req);
+    if (!resolution.error && resolution.tenantId) {
+      const tenant = await getTenant(resolution.tenantId);
+      if (tenant?.country) {
+        tenantCountry = tenant.country;
+        const countryMap: Record<string, string> = {
+          india: "IN",
+          uae: "AE",
+          uk: "GB",
+          malaysia: "MY",
+          singapore: "SG",
+          other: "IN",
+        };
+        countryCode = countryMap[tenant.country] || "IN";
+      }
+    }
+
+    const prefix = TENANT_COUNTRY_TO_PLAN_PREFIX[tenantCountry] || "india_";
+    
+    const plans = await db
+      .select()
+      .from(globalPricingPlans)
+      .where(and(
+        eq(globalPricingPlans.isActive, true),
+        eq(globalPricingPlans.isPublic, true)
+      ))
+      .orderBy(globalPricingPlans.sortOrder);
+
+    const filteredPlans = plans.filter(p => p.code.startsWith(prefix));
+
+    const plansWithCycles = filteredPlans.map(plan => {
+      const basePrice = parseFloat(plan.basePrice);
+      const billingCycles = (plan.billingCycles || {}) as BillingCyclesMap;
+      
+      if (!billingCycles.monthly && basePrice > 0) {
+        billingCycles.monthly = { price: basePrice, enabled: true };
+      }
+      
+      if (billingCycles.monthly && basePrice === 0) {
+        billingCycles.monthly = { price: 0, enabled: true };
+      }
+
+      const cycles = Object.entries(billingCycles)
+        .filter(([_, config]) => config?.enabled)
+        .map(([key, config]) => {
+          const cycleKey = key as BillingCycleKey;
+          const monthlyConfig = billingCycles.monthly;
+          const monthlyPrice = monthlyConfig?.price || basePrice;
+          const cycleMonths = CYCLE_MONTHS[cycleKey];
+          const savings = monthlyPrice > 0 
+            ? calculateSavings(monthlyPrice, config!.price, cycleMonths)
+            : { amount: 0, percent: 0 };
+
+          return {
+            key: cycleKey,
+            price: config!.price,
+            months: cycleMonths,
+            badge: config!.badge,
+            savings,
+            effectiveMonthlyPrice: cycleMonths > 0 ? Math.round((config!.price / cycleMonths) * 100) / 100 : config!.price,
+          };
+        });
+
+      return {
+        id: plan.id,
+        code: plan.code,
+        name: plan.name,
+        description: plan.description,
+        tier: plan.tier,
+        basePrice,
+        currencyCode: plan.currencyCode || "INR",
+        maxUsers: plan.maxUsers,
+        maxCustomers: plan.maxCustomers,
+        features: plan.features,
+        featureFlags: plan.featureFlags,
+        limits: plan.limits,
+        isRecommended: plan.isRecommended,
+        sortOrder: plan.sortOrder,
+        cycles,
+      };
+    });
+
+    return res.json({ 
+      plans: plansWithCycles,
+      countryCode,
+      currencyCode: countryCode === "IN" ? "INR" : countryCode === "AE" ? "AED" : countryCode === "GB" ? "GBP" : countryCode === "MY" ? "MYR" : "USD",
+    });
+  } catch (error) {
+    console.error("[billing/plans-with-cycles] Error:", error);
+    return res.status(500).json({ error: "Failed to fetch plans" });
+  }
+});
 
 export default router;

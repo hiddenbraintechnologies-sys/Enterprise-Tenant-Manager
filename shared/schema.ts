@@ -1506,8 +1506,11 @@ export const usageMetrics = pgTable("usage_metrics", {
 
 export const paymentGatewayEnum = pgEnum("payment_gateway", ["stripe", "razorpay", "paytabs", "billplz"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "suspended", "cancelled", "trialing", "pending_payment", "downgrading"]);
-export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "yearly"]);
+export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "half_yearly", "yearly"]);
 export const currencyEnum = pgEnum("currency_code", ["INR", "AED", "GBP", "MYR", "SGD", "USD", "EUR", "AUD", "CAD", "JPY", "CNY", "SAR", "ZAR", "NGN", "BRL"]);
+
+// Offer type enum for billing offers
+export const offerTypeEnum = pgEnum("offer_type", ["PERCENT", "FLAT"]);
 
 // Global pricing plans (platform-level)
 export const globalPricingPlans = pgTable("global_pricing_plans", {
@@ -1520,6 +1523,8 @@ export const globalPricingPlans = pgTable("global_pricing_plans", {
   currencyCode: varchar("currency_code", { length: 5 }),
   billingCycle: billingCycleEnum("billing_cycle").default("monthly"),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
+  // Billing cycles with per-cycle pricing: { monthly: { price: 99, enabled: true }, yearly: { price: 999, enabled: true, badge: "2 months free" } }
+  billingCycles: jsonb("billing_cycles").notNull().default({}),
   maxUsers: integer("max_users").default(5),
   maxCustomers: integer("max_customers").default(100),
   features: jsonb("features").default([]),
@@ -1537,6 +1542,45 @@ export const globalPricingPlans = pgTable("global_pricing_plans", {
   index("idx_global_pricing_plans_tier").on(table.tier),
   index("idx_global_pricing_plans_active").on(table.isActive),
   index("idx_global_pricing_plans_country").on(table.countryCode),
+]);
+
+// Billing offers for discounts and coupons
+export const billingOffers = pgTable("billing_offers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  countryCode: varchar("country_code", { length: 5 }),
+  planCode: varchar("plan_code", { length: 50 }),
+  offerType: offerTypeEnum("offer_type").notNull(),
+  value: decimal("value", { precision: 10, scale: 2 }).notNull(),
+  billingCycle: billingCycleEnum("billing_cycle"),
+  couponCode: varchar("coupon_code", { length: 50 }),
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  maxRedemptions: integer("max_redemptions"),
+  perTenantLimit: integer("per_tenant_limit").default(1),
+  redemptionCount: integer("redemption_count").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_billing_offers_country_plan").on(table.countryCode, table.planCode),
+  index("idx_billing_offers_coupon").on(table.couponCode),
+  index("idx_billing_offers_active").on(table.isActive),
+  index("idx_billing_offers_validity").on(table.validFrom, table.validTo),
+]);
+
+// Track offer redemptions per tenant
+export const offerRedemptions = pgTable("offer_redemptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  offerId: varchar("offer_id").notNull().references(() => billingOffers.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  subscriptionId: varchar("subscription_id"),
+  discountApplied: decimal("discount_applied", { precision: 10, scale: 2 }).notNull(),
+  redeemedAt: timestamp("redeemed_at").defaultNow(),
+}, (table) => [
+  index("idx_offer_redemptions_offer").on(table.offerId),
+  index("idx_offer_redemptions_tenant").on(table.tenantId),
 ]);
 
 // Country-specific pricing and tax configuration
@@ -1594,8 +1638,11 @@ export const tenantSubscriptions = pgTable("tenant_subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   planId: varchar("plan_id").notNull().references(() => globalPricingPlans.id),
+  currentBillingCycle: billingCycleEnum("current_billing_cycle").default("monthly"),
   pendingPlanId: varchar("pending_plan_id").references(() => globalPricingPlans.id),
+  pendingBillingCycle: billingCycleEnum("pending_billing_cycle"),
   pendingPaymentId: varchar("pending_payment_id"),
+  pendingQuoteAmount: decimal("pending_quote_amount", { precision: 10, scale: 2 }),
   status: subscriptionStatusEnum("status").default("active"),
   currentPeriodStart: timestamp("current_period_start").notNull(),
   currentPeriodEnd: timestamp("current_period_end").notNull(),
@@ -2354,6 +2401,8 @@ export const insertGlobalPricingPlanSchema = createInsertSchema(globalPricingPla
 export const insertCountryPricingConfigSchema = createInsertSchema(countryPricingConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPlanLocalPriceSchema = createInsertSchema(planLocalPrices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBillingOfferSchema = createInsertSchema(billingOffers).omit({ id: true, createdAt: true, updatedAt: true, redemptionCount: true });
+export const insertOfferRedemptionSchema = createInsertSchema(offerRedemptions).omit({ id: true, redeemedAt: true });
 export const insertTenantSubscriptionSchema = createInsertSchema(tenantSubscriptions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSubscriptionInvoiceSchema = createInsertSchema(subscriptionInvoices).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertInvoiceTemplateSchema = createInsertSchema(invoiceTemplates).omit({ id: true, createdAt: true, updatedAt: true });
@@ -2523,6 +2572,12 @@ export type InsertExchangeRate = z.infer<typeof insertExchangeRateSchema>;
 
 export type PlanLocalPrice = typeof planLocalPrices.$inferSelect;
 export type InsertPlanLocalPrice = z.infer<typeof insertPlanLocalPriceSchema>;
+
+export type BillingOffer = typeof billingOffers.$inferSelect;
+export type InsertBillingOffer = z.infer<typeof insertBillingOfferSchema>;
+
+export type OfferRedemption = typeof offerRedemptions.$inferSelect;
+export type InsertOfferRedemption = z.infer<typeof insertOfferRedemptionSchema>;
 
 export type TenantSubscription = typeof tenantSubscriptions.$inferSelect;
 export type InsertTenantSubscription = z.infer<typeof insertTenantSubscriptionSchema>;

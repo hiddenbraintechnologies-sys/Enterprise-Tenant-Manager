@@ -129,6 +129,19 @@ interface Tenant {
   country?: string;
 }
 
+interface BillingCycleConfig {
+  price: number;
+  enabled: boolean;
+  badge?: string;
+}
+
+interface BillingCyclesMap {
+  monthly?: BillingCycleConfig;
+  quarterly?: BillingCycleConfig;
+  half_yearly?: BillingCycleConfig;
+  yearly?: BillingCycleConfig;
+}
+
 interface PricingPlan {
   id: string;
   code: string;
@@ -139,6 +152,7 @@ interface PricingPlan {
   currencyCode?: string;
   billingCycle?: string;
   basePrice: string;
+  billingCycles?: BillingCyclesMap;
   maxUsers?: number;
   maxCustomers?: number;
   features?: string[];
@@ -850,6 +864,11 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
   const { toast } = useToast();
   const isEditing = !!plan;
   
+  const getDefaultBillingCycles = (): BillingCyclesMap => ({
+    monthly: { price: 0, enabled: true },
+    yearly: { price: 0, enabled: false },
+  });
+
   const [formData, setFormData] = useState(() => ({
     code: "",
     name: "",
@@ -859,6 +878,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
     currencyCode: "INR",
     billingCycle: "monthly" as "monthly" | "yearly",
     basePrice: "0",
+    billingCycles: getDefaultBillingCycles(),
     isPublic: true,
     sortOrder: 100,
     featureFlags: getDefaultFeatureFlags(),
@@ -869,6 +889,15 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
     if (plan) {
       const defaultFlags = getDefaultFeatureFlags();
       const defaultLimits = getDefaultLimits();
+      const defaultCycles = getDefaultBillingCycles();
+      const planCycles = plan.billingCycles || {};
+      const mergedCycles: BillingCyclesMap = {
+        monthly: planCycles.monthly || defaultCycles.monthly,
+        yearly: planCycles.yearly || defaultCycles.yearly,
+      };
+      if (!mergedCycles.monthly?.enabled && parseFloat(plan.basePrice) > 0) {
+        mergedCycles.monthly = { price: parseFloat(plan.basePrice), enabled: true };
+      }
       setFormData({
         code: plan.code,
         name: plan.name,
@@ -878,6 +907,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
         currencyCode: plan.currencyCode || "INR",
         billingCycle: (plan.billingCycle as "monthly" | "yearly") || "monthly",
         basePrice: plan.basePrice,
+        billingCycles: mergedCycles,
         isPublic: plan.isPublic ?? true,
         sortOrder: plan.sortOrder ?? 100,
         featureFlags: { ...defaultFlags, ...(plan.featureFlags || {}) },
@@ -893,6 +923,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
         currencyCode: "INR",
         billingCycle: "monthly",
         basePrice: "0",
+        billingCycles: getDefaultBillingCycles(),
         isPublic: true,
         sortOrder: 100,
         featureFlags: getDefaultFeatureFlags(),
@@ -1106,6 +1137,137 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
                 data-testid="switch-plan-public"
               />
               <Label htmlFor="isPublic">Visible to tenants</Label>
+            </div>
+
+            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+              <Label className="text-base font-medium">Billing Cycles</Label>
+              <p className="text-sm text-muted-foreground">Configure pricing for each billing cycle</p>
+              
+              <div className="space-y-4">
+                <div className="flex items-start gap-4 p-3 border rounded-md bg-background">
+                  <div className="flex items-center space-x-2 pt-1">
+                    <Switch
+                      id="cycle-monthly"
+                      checked={formData.billingCycles.monthly?.enabled ?? true}
+                      onCheckedChange={(checked) => setFormData(prev => ({
+                        ...prev,
+                        billingCycles: {
+                          ...prev.billingCycles,
+                          monthly: { ...prev.billingCycles.monthly!, enabled: checked },
+                        },
+                      }))}
+                      data-testid="switch-cycle-monthly"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="cycle-monthly" className="font-medium">Monthly</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Price</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formData.billingCycles.monthly?.price ?? 0}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            billingCycles: {
+                              ...prev.billingCycles,
+                              monthly: { ...prev.billingCycles.monthly!, price: parseFloat(e.target.value) || 0 },
+                            },
+                            basePrice: e.target.value,
+                          }))}
+                          disabled={!formData.billingCycles.monthly?.enabled}
+                          data-testid="input-cycle-monthly-price"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Badge (optional)</Label>
+                        <Input
+                          placeholder="e.g., Popular"
+                          value={formData.billingCycles.monthly?.badge ?? ""}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            billingCycles: {
+                              ...prev.billingCycles,
+                              monthly: { ...prev.billingCycles.monthly!, badge: e.target.value || undefined },
+                            },
+                          }))}
+                          disabled={!formData.billingCycles.monthly?.enabled}
+                          data-testid="input-cycle-monthly-badge"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 p-3 border rounded-md bg-background">
+                  <div className="flex items-center space-x-2 pt-1">
+                    <Switch
+                      id="cycle-yearly"
+                      checked={formData.billingCycles.yearly?.enabled ?? false}
+                      onCheckedChange={(checked) => setFormData(prev => ({
+                        ...prev,
+                        billingCycles: {
+                          ...prev.billingCycles,
+                          yearly: { ...prev.billingCycles.yearly!, enabled: checked },
+                        },
+                      }))}
+                      data-testid="switch-cycle-yearly"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="cycle-yearly" className="font-medium">Yearly</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Price</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formData.billingCycles.yearly?.price ?? 0}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            billingCycles: {
+                              ...prev.billingCycles,
+                              yearly: { ...prev.billingCycles.yearly!, price: parseFloat(e.target.value) || 0 },
+                            },
+                          }))}
+                          disabled={!formData.billingCycles.yearly?.enabled}
+                          data-testid="input-cycle-yearly-price"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Badge (optional)</Label>
+                        <Input
+                          placeholder="e.g., 2 months free"
+                          value={formData.billingCycles.yearly?.badge ?? ""}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            billingCycles: {
+                              ...prev.billingCycles,
+                              yearly: { ...prev.billingCycles.yearly!, badge: e.target.value || undefined },
+                            },
+                          }))}
+                          disabled={!formData.billingCycles.yearly?.enabled}
+                          data-testid="input-cycle-yearly-badge"
+                        />
+                      </div>
+                    </div>
+                    {formData.billingCycles.yearly?.enabled && (formData.billingCycles.monthly?.price ?? 0) > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {(() => {
+                          const monthlyTotal = (formData.billingCycles.monthly?.price ?? 0) * 12;
+                          const yearlyPrice = formData.billingCycles.yearly?.price ?? 0;
+                          const savings = monthlyTotal - yearlyPrice;
+                          const percent = monthlyTotal > 0 ? Math.round((savings / monthlyTotal) * 100) : 0;
+                          return savings > 0 ? `Saves ${percent}% (${formData.currencyCode} ${savings.toFixed(2)}/year)` : "";
+                        })()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -1346,6 +1508,528 @@ function PlansManagement() {
       plan={editingPlan}
     />
     </>
+  );
+}
+
+interface BillingOffer {
+  id: string;
+  name: string;
+  description?: string | null;
+  countryCode?: string | null;
+  planCode?: string | null;
+  offerType: "PERCENT" | "FLAT";
+  value: string;
+  billingCycle?: string | null;
+  couponCode?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  maxRedemptions?: number | null;
+  perTenantLimit?: number | null;
+  redemptionCount?: number | null;
+  isActive?: boolean;
+  createdAt?: string;
+}
+
+function OffersManagement() {
+  const { isSuperAdmin, hasPermission } = useAdmin();
+  const { toast } = useToast();
+  const canManageOffers = isSuperAdmin || hasPermission("MANAGE_PLANS_PRICING");
+  const [showOfferDialog, setShowOfferDialog] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<BillingOffer | null>(null);
+
+  const { data: offersData, isLoading } = useQuery<{ offers: BillingOffer[] }>({
+    queryKey: ["/api/admin/billing/offers"],
+    staleTime: 60 * 1000,
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (offerId: string) => {
+      return apiRequest("POST", `/api/admin/billing/offers/${offerId}/toggle`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/offers"] });
+      toast({ title: "Offer status updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update offer", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (offerId: string) => {
+      return apiRequest("DELETE", `/api/admin/billing/offers/${offerId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/offers"] });
+      toast({ title: "Offer deleted" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete offer", description: error.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4 flex-wrap">
+          <div>
+            <CardTitle>Billing Offers</CardTitle>
+            <CardDescription>
+              {canManageOffers 
+                ? "Manage discounts, coupons, and promotional offers" 
+                : "View available offers"}
+            </CardDescription>
+          </div>
+          {canManageOffers && (
+            <Button onClick={() => { setEditingOffer(null); setShowOfferDialog(true); }} data-testid="button-create-offer">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Offer
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          {offersData?.offers?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No offers found</p>
+              {canManageOffers && (
+                <p className="text-sm mt-2">Create an offer to get started</p>
+              )}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Coupon</TableHead>
+                  <TableHead>Validity</TableHead>
+                  <TableHead>Redemptions</TableHead>
+                  <TableHead>Status</TableHead>
+                  {canManageOffers && <TableHead className="w-[100px]">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {offersData?.offers?.map((offer) => (
+                  <TableRow key={offer.id} data-testid={`row-offer-${offer.id}`}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{offer.name}</p>
+                        {offer.description && (
+                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                            {offer.description}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{offer.offerType}</Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {offer.offerType === "PERCENT" ? `${offer.value}%` : `₹${offer.value}`}
+                    </TableCell>
+                    <TableCell>
+                      {offer.couponCode ? (
+                        <Badge variant="secondary" className="font-mono">{offer.couponCode}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Auto</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {offer.validFrom || offer.validTo ? (
+                        <div className="text-xs">
+                          {offer.validFrom && <div>From: {new Date(offer.validFrom).toLocaleDateString()}</div>}
+                          {offer.validTo && <div>To: {new Date(offer.validTo).toLocaleDateString()}</div>}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">Always</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">
+                        {offer.redemptionCount || 0}
+                        {offer.maxRedemptions && ` / ${offer.maxRedemptions}`}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {offer.isActive ? (
+                        <Badge variant="default" className="bg-green-500">Active</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inactive</Badge>
+                      )}
+                    </TableCell>
+                    {canManageOffers && (
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" data-testid={`button-offer-actions-${offer.id}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              onClick={() => { setEditingOffer(offer); setShowOfferDialog(true); }}
+                              data-testid={`menu-edit-offer-${offer.id}`}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => toggleMutation.mutate(offer.id)}
+                              disabled={toggleMutation.isPending}
+                              data-testid={`menu-toggle-offer-${offer.id}`}
+                            >
+                              {offer.isActive ? (
+                                <>
+                                  <PowerOff className="h-4 w-4 mr-2" />
+                                  Deactivate
+                                </>
+                              ) : (
+                                <>
+                                  <Power className="h-4 w-4 mr-2" />
+                                  Activate
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this offer?")) {
+                                  deleteMutation.mutate(offer.id);
+                                }
+                              }}
+                              disabled={deleteMutation.isPending}
+                              className="text-destructive"
+                              data-testid={`menu-delete-offer-${offer.id}`}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      <OfferBuilderDialog
+        open={showOfferDialog}
+        onOpenChange={(open) => {
+          setShowOfferDialog(open);
+          if (!open) setEditingOffer(null);
+        }}
+        offer={editingOffer}
+      />
+    </>
+  );
+}
+
+interface OfferBuilderDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  offer?: BillingOffer | null;
+}
+
+function OfferBuilderDialog({ open, onOpenChange, offer }: OfferBuilderDialogProps) {
+  const { toast } = useToast();
+  const isEditing = !!offer;
+  
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    countryCode: "",
+    planCode: "",
+    offerType: "PERCENT" as "PERCENT" | "FLAT",
+    value: "10",
+    billingCycle: "",
+    couponCode: "",
+    validFrom: "",
+    validTo: "",
+    maxRedemptions: "",
+    perTenantLimit: "1",
+    isActive: true,
+  });
+
+  useEffect(() => {
+    if (offer) {
+      setFormData({
+        name: offer.name,
+        description: offer.description || "",
+        countryCode: offer.countryCode || "",
+        planCode: offer.planCode || "",
+        offerType: offer.offerType,
+        value: offer.value,
+        billingCycle: offer.billingCycle || "",
+        couponCode: offer.couponCode || "",
+        validFrom: offer.validFrom ? new Date(offer.validFrom).toISOString().split("T")[0] : "",
+        validTo: offer.validTo ? new Date(offer.validTo).toISOString().split("T")[0] : "",
+        maxRedemptions: offer.maxRedemptions?.toString() || "",
+        perTenantLimit: offer.perTenantLimit?.toString() || "1",
+        isActive: offer.isActive ?? true,
+      });
+    } else {
+      setFormData({
+        name: "",
+        description: "",
+        countryCode: "",
+        planCode: "",
+        offerType: "PERCENT",
+        value: "10",
+        billingCycle: "",
+        couponCode: "",
+        validFrom: "",
+        validTo: "",
+        maxRedemptions: "",
+        perTenantLimit: "1",
+        isActive: true,
+      });
+    }
+  }, [offer, open]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/admin/billing/offers", {
+        name: data.name,
+        description: data.description || null,
+        offerType: data.offerType,
+        value: parseFloat(data.value) || 0,
+        countryCode: data.countryCode || null,
+        planCode: data.planCode || null,
+        billingCycle: data.billingCycle || null,
+        couponCode: data.couponCode || null,
+        validFrom: data.validFrom || null,
+        validTo: data.validTo || null,
+        maxRedemptions: data.maxRedemptions ? parseInt(data.maxRedemptions) : null,
+        perTenantLimit: data.perTenantLimit ? parseInt(data.perTenantLimit) : 1,
+        isActive: data.isActive,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/offers"] });
+      toast({ title: "Offer created successfully" });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create offer", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("PATCH", `/api/admin/billing/offers/${offer?.id}`, {
+        name: data.name,
+        description: data.description || null,
+        offerType: data.offerType,
+        value: parseFloat(data.value) || 0,
+        countryCode: data.countryCode || null,
+        planCode: data.planCode || null,
+        billingCycle: data.billingCycle || null,
+        couponCode: data.couponCode || null,
+        validFrom: data.validFrom || null,
+        validTo: data.validTo || null,
+        maxRedemptions: data.maxRedemptions ? parseInt(data.maxRedemptions) : null,
+        perTenantLimit: data.perTenantLimit ? parseInt(data.perTenantLimit) : 1,
+        isActive: data.isActive,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/billing/offers"] });
+      toast({ title: "Offer updated successfully" });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update offer", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!formData.name || !formData.value) {
+      toast({ title: "Please fill required fields", variant: "destructive" });
+      return;
+    }
+    if (isEditing) {
+      updateMutation.mutate(formData);
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Offer" : "Create Offer"}</DialogTitle>
+          <DialogDescription>
+            {isEditing ? "Update offer details" : "Create a new discount or promotional offer"}
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-[60vh] pr-4">
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="offer-name">Name *</Label>
+              <Input
+                id="offer-name"
+                placeholder="e.g., Yearly Discount"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                data-testid="input-offer-name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="offer-description">Description</Label>
+              <Textarea
+                id="offer-description"
+                placeholder="Offer description..."
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                data-testid="input-offer-description"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Offer Type *</Label>
+                <Select value={formData.offerType} onValueChange={(v) => setFormData(prev => ({ ...prev, offerType: v as "PERCENT" | "FLAT" }))}>
+                  <SelectTrigger data-testid="select-offer-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PERCENT">Percentage</SelectItem>
+                    <SelectItem value="FLAT">Flat Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-value">Value *</Label>
+                <Input
+                  id="offer-value"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.value}
+                  onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
+                  data-testid="input-offer-value"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Billing Cycle</Label>
+                <Select value={formData.billingCycle} onValueChange={(v) => setFormData(prev => ({ ...prev, billingCycle: v === "all" ? "" : v }))}>
+                  <SelectTrigger data-testid="select-offer-cycle">
+                    <SelectValue placeholder="All cycles" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Cycles</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="half_yearly">Half-Yearly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-coupon">Coupon Code</Label>
+                <Input
+                  id="offer-coupon"
+                  placeholder="e.g., SAVE20"
+                  value={formData.couponCode}
+                  onChange={(e) => setFormData(prev => ({ ...prev, couponCode: e.target.value.toUpperCase() }))}
+                  data-testid="input-offer-coupon"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="offer-valid-from">Valid From</Label>
+                <Input
+                  id="offer-valid-from"
+                  type="date"
+                  value={formData.validFrom}
+                  onChange={(e) => setFormData(prev => ({ ...prev, validFrom: e.target.value }))}
+                  data-testid="input-offer-valid-from"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-valid-to">Valid To</Label>
+                <Input
+                  id="offer-valid-to"
+                  type="date"
+                  value={formData.validTo}
+                  onChange={(e) => setFormData(prev => ({ ...prev, validTo: e.target.value }))}
+                  data-testid="input-offer-valid-to"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="offer-max-redemptions">Max Redemptions</Label>
+                <Input
+                  id="offer-max-redemptions"
+                  type="number"
+                  min="0"
+                  placeholder="Unlimited"
+                  value={formData.maxRedemptions}
+                  onChange={(e) => setFormData(prev => ({ ...prev, maxRedemptions: e.target.value }))}
+                  data-testid="input-offer-max-redemptions"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-per-tenant">Per Tenant Limit</Label>
+                <Input
+                  id="offer-per-tenant"
+                  type="number"
+                  min="1"
+                  value={formData.perTenantLimit}
+                  onChange={(e) => setFormData(prev => ({ ...prev, perTenantLimit: e.target.value }))}
+                  data-testid="input-offer-per-tenant"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="offer-active"
+                checked={formData.isActive}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isActive: checked }))}
+                data-testid="switch-offer-active"
+              />
+              <Label htmlFor="offer-active">Active</Label>
+            </div>
+          </div>
+        </ScrollArea>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-offer">
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isPending} data-testid="button-save-offer">
+            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isEditing ? "Update Offer" : "Create Offer"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1603,6 +2287,10 @@ function BillingContent() {
             <Package className="h-4 w-4 mr-2" />
             Pricing Plans
           </TabsTrigger>
+          <TabsTrigger value="offers" data-testid="tab-offers">
+            <DollarSign className="h-4 w-4 mr-2" />
+            Offers
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="invoices">
@@ -1756,6 +2444,10 @@ function BillingContent() {
 
         <TabsContent value="plans">
           <PlansManagement />
+        </TabsContent>
+
+        <TabsContent value="offers">
+          <OffersManagement />
         </TabsContent>
       </Tabs>
 

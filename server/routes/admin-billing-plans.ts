@@ -61,6 +61,19 @@ function getAdminInfo(req: Request): { adminId: string; adminEmail: string } {
 const featureFlagsSchema = z.record(z.string(), z.boolean()).optional();
 const limitsSchema = z.record(z.string(), z.number().int().min(0)).optional();
 
+const billingCycleConfigSchema = z.object({
+  price: z.number().min(0),
+  enabled: z.boolean(),
+  badge: z.string().optional(),
+}).optional();
+
+const billingCyclesSchema = z.object({
+  monthly: billingCycleConfigSchema,
+  quarterly: billingCycleConfigSchema,
+  half_yearly: billingCycleConfigSchema,
+  yearly: billingCycleConfigSchema,
+}).optional();
+
 const createPlanSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1),
@@ -70,6 +83,7 @@ const createPlanSchema = z.object({
   currencyCode: z.string().min(3).max(5),
   billingCycle: z.enum(["monthly", "quarterly", "yearly"]).optional(),
   basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  billingCycles: billingCyclesSchema,
   maxUsers: z.number().int().min(0).optional(),
   maxCustomers: z.number().int().min(0).optional(),
   features: z.array(z.string()).optional(),
@@ -90,6 +104,7 @@ const updatePlanSchema = z.object({
   currencyCode: z.string().min(3).max(5).optional(),
   billingCycle: z.enum(["monthly", "quarterly", "yearly"]).optional(),
   basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  billingCycles: billingCyclesSchema,
   maxUsers: z.number().int().min(0).optional(),
   maxCustomers: z.number().int().min(0).optional(),
   features: z.array(z.string()).optional(),
