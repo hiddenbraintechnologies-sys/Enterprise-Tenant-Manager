@@ -94,6 +94,7 @@ import furnitureRoutes from "./routes/furniture";
 import hrmsRoutes from "./routes/hrms";
 import servicesRoutes from "./routes/services";
 import subscriptionRoutes from "./routes/subscriptions";
+import { subscriptionService } from "./services/subscription";
 import billingRoutes from "./routes/billing";
 import adminBillingPlansRoutes from "./routes/admin-billing-plans";
 import adminBillingOffersRoutes from "./routes/admin-billing-offers";
@@ -6243,6 +6244,23 @@ export async function registerRoutes(
   app.get("/api/context", authenticateHybrid(), async (req, res) => {
     try {
       const context = req.context;
+      const tenantId = getTenantId(req);
+      
+      // Get module access based on tenant's subscription plan
+      let moduleAccess: Record<string, { access: string; reason?: string }> = {};
+      if (tenantId) {
+        const plan = await subscriptionService.getTenantPlan(tenantId);
+        if (plan) {
+          const modules = ["software_services", "consulting", "hrms", "furniture", "furniture_manufacturing", 
+                          "legal", "education", "tourism", "logistics", "real_estate", "analytics", 
+                          "marketplace", "clinic", "salon", "pg_hostel", "coworking", "gym"];
+          for (const moduleId of modules) {
+            const access = await subscriptionService.canAccessModule(tenantId, moduleId);
+            moduleAccess[moduleId] = { access: access.allowed ? "included" : "unavailable", reason: access.reason };
+          }
+        }
+      }
+      
       res.json({
         user: context.user,
         tenant: context.tenant ? {
@@ -6258,6 +6276,7 @@ export async function registerRoutes(
         } : null,
         permissions: context.permissions,
         features: context.features,
+        moduleAccess,
       });
     } catch (error) {
       console.error("Error fetching context:", error);

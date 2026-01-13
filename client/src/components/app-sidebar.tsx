@@ -14,6 +14,7 @@ import {
   BedDouble,
   Home,
   Bot,
+  Lock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,8 +30,10 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { useModuleAccess } from "@/hooks/use-module-access";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { BusinessType } from "@/contexts/tenant-context";
 
 interface NavItem {
@@ -168,13 +171,20 @@ const systemItems: NavItem[] = [
   { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];
 
+const MODULE_GATED_BUSINESS_TYPES: BusinessType[] = ["software_services", "consulting", "furniture_manufacturing"];
+
 export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
   const { user, logout, isLoggingOut, businessType: authBusinessType } = useAuth();
+  const { canAccessModule, getModuleAccessInfo } = useModuleAccess();
 
   const effectiveBusinessType = (businessType || authBusinessType || "service") as BusinessType;
   const mainNavItems = NAV_ITEMS_BY_BUSINESS_TYPE[effectiveBusinessType] || NAV_ITEMS_BY_BUSINESS_TYPE.service;
   const dashboardRoute = DASHBOARD_ROUTES[effectiveBusinessType] || DASHBOARD_ROUTES.service;
+  
+  const isModuleGated = MODULE_GATED_BUSINESS_TYPES.includes(effectiveBusinessType);
+  const hasModuleAccess = !isModuleGated || canAccessModule(effectiveBusinessType);
+  const moduleAccessInfo = getModuleAccessInfo(effectiveBusinessType);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -203,23 +213,58 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url || location.startsWith(item.url + "/")}
-                  >
-                    <Link 
-                      href={item.url} 
-                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                      data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+              {hasModuleAccess ? (
+                mainNavItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === item.url || location.startsWith(item.url + "/")}
                     >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                      <Link 
+                        href={item.url} 
+                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))
+              ) : (
+                <>
+                  <SidebarMenuItem>
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md">
+                      <Lock className="h-4 w-4" />
+                      <span>Module locked</span>
+                    </div>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          {moduleAccessInfo?.reason || "Upgrade your plan to access this module"}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>This module is not available on your current plan.</p>
+                        <p className="text-xs mt-1">Upgrade to Basic or Pro to unlock.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link 
+                        href="/packages" 
+                        data-testid="link-upgrade-plan"
+                      >
+                        <Package className="h-4 w-4" />
+                        <span>Upgrade Plan</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

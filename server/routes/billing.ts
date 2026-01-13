@@ -8,6 +8,7 @@ import {
 import { eq, and, desc, lte } from "drizzle-orm";
 import { subscriptionService } from "../services/subscription";
 import { offerService } from "../services/offers";
+import { featureService } from "../core/features";
 import { authenticateJWT } from "../core/auth-middleware";
 import { getPaymentProvider } from "../core/payments/provider-factory";
 import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
@@ -828,7 +829,10 @@ router.post(
             userAgent: req.headers["user-agent"],
           });
 
-          console.log(`[billing] Subscription upgraded to free for tenant ${tenantId}`);
+          // Clear feature cache after plan change
+          featureService.clearCache(tenantId);
+          console.log(`[billing] Subscription upgraded to free for tenant ${tenantId}, feature cache cleared`);
+          
           return res.json({
             success: true,
             requiresPayment: false,
@@ -1386,7 +1390,9 @@ router.post(
         },
       });
 
-      console.log(`[razorpay] Payment verified and subscription activated: ${subscription.id}`);
+      // Clear feature cache after plan activation
+      featureService.clearCache(tenantId);
+      console.log(`[razorpay] Payment verified and subscription activated: ${subscription.id}, feature cache cleared`);
 
       res.json({
         success: true,
@@ -1472,7 +1478,9 @@ router.post("/razorpay/webhook", async (req: Request, res: Response) => {
                 })
                 .where(eq(tenantSubscriptions.id, subscription.id));
 
-              console.log(`[razorpay-webhook] Subscription activated via webhook: ${subscription.id}`);
+              // Clear feature cache after plan activation via webhook
+              featureService.clearCache(payment.tenantId);
+              console.log(`[razorpay-webhook] Subscription activated via webhook: ${subscription.id}, feature cache cleared`);
             }
           }
         }
@@ -1549,7 +1557,9 @@ export async function processScheduledDowngrades(): Promise<number> {
         },
       });
 
-      console.log(`[billing] Downgrade applied for subscription ${subscription.id}: ${subscription.planId} -> ${subscription.pendingPlanId}`);
+      // Clear feature cache after downgrade
+      featureService.clearCache(subscription.tenantId);
+      console.log(`[billing] Downgrade applied for subscription ${subscription.id}: ${subscription.planId} -> ${subscription.pendingPlanId}, feature cache cleared`);
       processedCount++;
     }
 

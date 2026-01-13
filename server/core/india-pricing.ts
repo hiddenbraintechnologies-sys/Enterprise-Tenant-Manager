@@ -31,6 +31,10 @@ export const INDIA_PRICING_CONFIG = {
       unlimitedRecords: false,
       basicAnalytics: true,
       emailNotifications: true,
+      softwareServices: false, // Free plan: No Software Services
+      consulting: true,
+      timesheets: false,
+      invoicing: true,
     },
   },
   [INDIA_PRICING_TIERS.BASIC]: {
@@ -57,6 +61,10 @@ export const INDIA_PRICING_CONFIG = {
       advancedAnalytics: true,
       emailNotifications: true,
       smsNotifications: true,
+      softwareServices: true, // Basic plan: Software Services included
+      consulting: true,
+      timesheets: true,
+      invoicing: true,
     },
   },
   [INDIA_PRICING_TIERS.PRO]: {
@@ -85,6 +93,10 @@ export const INDIA_PRICING_CONFIG = {
       smsNotifications: true,
       whatsappNotifications: true,
       prioritySupport: true,
+      softwareServices: true, // Pro plan: Software Services included
+      consulting: true,
+      timesheets: true,
+      invoicing: true,
     },
   },
 } as const;
@@ -247,6 +259,11 @@ export async function seedIndiaPricingPlans(): Promise<void> {
       sms_notifications: "smsNotifications" in config.features ? Boolean(config.features.smsNotifications) : false,
       advanced_analytics: "advancedAnalytics" in config.features ? Boolean(config.features.advancedAnalytics) : false,
       unlimited_records: Boolean(config.features.unlimitedRecords),
+      // Module-level feature flags for plan-based gating
+      software_services: "softwareServices" in config.features ? Boolean(config.features.softwareServices) : false,
+      consulting: "consulting" in config.features ? Boolean(config.features.consulting) : true,
+      timesheets: "timesheets" in config.features ? Boolean(config.features.timesheets) : false,
+      invoicing: "invoicing" in config.features ? Boolean(config.features.invoicing) : true,
     };
     
     const limitsData = {
