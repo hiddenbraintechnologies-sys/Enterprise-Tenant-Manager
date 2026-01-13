@@ -18,7 +18,13 @@ function getAuthHeaders(): Record<string, string> {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   } else {
-    console.warn("[getAuthHeaders] No token found in localStorage. Keys checked: mybizstream_admin_token, accessToken");
+    // Only warn if we're not on a public page
+    const publicPaths = ["/", "/login", "/register", "/pricing", "/packages", "/checkout"];
+    if (!publicPaths.some(path => window.location.pathname === path || window.location.pathname.startsWith("/portal"))) {
+      console.warn("[getAuthHeaders] No token found in localStorage. Path:", window.location.pathname);
+      // Log all localStorage keys for debugging
+      console.warn("[getAuthHeaders] localStorage keys:", Object.keys(localStorage));
+    }
   }
   
   // Include tenant context for API isolation
