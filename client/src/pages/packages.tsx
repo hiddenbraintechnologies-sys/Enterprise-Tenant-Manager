@@ -38,6 +38,13 @@ import { useTenantLanguage } from "@/hooks/use-tenant-language";
 import { getGainedFeatures, getIncreasedLimits, getLostFeatures, getReducedLimits } from "@shared/billing/language-helpers";
 import type { BillingCycleKey } from "@shared/billing/types";
 import { CYCLE_LABELS } from "@shared/billing/types";
+import { 
+  BILLING_STRINGS, 
+  savingsBadgeText, 
+  downgradeBannerText, 
+  t as tStr 
+} from "@shared/billing/i18n";
+import type { Lang } from "@shared/billing/i18n";
 
 interface PlanCycle {
   key: BillingCycleKey;
@@ -425,10 +432,15 @@ export default function PackagesPage() {
     
     const yearlyCycle = paidPlans[0]?.cycles?.find(c => c.key === "yearly");
     if (yearlyCycle && yearlyCycle.savings.percent > 0) {
-      return `Save ${yearlyCycle.savings.percent}%`;
+      return savingsBadgeText(lang, yearlyCycle.savings.percent);
     }
     return null;
   };
+
+  const t = (key: keyof typeof BILLING_STRINGS): string => tStr(lang as Lang, key);
+  const billingInterval = selectedCycle === "yearly" 
+    ? (lang === "hi" ? "/वर्ष" : "/year") 
+    : (lang === "hi" ? "/महीना" : "/month");
 
   const getComputedBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
     const benefits: { label: string; description?: string }[] = [];
@@ -529,8 +541,8 @@ export default function PackagesPage() {
         <main className="container mx-auto px-4 py-12">
           <div className="flex flex-col items-center justify-center py-24" data-testid="loading-workspace">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Setting up your workspace</h2>
-            <p className="text-muted-foreground">Just a moment while we prepare your account</p>
+            <h2 className="text-xl font-semibold mb-2">{t("settingUpWorkspace")}</h2>
+            <p className="text-muted-foreground">{t("justAMoment")}</p>
           </div>
         </main>
       </div>
@@ -552,10 +564,10 @@ export default function PackagesPage() {
       <main className="container mx-auto px-4 py-12">
         <div className="text-center mb-12">
           <h1 className="text-3xl md:text-4xl font-bold mb-4" data-testid="text-packages-title">
-            Choose your plan
+            {t("pageTitle")}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6" data-testid="text-packages-subtitle">
-            Start free and upgrade as your business grows. All plans include a 14-day trial.
+            {t("pageSubtitle")}
           </p>
           
           <div className="flex items-center justify-center gap-2" data-testid="billing-cycle-toggle">
@@ -589,10 +601,10 @@ export default function PackagesPage() {
           <Alert variant="destructive" className="max-w-md mx-auto mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
-              <span>Unable to verify subscription status.</span>
+              <span>{t("errorLoadingSubscription")}</span>
               <Button variant="outline" size="sm" onClick={handleRetrySubscription} data-testid="button-retry-subscription">
                 <RefreshCw className="h-4 w-4 mr-1" />
-                Retry
+                {t("retry")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -602,10 +614,10 @@ export default function PackagesPage() {
           <Alert variant="destructive" className="max-w-md mx-auto mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
-              <span>Unable to load pricing plans.</span>
+              <span>{t("errorLoadingPlans")}</span>
               <Button variant="outline" size="sm" onClick={handleRetryPlans} data-testid="button-retry-plans">
                 <RefreshCw className="h-4 w-4 mr-1" />
-                Retry
+                {t("retry")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -619,12 +631,16 @@ export default function PackagesPage() {
               <div className="flex flex-col gap-3">
                 <div>
                   <span className="font-medium text-orange-700 dark:text-orange-300">
-                    Downgrade scheduled
+                    {t("downgradeBannerTitle")}
                   </span>
                   <span className="block text-sm text-muted-foreground mt-1">
-                    Your plan will change to <span className="font-medium">{subscriptionData.pendingPlan.name}</span> on {subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "your next billing date"}.
-                    <br />
-                    You'll keep your current features until then.
+                    {downgradeBannerText(
+                      lang as Lang,
+                      subscriptionData.pendingPlan.name,
+                      subscriptionData.currentPeriodEnd 
+                        ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString(lang === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "long", year: "numeric" }) 
+                        : (lang === "hi" ? "अगली बिलिंग तारीख" : "your next billing date")
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -638,7 +654,7 @@ export default function PackagesPage() {
                     }}
                     data-testid="button-change-downgrade-plan"
                   >
-                    Change downgrade plan
+                    {lang === "hi" ? "डाउनग्रेड प्लान बदलें" : "Change downgrade plan"}
                   </Button>
                   <Button 
                     variant="outline" 
@@ -650,7 +666,7 @@ export default function PackagesPage() {
                     {cancelDowngradeMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      "Cancel downgrade"
+                      t("cancelDowngrade")
                     )}
                   </Button>
                 </div>
@@ -665,15 +681,15 @@ export default function PackagesPage() {
             <AlertDescription className="flex items-center justify-between">
               <div>
                 <span className="font-medium text-green-700 dark:text-green-300">
-                  Current plan: {subscriptionData?.plan?.name || "Active"}
+                  {t("currentPlan")}: {subscriptionData?.plan?.name || "Active"}
                 </span>
                 <span className="block text-sm text-muted-foreground mt-1">
-                  Your subscription is active.
+                  {lang === "hi" ? "आपकी सदस्यता सक्रिय है।" : "Your subscription is active."}
                 </span>
               </div>
               <Link href={DASHBOARD_ROUTES[tenant?.businessType || "service"] || "/dashboard/service"}>
                 <Button variant="outline" size="sm" data-testid="button-go-to-dashboard">
-                  Go to dashboard
+                  {lang === "hi" ? "डैशबोर्ड पर जाएं" : "Go to dashboard"}
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </Link>
@@ -688,16 +704,18 @@ export default function PackagesPage() {
             <AlertDescription className="flex flex-col gap-3">
               <div>
                 <span className="font-medium text-yellow-700 dark:text-yellow-300">
-                  Upgrade pending for {subscriptionData?.pendingPlan?.name || "upgrade"}
+                  {lang === "hi" 
+                    ? `${subscriptionData?.pendingPlan?.name || "अपग्रेड"} के लिए पेमेंट पेंडिंग` 
+                    : `Upgrade pending for ${subscriptionData?.pendingPlan?.name || "upgrade"}`}
                 </span>
                 <span className="block text-sm text-muted-foreground mt-1">
-                  Complete payment to activate your subscription.
+                  {lang === "hi" ? "सदस्यता सक्रिय करने के लिए पेमेंट पूरा करें।" : "Complete payment to activate your subscription."}
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Link href={subscriptionData?.pendingPaymentId ? `/checkout?paymentId=${subscriptionData.pendingPaymentId}` : "/checkout"}>
                   <Button variant="default" size="sm" data-testid="button-continue-checkout">
-                    Continue to payment
+                    {t("continuePayment")}
                     <ArrowRight className="h-4 w-4 ml-1" />
                   </Button>
                 </Link>
@@ -708,7 +726,7 @@ export default function PackagesPage() {
                   data-testid="button-cancel-upgrade"
                 >
                   <XCircle className="h-4 w-4 mr-1" />
-                  Cancel upgrade
+                  {t("cancelUpgrade")}
                 </Button>
               </div>
             </AlertDescription>
@@ -719,9 +737,11 @@ export default function PackagesPage() {
         {showNoSubscriptionPrompt && !subscriptionData?.isActive && subscriptionData?.status?.toLowerCase() !== "pending_payment" && (
           <Alert className="max-w-md mx-auto mb-6 border-primary/50 bg-primary/5">
             <AlertDescription className="text-center">
-              <span className="font-medium">Choose a plan to get started.</span>
+              <span className="font-medium">{lang === "hi" ? "शुरू करने के लिए एक प्लान चुनें।" : "Choose a plan to get started."}</span>
               <span className="block text-sm text-muted-foreground mt-1">
-                Select Free to start immediately, or choose a paid plan for more features.
+                {lang === "hi" 
+                  ? "तुरंत शुरू करने के लिए Free चुनें, या अधिक फीचर्स के लिए पेड प्लान।" 
+                  : "Select Free to start immediately, or choose a paid plan for more features."}
               </span>
             </AlertDescription>
           </Alert>
@@ -761,7 +781,9 @@ export default function PackagesPage() {
               const planAction = getPlanAction(plan);
               const isCurrentPlan = planAction === "current";
               const isPending = selectPlanMutation.isPending || changeSubscriptionMutation.isPending;
-              const billingInterval = selectedCycle === "yearly" ? "/year" : "/month";
+              const localizedSavingsBadge = activeCycle?.savings?.percent && activeCycle.savings.percent > 0 
+                ? savingsBadgeText(lang as Lang, activeCycle.savings.percent) 
+                : null;
 
               return (
                 <Card 
@@ -775,12 +797,12 @@ export default function PackagesPage() {
                 >
                   {isCurrentPlan && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-green-600 text-white">Current Plan</Badge>
+                      <Badge className="bg-green-600 text-white">{t("currentPlan")}</Badge>
                     </div>
                   )}
                   {!isCurrentPlan && isPopular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-primary text-primary-foreground">Recommended</Badge>
+                      <Badge className="bg-primary text-primary-foreground">{t("recommended")}</Badge>
                     </div>
                   )}
                   <CardHeader className="text-center pb-2">
@@ -804,9 +826,9 @@ export default function PackagesPage() {
                       {!isFree && (
                         <span className="text-muted-foreground">{billingInterval}</span>
                       )}
-                      {savingsBadge && !isFree && (
+                      {localizedSavingsBadge && !isFree && (
                         <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                          {savingsBadge}
+                          {localizedSavingsBadge}
                         </Badge>
                       )}
                     </div>
@@ -835,7 +857,7 @@ export default function PackagesPage() {
                         data-testid={`button-current-plan-${plan.tier}`}
                       >
                         <Check className="h-4 w-4 mr-2" />
-                        Current Plan
+                        {t("currentPlan")}
                       </Button>
                     ) : planAction === "upgrade" ? (
                       <Button 
@@ -848,12 +870,12 @@ export default function PackagesPage() {
                         {isSelected && isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Processing...
+                            {t("processing")}
                           </>
                         ) : (
                           <>
                             <ArrowUp className="h-4 w-4 mr-2" />
-                            Upgrade
+                            {t("upgrade")}
                           </>
                         )}
                       </Button>
@@ -866,7 +888,7 @@ export default function PackagesPage() {
                           data-testid={`button-pending-downgrade-${plan.tier}`}
                         >
                           <Clock className="h-4 w-4 mr-2" />
-                          Pending Downgrade
+                          {t("pendingDowngrade")}
                         </Button>
                       ) : (
                         <Button 
@@ -879,17 +901,17 @@ export default function PackagesPage() {
                           {isSelected && isPending ? (
                             <>
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Processing...
+                              {t("processing")}
                             </>
                           ) : subscriptionData?.isDowngrading ? (
                             <>
                               <ArrowDown className="h-4 w-4 mr-2" />
-                              Change to this plan
+                              {lang === "hi" ? "इस प्लान में बदलें" : "Change to this plan"}
                             </>
                           ) : (
                             <>
                               <ArrowDown className="h-4 w-4 mr-2" />
-                              Downgrade
+                              {t("downgrade")}
                             </>
                           )}
                         </Button>
@@ -905,13 +927,13 @@ export default function PackagesPage() {
                         {isSelected && isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Processing...
+                            {t("processing")}
                           </>
                         ) : isFree ? (
-                          "Start free"
+                          t("startFree")
                         ) : (
                           <>
-                            Get {plan.name}
+                            {lang === "hi" ? `${plan.name} लें` : `Get ${plan.name}`}
                             <ArrowRight className="h-4 w-4 ml-1" />
                           </>
                         )}
@@ -925,8 +947,8 @@ export default function PackagesPage() {
         )}
 
         <div className="mt-12 text-center text-sm text-muted-foreground">
-          <p>All prices are in INR and include GST where applicable.</p>
-          <p className="mt-1">You can upgrade or downgrade at any time.</p>
+          <p>{lang === "hi" ? "सभी कीमतें INR में हैं और जहां लागू हो वहां GST शामिल है।" : "All prices are in INR and include GST where applicable."}</p>
+          <p className="mt-1">{lang === "hi" ? "आप कभी भी अपग्रेड या डाउनग्रेड कर सकते हैं।" : "You can upgrade or downgrade at any time."}</p>
         </div>
       </main>
 
@@ -975,7 +997,7 @@ export default function PackagesPage() {
             name: pendingUpgradePlan.name,
             tier: pendingUpgradePlan.tier,
           }}
-          priceLabel={formatPriceOrFree(getPlanCyclePrice(pendingUpgradePlan).price, pendingUpgradePlan.currencyCode || "INR") + (selectedCycle === "yearly" ? "/year" : "/month")}
+          priceLabel={formatPriceOrFree(getPlanCyclePrice(pendingUpgradePlan).price, pendingUpgradePlan.currencyCode || "INR") + billingInterval}
           newBenefits={getNewBenefits(
             subscriptionData?.plan ? {
               id: subscriptionData.plan.id,
@@ -1005,9 +1027,9 @@ export default function PackagesPage() {
       <Dialog open={showCancelUpgradeModal} onOpenChange={setShowCancelUpgradeModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancel upgrade?</DialogTitle>
+            <DialogTitle>{t("cancelUpgradeConfirmTitle")}</DialogTitle>
             <DialogDescription>
-              Your current plan will remain active. You can upgrade again anytime.
+              {t("cancelUpgradeConfirmDesc")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -1016,7 +1038,7 @@ export default function PackagesPage() {
               onClick={() => setShowCancelUpgradeModal(false)}
               data-testid="button-dismiss-cancel-upgrade-modal"
             >
-              Keep upgrade
+              {lang === "hi" ? "अपग्रेड रखें" : "Keep upgrade"}
             </Button>
             <Button 
               variant="destructive"
@@ -1027,10 +1049,10 @@ export default function PackagesPage() {
               {cancelUpgradeMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Cancelling...
+                  {lang === "hi" ? "रद्द हो रहा है..." : "Cancelling..."}
                 </>
               ) : (
-                "Cancel upgrade"
+                t("cancelUpgrade")
               )}
             </Button>
           </DialogFooter>
