@@ -36,6 +36,17 @@ import { UpgradeConfirmModal } from "@/components/upgrade-confirm-modal";
 import { LanguageToggle } from "@/components/language-toggle";
 import { useTenantLanguage } from "@/hooks/use-tenant-language";
 import { getGainedFeatures, getIncreasedLimits, getLostFeatures, getReducedLimits } from "@shared/billing/language-helpers";
+import type { BillingCycleKey } from "@shared/billing/types";
+import { CYCLE_LABELS } from "@shared/billing/types";
+
+interface PlanCycle {
+  key: BillingCycleKey;
+  price: number;
+  months: number;
+  badge?: string;
+  savings: { amount: number; percent: number };
+  effectiveMonthlyPrice: number;
+}
 
 interface Plan {
   id: string;
@@ -43,9 +54,9 @@ interface Plan {
   name: string;
   description: string | null;
   tier: string;
-  basePrice: string;
-  localPrice: string;
-  currency: string;
+  basePrice: number;
+  localPrice?: string;
+  currency?: string;
   currencyCode?: string;
   billingCycle?: string;
   maxUsers: number;
@@ -53,7 +64,8 @@ interface Plan {
   featureFlags?: Record<string, boolean>;
   limits?: Record<string, number>;
   isRecommended?: boolean;
-  features: {
+  cycles?: PlanCycle[];
+  features?: {
     modules?: string[];
     addons?: string[];
     multiCurrency?: boolean;
@@ -64,6 +76,8 @@ interface Plan {
 
 interface PlansResponse {
   plans: Plan[];
+  countryCode?: string;
+  currencyCode?: string;
 }
 
 function getPlanFeatures(plan: Plan): { included: string[]; excluded: string[] } {
@@ -164,6 +178,7 @@ export default function PackagesPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [pendingUpgradePlan, setPendingUpgradePlan] = useState<Plan | null>(null);
   const [showCancelUpgradeModal, setShowCancelUpgradeModal] = useState(false);
+  const [selectedCycle, setSelectedCycle] = useState<BillingCycleKey>("monthly");
   const { tenant, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
 
@@ -205,7 +220,7 @@ export default function PackagesPage() {
   const hasRealSubscriptionError = isSubscriptionError && !isOnboardingState;
 
   const { data: plansData, isLoading, isError: isPlansError, refetch: refetchPlans } = useQuery<PlansResponse>({
-    queryKey: ["/api/billing/plans", { country: "india" }],
+    queryKey: ["/api/billing/plans-with-cycles"],
     retry: 2,
   });
 
@@ -229,7 +244,7 @@ export default function PackagesPage() {
   };
 
   const handleRetryPlans = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/billing/plans"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/billing/plans-with-cycles"] });
     refetchPlans();
   };
 
@@ -305,8 +320,8 @@ export default function PackagesPage() {
   };
 
   const changeSubscriptionMutation = useMutation({
-    mutationFn: async ({ planId, action }: { planId: string; action: "upgrade" | "downgrade" }) => {
-      const response = await apiRequest("POST", "/api/billing/subscription/change", { planId, action });
+    mutationFn: async ({ planId, action, billingCycle }: { planId: string; action: "upgrade" | "downgrade"; billingCycle?: BillingCycleKey }) => {
+      const response = await apiRequest("POST", "/api/billing/subscription/change", { planId, action, billingCycle: billingCycle || selectedCycle });
       return response.json();
     },
     onSuccess: async (data) => {
@@ -372,7 +387,7 @@ export default function PackagesPage() {
       return;
     }
     
-    const isPaidPlan = parseFloat(plan.basePrice) > 0 || plan.tier !== "free";
+    const isPaidPlan = plan.basePrice > 0 || plan.tier !== "free";
     
     if (isPaidPlan) {
       setPendingUpgradePlan(plan);
@@ -387,7 +402,32 @@ export default function PackagesPage() {
     if (!pendingUpgradePlan) return;
     setSelectedPlan(pendingUpgradePlan.id);
     setShowUpgradeModal(false);
-    changeSubscriptionMutation.mutate({ planId: pendingUpgradePlan.id, action: "upgrade" });
+    changeSubscriptionMutation.mutate({ planId: pendingUpgradePlan.id, action: "upgrade", billingCycle: selectedCycle });
+  };
+
+  const getPlanCyclePrice = (plan: Plan): { price: number; cycle: PlanCycle | null; savingsBadge?: string } => {
+    if (!plan.cycles || plan.cycles.length === 0) {
+      return { price: plan.basePrice, cycle: null };
+    }
+    const cycle = plan.cycles.find(c => c.key === selectedCycle) || plan.cycles[0];
+    return { 
+      price: cycle.price, 
+      cycle,
+      savingsBadge: cycle.savings.percent > 0 ? `Save ${cycle.savings.percent}%` : undefined
+    };
+  };
+
+  const getYearlySavingsBadge = (): string | null => {
+    if (selectedCycle === "yearly") return null;
+    const plans = plansData?.plans || [];
+    const paidPlans = plans.filter(p => p.basePrice > 0);
+    if (paidPlans.length === 0) return null;
+    
+    const yearlyCycle = paidPlans[0]?.cycles?.find(c => c.key === "yearly");
+    if (yearlyCycle && yearlyCycle.savings.percent > 0) {
+      return `Save ${yearlyCycle.savings.percent}%`;
+    }
+    return null;
   };
 
   const getComputedBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
@@ -455,7 +495,7 @@ export default function PackagesPage() {
     if (!subscriptionData?.isActive) return "select";
     if (plan.id === subscriptionData?.plan?.id) return "current";
     
-    const planPrice = parseFloat(plan.basePrice);
+    const planPrice = plan.basePrice;
     if (planPrice > currentPlanPrice) return "upgrade";
     if (planPrice < currentPlanPrice) return "downgrade";
     return "current";
@@ -514,9 +554,34 @@ export default function PackagesPage() {
           <h1 className="text-3xl md:text-4xl font-bold mb-4" data-testid="text-packages-title">
             Choose your plan
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="text-packages-subtitle">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6" data-testid="text-packages-subtitle">
             Start free and upgrade as your business grows. All plans include a 14-day trial.
           </p>
+          
+          <div className="flex items-center justify-center gap-2" data-testid="billing-cycle-toggle">
+            <Button
+              variant={selectedCycle === "monthly" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCycle("monthly")}
+              data-testid="button-cycle-monthly"
+            >
+              {lang === "hi" ? CYCLE_LABELS.monthly.hi : CYCLE_LABELS.monthly.en}
+            </Button>
+            <Button
+              variant={selectedCycle === "yearly" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCycle("yearly")}
+              className="relative"
+              data-testid="button-cycle-yearly"
+            >
+              {lang === "hi" ? CYCLE_LABELS.yearly.hi : CYCLE_LABELS.yearly.en}
+              {getYearlySavingsBadge() && selectedCycle !== "yearly" && (
+                <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs bg-green-500 text-white">
+                  {getYearlySavingsBadge()}
+                </Badge>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Only show real subscription errors AFTER tenant is resolved */}
@@ -691,11 +756,12 @@ export default function PackagesPage() {
               const isPopular = plan.isRecommended || plan.tier === "basic";
               const features = getPlanFeatures(plan);
               const isSelected = selectedPlan === plan.code || selectedPlan === plan.id;
-              const isFree = plan.tier === "free" || parseFloat(plan.basePrice) === 0;
+              const isFree = plan.tier === "free" || plan.basePrice === 0;
+              const { price: cyclePrice, cycle: activeCycle, savingsBadge } = getPlanCyclePrice(plan);
               const planAction = getPlanAction(plan);
               const isCurrentPlan = planAction === "current";
               const isPending = selectPlanMutation.isPending || changeSubscriptionMutation.isPending;
-              const billingInterval = plan.billingCycle === "yearly" ? "/year" : "/month";
+              const billingInterval = selectedCycle === "yearly" ? "/year" : "/month";
 
               return (
                 <Card 
@@ -733,10 +799,15 @@ export default function PackagesPage() {
                   <CardContent className="flex-1 pb-4">
                     <div className="text-center mb-6">
                       <span className="text-4xl font-bold" data-testid={`text-package-price-${plan.tier}`}>
-                        {formatPriceOrFree(plan.localPrice || plan.basePrice, plan.currencyCode || plan.currency || "INR")}
+                        {formatPriceOrFree(cyclePrice, plan.currencyCode || "INR")}
                       </span>
                       {!isFree && (
                         <span className="text-muted-foreground">{billingInterval}</span>
+                      )}
+                      {savingsBadge && !isFree && (
+                        <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                          {savingsBadge}
+                        </Badge>
                       )}
                     </div>
 
@@ -904,7 +975,7 @@ export default function PackagesPage() {
             name: pendingUpgradePlan.name,
             tier: pendingUpgradePlan.tier,
           }}
-          priceLabel={formatPriceOrFree(pendingUpgradePlan.basePrice, pendingUpgradePlan.currencyCode || "INR")}
+          priceLabel={formatPriceOrFree(getPlanCyclePrice(pendingUpgradePlan).price, pendingUpgradePlan.currencyCode || "INR") + (selectedCycle === "yearly" ? "/year" : "/month")}
           newBenefits={getNewBenefits(
             subscriptionData?.plan ? {
               id: subscriptionData.plan.id,
@@ -912,14 +983,12 @@ export default function PackagesPage() {
               name: subscriptionData.plan.name,
               description: null,
               tier: subscriptionData.plan.tier,
-              basePrice: subscriptionData.plan.basePrice,
-              localPrice: subscriptionData.plan.basePrice,
+              basePrice: parseFloat(subscriptionData.plan.basePrice) || 0,
               currency: "INR",
               maxUsers: subscriptionData.plan.maxUsers ?? 1,
               maxCustomers: subscriptionData.plan.maxCustomers ?? 25,
               featureFlags: subscriptionData.plan.featureFlags,
               limits: subscriptionData.plan.limits,
-              features: {},
             } : null,
             pendingUpgradePlan
           )}

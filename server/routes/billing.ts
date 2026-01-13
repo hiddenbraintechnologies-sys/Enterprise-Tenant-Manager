@@ -575,14 +575,18 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
       if (subscription) {
         const oldPlanId = subscription.planId;
         const newPlanId = subscription.pendingPlanId || payment.planId;
+        const newBillingCycle = subscription.pendingBillingCycle || subscription.currentBillingCycle || "monthly";
 
-        // Activate the upgrade: set planId to pendingPlanId, clear pending fields
+        // Activate the upgrade: set planId to pendingPlanId, update billing cycle, clear pending fields
         await db
           .update(tenantSubscriptions)
           .set({ 
             planId: newPlanId,
+            currentBillingCycle: newBillingCycle,
             pendingPlanId: null,
+            pendingBillingCycle: null,
             pendingPaymentId: null,
+            pendingQuoteAmount: null,
             status: "active",
             cancelAtPeriodEnd: false,
             lastPaymentAt: new Date(),
@@ -656,6 +660,7 @@ router.get("/pending-payment", requiredAuth, async (req: Request, res: Response)
 const changeSubscriptionSchema = z.object({
   planId: z.string().min(1),
   action: z.enum(["upgrade", "downgrade"]),
+  billingCycle: z.enum(["monthly", "quarterly", "half_yearly", "yearly"]).optional().default("monthly"),
 });
 
 router.post(
@@ -675,7 +680,7 @@ router.post(
       }
 
       const tenantId = resolution.tenantId!;
-      const { planId, action } = changeSubscriptionSchema.parse(req.body);
+      const { planId, action, billingCycle } = changeSubscriptionSchema.parse(req.body);
 
       const subscription = await getSubscription(tenantId);
       if (!subscription) {
@@ -772,6 +777,13 @@ router.post(
           });
         }
 
+        // Calculate cycle-based price
+        const planCycles = (newPlan.billingCycles || {}) as BillingCyclesMap;
+        const cycleConfig = planCycles[billingCycle as BillingCycleKey];
+        const cyclePrice = cycleConfig?.enabled && cycleConfig.price !== undefined 
+          ? cycleConfig.price.toString() 
+          : newPlan.basePrice;
+
         // Create a payment record for the upgrade
         const [payment] = await db
           .insert(billingPayments)
@@ -781,19 +793,25 @@ router.post(
             planId: newPlan.id,
             provider: "mock",
             status: "created",
-            amount: newPlan.basePrice,
-            currency: "INR",
-            metadata: { upgradeFrom: subscription.planId, upgradeTo: newPlan.id },
+            amount: cyclePrice,
+            currency: newPlan.currencyCode || "INR",
+            metadata: { 
+              upgradeFrom: subscription.planId, 
+              upgradeTo: newPlan.id,
+              billingCycle,
+            },
           })
           .returning();
 
-        // Update subscription to pending_payment status
+        // Update subscription to pending_payment status with pending billing cycle
         const [updatedSubscription] = await db
           .update(tenantSubscriptions)
           .set({
             status: "pending_payment",
             pendingPlanId: newPlan.id,
+            pendingBillingCycle: billingCycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
             pendingPaymentId: payment.id,
+            pendingQuoteAmount: cyclePrice,
             updatedAt: new Date(),
           })
           .where(eq(tenantSubscriptions.id, subscription.id))
@@ -836,6 +854,7 @@ router.post(
           .set({
             status: "downgrading",
             pendingPlanId: newPlan.id,
+            pendingBillingCycle: billingCycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
             cancelAtPeriodEnd: true,
             updatedAt: new Date(),
           })

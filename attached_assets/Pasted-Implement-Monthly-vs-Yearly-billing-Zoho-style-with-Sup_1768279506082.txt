@@ -1,0 +1,92 @@
+Implement Monthly vs Yearly billing (Zoho-style) with Super Admin control.
+
+GOAL:
+- Plans support multiple billing cycles (monthly + yearly).
+- Tenant packages page shows toggle and savings.
+- Subscriptions store selected billing cycle.
+- Paid upgrades activate only after payment success (existing rule).
+
+1) Database
+Update billing_plans table to support cycle pricing.
+
+Option A (recommended): JSON pricing map
+Add column:
+- billing_cycles jsonb NOT NULL DEFAULT '{}'::jsonb
+
+Structure example:
+{
+  "monthly": { "enabled": true, "price": 99 },
+  "yearly":  { "enabled": true, "price": 999, "badge": "Save 16%" }
+}
+
+Also add:
+- default_cycle text NOT NULL DEFAULT 'monthly'
+
+Backfill for India plans:
+- Free: monthly enabled price 0, yearly disabled or 0
+- Basic: monthly 99, yearly 999
+- Pro: monthly 199, yearly 1999
+Set default_cycle='monthly'
+
+2) API changes
+A) GET /api/billing/plans?country=IN
+Return each plan with:
+- currencyCode
+- billingCycles (monthly/yearly enabled + prices)
+- defaultCycle
+Also include computed fields:
+- yearlySavingsAmount = monthly.price*12 - yearly.price
+- yearlySavingsPercent = round((savings / (monthly*12))*100)
+
+B) POST /api/billing/quote
+Body: { planCode, cycle: "monthly"|"yearly" }
+Return: { amount, currencyCode, cycle, savingsAmount?, savingsPercent? }
+
+3) Subscription model
+Ensure subscription stores cycle:
+- billingCycle (monthly|yearly)
+- pendingBillingCycle (for pending upgrades)
+
+When upgrade requested:
+- set pendingPlanId + pendingBillingCycle
+- create Payment for quote.amount
+
+On payment success verification:
+- planId = pendingPlanId
+- billingCycle = pendingBillingCycle
+- clear pending fields
+
+4) Super Admin UI (Plan Builder)
+In Plan Builder modal add “Billing Cycles” section:
+- Monthly toggle (enabled) + price input
+- Yearly toggle (enabled) + price input
+- Show read-only computed: “Save ₹X (Y%)”
+- Allow optional badge text for yearly (e.g., “2 months free”)
+
+Validate:
+- If country=IN, currency must be INR (existing)
+- yearly price must be <= monthly*12 (otherwise warn but allow if needed)
+- Free plan yearly disabled by default
+
+5) Tenant UI (/packages)
+Add a UI toggle:
+[ Monthly ] [ Yearly (Save X%) ]
+
+When user switches toggle:
+- all plan cards update price display:
+  monthly: “₹99 / month”
+  yearly: “₹999 / year” + “Save ₹189”
+- CTA uses selected cycle:
+  upgrade POST /api/billing/subscription/change includes cycle
+
+6) Tests
+- API returns correct savings for India plans
+- quote endpoint returns correct amount
+- upgrading with yearly stores billingCycle='yearly' only after payment success
+- UI renders “Save X%” and yearly amount correctly
+
+Acceptance:
+- Tenant can select Monthly/Yearly on packages
+- Super Admin can edit yearly amounts
+- Savings are computed correctly
+- Subscription records chosen cycle
