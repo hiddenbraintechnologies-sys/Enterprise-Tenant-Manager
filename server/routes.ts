@@ -45,6 +45,7 @@ import {
   enforceDashboardLock,
   validateModuleAccess,
 } from "./core";
+import { authenticateHybrid } from "./core/auth-middleware";
 import { ssoRoutes } from "./sso";
 import { domainRoutes } from "./core/domain";
 import { complianceService } from "./core/compliance/compliance-service";
@@ -249,14 +250,22 @@ export async function registerRoutes(
   };
 
   // Module-protected middleware stack (includes tenant context resolution + subscription gating)
-  const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting") => [
-    authenticateJWT({ required: true }),
-    tenantResolutionMiddleware(),
-    enforceTenantBoundary(),
-    tenantIsolationMiddleware(),
-    requireModule(moduleIdMap[businessType] || businessType),
-    validateModuleAccess(businessType as any),
-  ];
+  // Uses hybrid auth for services routes (software_services, consulting) to support both session and JWT auth
+  const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting") => {
+    // Use hybrid auth for services routes that may be accessed via session-based dashboard
+    const authMiddleware = (businessType === "software_services" || businessType === "consulting")
+      ? authenticateHybrid({ required: true })
+      : authenticateJWT({ required: true });
+      
+    return [
+      authMiddleware,
+      tenantResolutionMiddleware(),
+      enforceTenantBoundary(),
+      tenantIsolationMiddleware(),
+      requireModule(moduleIdMap[businessType] || businessType),
+      validateModuleAccess(businessType as any),
+    ];
+  };
 
   // Register Real Estate module routes (protected)
   app.use('/api/real-estate', ...moduleProtectedMiddleware("real_estate"), realEstateRouter);
