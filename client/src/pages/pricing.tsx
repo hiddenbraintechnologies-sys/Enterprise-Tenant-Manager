@@ -21,11 +21,9 @@ import type { Lang } from "@shared/billing/i18n";
 import { CYCLE_LABELS } from "@shared/billing/types";
 import type { BillingCycleKey } from "@shared/billing/types";
 
-interface PricingPlan {
+interface PricingPlanBase {
   id: string;
   code: string;
-  name: string;
-  description: string;
   tier: string;
   price: string;
   currency: string;
@@ -34,14 +32,14 @@ interface PricingPlan {
   maxRecords: number;
   features: Record<string, boolean>;
   isPopular?: boolean;
+  nameKey: keyof typeof BILLING_STRINGS;
+  descKey: keyof typeof BILLING_STRINGS;
 }
 
-const INDIA_PLANS: PricingPlan[] = [
+const INDIA_PLANS_BASE: PricingPlanBase[] = [
   {
     id: "free",
     code: "india_free",
-    name: "Free",
-    description: "Get started with essential features",
     tier: "free",
     price: "0",
     currency: "INR",
@@ -56,12 +54,12 @@ const INDIA_PLANS: PricingPlan[] = [
       prioritySupport: false,
       unlimitedRecords: false,
     },
+    nameKey: "planNameFree",
+    descKey: "planDescFree",
   },
   {
     id: "basic",
     code: "india_basic",
-    name: "Basic",
-    description: "Perfect for growing businesses",
     tier: "basic",
     price: "99",
     currency: "INR",
@@ -79,12 +77,12 @@ const INDIA_PLANS: PricingPlan[] = [
       unlimitedRecords: false,
     },
     isPopular: true,
+    nameKey: "planNameBasic",
+    descKey: "planDescBasic",
   },
   {
     id: "pro",
     code: "india_pro",
-    name: "Pro",
-    description: "For established businesses that need more",
     tier: "pro",
     price: "199",
     currency: "INR",
@@ -101,32 +99,34 @@ const INDIA_PLANS: PricingPlan[] = [
       prioritySupport: true,
       recordLimit: false,
     },
+    nameKey: "planNamePro",
+    descKey: "planDescPro",
   },
 ];
 
-const FEATURE_LABELS: Record<string, { label: { en: string; hi: string }; icon: typeof Check }> = {
-  unlimitedRecords: { label: { en: "Unlimited records", hi: "अनलिमिटेड रिकॉर्ड्स" }, icon: Database },
-  basicAnalytics: { label: { en: "Basic analytics", hi: "बेसिक एनालिटिक्स" }, icon: Zap },
-  advancedAnalytics: { label: { en: "Advanced analytics", hi: "एडवांस्ड एनालिटिक्स" }, icon: Sparkles },
-  emailNotifications: { label: { en: "Email notifications", hi: "ईमेल नोटिफिकेशन" }, icon: MessageCircle },
-  smsNotifications: { label: { en: "SMS notifications", hi: "SMS नोटिफिकेशन" }, icon: MessageCircle },
-  whatsappAutomation: { label: { en: "WhatsApp automation", hi: "WhatsApp ऑटोमेशन" }, icon: MessageCircle },
-  gstFeatures: { label: { en: "GST invoicing", hi: "GST इनवॉइसिंग" }, icon: FileText },
-  prioritySupport: { label: { en: "Priority support", hi: "Priority सपोर्ट" }, icon: Headphones },
+type FeatureKey = "basicAnalytics" | "advancedAnalytics" | "emailNotifications" | "smsNotifications" | "whatsappAutomation" | "gstFeatures" | "prioritySupport";
+
+const FEATURE_I18N_KEYS: Record<FeatureKey, keyof typeof BILLING_STRINGS> = {
+  basicAnalytics: "basicAnalytics",
+  advancedAnalytics: "advancedAnalytics",
+  emailNotifications: "emailNotifications",
+  smsNotifications: "smsNotifications",
+  whatsappAutomation: "whatsappAutomation",
+  gstFeatures: "gstInvoicing",
+  prioritySupport: "prioritySupport",
 };
 
-const COMPARISON_FEATURES = [
-  { key: "maxUsers", label: { en: "Team members", hi: "टीम सदस्य" } },
-  { key: "maxRecords", label: { en: "Records", hi: "रिकॉर्ड्स" } },
-  { key: "basicAnalytics", label: { en: "Basic analytics", hi: "बेसिक एनालिटिक्स" } },
-  { key: "advancedAnalytics", label: { en: "Advanced analytics", hi: "एडवांस्ड एनालिटिक्स" } },
-  { key: "emailNotifications", label: { en: "Email notifications", hi: "ईमेल नोटिफिकेशन" } },
-  { key: "smsNotifications", label: { en: "SMS notifications", hi: "SMS नोटिफिकेशन" } },
-  { key: "whatsappAutomation", label: { en: "WhatsApp automation", hi: "WhatsApp ऑटोमेशन" } },
-  { key: "gstFeatures", label: { en: "GST invoicing", hi: "GST इनवॉइसिंग" } },
-  { key: "prioritySupport", label: { en: "Priority support", hi: "Priority सपोर्ट" } },
+const COMPARISON_FEATURE_KEYS: Array<{ key: string; i18nKey: keyof typeof BILLING_STRINGS }> = [
+  { key: "maxUsers", i18nKey: "teamMembers" },
+  { key: "maxRecords", i18nKey: "records" },
+  { key: "basicAnalytics", i18nKey: "basicAnalytics" },
+  { key: "advancedAnalytics", i18nKey: "advancedAnalytics" },
+  { key: "emailNotifications", i18nKey: "emailNotifications" },
+  { key: "smsNotifications", i18nKey: "smsNotifications" },
+  { key: "whatsappAutomation", i18nKey: "whatsappAutomation" },
+  { key: "gstFeatures", i18nKey: "gstInvoicing" },
+  { key: "prioritySupport", i18nKey: "prioritySupport" },
 ];
-
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
@@ -140,9 +140,7 @@ export default function PricingPage() {
   const currentTier = localStorage.getItem("subscriptionTier") || "free";
   const isLoggedIn = !!localStorage.getItem("accessToken");
 
-  const billingInterval = selectedCycle === "yearly" 
-    ? (lang === "hi" ? "/वर्ष" : "/year") 
-    : (lang === "hi" ? "/महीना" : "/month");
+  const billingInterval = selectedCycle === "yearly" ? t("perYear") : t("perMonth");
 
   const selectPlanMutation = useMutation({
     mutationFn: async (planCode: string) => {
@@ -157,11 +155,11 @@ export default function PricingPage() {
       const tier = planCode.replace("india_", "");
       localStorage.setItem("subscriptionTier", tier);
       queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
-      toast({ title: lang === "hi" ? "प्लान अपडेट हुआ" : "Plan updated", description: lang === "hi" ? "आपकी सदस्यता अपडेट हो गई।" : "Your subscription has been updated." });
+      toast({ title: t("planUpdated"), description: t("planUpdatedDesc") });
       setLocation("/dashboard");
     },
     onError: (error: Error) => {
-      toast({ title: lang === "hi" ? "प्लान अपडेट विफल" : "Failed to update plan", description: error.message, variant: "destructive" });
+      toast({ title: t("planUpdateFailed"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -182,6 +180,24 @@ export default function PricingPage() {
     pro: <Sparkles className="h-5 w-5" />,
   };
 
+  const getTeamMembersText = (maxUsers: number): string => {
+    if (maxUsers === -1) return t("unlimitedTeamMembers");
+    return `${maxUsers} ${t("teamMembers")}`;
+  };
+
+  const getRecordsText = (maxRecords: number): string => {
+    if (maxRecords === -1) return t("unlimitedRecords");
+    return `${maxRecords} ${t("records")}`;
+  };
+
+  const getLocalizedPlans = () => INDIA_PLANS_BASE.map(plan => ({
+    ...plan,
+    name: t(plan.nameKey),
+    description: t(plan.descKey),
+  }));
+
+  const localizedPlans = getLocalizedPlans();
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -201,7 +217,7 @@ export default function PricingPage() {
             <ThemeToggle />
             {!isLoggedIn && (
               <Button asChild data-testid="button-login">
-                <Link href="/login">{lang === "hi" ? "लॉगिन" : "Log in"}</Link>
+                <Link href="/login">{t("login")}</Link>
               </Button>
             )}
           </div>
@@ -211,10 +227,10 @@ export default function PricingPage() {
       <main className="container mx-auto px-4 py-12">
         <div className="text-center mb-12">
           <h1 className="text-3xl md:text-4xl font-bold mb-4" data-testid="text-pricing-title">
-            {lang === "hi" ? "सरल, पारदर्शी कीमतें" : "Simple, transparent pricing"}
+            {t("pricingTitle")}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6" data-testid="text-pricing-subtitle">
-            {lang === "hi" ? "मुफ्त में शुरू करें। जब जरूरत हो तब अपग्रेड करें। कभी भी रद्द करें।" : "Start free. Upgrade only when you need to. Cancel anytime."}
+            {t("pricingSubtitle")}
           </p>
 
           <div className="flex items-center justify-center gap-2 mb-6" data-testid="billing-cycle-toggle">
@@ -224,7 +240,7 @@ export default function PricingPage() {
               onClick={() => setSelectedCycle("monthly")}
               data-testid="button-cycle-monthly"
             >
-              {lang === "hi" ? CYCLE_LABELS.monthly.hi : CYCLE_LABELS.monthly.en}
+              {t("monthly")}
             </Button>
             <Button
               variant={selectedCycle === "yearly" ? "default" : "outline"}
@@ -233,7 +249,7 @@ export default function PricingPage() {
               className="relative"
               data-testid="button-cycle-yearly"
             >
-              {lang === "hi" ? CYCLE_LABELS.yearly.hi : CYCLE_LABELS.yearly.en}
+              {t("yearly")}
               {selectedCycle !== "yearly" && (
                 <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs bg-green-500 text-white">
                   {savingsBadgeText(lang as Lang, 20)}
@@ -244,7 +260,7 @@ export default function PricingPage() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16">
-          {INDIA_PLANS.map((plan) => (
+          {localizedPlans.map((plan) => (
             <Card 
               key={plan.id} 
               className={cn(
@@ -286,23 +302,19 @@ export default function PricingPage() {
                   <li className="flex items-center gap-2 text-sm">
                     <Users className="h-4 w-4 text-primary" />
                     <span data-testid={`text-plan-users-${plan.tier}`}>
-                      {plan.maxUsers === -1 
-                        ? (lang === "hi" ? "अनलिमिटेड टीम सदस्य" : "Unlimited team members")
-                        : (lang === "hi" ? `${plan.maxUsers} टीम सदस्य तक` : `Up to ${plan.maxUsers} team member${plan.maxUsers !== 1 ? "s" : ""}`)}
+                      {getTeamMembersText(plan.maxUsers)}
                     </span>
                   </li>
                   <li className="flex items-center gap-2 text-sm">
                     <Database className="h-4 w-4 text-primary" />
                     <span data-testid={`text-plan-records-${plan.tier}`}>
-                      {plan.maxRecords === -1 
-                        ? (lang === "hi" ? "अनलिमिटेड रिकॉर्ड्स" : "Unlimited records")
-                        : (lang === "hi" ? `${plan.maxRecords} रिकॉर्ड्स तक` : `Up to ${plan.maxRecords} records`)}
+                      {getRecordsText(plan.maxRecords)}
                     </span>
                   </li>
                   {Object.entries(plan.features).map(([key, enabled]) => {
                     if (key === "recordLimit" || key === "unlimitedRecords") return null;
-                    const feature = FEATURE_LABELS[key];
-                    if (!feature) return null;
+                    const i18nKey = FEATURE_I18N_KEYS[key as FeatureKey];
+                    if (!i18nKey) return null;
                     return (
                       <li key={key} className="flex items-center gap-2 text-sm">
                         {enabled ? (
@@ -311,7 +323,7 @@ export default function PricingPage() {
                           <X className="h-4 w-4 text-muted-foreground" />
                         )}
                         <span className={!enabled ? "text-muted-foreground" : ""}>
-                          {lang === "hi" ? feature.label.hi : feature.label.en}
+                          {t(i18nKey)}
                         </span>
                       </li>
                     );
@@ -332,7 +344,7 @@ export default function PricingPage() {
                     t("startFree")
                   ) : (
                     <>
-                      {lang === "hi" ? `${plan.name} लें` : `Get ${plan.name}`}
+                      {t("getPlan")} {plan.name}
                       <ArrowRight className="h-4 w-4 ml-1" />
                     </>
                   )}
@@ -344,14 +356,14 @@ export default function PricingPage() {
 
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl font-bold text-center mb-8">
-            {lang === "hi" ? "प्लान तुलना करें" : "Compare plans"}
+            {t("comparePlans")}
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full" data-testid="table-comparison">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-4 px-2 font-medium">{lang === "hi" ? "फीचर" : "Feature"}</th>
-                  {INDIA_PLANS.map((plan) => (
+                  <th className="text-left py-4 px-2 font-medium">{t("feature")}</th>
+                  {localizedPlans.map((plan) => (
                     <th key={plan.id} className="text-center py-4 px-4 font-medium">
                       {plan.name}
                     </th>
@@ -359,15 +371,15 @@ export default function PricingPage() {
                 </tr>
               </thead>
               <tbody>
-                {COMPARISON_FEATURES.map((feature) => (
+                {COMPARISON_FEATURE_KEYS.map((feature) => (
                   <tr key={feature.key} className="border-b">
-                    <td className="py-3 px-2 text-sm">{lang === "hi" ? feature.label.hi : feature.label.en}</td>
-                    {INDIA_PLANS.map((plan) => {
+                    <td className="py-3 px-2 text-sm">{t(feature.i18nKey)}</td>
+                    {localizedPlans.map((plan) => {
                       let value: React.ReactNode;
                       if (feature.key === "maxUsers") {
-                        value = plan.maxUsers === -1 ? (lang === "hi" ? "अनलिमिटेड" : "Unlimited") : plan.maxUsers;
+                        value = plan.maxUsers === -1 ? t("unlimited") : plan.maxUsers;
                       } else if (feature.key === "maxRecords") {
-                        value = plan.maxRecords === -1 ? (lang === "hi" ? "अनलिमिटेड" : "Unlimited") : plan.maxRecords;
+                        value = plan.maxRecords === -1 ? t("unlimited") : plan.maxRecords;
                       } else {
                         const enabled = plan.features[feature.key];
                         value = enabled ? (
@@ -391,22 +403,20 @@ export default function PricingPage() {
 
         <div className="text-center mt-16 space-y-4">
           <p className="text-muted-foreground">
-            {lang === "hi" 
-              ? "सभी कीमतें भारतीय रुपए (INR) में हैं। GST सरकारी नियमों के अनुसार लागू।" 
-              : "All prices are in Indian Rupees (INR). GST applicable as per government regulations."}
+            {t("allPricesInrWithGst")}
           </p>
           <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Check className="h-4 w-4 text-green-600" />
-              {lang === "hi" ? "क्रेडिट कार्ड की जरूरत नहीं" : "No credit card required"}
+              {t("noCreditCardRequired")}
             </span>
             <span className="flex items-center gap-1">
               <Check className="h-4 w-4 text-green-600" />
-              {lang === "hi" ? "कभी भी रद्द करें" : "Cancel anytime"}
+              {t("cancelAnytime")}
             </span>
             <span className="flex items-center gap-1">
               <Check className="h-4 w-4 text-green-600" />
-              {lang === "hi" ? "सुरक्षित पेमेंट" : "Secure payments"}
+              {t("securePayments")}
             </span>
           </div>
         </div>

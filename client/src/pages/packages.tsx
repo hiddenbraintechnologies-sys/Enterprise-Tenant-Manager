@@ -42,7 +42,11 @@ import {
   BILLING_STRINGS, 
   savingsBadgeText, 
   downgradeBannerText, 
-  t as tStr 
+  t as tStr,
+  getFeatureLabel,
+  getLimitChangeText,
+  getLimitText,
+  formatDateLocalized 
 } from "@shared/billing/i18n";
 import type { Lang } from "@shared/billing/i18n";
 
@@ -87,7 +91,7 @@ interface PlansResponse {
   currencyCode?: string;
 }
 
-function getPlanFeatures(plan: Plan): { included: string[]; excluded: string[] } {
+function getPlanFeatures(plan: Plan, lang: Lang): { included: string[]; excluded: string[] } {
   const included: string[] = [];
   const excluded: string[] = [];
   
@@ -98,21 +102,19 @@ function getPlanFeatures(plan: Plan): { included: string[]; excluded: string[] }
     const value = limits[limitItem.key];
     if (value === undefined) {
       if (limitItem.key === "users" && plan.maxUsers) {
-        const v = plan.maxUsers;
-        included.push(v === -1 ? `Unlimited ${limitItem.label.toLowerCase()}` : `${v.toLocaleString()} ${limitItem.label.toLowerCase()}`);
+        included.push(getLimitText(lang, limitItem.key, plan.maxUsers));
       } else if (limitItem.key === "customers" && plan.maxCustomers) {
-        const v = plan.maxCustomers;
-        included.push(v === -1 ? `Unlimited ${limitItem.label.toLowerCase()}` : `${v.toLocaleString()} ${limitItem.label.toLowerCase()}`);
+        included.push(getLimitText(lang, limitItem.key, plan.maxCustomers));
       }
       return;
     }
     
     if (value === -1) {
-      included.push(`Unlimited ${limitItem.label.toLowerCase()}`);
+      included.push(getLimitText(lang, limitItem.key, value));
     } else if (value === 0) {
       // Skip limits set to 0 - not included in plan
     } else {
-      included.push(`${value.toLocaleString()} ${limitItem.label.toLowerCase()}`);
+      included.push(getLimitText(lang, limitItem.key, value));
     }
   });
   
@@ -121,9 +123,9 @@ function getPlanFeatures(plan: Plan): { included: string[]; excluded: string[] }
     
     const flagValue = featureFlags[feature.key];
     if (flagValue === true) {
-      included.push(feature.label);
+      included.push(getFeatureLabel(lang, feature.key));
     } else if (flagValue === false) {
-      excluded.push(feature.label);
+      excluded.push(getFeatureLabel(lang, feature.key));
     }
   });
   
@@ -268,7 +270,7 @@ export default function PackagesPage() {
       // Handle case where user needs to create tenant first
       if (data.requiresTenantSetup) {
         localStorage.setItem("pendingPlanCode", data.pendingPlanCode || "");
-        toast({ title: "Business setup required", description: "Please complete your business details first." });
+        toast({ title: tStr(lang as Lang, "businessSetupRequired"), description: tStr(lang as Lang, "completeBusinessDetails") });
         setLocation(data.redirectUrl || "/tenant-signup");
         return;
       }
@@ -276,7 +278,7 @@ export default function PackagesPage() {
       if (data.requiresPayment) {
         localStorage.setItem("pendingPaymentId", data.payment?.id || "");
         localStorage.setItem("pendingPlanCode", data.plan?.code || "");
-        toast({ title: "Plan selected", description: "Proceed to payment to activate your subscription." });
+        toast({ title: tStr(lang as Lang, "planSelectedTitle"), description: tStr(lang as Lang, "planSelectedDesc") });
         setLocation("/checkout");
       } else if (data.success) {
         localStorage.setItem("subscriptionStatus", "active");
@@ -291,7 +293,7 @@ export default function PackagesPage() {
         // Refetch and wait for the data to be active
         const result = await refetchSubscription();
         
-        toast({ title: "Plan activated", description: `Your ${data.plan?.name || "Free"} plan is now active.` });
+        toast({ title: tStr(lang as Lang, "planActivated"), description: `${data.plan?.name || tStr(lang as Lang, "planNameFree")} ${tStr(lang as Lang, "planIsNowActive")}` });
         
         // Navigate to business-type-specific dashboard
         const businessType = tenant?.businessType || "service";
@@ -309,14 +311,14 @@ export default function PackagesPage() {
       }
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
       setSelectedPlan(null);
     },
   });
 
   const handleSelectPlan = (planCode: string) => {
     if (!isAuthenticated) {
-      toast({ title: "Please log in", description: "You need to be logged in to select a plan.", variant: "destructive" });
+      toast({ title: tStr(lang as Lang, "pleaseLogIn"), description: tStr(lang as Lang, "needToLogInSelect"), variant: "destructive" });
       setLocation("/login");
       return;
     }
@@ -335,25 +337,24 @@ export default function PackagesPage() {
       await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
       
       if (data.requiresPayment) {
-        toast({ title: "Upgrade initiated", description: "Proceed to payment to complete upgrade." });
+        toast({ title: tStr(lang as Lang, "upgradeInitiated"), description: tStr(lang as Lang, "proceedToPayment") });
         setLocation("/checkout");
       } else if (data.effectiveAt) {
-        const effectiveDate = new Date(data.effectiveAt).toLocaleDateString("en-IN", { 
-          day: "numeric", month: "long", year: "numeric" 
-        });
+        const effectiveDate = formatDateLocalized(lang as Lang, data.effectiveAt);
+        const targetPlanName = pendingDowngradePlan?.name || "";
         toast({ 
-          title: "Downgrade scheduled", 
-          description: `Your plan will change on ${effectiveDate}. You'll keep your current features until then.` 
+          title: tStr(lang as Lang, "downgradeScheduled"), 
+          description: downgradeBannerText(lang as Lang, targetPlanName, effectiveDate)
         });
         setShowDowngradeModal(false);
         setPendingDowngradePlan(null);
       } else {
-        toast({ title: "Plan changed", description: "Your subscription has been updated." });
+        toast({ title: tStr(lang as Lang, "planChanged"), description: tStr(lang as Lang, "subscriptionUpdated") });
       }
       setSelectedPlan(null);
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
       setSelectedPlan(null);
       setShowDowngradeModal(false);
     },
@@ -366,10 +367,10 @@ export default function PackagesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
-      toast({ title: "Downgrade cancelled", description: "Your subscription will continue as usual." });
+      toast({ title: tStr(lang as Lang, "downgradeCancelledTitle"), description: tStr(lang as Lang, "downgradeCancelledDesc") });
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -381,16 +382,16 @@ export default function PackagesPage() {
     onSuccess: async () => {
       setShowCancelUpgradeModal(false);
       await queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
-      toast({ title: "Upgrade cancelled", description: "Your current plan remains active. You can upgrade again anytime." });
+      toast({ title: tStr(lang as Lang, "upgradeCancelledTitle"), description: tStr(lang as Lang, "upgradeCancelledDesc") });
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: tStr(lang as Lang, "errorTitle"), description: error.message, variant: "destructive" });
     },
   });
 
   const handleUpgrade = (plan: Plan) => {
     if (!isAuthenticated) {
-      toast({ title: "Please log in", description: "You need to be logged in to upgrade.", variant: "destructive" });
+      toast({ title: tStr(lang as Lang, "pleaseLogIn"), description: tStr(lang as Lang, "needToLogInUpgrade"), variant: "destructive" });
       return;
     }
     
@@ -420,7 +421,7 @@ export default function PackagesPage() {
     return { 
       price: cycle.price, 
       cycle,
-      savingsBadge: cycle.savings.percent > 0 ? `Save ${cycle.savings.percent}%` : undefined
+      savingsBadge: cycle.savings.percent > 0 ? savingsBadgeText(lang as Lang, cycle.savings.percent) : undefined
     };
   };
 
@@ -438,9 +439,7 @@ export default function PackagesPage() {
   };
 
   const t = (key: keyof typeof BILLING_STRINGS): string => tStr(lang as Lang, key);
-  const billingInterval = selectedCycle === "yearly" 
-    ? (lang === "hi" ? "/वर्ष" : "/year") 
-    : (lang === "hi" ? "/महीना" : "/month");
+  const billingInterval = selectedCycle === "yearly" ? t("perYear") : t("perMonth");
 
   const getComputedBenefits = (currentPlan: Plan | null, targetPlan: Plan): { label: string; description?: string }[] => {
     const benefits: { label: string; description?: string }[] = [];
@@ -452,24 +451,20 @@ export default function PackagesPage() {
     FEATURE_CATALOG.forEach((feature) => {
       if (feature.key === "record_limit" || feature.key === "unlimited_records") return;
       if (targetFlags[feature.key] === true && currentFlags[feature.key] !== true) {
-        benefits.push({ label: feature.label, description: feature.description });
+        benefits.push({ label: getFeatureLabel(lang as Lang, feature.key) });
       }
     });
     
     const currentUsers = currentLimits.users ?? currentPlan?.maxUsers ?? 1;
     const targetUsers = targetLimits.users ?? targetPlan.maxUsers;
     if (targetUsers > currentUsers || targetUsers === -1) {
-      const fromStr = currentUsers === -1 ? "Unlimited" : String(currentUsers);
-      const toStr = targetUsers === -1 ? "Unlimited" : String(targetUsers);
-      benefits.push({ label: `Users: ${fromStr} → ${toStr}` });
+      benefits.push({ label: getLimitChangeText(lang as Lang, "users", currentUsers, targetUsers) });
     }
     
     const currentRecords = currentLimits.records ?? 50;
     const targetRecords = targetLimits.records ?? 50;
     if (targetRecords > currentRecords || targetRecords === -1) {
-      const fromStr = currentRecords === -1 ? "Unlimited" : String(currentRecords);
-      const toStr = targetRecords === -1 ? "Unlimited" : String(targetRecords);
-      benefits.push({ label: `Records: ${fromStr} → ${toStr}` });
+      benefits.push({ label: getLimitChangeText(lang as Lang, "records", currentRecords, targetRecords) });
     }
     
     return benefits;
@@ -487,7 +482,7 @@ export default function PackagesPage() {
 
   const handleDowngrade = (plan: Plan) => {
     if (!isAuthenticated) {
-      toast({ title: "Please log in", description: "You need to be logged in to downgrade.", variant: "destructive" });
+      toast({ title: tStr(lang as Lang, "pleaseLogIn"), description: tStr(lang as Lang, "needToLogInDowngrade"), variant: "destructive" });
       return;
     }
     setPendingDowngradePlan(plan);
@@ -638,8 +633,8 @@ export default function PackagesPage() {
                       lang as Lang,
                       subscriptionData.pendingPlan.name,
                       subscriptionData.currentPeriodEnd 
-                        ? new Date(subscriptionData.currentPeriodEnd).toLocaleDateString(lang === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "long", year: "numeric" }) 
-                        : (lang === "hi" ? "अगली बिलिंग तारीख" : "your next billing date")
+                        ? formatDateLocalized(lang as Lang, subscriptionData.currentPeriodEnd)
+                        : t("effectiveOn")
                     )}
                   </span>
                 </div>
@@ -654,7 +649,7 @@ export default function PackagesPage() {
                     }}
                     data-testid="button-change-downgrade-plan"
                   >
-                    {lang === "hi" ? "डाउनग्रेड प्लान बदलें" : "Change downgrade plan"}
+                    {t("changeDowngradePlan")}
                   </Button>
                   <Button 
                     variant="outline" 
@@ -684,12 +679,12 @@ export default function PackagesPage() {
                   {t("currentPlan")}: {subscriptionData?.plan?.name || "Active"}
                 </span>
                 <span className="block text-sm text-muted-foreground mt-1">
-                  {lang === "hi" ? "आपकी सदस्यता सक्रिय है।" : "Your subscription is active."}
+                  {t("subscriptionActive")}
                 </span>
               </div>
               <Link href={DASHBOARD_ROUTES[tenant?.businessType || "service"] || "/dashboard/service"}>
                 <Button variant="outline" size="sm" data-testid="button-go-to-dashboard">
-                  {lang === "hi" ? "डैशबोर्ड पर जाएं" : "Go to dashboard"}
+                  {t("goToDashboard")}
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </Link>
@@ -704,12 +699,10 @@ export default function PackagesPage() {
             <AlertDescription className="flex flex-col gap-3">
               <div>
                 <span className="font-medium text-yellow-700 dark:text-yellow-300">
-                  {lang === "hi" 
-                    ? `${subscriptionData?.pendingPlan?.name || "अपग्रेड"} के लिए पेमेंट पेंडिंग` 
-                    : `Upgrade pending for ${subscriptionData?.pendingPlan?.name || "upgrade"}`}
+                  {t("upgradePendingFor")} {subscriptionData?.pendingPlan?.name || t("upgrade")}
                 </span>
                 <span className="block text-sm text-muted-foreground mt-1">
-                  {lang === "hi" ? "सदस्यता सक्रिय करने के लिए पेमेंट पूरा करें।" : "Complete payment to activate your subscription."}
+                  {t("completePaymentToActivate")}
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -737,11 +730,9 @@ export default function PackagesPage() {
         {showNoSubscriptionPrompt && !subscriptionData?.isActive && subscriptionData?.status?.toLowerCase() !== "pending_payment" && (
           <Alert className="max-w-md mx-auto mb-6 border-primary/50 bg-primary/5">
             <AlertDescription className="text-center">
-              <span className="font-medium">{lang === "hi" ? "शुरू करने के लिए एक प्लान चुनें।" : "Choose a plan to get started."}</span>
+              <span className="font-medium">{t("chooseToGetStarted")}</span>
               <span className="block text-sm text-muted-foreground mt-1">
-                {lang === "hi" 
-                  ? "तुरंत शुरू करने के लिए Free चुनें, या अधिक फीचर्स के लिए पेड प्लान।" 
-                  : "Select Free to start immediately, or choose a paid plan for more features."}
+                {t("selectFreeOrPaid")}
               </span>
             </AlertDescription>
           </Alert>
@@ -774,7 +765,7 @@ export default function PackagesPage() {
           <div id="plans-section" className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {displayPlans.map((plan) => {
               const isPopular = plan.isRecommended || plan.tier === "basic";
-              const features = getPlanFeatures(plan);
+              const features = getPlanFeatures(plan, lang as Lang);
               const isSelected = selectedPlan === plan.code || selectedPlan === plan.id;
               const isFree = plan.tier === "free" || plan.basePrice === 0;
               const { price: cyclePrice, cycle: activeCycle, savingsBadge } = getPlanCyclePrice(plan);
@@ -815,7 +806,7 @@ export default function PackagesPage() {
                       {plan.name}
                     </CardTitle>
                     <CardDescription data-testid={`text-package-desc-${plan.tier}`}>
-                      {plan.description || `Perfect for ${plan.tier} users`}
+                      {plan.description || t("perfectForUsers")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1 pb-4">
@@ -906,7 +897,7 @@ export default function PackagesPage() {
                           ) : subscriptionData?.isDowngrading ? (
                             <>
                               <ArrowDown className="h-4 w-4 mr-2" />
-                              {lang === "hi" ? "इस प्लान में बदलें" : "Change to this plan"}
+                              {t("changeToThisPlan")}
                             </>
                           ) : (
                             <>
@@ -933,7 +924,7 @@ export default function PackagesPage() {
                           t("startFree")
                         ) : (
                           <>
-                            {lang === "hi" ? `${plan.name} लें` : `Get ${plan.name}`}
+                            {t("getPlan")} {plan.name}
                             <ArrowRight className="h-4 w-4 ml-1" />
                           </>
                         )}
@@ -947,8 +938,8 @@ export default function PackagesPage() {
         )}
 
         <div className="mt-12 text-center text-sm text-muted-foreground">
-          <p>{lang === "hi" ? "सभी कीमतें INR में हैं और जहां लागू हो वहां GST शामिल है।" : "All prices are in INR and include GST where applicable."}</p>
-          <p className="mt-1">{lang === "hi" ? "आप कभी भी अपग्रेड या डाउनग्रेड कर सकते हैं।" : "You can upgrade or downgrade at any time."}</p>
+          <p>{t("allPricesInr")}</p>
+          <p className="mt-1">{t("upgradeDowngradeAnytime")}</p>
         </div>
       </main>
 
@@ -1038,7 +1029,7 @@ export default function PackagesPage() {
               onClick={() => setShowCancelUpgradeModal(false)}
               data-testid="button-dismiss-cancel-upgrade-modal"
             >
-              {lang === "hi" ? "अपग्रेड रखें" : "Keep upgrade"}
+              {t("keepUpgrade")}
             </Button>
             <Button 
               variant="destructive"
@@ -1049,7 +1040,7 @@ export default function PackagesPage() {
               {cancelUpgradeMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {lang === "hi" ? "रद्द हो रहा है..." : "Cancelling..."}
+                  {t("cancelling")}
                 </>
               ) : (
                 t("cancelUpgrade")

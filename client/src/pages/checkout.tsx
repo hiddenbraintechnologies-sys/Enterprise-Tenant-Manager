@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
-import { BILLING_STRINGS, t as tStr } from "@shared/billing/i18n";
+import { BILLING_STRINGS, t as tStr, getTierLabel } from "@shared/billing/i18n";
 import type { Lang } from "@shared/billing/i18n";
 
 declare global {
@@ -143,21 +143,14 @@ export default function CheckoutPage() {
       localStorage.setItem("subscriptionStatus", "active");
       localStorage.removeItem("pendingPaymentId");
       localStorage.removeItem("pendingPlanCode");
-      toast({ 
-        title: lang === "hi" ? "पेमेंट सफल" : "Payment successful", 
-        description: lang === "hi" ? "आपकी सदस्यता अब सक्रिय है।" : "Your subscription is now active." 
-      });
+      toast({ title: t("paymentSuccess"), description: t("subscriptionNowActive") });
       setTimeout(() => {
         setLocation(data.redirectUrl || "/dashboard");
       }, 2000);
     },
     onError: (error: Error) => {
       setPaymentStatus("failed");
-      toast({ 
-        title: lang === "hi" ? "पेमेंट सत्यापन विफल" : "Payment verification failed", 
-        description: error.message, 
-        variant: "destructive" 
-      });
+      toast({ title: t("paymentVerificationFailed"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -181,38 +174,23 @@ export default function CheckoutPage() {
       localStorage.setItem("subscriptionStatus", "active");
       localStorage.removeItem("pendingPaymentId");
       localStorage.removeItem("pendingPlanCode");
-      toast({ 
-        title: lang === "hi" ? "पेमेंट सफल" : "Payment successful", 
-        description: lang === "hi" ? "आपकी सदस्यता अब सक्रिय है।" : "Your subscription is now active." 
-      });
+      toast({ title: t("paymentSuccess"), description: t("subscriptionNowActive") });
       setTimeout(() => {
         setLocation(data.redirectUrl || "/dashboard");
       }, 2000);
     },
     onError: (error: Error) => {
       setPaymentStatus("failed");
-      toast({ 
-        title: lang === "hi" ? "पेमेंट विफल" : "Payment failed", 
-        description: error.message, 
-        variant: "destructive" 
-      });
+      toast({ title: t("paymentFailed"), description: error.message, variant: "destructive" });
     },
   });
 
   const handleRazorpayPayment = useCallback(async () => {
     if (!razorpayLoaded) {
-      toast({ 
-        title: lang === "hi" ? "पेमेंट लोड हो रहा है" : "Loading payment", 
-        description: lang === "hi" ? "कृपया प्रतीक्षा करें..." : "Please wait...", 
-        variant: "default" 
-      });
+      toast({ title: t("loadingPayment"), description: t("pleaseWait"), variant: "default" });
       const loaded = await loadRazorpayScript();
       if (!loaded) {
-        toast({ 
-          title: lang === "hi" ? "त्रुटि" : "Error", 
-          description: lang === "hi" ? "पेमेंट गेटवे लोड करने में विफल" : "Failed to load payment gateway", 
-          variant: "destructive" 
-        });
+        toast({ title: t("error"), description: t("failedToLoadPaymentGateway"), variant: "destructive" });
         return;
       }
     }
@@ -227,7 +205,7 @@ export default function CheckoutPage() {
         amount: orderData.amount,
         currency: orderData.currency,
         name: "MyBizStream",
-        description: `${orderData.plan?.name || "Plan"} Subscription`,
+        description: `${orderData.plan?.name || t("plan")} ${t("planSubscription")}`,
         order_id: orderData.orderId,
         handler: async function (response: {
           razorpay_order_id: string;
@@ -250,11 +228,7 @@ export default function CheckoutPage() {
         modal: {
           ondismiss: function () {
             setPaymentStatus("idle");
-            toast({
-              title: lang === "hi" ? "पेमेंट रद्द" : "Payment cancelled",
-              description: lang === "hi" ? "आप फिर से कोशिश कर सकते हैं या अपग्रेड रद्द कर सकते हैं।" : "You can try again or cancel the upgrade.",
-              variant: "default",
-            });
+            toast({ title: t("paymentCancelled"), description: t("paymentCancelledDesc"), variant: "default" });
           },
         },
       };
@@ -262,22 +236,14 @@ export default function CheckoutPage() {
       const razorpay = new window.Razorpay(options);
       razorpay.on("payment.failed", function (response: any) {
         setPaymentStatus("failed");
-        toast({
-          title: lang === "hi" ? "पेमेंट विफल" : "Payment failed",
-          description: response.error?.description || (lang === "hi" ? "कृपया फिर से कोशिश करें" : "Please try again"),
-          variant: "destructive",
-        });
+        toast({ title: t("paymentFailed"), description: response.error?.description || t("pleaseRetry"), variant: "destructive" });
       });
       razorpay.open();
     } catch (error: any) {
       setPaymentStatus("failed");
-      toast({
-        title: lang === "hi" ? "त्रुटि" : "Error",
-        description: error.message || (lang === "hi" ? "पेमेंट शुरू करने में विफल" : "Failed to initiate payment"),
-        variant: "destructive",
-      });
+      toast({ title: t("error"), description: error.message || t("failedToInitiatePayment"), variant: "destructive" });
     }
-  }, [razorpayLoaded, createRazorpayOrderMutation, verifyRazorpayMutation, toast, lang]);
+  }, [razorpayLoaded, createRazorpayOrderMutation, verifyRazorpayMutation, toast, t]);
 
   useEffect(() => {
     if (pendingData?.payment && !createCheckoutMutation.data) {
@@ -345,19 +311,17 @@ export default function CheckoutPage() {
             <CardHeader className="text-center">
               <XCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <CardTitle data-testid="text-payment-cancelled">
-                {lang === "hi" ? "पेमेंट रद्द हो गया" : "Payment was cancelled"}
+                {t("paymentWasCancelled")}
               </CardTitle>
               <CardDescription>
-                {lang === "hi" 
-                  ? "यह पेमेंट रद्द कर दिया गया है। फिर से अपग्रेड करने के लिए प्लान पर वापस जाएं।" 
-                  : "This payment has been cancelled. Return to plans to upgrade again."}
+                {t("paymentCancelledReturnToPlans")}
               </CardDescription>
             </CardHeader>
             <CardFooter>
               <Button className="w-full" asChild data-testid="button-back-to-plans">
                 <Link href="/packages">
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  {lang === "hi" ? "प्लान पर वापस जाएं" : "Back to plans"}
+                  {t("backToPlans")}
                 </Link>
               </Button>
             </CardFooter>
@@ -384,12 +348,10 @@ export default function CheckoutPage() {
             <CardHeader className="text-center">
               <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <CardTitle>
-                {lang === "hi" ? "कोई पेंडिंग पेमेंट नहीं" : "No pending payment"}
+                {t("noPendingPayment")}
               </CardTitle>
               <CardDescription>
-                {lang === "hi" 
-                  ? "कोई पेमेंट पेंडिंग नहीं है। कृपया पहले एक प्लान चुनें।" 
-                  : "There is no payment pending. Please select a plan first."}
+                {t("noPendingPaymentDesc")}
               </CardDescription>
             </CardHeader>
             <CardFooter>
@@ -417,7 +379,7 @@ export default function CheckoutPage() {
               </Link>
             </Button>
             <h1 className="text-xl font-bold">
-              {lang === "hi" ? "चेकआउट" : "Checkout"}
+              {t("checkout")}
             </h1>
           </div>
           <div className="flex items-center gap-3">
@@ -433,12 +395,10 @@ export default function CheckoutPage() {
             <CardContent className="pt-6 text-center">
               <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
               <h2 className="text-xl font-bold mb-2" data-testid="text-payment-success">
-                {lang === "hi" ? "पेमेंट सफल!" : "Payment Successful!"}
+                {t("paymentSuccessful")}
               </h2>
               <p className="text-muted-foreground">
-                {lang === "hi" 
-                  ? "आपकी सदस्यता अब सक्रिय है। डैशबोर्ड पर रीडायरेक्ट हो रहा है..." 
-                  : "Your subscription is now active. Redirecting to dashboard..."}
+                {t("redirectingToDashboard")}
               </p>
             </CardContent>
           </Card>
@@ -448,9 +408,7 @@ export default function CheckoutPage() {
           <Alert variant="destructive" className="mb-6">
             <XCircle className="h-4 w-4" />
             <AlertDescription>
-              {lang === "hi" 
-                ? "पेमेंट विफल। कृपया फिर से कोशिश करें या सपोर्ट से संपर्क करें।" 
-                : "Payment failed. Please try again or contact support."}
+              {t("paymentFailedRetry")}
             </AlertDescription>
           </Alert>
         )}
@@ -458,22 +416,20 @@ export default function CheckoutPage() {
         <Card>
           <CardHeader>
             <CardTitle data-testid="text-checkout-title">
-              {lang === "hi" ? "अपनी खरीदारी पूरी करें" : "Complete your purchase"}
+              {t("completeYourPurchase")}
             </CardTitle>
             <CardDescription data-testid="text-checkout-plan">
-              {lang === "hi" 
-                ? <>आप <strong>{plan.name}</strong> प्लान की सदस्यता ले रहे हैं</>
-                : <>You're subscribing to the <strong>{plan.name}</strong> plan</>}
+              {t("subscribingToPlan")} <strong>{plan.name}</strong> {t("subscribingToPlanSuffix")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">{plan.name} {lang === "hi" ? "प्लान" : "Plan"}</span>
-                <Badge variant="secondary">{plan.tier}</Badge>
+                <span className="font-medium">{plan.name} {t("plan")}</span>
+                <Badge variant="secondary">{getTierLabel(lang as Lang, plan.tier)}</Badge>
               </div>
               <div className="flex justify-between items-center text-sm text-muted-foreground">
-                <span>{lang === "hi" ? "मासिक सदस्यता" : "Monthly subscription"}</span>
+                <span>{t("monthlySubscription")}</span>
                 <span data-testid="text-checkout-amount">
                   {formatPrice(payment.amount, payment.currency)}
                 </span>
@@ -492,24 +448,22 @@ export default function CheckoutPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <CreditCard className="h-5 w-5" />
                   <span className="font-medium">
-                    {lang === "hi" ? "टेस्ट पेमेंट मोड" : "Test Payment Mode"}
+                    {t("testPaymentMode")}
                   </span>
                   <Badge variant="outline" className="ml-auto">
-                    {lang === "hi" ? "डेवलपमेंट" : "Development"}
+                    {t("development")}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
-                  {lang === "hi" 
-                    ? "यह एक टेस्ट वातावरण है। पेमेंट सिम्युलेट करने के लिए नीचे दिए गए बटन का उपयोग करें।" 
-                    : "This is a test environment. Use the buttons below to simulate payment."}
+                  {t("testEnvironmentDesc")}
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="upi-ref">
-                    {lang === "hi" ? "UPI रेफरेंस (वैकल्पिक)" : "UPI Reference (optional)"}
+                    {t("upiRefOptional")}
                   </Label>
                   <Input
                     id="upi-ref"
-                    placeholder={lang === "hi" ? "कोई भी रेफरेंस डालें" : "Enter any reference"}
+                    placeholder={t("enterAnyRef")}
                     value={mockUpiRef}
                     onChange={(e) => setMockUpiRef(e.target.value)}
                     disabled={paymentStatus !== "idle"}
@@ -524,16 +478,14 @@ export default function CheckoutPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <CreditCard className="h-5 w-5" />
                   <span className="font-medium">
-                    {lang === "hi" ? "Razorpay से पे करें" : "Pay with Razorpay"}
+                    {t("payWithRazorpay")}
                   </span>
                   <Badge variant="outline" className="ml-auto">
-                    {lang === "hi" ? "सुरक्षित" : "Secure"}
+                    {t("secure")}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {lang === "hi" 
-                    ? "UPI, कार्ड, नेट बैंकिंग, या वॉलेट से सुरक्षित पेमेंट करें।" 
-                    : "Pay securely using UPI, Cards, Net Banking, or Wallets."}
+                  {t("paySecurelyUsingRazorpay")}
                 </p>
               </div>
             )}
@@ -541,9 +493,7 @@ export default function CheckoutPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Lock className="h-4 w-4" />
               <span>
-                {lang === "hi" 
-                  ? "आपका पेमेंट 256-bit एन्क्रिप्शन से सुरक्षित है" 
-                  : "Your payment is secured with 256-bit encryption"}
+                {t("paymentSecured256Bit")}
               </span>
             </div>
           </CardContent>
@@ -564,7 +514,7 @@ export default function CheckoutPage() {
                   ) : (
                     <>
                       <Shield className="h-4 w-4 mr-2" />
-                      {lang === "hi" ? "सफल पेमेंट सिम्युलेट करें" : "Simulate Successful Payment"}
+                      {t("simulateSuccess")}
                     </>
                   )}
                 </Button>
@@ -575,7 +525,7 @@ export default function CheckoutPage() {
                   onClick={() => handleMockPayment(false)}
                   data-testid="button-mock-pay-fail"
                 >
-                  {lang === "hi" ? "विफल पेमेंट सिम्युलेट करें" : "Simulate Failed Payment"}
+                  {t("simulateFailed")}
                 </Button>
               </>
             ) : (
@@ -598,7 +548,7 @@ export default function CheckoutPage() {
                 ) : (
                   <>
                     <CreditCard className="h-4 w-4 mr-2" />
-                    {lang === "hi" ? `पे करें ${formatPrice(payment.amount, payment.currency)}` : `Pay ${formatPrice(payment.amount, payment.currency)}`}
+                    {t("payAmount")} {formatPrice(payment.amount, payment.currency)}
                   </>
                 )}
               </Button>
@@ -607,9 +557,7 @@ export default function CheckoutPage() {
         </Card>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          {lang === "hi" 
-            ? "इस खरीदारी को पूरा करके, आप हमारी सेवा की शर्तों और गोपनीयता नीति से सहमत होते हैं।" 
-            : "By completing this purchase, you agree to our Terms of Service and Privacy Policy."}
+          {t("termsAgreement")}
         </p>
       </main>
     </div>
