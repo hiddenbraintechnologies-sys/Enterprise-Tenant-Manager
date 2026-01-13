@@ -223,6 +223,30 @@ export async function registerRoutes(
         tokenPayloadPresent: Boolean(req.tokenPayload),
       });
     });
+    
+    // Debug endpoint for hybrid auth testing (session + JWT)
+    app.get("/api/debug/hybrid-auth", authenticateHybrid({ required: false }), async (req: any, res) => {
+      const hasAuthHeader = Boolean(req.headers.authorization?.startsWith("Bearer "));
+      const isSessionAuth = Boolean(req.isAuthenticated?.() && req.user);
+      
+      const context = req.context;
+      const replitUser = req.user;
+      
+      res.json({
+        path: req.path,
+        method: req.method,
+        hasAuthHeader,
+        isSessionAuth,
+        contextPopulated: Boolean(context?.user),
+        contextUserId: context?.user?.id ? `...${context.user.id.slice(-6)}` : null,
+        contextTenantId: context?.tenant?.id ? `...${context.tenant.id.slice(-6)}` : null,
+        contextTenantName: context?.tenant?.name || null,
+        contextRole: context?.role?.name || null,
+        replitUserId: replitUser?.claims?.sub ? `...${replitUser.claims.sub.slice(-6)}` : null,
+        replitEmail: replitUser?.claims?.email || replitUser?.email || null,
+        featureCount: context?.features?.length || 0,
+      });
+    });
   }
   
   // Register domain management routes
