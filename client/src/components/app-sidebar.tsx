@@ -178,7 +178,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
   const { t } = useTranslation();
   const { user, logout, isLoggingOut, businessType: authBusinessType } = useAuth();
-  const { canAccessModule, getModuleAccessInfo } = useModuleAccess();
+  const { canAccessModule, getModuleAccessInfo, isFreePlan } = useModuleAccess();
 
   const effectiveBusinessType = (businessType || authBusinessType || "service") as BusinessType;
   const mainNavItems = NAV_ITEMS_BY_BUSINESS_TYPE[effectiveBusinessType] || NAV_ITEMS_BY_BUSINESS_TYPE.service;
@@ -187,6 +187,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const isModuleGated = MODULE_GATED_BUSINESS_TYPES.includes(effectiveBusinessType);
   const hasModuleAccess = !isModuleGated || canAccessModule(effectiveBusinessType);
   const moduleAccessInfo = getModuleAccessInfo(effectiveBusinessType);
+  const shouldHideModules = isModuleGated && isFreePlan() && !hasModuleAccess;
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -233,6 +234,18 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))
+              ) : shouldHideModules ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link 
+                      href={`/packages?reason=upgrade&module=${encodeURIComponent(effectiveBusinessType)}`}
+                      data-testid="link-upgrade-plan"
+                    >
+                      <Package className="h-4 w-4" />
+                      <span>{t("lockedFeature.upgradeButton")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               ) : (
                 <>
                   <SidebarMenuItem>

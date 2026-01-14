@@ -89,8 +89,8 @@ export function DowngradeConfirmModal({
 
   const subtitle = t(
     lang,
-    `Your downgrade will take effect on ${formattedDate}. You'll keep your current features until then.`,
-    `आपका डाउनग्रेड ${formattedDate} से लागू होगा। तब तक आप अपने मौजूदा फीचर्स इस्तेमाल कर सकते हैं।`
+    `Downgrade scheduled. Your plan will change on ${formattedDate}. No data will be lost.`,
+    `Downgrade शेड्यूल हो गया है। आपका प्लान ${formattedDate} को बदलेगा। डेटा सुरक्षित रहेगा।`
   );
 
   return (

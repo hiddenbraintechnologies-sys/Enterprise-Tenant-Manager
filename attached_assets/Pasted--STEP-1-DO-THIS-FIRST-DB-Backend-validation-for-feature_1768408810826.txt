@@ -1,0 +1,184 @@
+✅ STEP 1 (DO THIS FIRST)
+DB + Backend validation for feature_flags & limits
+🎯 Goal
+
+Ensure no invalid plan can ever be saved (security + billing correctness).
+
+Replit Prompt
+Add backend validation for pricing plan feature_flags and limits.
+
+Requirements:
+1) Create a single source of truth:
+   - FEATURE_CATALOG (allowed feature keys)
+   - LIMIT_CATALOG (allowed limit keys)
+
+Example:
+FEATURE_CATALOG = [
+  "consulting",
+  "software_services",
+  "invoicing",
+  "gst_features",
+  "email_notifications",
+  "sms_notifications",
+  "whatsapp_automation",
+  "analytics_basic",
+  "analytics_advanced",
+  "priority_support",
+  "custom_roles"
+]
+
+LIMIT_CATALOG = [
+  "users",
+  "clients",
+  "records",
+  "projects",
+  "invoices_per_month",
+  "storage_mb"
+]
+
+2) Validate on plan CREATE & UPDATE:
+   - Reject unknown feature keys
+   - Reject unknown limit keys
+   - Ensure all values are boolean (features)
+   - Ensure limits are integers or -1 (Unlimited)
+   - Ensure Free plan cannot enable:
+     - software_services
+     - invoicing
+     - whatsapp_automation
+
+3) India-specific enforcement:
+   - country_code = "IN" → currency_code MUST be "INR"
+   - base_price must be 0 / 99 / 199 unless explicitly overridden by super admin
+
+4) Add tests:
+   - invalid feature key → 400
+   - invalid limit value → 400
+   - Free plan with software_services=true → 400
+
+
+✅ This locks billing correctness forever.
+
+✅ STEP 2
+Super Admin Plan Builder UI (checkbox → JSON mapping)
+🎯 Goal
+
+Let Super Admin visually manage plans without touching JSON.
+
+Replit Prompt
+Enhance Super Admin Pricing Plan Builder UI.
+
+Tasks:
+1) Render feature_flags as grouped checkboxes:
+   - Core Modules
+   - Notifications
+   - Analytics
+   - Support
+
+2) Render limits as numeric inputs:
+   - Allow -1 with label "Unlimited"
+   - Show helper text for each limit
+
+3) Add safety UX:
+   - Disable software_services checkbox when plan is Free
+   - Show warning if downgrading removes active features from tenants
+
+4) Show live preview:
+   - "This plan enables: Consulting, Software Services, GST…"
+   - "Limits: 3 users, 500 records"
+
+5) Persist exactly to feature_flags & limits JSON
+
+✅ STEP 3
+Upgrade / Downgrade UX copy (EN + HI)
+🎯 Goal
+
+Make plan changes crystal clear to users.
+
+Upgrade Modal (Free → Basic)
+
+EN
+
+Unlock Software Services
+Get GST invoicing, projects, and analytics for just ₹99/month.
+
+HI
+
+Software Services अनलॉक करें
+₹99/महीने में GST, Projects और Analytics पाएं।
+
+Downgrade Modal (Pro → Basic)
+
+EN
+
+Downgrade scheduled
+Your plan will change at the end of the billing cycle. No data will be lost.
+
+HI
+
+Downgrade शेड्यूल हो गया है
+आपका प्लान इस महीने के अंत में बदलेगा। डेटा सुरक्षित रहेगा।
+
+Replit Prompt
+Add bilingual upgrade/downgrade confirmation modals (EN + HI).
+
+Rules:
+- Upgrades → immediate
+- Downgrades → apply at month-end
+- Copy must differ for:
+  - Free → Basic
+  - Basic → Pro
+  - Pro → Basic
+
+Ensure consistent CTA wording across /packages and dashboard upgrade banners.
+
+✅ STEP 4
+Annual pricing discounts (Zoho-style)
+🎯 Goal
+
+Encourage early payment without confusing users.
+
+Discount Rules (recommended)
+Plan	Monthly	Yearly
+Basic	₹99	₹999 (2 months free)
+Pro	₹199	₹1999
+UX Display
+
+Toggle: Monthly / Yearly
+
+Badge: “Save 17%”
+
+Super Admin can change % later
+
+Replit Prompt
+Add annual billing support with configurable discounts.
+
+Backend:
+- pricing_plans.billing_cycle = monthly | yearly
+- pricing_plans.discount_percent (nullable)
+
+Frontend:
+- Toggle Monthly / Yearly
+- Show savings badge (no decimals)
+- Yearly price = monthly * 12 * (1 - discount%)
+
+Admin:
+- Super Admin can edit discount %
+- India plans default to 2 months free
+
+Ensure Razorpay integration-ready (planId mapping).
+
+✅ STEP 5 (OPTIONAL BUT POWERFUL)
+Hide vs Lock module behavior
+Rule (recommended)
+
+Free → hide Software Services
+
+Basic/Pro → show
+
+Direct URL access → show LockedFeature page
+
+Replit Prompt
+Standardize module visibility rules:
+- Sidebar hides modules not in plan
+- Direct URL access shows LockedFeature component with upgrade CTA
+- Do not show raw 403 pages to end users

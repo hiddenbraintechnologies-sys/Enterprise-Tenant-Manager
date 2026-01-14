@@ -84,6 +84,9 @@ import {
   COUNTRIES as PLAN_COUNTRIES,
   CURRENCIES as PLAN_CURRENCIES,
   PLAN_TIERS,
+  FEATURE_GROUPS,
+  FREE_PLAN_RESTRICTED_FEATURES,
+  formatLimitValue,
   type FeatureCatalogItem,
   type LimitCatalogItem,
 } from "@shared/billing/feature-catalog";
@@ -1270,27 +1273,48 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <Label>Features</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {FEATURE_CATALOG.map(feature => (
-                  <div key={feature.key} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`feature-${feature.key}`}
-                      checked={!!formData.featureFlags[feature.key]}
-                      onCheckedChange={() => toggleFeature(feature.key)}
-                      data-testid={`checkbox-feature-${feature.key}`}
-                    />
-                    <Label htmlFor={`feature-${feature.key}`} className="text-sm font-normal cursor-pointer">
-                      {feature.label}
-                    </Label>
+              {(Object.keys(FEATURE_GROUPS) as Array<keyof typeof FEATURE_GROUPS>).map(groupKey => {
+                const groupFeatures = FEATURE_CATALOG.filter(f => f.group === groupKey);
+                if (groupFeatures.length === 0) return null;
+                return (
+                  <div key={groupKey} className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">{FEATURE_GROUPS[groupKey]}</p>
+                    <div className="grid grid-cols-2 gap-2 pl-2">
+                      {groupFeatures.map(feature => {
+                        const isRestricted = formData.tier === "free" && FREE_PLAN_RESTRICTED_FEATURES.includes(feature.key);
+                        return (
+                          <div key={feature.key} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`feature-${feature.key}`}
+                              checked={!!formData.featureFlags[feature.key]}
+                              onCheckedChange={() => !isRestricted && toggleFeature(feature.key)}
+                              disabled={isRestricted}
+                              data-testid={`checkbox-feature-${feature.key}`}
+                            />
+                            <Label 
+                              htmlFor={`feature-${feature.key}`} 
+                              className={`text-sm font-normal cursor-pointer ${isRestricted ? "text-muted-foreground" : ""}`}
+                              title={feature.description}
+                            >
+                              {feature.label}
+                              {isRestricted && <span className="text-xs text-destructive ml-1">(Not available on Free)</span>}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
 
             <div className="space-y-3">
-              <Label>Limits</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Limits</Label>
+                <p className="text-xs text-muted-foreground">Use -1 for Unlimited, 0 for Not Available</p>
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 {LIMIT_CATALOG.map(limit => (
                   <div key={limit.key} className="space-y-1">
@@ -1298,13 +1322,25 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
                     <Input
                       id={`limit-${limit.key}`}
                       type="number"
-                      min="0"
+                      min="-1"
                       value={formData.limits[limit.key] ?? limit.defaultValue}
                       onChange={(e) => setLimit(limit.key, parseInt(e.target.value) || 0)}
                       data-testid={`input-limit-${limit.key}`}
                     />
+                    <p className="text-xs text-muted-foreground">{limit.description}</p>
+                    {(formData.limits[limit.key] ?? limit.defaultValue) !== 0 && (
+                      <p className="text-xs font-medium">{formatLimitValue(formData.limits[limit.key] ?? limit.defaultValue)}</p>
+                    )}
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <div className="rounded-md border p-3 bg-muted/50">
+              <Label className="text-sm font-medium">Live Preview</Label>
+              <div className="mt-2 space-y-1 text-sm">
+                <p><span className="text-muted-foreground">Enabled:</span> {Object.entries(formData.featureFlags).filter(([_, v]) => v).map(([k]) => FEATURE_CATALOG.find(f => f.key === k)?.label || k).join(", ") || "None"}</p>
+                <p><span className="text-muted-foreground">Limits:</span> {Object.entries(formData.limits).map(([k, v]) => `${LIMIT_CATALOG.find(l => l.key === k)?.label || k}: ${formatLimitValue(v)}`).join(", ")}</p>
               </div>
             </div>
           </div>

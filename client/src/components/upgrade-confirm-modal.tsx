@@ -144,22 +144,22 @@ function getUpgradeSubtitle(lang: Lang, currentTier: string, targetTier: string,
   if (currentTier === "free" && targetTier === "basic") {
     return t(
       lang,
-      `Unlock GST + SMS + Analytics for just ${priceLabel}/month. Activates after payment success.`,
-      `सिर्फ ${priceLabel}/महीना में GST + SMS + Analytics अनलॉक करें। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
+      `Unlock Software Services. Get GST invoicing, projects, and analytics for just ${priceLabel}/month.`,
+      `Software Services अनलॉक करें। ${priceLabel}/महीने में GST, Projects और Analytics पाएं।`
     );
   }
   if (currentTier === "basic" && targetTier === "pro") {
     return t(
       lang,
-      `Unlock WhatsApp automation + unlimited growth for ${priceLabel}/month. Activates after payment success.`,
-      `${priceLabel}/महीना में WhatsApp automation + unlimited growth अनलॉक करें। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
+      `Unlock WhatsApp automation and unlimited growth for ${priceLabel}/month. Everything unlocked.`,
+      `${priceLabel}/महीना में WhatsApp automation और unlimited growth अनलॉक करें। सब कुछ अनलॉक।`
     );
   }
   if (currentTier === "free" && targetTier === "pro") {
     return t(
       lang,
-      `Get all premium features for ${priceLabel}/month. Activates after payment success.`,
-      `${priceLabel}/महीना में सभी premium features पाएँ। पेमेंट सफल होने के बाद ही एक्टिव होगा।`
+      `Get all premium features for ${priceLabel}/month. Everything unlocked.`,
+      `${priceLabel}/महीना में सभी premium features पाएँ। सब कुछ अनलॉक।`
     );
   }
   return t(

@@ -8,13 +8,14 @@ export interface ModuleAccessInfo {
 
 export interface ModuleAccessData {
   moduleAccess: Record<string, ModuleAccessInfo>;
+  planTier?: string;
 }
 
 export function useModuleAccess() {
   const { isAuthenticated, tenant } = useAuth();
   const tenantId = tenant?.id;
 
-  const { data, isLoading, error } = useQuery<{ moduleAccess: Record<string, ModuleAccessInfo> }>({
+  const { data, isLoading, error } = useQuery<{ moduleAccess: Record<string, ModuleAccessInfo>; planTier?: string }>({
     queryKey: ["/api/context"],
     enabled: Boolean(isAuthenticated && tenantId),
     staleTime: 60000,
@@ -31,11 +32,17 @@ export function useModuleAccess() {
     return data?.moduleAccess?.[moduleId];
   };
 
+  const isFreePlan = (): boolean => {
+    return data?.planTier === "free";
+  };
+
   return {
     moduleAccess: data?.moduleAccess || {},
+    planTier: data?.planTier,
     isLoading,
     error,
     canAccessModule,
     getModuleAccessInfo,
+    isFreePlan,
   };
 }

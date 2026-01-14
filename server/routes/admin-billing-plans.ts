@@ -7,7 +7,13 @@ import { authenticateJWT, requirePlatformAdmin } from "../core/auth-middleware";
 import { requirePermission, getScopeContext } from "../rbac/guards";
 import { Permissions } from "@shared/rbac/permissions";
 import { auditService } from "../core";
-import { FEATURE_CATALOG, LIMIT_CATALOG } from "@shared/billing/feature-catalog";
+import { 
+  FEATURE_CATALOG, 
+  LIMIT_CATALOG,
+  validatePlan,
+  FEATURE_KEYS,
+  LIMIT_KEYS,
+} from "@shared/billing/feature-catalog";
 
 const router = Router();
 
@@ -59,7 +65,7 @@ function getAdminInfo(req: Request): { adminId: string; adminEmail: string } {
 }
 
 const featureFlagsSchema = z.record(z.string(), z.boolean()).optional();
-const limitsSchema = z.record(z.string(), z.number().int().min(0)).optional();
+const limitsSchema = z.record(z.string(), z.number().int().min(-1)).optional();
 
 const billingCycleConfigSchema = z.object({
   price: z.number().min(0),
@@ -118,6 +124,20 @@ const updatePlanSchema = z.object({
     localPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
   })).optional(),
 });
+
+router.get(
+  "/catalogs",
+  requiredAuth,
+  requirePlatformAdmin(),
+  async (_req: Request, res: Response) => {
+    res.json({
+      features: FEATURE_CATALOG,
+      limits: LIMIT_CATALOG,
+      featureKeys: FEATURE_KEYS,
+      limitKeys: LIMIT_KEYS,
+    });
+  }
+);
 
 router.get(
   "/plans",
@@ -180,10 +200,24 @@ router.post(
       const data = createPlanSchema.parse(req.body);
       const { localPrices, ...planData } = data;
       
-      if (data.countryCode === "IN" && data.currencyCode !== "INR") {
+      const scopeContext = getScopeContext(req);
+      const isSuperAdmin = scopeContext?.isSuperAdmin || false;
+      
+      const validationResult = validatePlan(
+        data.tier,
+        data.countryCode,
+        data.currencyCode,
+        parseFloat(data.basePrice),
+        data.featureFlags,
+        data.limits,
+        isSuperAdmin
+      );
+      
+      if (!validationResult.valid) {
         return res.status(400).json({
-          code: "INVALID_CURRENCY_FOR_COUNTRY",
-          message: "India plans must use INR currency. Please select INR as the currency for this plan.",
+          code: "PLAN_VALIDATION_ERROR",
+          message: "Plan validation failed",
+          errors: validationResult.errors,
         });
       }
       
@@ -281,13 +315,29 @@ router.patch(
         });
       }
       
-      const effectiveCountry = existingPlan.countryCode;
-      const effectiveCurrency = data.currencyCode || existingPlan.currencyCode;
+      const effectiveTier = data.tier || existingPlan.tier;
+      const effectiveCountry = existingPlan.countryCode || "";
+      const effectiveCurrency = data.currencyCode || existingPlan.currencyCode || "";
+      const effectivePrice = data.basePrice ? parseFloat(data.basePrice) : parseFloat(existingPlan.basePrice);
       
-      if (effectiveCountry === "IN" && effectiveCurrency !== "INR") {
+      const scopeContext = getScopeContext(req);
+      const isSuperAdmin = scopeContext?.isSuperAdmin || false;
+      
+      const validationResult = validatePlan(
+        effectiveTier,
+        effectiveCountry,
+        effectiveCurrency,
+        effectivePrice,
+        data.featureFlags,
+        data.limits,
+        isSuperAdmin
+      );
+      
+      if (!validationResult.valid) {
         return res.status(400).json({
-          code: "INVALID_CURRENCY_FOR_COUNTRY",
-          message: "India plans must use INR currency. Cannot change currency to a non-INR value for India plans.",
+          code: "PLAN_VALIDATION_ERROR",
+          message: "Plan validation failed",
+          errors: validationResult.errors,
         });
       }
       

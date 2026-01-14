@@ -6248,9 +6248,11 @@ export async function registerRoutes(
       
       // Get module access based on tenant's subscription plan
       let moduleAccess: Record<string, { access: string; reason?: string }> = {};
+      let planTier: string | undefined;
       if (tenantId) {
         const plan = await subscriptionService.getTenantPlan(tenantId);
         if (plan) {
+          planTier = plan.tier;
           const modules = ["software_services", "consulting", "hrms", "furniture", "furniture_manufacturing", 
                           "legal", "education", "tourism", "logistics", "real_estate", "analytics", 
                           "marketplace", "clinic", "salon", "pg_hostel", "coworking", "gym"];
@@ -6277,6 +6279,7 @@ export async function registerRoutes(
         permissions: context.permissions,
         features: context.features,
         moduleAccess,
+        planTier,
       });
     } catch (error) {
       console.error("Error fetching context:", error);
