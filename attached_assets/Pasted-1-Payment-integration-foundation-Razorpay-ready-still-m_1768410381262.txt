@@ -1,0 +1,145 @@
+1) Payment integration foundation (Razorpay-ready, still “mock”)
+
+Goal: Make plan upgrades/downgrades work end-to-end with a pending payment state, even before Razorpay is plugged in.
+
+Deliver:
+
+POST /api/billing/checkout/start → creates payment_intent + pendingPlanId/pendingCycle
+
+POST /api/billing/checkout/verify → marks success + activates plan (for now, accept a dev “mock success” token; block in prod)
+
+Subscription state machine: active | pending_payment | scheduled_downgrade
+
+Why now: Your UI + feature gating is done; payments is the missing glue.
+
+Replit prompt
+
+Implement checkout state machine (Razorpay-ready, mockable in dev).
+
+1) DB:
+- billing_payments table:
+  id, tenant_id, plan_id, cycle, amount, currency, status(pending/success/failed), provider, provider_ref, created_at
+- subscriptions table:
+  plan_id, billing_cycle
+  pending_plan_id, pending_billing_cycle
+  pending_payment_id
+  downgrade_plan_id, downgrade_effective_at
+
+2) API:
+POST /api/billing/checkout/start { planId, cycle }
+- validate plan exists, not archived
+- compute amount from billingCycles[cycle]
+- create billing_payment(status=pending, provider='razorpay')
+- set subscription pending_* fields
+- return { paymentId, amount, currency, providerPayloadStub }
+
+POST /api/billing/checkout/verify { paymentId, success, providerRef? }
+- dev-only mock verify (403 in prod)
+- if success: set payment success, activate pending plan+cycle, clear pending fields
+- if failed: set payment failed, clear pending fields
+
+3) UI:
+- On “Upgrade” -> call checkout/start -> show “Pending payment” screen -> verify (dev button)
+- After success -> refresh /api/context -> modules unlock
+
+4) Tests:
+- start creates pending payment + pending plan
+- verify success activates plan
+- verify fail clears pending
+- prod blocks mock verify endpoint
+
+2) Fix the “tenant not found after cache clear” fully
+
+You already implemented discovery, but you still had errors before. Make it bulletproof.
+
+Deliver:
+
+tenant-discovery endpoint rate-limited
+
+/login always works with cleared storage
+
+if user belongs to 1 tenant → auto select
+
+if multi-tenant → picker
+
+store lastTenantId in DB and prefer it
+
+Replit prompt
+
+Harden tenant discovery login.
+
+- Ensure /api/auth/tenant-discovery and /api/auth/login are NOT under tenant-required middleware
+- Ensure login works without any cookies/localStorage
+- Store users.last_tenant_id and auto-select it for multi-tenant users if still valid
+- Add integration tests for:
+  (a) cleared cookies login works
+  (b) multi-tenant returns 409 + picker
+
+3) Stop 401 “Missing token” confusion permanently
+
+You had both MISSING_TOKEN and MODULE_NOT_AVAILABLE errors earlier. Normalize auth errors.
+
+Deliver:
+
+Services routes accept session OR token (hybrid)
+
+No route should throw “missing authorization header” to tenant users unless truly unauthenticated
+
+UI shows friendly message + login redirect
+
+Replit prompt
+
+Normalize auth for /api/services/*:
+- Use requireAuth() that accepts session OR bearer
+- Remove/replace JWT-only middleware that emits MISSING_TOKEN for session users
+- Add tests: session user can create project; unauth user returns 401.
+
+4) Plan change rules (downgrade month-end + upgrade immediate)
+
+You already did modals, now enforce backend rules:
+
+downgrade applies at month-end only
+
+upgrade applies immediately after payment success
+
+prevent downgrade below current usage if limits exceeded (optional but recommended)
+
+Replit prompt
+
+Enforce subscription change rules server-side:
+- upgrades: immediate on payment success
+- downgrades: schedule at period end
+- add guard: if current usage exceeds target limits, block downgrade with clear message
+
+5) Admin “Plan rollout” tools (reduce support calls)
+
+Deliver:
+
+Super admin can:
+
+simulate tenant on plan (preview)
+
+force refresh tenant entitlements
+
+view tenant’s enabled features/limits
+
+audit plan changes
+
+Replit prompt
+
+Add super-admin tools:
+- Tenant entitlement inspector page: shows plan, cycle, feature_flags, limits, current usage
+- Button: “Refresh entitlements”
+- Audit log view filtered by tenantId for billing changes
+
+6) India launch operations pack (practical)
+
+Deliver:
+
+“First 30 customers” onboarding flow
+
+WhatsApp-first sales script
+
+Support SOP + refund/cancel policy copy
+
+In-app onboarding checklist

@@ -11,7 +11,7 @@ import {
   insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
-  tenants, userTenants, users, roles, refreshTokens,
+  tenants, userTenants, users, roles, refreshTokens, customers, staff, tenantFeatures, auditLogs,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates,
   insertInvoiceTemplateSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
@@ -783,10 +783,36 @@ export async function registerRoutes(
 
       const activeTenants = tenantOptions.filter(Boolean);
       
+      // Determine preferred tenant (last used or default)
+      let preferredTenantId: string | null = null;
+      
+      // First priority: last_tenant_id if still valid
+      if (existingUser.lastTenantId) {
+        const lastTenantStillValid = activeTenants.some(t => t?.id === existingUser.lastTenantId);
+        if (lastTenantStillValid) {
+          preferredTenantId = existingUser.lastTenantId;
+        }
+      }
+      
+      // Second priority: default tenant
+      if (!preferredTenantId) {
+        const defaultTenant = activeTenants.find(t => t?.isDefault);
+        if (defaultTenant) {
+          preferredTenantId = defaultTenant.id;
+        }
+      }
+      
+      // Third priority: first tenant
+      if (!preferredTenantId && activeTenants.length > 0) {
+        preferredTenantId = activeTenants[0]?.id || null;
+      }
+      
       res.json({
         tenants: activeTenants,
         count: activeTenants.length,
         hasMultiple: activeTenants.length > 1,
+        preferredTenantId,
+        autoSelect: activeTenants.length === 1,
       });
     } catch (error) {
       console.error("Tenant discovery error:", error);
@@ -1030,6 +1056,15 @@ export async function registerRoutes(
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       });
+
+      // Update last_tenant_id for next login preference
+      await db
+        .update(users)
+        .set({ 
+          lastTenantId: userTenantRecord.tenantId,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existingUser.id));
 
       res.json({
         accessToken: tokens.accessToken,
@@ -5170,6 +5205,155 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Super admin tenant details error:", error);
       res.status(500).json({ message: "Failed to get tenant details" });
+    }
+  });
+
+  // Tenant Entitlement Inspector - Super Admin only
+  app.get("/api/super-admin/tenants/:tenantId/entitlements", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      // Get subscription and plan
+      const [subscription] = await db.select()
+        .from(tenantSubscriptions)
+        .where(eq(tenantSubscriptions.tenantId, tenantId))
+        .orderBy(desc(tenantSubscriptions.createdAt))
+        .limit(1);
+
+      let plan = null;
+      let downgradePlan = null;
+      if (subscription) {
+        plan = await subscriptionService.getPlan(subscription.planId);
+        if (subscription.downgradePlanId) {
+          downgradePlan = await subscriptionService.getPlan(subscription.downgradePlanId);
+        }
+      }
+
+      // Get current usage counts
+      const [userCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(userTenants)
+        .where(eq(userTenants.tenantId, tenantId));
+      
+      const [customerCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(eq(customers.tenantId, tenantId));
+      
+      const [staffCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(staff)
+        .where(eq(staff.tenantId, tenantId));
+
+      // Get enabled features from tenant_features
+      const enabledFeatures = await db.select()
+        .from(tenantFeatures)
+        .where(and(
+          eq(tenantFeatures.tenantId, tenantId),
+          eq(tenantFeatures.isEnabled, true)
+        ));
+
+      // Get billing-related audit logs
+      const billingAuditLogs = await db.select()
+        .from(auditLogs)
+        .where(and(
+          eq(auditLogs.tenantId, tenantId),
+          sql`${auditLogs.resource} IN ('subscription', 'billing', 'plan')`
+        ))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(20);
+
+      res.json({
+        tenant: {
+          id: tenant.id,
+          name: tenant.name,
+          status: tenant.status,
+          businessType: tenant.businessType,
+          country: tenant.country,
+        },
+        subscription: subscription ? {
+          id: subscription.id,
+          status: subscription.status,
+          currentBillingCycle: subscription.currentBillingCycle,
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          downgradePlanId: subscription.downgradePlanId,
+          downgradeEffectiveAt: subscription.downgradeEffectiveAt,
+          pendingPlanId: subscription.pendingPlanId,
+          pendingPaymentId: subscription.pendingPaymentId,
+        } : null,
+        plan: plan ? {
+          id: plan.id,
+          name: plan.name,
+          code: plan.code,
+          tier: plan.tier,
+          featureFlags: plan.featureFlags,
+          limits: plan.limits,
+          basePrice: plan.basePrice,
+          currencyCode: plan.currencyCode,
+        } : null,
+        downgradePlan: downgradePlan ? {
+          id: downgradePlan.id,
+          name: downgradePlan.name,
+          code: downgradePlan.code,
+          tier: downgradePlan.tier,
+        } : null,
+        usage: {
+          users: userCount?.count || 0,
+          staff: staffCount?.count || 0,
+          clients: customerCount?.count || 0,
+        },
+        enabledFeatures: enabledFeatures.map(f => ({
+          featureCode: f.featureCode,
+          enabledAt: f.enabledAt,
+        })),
+        recentBillingChanges: billingAuditLogs.map(log => ({
+          id: log.id,
+          action: log.action,
+          resource: log.resource,
+          metadata: log.metadata,
+          createdAt: log.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error("Tenant entitlement inspector error:", error);
+      res.status(500).json({ message: "Failed to get tenant entitlements" });
+    }
+  });
+
+  // Refresh tenant entitlements - Super Admin only
+  app.post("/api/super-admin/tenants/:tenantId/refresh-entitlements", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      // Clear feature cache for tenant
+      featureService.clearCache(tenantId);
+
+      await auditService.log({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id || "system",
+        action: "update",
+        resource: "entitlements",
+        resourceId: tenantId,
+        metadata: { 
+          operation: "cache_refresh",
+          triggeredBy: "super_admin",
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ success: true, message: "Entitlements refreshed successfully" });
+    } catch (error) {
+      console.error("Refresh entitlements error:", error);
+      res.status(500).json({ message: "Failed to refresh entitlements" });
     }
   });
 

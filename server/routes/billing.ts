@@ -152,15 +152,23 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
     const isPendingPayment = subStatus === "pending_payment";
     const isActive = subStatus === "active" || subStatus === "trialing" || isDowngrading;
     
+    // Fetch downgrade plan if scheduled
+    const downgradePlan = subscription.downgradePlanId 
+      ? await subscriptionService.getPlan(subscription.downgradePlanId) 
+      : null;
+    
     return res.json({
       subscription: {
         ...subscription,
         pendingPlanId: subscription.pendingPlanId,
         pendingPaymentId: subscription.pendingPaymentId,
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        downgradePlanId: subscription.downgradePlanId,
+        downgradeEffectiveAt: subscription.downgradeEffectiveAt,
       },
       plan,
       pendingPlan,
+      downgradePlan,
       status: isActive ? (isDowngrading ? "DOWNGRADING" : "ACTIVE") : subStatus.toUpperCase(),
       planCode: plan?.code || null,
       isActive,
@@ -170,6 +178,8 @@ router.get("/subscription", requiredAuth, async (req: Request, res: Response) =>
       pendingPlanId: subscription.pendingPlanId,
       pendingPaymentId: subscription.pendingPaymentId,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      downgradePlanId: subscription.downgradePlanId,
+      downgradeEffectiveAt: subscription.downgradeEffectiveAt,
       tenantId,
     });
   } catch (error) {
@@ -687,6 +697,279 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
   }
 });
 
+// Checkout start - creates payment intent for plan upgrade/change
+const checkoutStartSchema = z.object({
+  planId: z.string().min(1),
+  cycle: z.enum(["monthly", "quarterly", "half_yearly", "yearly"]).optional().default("monthly"),
+});
+
+router.post("/checkout/start", requiredAuth, requirePermission(Permissions.SUBSCRIPTION_CHANGE), async (req: Request, res: Response) => {
+  try {
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "POST /checkout/start");
+
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    }
+
+    const tenantId = resolution.tenantId!;
+    const { planId, cycle } = checkoutStartSchema.parse(req.body);
+
+    // Validate plan exists and is active
+    const plan = await subscriptionService.getPlan(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({ code: "PLAN_NOT_FOUND", message: "Plan not found or not active" });
+    }
+
+    // Check plan is not archived
+    if (plan.archivedAt) {
+      return res.status(400).json({ code: "PLAN_ARCHIVED", message: "This plan is no longer available" });
+    }
+
+    // Validate plan is public
+    if (plan.isPublic === false) {
+      return res.status(400).json({ code: "PLAN_NOT_PUBLIC", message: "This plan is not available for self-service" });
+    }
+
+    // Validate plan matches tenant country
+    const tenant = await getTenant(tenantId);
+    if (tenant) {
+      const countryError = validatePlanCountryMatch(tenant.country, plan.code);
+      if (countryError) {
+        return res.status(400).json({ code: "PLAN_COUNTRY_MISMATCH", message: countryError });
+      }
+    }
+
+    // Compute amount from billingCycles
+    const planCycles = (plan.billingCycles || {}) as BillingCyclesMap;
+    const cycleConfig = planCycles[cycle as BillingCycleKey];
+    const amount = cycleConfig?.enabled && cycleConfig.price !== undefined 
+      ? cycleConfig.price.toString() 
+      : plan.basePrice;
+    const currency = plan.currencyCode || "INR";
+
+    // Get or create subscription
+    let subscription = await getSubscription(tenantId);
+    
+    if (!subscription) {
+      // Create new subscription in pending_payment state
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + (CYCLE_MONTHS[cycle as BillingCycleKey] || 1));
+      
+      const [newSub] = await db
+        .insert(tenantSubscriptions)
+        .values({
+          tenantId,
+          planId: plan.id,
+          currentBillingCycle: cycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
+          status: "pending_payment",
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+        })
+        .returning();
+      subscription = newSub;
+    }
+
+    // Create billing payment
+    const [payment] = await db
+      .insert(billingPayments)
+      .values({
+        tenantId,
+        subscriptionId: subscription.id,
+        planId: plan.id,
+        provider: process.env.NODE_ENV === "production" ? "razorpay" : "mock",
+        status: "created",
+        amount,
+        currency,
+        metadata: { 
+          cycle,
+          startedAt: new Date().toISOString(),
+        },
+      })
+      .returning();
+
+    // Update subscription with pending fields
+    await db
+      .update(tenantSubscriptions)
+      .set({
+        status: "pending_payment",
+        pendingPlanId: plan.id,
+        pendingBillingCycle: cycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
+        pendingPaymentId: payment.id,
+        pendingQuoteAmount: amount,
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantSubscriptions.id, subscription.id));
+
+    console.log(`[billing] Checkout started for tenant ${tenantId}, payment ${payment.id}, plan ${plan.code}, cycle ${cycle}`);
+
+    return res.json({
+      success: true,
+      paymentId: payment.id,
+      amount: parseFloat(amount),
+      currency,
+      plan: {
+        id: plan.id,
+        name: plan.name,
+        code: plan.code,
+        tier: plan.tier,
+      },
+      cycle,
+      providerPayloadStub: {
+        provider: process.env.NODE_ENV === "production" ? "razorpay" : "mock",
+        ready: false,
+        note: "Call /checkout/create to get full provider payload",
+      },
+    });
+  } catch (error) {
+    console.error("[billing] Error starting checkout:", error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ code: "VALIDATION_ERROR", error: "Invalid request", details: error.errors });
+    }
+    res.status(500).json({ code: "SERVER_ERROR", error: "Failed to start checkout" });
+  }
+});
+
+// Mock verify endpoint - for dev testing only, blocked in production
+router.post("/checkout/mock-verify", requiredAuth, async (req: Request, res: Response) => {
+  // Block in production
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ 
+      code: "FORBIDDEN", 
+      message: "Mock verification is not available in production" 
+    });
+  }
+
+  try {
+    const resolution = await resolveTenantId(req);
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    }
+
+    const tenantId = resolution.tenantId!;
+    const { paymentId, success = true } = req.body;
+
+    if (!paymentId) {
+      return res.status(400).json({ code: "MISSING_PAYMENT_ID", message: "paymentId is required" });
+    }
+
+    const [payment] = await db
+      .select()
+      .from(billingPayments)
+      .where(and(
+        eq(billingPayments.id, paymentId),
+        eq(billingPayments.tenantId, tenantId)
+      ))
+      .limit(1);
+
+    if (!payment) {
+      return res.status(404).json({ code: "PAYMENT_NOT_FOUND", message: "Payment not found" });
+    }
+
+    if (payment.status !== "created") {
+      return res.status(409).json({ 
+        code: "INVALID_PAYMENT_STATE", 
+        message: `Payment cannot be verified in '${payment.status}' state` 
+      });
+    }
+
+    if (success) {
+      // Mark payment as paid
+      await db
+        .update(billingPayments)
+        .set({
+          status: "paid",
+          providerPaymentId: `mock_${Date.now()}`,
+          paidAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(billingPayments.id, paymentId));
+
+      // Activate the pending plan
+      if (payment.subscriptionId) {
+        const [subscription] = await db
+          .select()
+          .from(tenantSubscriptions)
+          .where(eq(tenantSubscriptions.id, payment.subscriptionId))
+          .limit(1);
+
+        if (subscription) {
+          const newPlanId = subscription.pendingPlanId || payment.planId;
+          const newCycle = subscription.pendingBillingCycle || subscription.currentBillingCycle || "monthly";
+          
+          await db
+            .update(tenantSubscriptions)
+            .set({
+              planId: newPlanId,
+              currentBillingCycle: newCycle,
+              pendingPlanId: null,
+              pendingBillingCycle: null,
+              pendingPaymentId: null,
+              pendingQuoteAmount: null,
+              status: "active",
+              lastPaymentAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(tenantSubscriptions.id, subscription.id));
+
+          // Clear feature cache
+          featureService.clearCache(tenantId);
+          
+          console.log(`[billing] Mock verify success - activated plan ${newPlanId} for tenant ${tenantId}`);
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: "Mock payment verified successfully",
+        redirectUrl: "/dashboard",
+      });
+    } else {
+      // Mark payment as failed
+      await db
+        .update(billingPayments)
+        .set({
+          status: "failed",
+          errorMessage: "Mock payment failed",
+          updatedAt: new Date(),
+        })
+        .where(eq(billingPayments.id, paymentId));
+
+      // Clear pending fields
+      if (payment.subscriptionId) {
+        await db
+          .update(tenantSubscriptions)
+          .set({
+            pendingPlanId: null,
+            pendingBillingCycle: null,
+            pendingPaymentId: null,
+            pendingQuoteAmount: null,
+            status: "active",
+            updatedAt: new Date(),
+          })
+          .where(eq(tenantSubscriptions.id, payment.subscriptionId));
+      }
+
+      console.log(`[billing] Mock verify failed - cleared pending for tenant ${tenantId}`);
+
+      return res.json({
+        success: false,
+        message: "Mock payment failed",
+      });
+    }
+  } catch (error) {
+    console.error("[billing] Error in mock verify:", error);
+    res.status(500).json({ code: "SERVER_ERROR", error: "Failed to mock verify payment" });
+  }
+});
+
 router.get("/pending-payment", requiredAuth, async (req: Request, res: Response) => {
   try {
     const resolution = await resolveTenantId(req);
@@ -912,12 +1195,14 @@ router.post(
           });
         }
 
+        // Downgrade is scheduled for period end (not immediate)
         const [updatedSubscription] = await db
           .update(tenantSubscriptions)
           .set({
             status: "downgrading",
-            pendingPlanId: newPlan.id,
-            pendingBillingCycle: billingCycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
+            downgradePlanId: newPlan.id,
+            downgradeBillingCycle: billingCycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
+            downgradeEffectiveAt: subscription.currentPeriodEnd,
             cancelAtPeriodEnd: true,
             updatedAt: new Date(),
           })
@@ -930,7 +1215,7 @@ router.post(
           resource: "subscription",
           resourceId: subscription.id,
           oldValue: { planId: subscription.planId, status: subscription.status },
-          newValue: { pendingPlanId: newPlan.id, status: "downgrading", cancelAtPeriodEnd: true },
+          newValue: { downgradePlanId: newPlan.id, status: "downgrading", downgradeEffectiveAt: subscription.currentPeriodEnd },
           metadata: {
             operation: "downgrade_scheduled",
             tenantId,
