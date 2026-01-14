@@ -1272,7 +1272,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
                             onChange={(e) => {
                               const discount = parseFloat(e.target.value) || 0;
                               const monthlyPrice = formData.billingCycles.monthly?.price ?? 0;
-                              const yearlyPrice = Math.round(monthlyPrice * 12 * (1 - discount / 100));
+                              const yearlyPrice = parseFloat((monthlyPrice * 12 * (1 - discount / 100)).toFixed(2));
                               setFormData(prev => ({
                                 ...prev,
                                 discountPercent: discount,
@@ -1294,7 +1294,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
                             size="sm"
                             onClick={() => {
                               const monthlyPrice = formData.billingCycles.monthly?.price ?? 0;
-                              const yearlyPrice = Math.round(monthlyPrice * 10);
+                              const yearlyPrice = parseFloat((monthlyPrice * 12 * (1 - 16.67 / 100)).toFixed(2));
                               setFormData(prev => ({
                                 ...prev,
                                 discountPercent: 16.67,
