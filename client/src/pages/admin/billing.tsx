@@ -153,6 +153,7 @@ interface PricingPlan {
   billingCycle?: string;
   basePrice: string;
   billingCycles?: BillingCyclesMap;
+  discountPercent?: string | number;
   maxUsers?: number;
   maxCustomers?: number;
   features?: string[];
@@ -879,6 +880,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
     billingCycle: "monthly" as "monthly" | "yearly",
     basePrice: "0",
     billingCycles: getDefaultBillingCycles(),
+    discountPercent: 0,
     isPublic: true,
     sortOrder: 100,
     featureFlags: getDefaultFeatureFlags(),
@@ -908,6 +910,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
         billingCycle: (plan.billingCycle as "monthly" | "yearly") || "monthly",
         basePrice: plan.basePrice,
         billingCycles: mergedCycles,
+        discountPercent: plan.discountPercent ? parseFloat(String(plan.discountPercent)) : 0,
         isPublic: plan.isPublic ?? true,
         sortOrder: plan.sortOrder ?? 100,
         featureFlags: { ...defaultFlags, ...(plan.featureFlags || {}) },
@@ -924,6 +927,7 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
         billingCycle: "monthly",
         basePrice: "0",
         billingCycles: getDefaultBillingCycles(),
+        discountPercent: 0,
         isPublic: true,
         sortOrder: 100,
         featureFlags: getDefaultFeatureFlags(),
@@ -1254,16 +1258,73 @@ function PlanBuilderDialog({ open, onOpenChange, plan }: PlanBuilderDialogProps)
                         />
                       </div>
                     </div>
-                    {formData.billingCycles.yearly?.enabled && (formData.billingCycles.monthly?.price ?? 0) > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        {(() => {
-                          const monthlyTotal = (formData.billingCycles.monthly?.price ?? 0) * 12;
-                          const yearlyPrice = formData.billingCycles.yearly?.price ?? 0;
-                          const savings = monthlyTotal - yearlyPrice;
-                          const percent = monthlyTotal > 0 ? Math.round((savings / monthlyTotal) * 100) : 0;
-                          return savings > 0 ? `Saves ${percent}% (${formData.currencyCode} ${savings.toFixed(2)}/year)` : "";
-                        })()}
-                      </p>
+                    {formData.billingCycles.yearly?.enabled && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">Discount %</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            className="w-20"
+                            value={formData.discountPercent}
+                            onChange={(e) => {
+                              const discount = parseFloat(e.target.value) || 0;
+                              const monthlyPrice = formData.billingCycles.monthly?.price ?? 0;
+                              const yearlyPrice = Math.round(monthlyPrice * 12 * (1 - discount / 100));
+                              setFormData(prev => ({
+                                ...prev,
+                                discountPercent: discount,
+                                billingCycles: {
+                                  ...prev.billingCycles,
+                                  yearly: { 
+                                    ...prev.billingCycles.yearly!, 
+                                    price: yearlyPrice,
+                                    badge: discount >= 16.67 ? "2 months free" : discount > 0 ? `Save ${Math.round(discount)}%` : undefined
+                                  },
+                                },
+                              }));
+                            }}
+                            data-testid="input-discount-percent"
+                          />
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              const monthlyPrice = formData.billingCycles.monthly?.price ?? 0;
+                              const yearlyPrice = Math.round(monthlyPrice * 10);
+                              setFormData(prev => ({
+                                ...prev,
+                                discountPercent: 16.67,
+                                billingCycles: {
+                                  ...prev.billingCycles,
+                                  yearly: { 
+                                    ...prev.billingCycles.yearly!, 
+                                    price: yearlyPrice,
+                                    badge: "2 months free"
+                                  },
+                                },
+                              }));
+                            }}
+                            data-testid="button-set-2months-free"
+                          >
+                            2 months free
+                          </Button>
+                        </div>
+                        {(formData.billingCycles.monthly?.price ?? 0) > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {(() => {
+                              const monthlyTotal = (formData.billingCycles.monthly?.price ?? 0) * 12;
+                              const yearlyPrice = formData.billingCycles.yearly?.price ?? 0;
+                              const savings = monthlyTotal - yearlyPrice;
+                              const percent = monthlyTotal > 0 ? Math.round((savings / monthlyTotal) * 100) : 0;
+                              return savings > 0 ? `Saves ${percent}% (${formData.currencyCode} ${Math.round(savings)}/year)` : "";
+                            })()}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

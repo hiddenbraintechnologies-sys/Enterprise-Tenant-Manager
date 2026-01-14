@@ -1526,6 +1526,8 @@ export const globalPricingPlans = pgTable("global_pricing_plans", {
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
   // Billing cycles with per-cycle pricing: { monthly: { price: 99, enabled: true }, yearly: { price: 999, enabled: true, badge: "2 months free" } }
   billingCycles: jsonb("billing_cycles").notNull().default({}),
+  // Yearly discount percentage (0-100). Used to auto-calculate yearly price: yearly = monthly * 12 * (1 - discountPercent/100)
+  discountPercent: decimal("discount_percent", { precision: 5, scale: 2 }).default("0"),
   maxUsers: integer("max_users").default(5),
   maxCustomers: integer("max_customers").default(100),
   features: jsonb("features").default([]),
