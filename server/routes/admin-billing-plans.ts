@@ -84,7 +84,6 @@ const createPlanSchema = z.object({
   billingCycle: z.enum(["monthly", "quarterly", "yearly"]).optional(),
   basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
   billingCycles: billingCyclesSchema,
-  discountPercent: z.number().min(0).max(100).optional(),
   maxUsers: z.number().int().min(0).optional(),
   maxCustomers: z.number().int().min(0).optional(),
   features: z.array(z.string()).optional(),
@@ -106,7 +105,6 @@ const updatePlanSchema = z.object({
   billingCycle: z.enum(["monthly", "quarterly", "yearly"]).optional(),
   basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
   billingCycles: billingCyclesSchema,
-  discountPercent: z.number().min(0).max(100).optional(),
   maxUsers: z.number().int().min(0).optional(),
   maxCustomers: z.number().int().min(0).optional(),
   features: z.array(z.string()).optional(),
@@ -208,11 +206,9 @@ router.post(
         });
       }
       
-      const { discountPercent, ...restPlanData } = planData;
       const [newPlan] = await db.insert(globalPricingPlans)
         .values({
-          ...restPlanData,
-          discountPercent: discountPercent !== undefined ? String(discountPercent) : "0",
+          ...planData,
           isActive: true,
         })
         .returning();
@@ -295,11 +291,9 @@ router.patch(
         });
       }
       
-      const { discountPercent, ...restUpdateData } = updateData;
       const [updatedPlan] = await db.update(globalPricingPlans)
         .set({
-          ...restUpdateData,
-          ...(discountPercent !== undefined ? { discountPercent: String(discountPercent) } : {}),
+          ...updateData,
           updatedAt: new Date(),
         })
         .where(eq(globalPricingPlans.id, id))
