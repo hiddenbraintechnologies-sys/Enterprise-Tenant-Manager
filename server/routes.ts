@@ -176,6 +176,15 @@ export async function registerRoutes(
         console.log("[bootstrap] India pricing seeding skipped:", err);
       }
       
+      // Seed payroll addon tiers and bundle discounts
+      try {
+        const { seedPayrollAddon } = await import("./core/payroll-addon-pricing");
+        await seedPayrollAddon();
+        console.log("[bootstrap] Payroll addon pricing seeded");
+      } catch (err) {
+        console.log("[bootstrap] Payroll addon pricing seeding skipped:", err);
+      }
+      
       await tenantService.getOrCreateDefaultTenant();
       console.log("[bootstrap] Default tenant ready");
       await initializeWhatsappProviders();

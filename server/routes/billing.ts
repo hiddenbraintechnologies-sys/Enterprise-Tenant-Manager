@@ -17,8 +17,11 @@ import { auditService } from "../core/audit";
 import { razorpayService } from "../services/razorpay";
 import type { BillingCycleKey, BillingCyclesMap } from "@shared/billing/types";
 import { CYCLE_MONTHS, calculateSavings } from "@shared/billing/types";
+import payrollAddonRoutes from "./billing/payroll-addon";
 
 const router = Router();
+
+router.use("/payroll-addon", payrollAddonRoutes);
 
 const optionalAuth = authenticateJWT({ required: false });
 const requiredAuth = authenticateJWT({ required: true });

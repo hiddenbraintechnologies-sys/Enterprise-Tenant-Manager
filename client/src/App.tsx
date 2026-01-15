@@ -43,6 +43,7 @@ import HrAttendance from "@/pages/hr/attendance";
 import HrLeaves from "@/pages/hr/leaves";
 import HrPayroll from "@/pages/hr/payroll";
 import HrPayRuns from "@/pages/hr/pay-runs";
+import HrBilling from "@/pages/hr/billing";
 import HrProjects from "@/pages/hr/projects";
 import HrTimesheets from "@/pages/hr/timesheets";
 import HrAllocations from "@/pages/hr/allocations";
@@ -343,6 +344,11 @@ function AuthenticatedRoutes() {
           <FeatureGuard featureId="hrms_it_extensions">
             <HrAllocations />
           </FeatureGuard>
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/billing">
+        <ModuleGuard moduleId="hrms">
+          <HrBilling />
         </ModuleGuard>
       </Route>
       <Route path="/not-authorized" component={NotAuthorized} />

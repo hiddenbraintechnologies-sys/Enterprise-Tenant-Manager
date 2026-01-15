@@ -6210,6 +6210,124 @@ export const addonReviews = pgTable("addon_reviews", {
   uniqueIndex("idx_addon_reviews_unique").on(table.addonId, table.tenantId),
 ]);
 
+// ==================== PAYROLL ADDON TIERS ====================
+// Employee-based pricing tiers for payroll add-on
+
+export const payrollAddonTiers = pgTable("payroll_addon_tiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  addonCode: varchar("addon_code", { length: 50 }).notNull().default("payroll"),
+  tierName: varchar("tier_name", { length: 100 }).notNull(),
+  minEmployees: integer("min_employees").notNull(),
+  maxEmployees: integer("max_employees").notNull(),
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
+  yearlyPrice: decimal("yearly_price", { precision: 10, scale: 2 }).notNull(),
+  currencyCode: varchar("currency_code", { length: 3 }).notNull().default("INR"),
+  countryCode: varchar("country_code", { length: 5 }).notNull().default("IN"),
+  razorpayMonthlyPlanId: varchar("razorpay_monthly_plan_id", { length: 100 }),
+  razorpayYearlyPlanId: varchar("razorpay_yearly_plan_id", { length: 100 }),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_payroll_tiers_addon").on(table.addonCode),
+  index("idx_payroll_tiers_country").on(table.countryCode),
+  index("idx_payroll_tiers_employees").on(table.minEmployees, table.maxEmployees),
+]);
+
+// ==================== BUNDLE DISCOUNTS ====================
+// Discount rules for plan + addon combinations
+
+export const bundleDiscounts = pgTable("bundle_discounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  planCode: varchar("plan_code", { length: 50 }).notNull(),
+  addonCode: varchar("addon_code", { length: 50 }).notNull(),
+  addonTierId: varchar("addon_tier_id").references(() => payrollAddonTiers.id),
+  discountType: varchar("discount_type", { length: 20 }).notNull().default("fixed"), // 'fixed' | 'percentage'
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).notNull(),
+  currencyCode: varchar("currency_code", { length: 3 }).notNull().default("INR"),
+  countryCode: varchar("country_code", { length: 5 }).notNull().default("IN"),
+  appliesTo: varchar("applies_to", { length: 20 }).notNull().default("addon"), // 'addon' | 'plan' | 'both'
+  billingCycle: billingCycleEnum("billing_cycle"),
+  isActive: boolean("is_active").default(true).notNull(),
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_bundle_discounts_plan").on(table.planCode),
+  index("idx_bundle_discounts_addon").on(table.addonCode),
+  index("idx_bundle_discounts_country").on(table.countryCode),
+]);
+
+// ==================== TENANT PAYROLL ADDON ====================
+// Extended payroll addon tracking per tenant
+
+export const tenantPayrollAddon = pgTable("tenant_payroll_addon", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  tierId: varchar("tier_id").references(() => payrollAddonTiers.id),
+  enabled: boolean("enabled").default(false).notNull(),
+  billingCycle: billingCycleEnum("billing_cycle").default("monthly"),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  discountApplied: decimal("discount_applied", { precision: 10, scale: 2 }).default("0"),
+  
+  // Trial
+  trialUsed: boolean("trial_used").default(false).notNull(),
+  trialEndsAt: timestamp("trial_ends_at"),
+  
+  // Grace period for tier upgrades
+  graceUntil: timestamp("grace_until"),
+  graceEmployeeCount: integer("grace_employee_count"),
+  
+  // Razorpay
+  razorpaySubscriptionId: varchar("razorpay_subscription_id", { length: 100 }),
+  razorpayPlanId: varchar("razorpay_plan_id", { length: 100 }),
+  
+  // Subscription
+  subscriptionStatus: varchar("subscription_status", { length: 50 }).default("inactive"),
+  currentPeriodStart: timestamp("current_period_start"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_tenant_payroll_addon_unique").on(table.tenantId),
+  index("idx_tenant_payroll_addon_tier").on(table.tierId),
+  index("idx_tenant_payroll_addon_status").on(table.subscriptionStatus),
+]);
+
+// Insert schemas for payroll addon
+export const insertPayrollAddonTierSchema = createInsertSchema(payrollAddonTiers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBundleDiscountSchema = createInsertSchema(bundleDiscounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTenantPayrollAddonSchema = createInsertSchema(tenantPayrollAddon).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for payroll addon
+export type PayrollAddonTier = typeof payrollAddonTiers.$inferSelect;
+export type InsertPayrollAddonTier = z.infer<typeof insertPayrollAddonTierSchema>;
+
+export type BundleDiscount = typeof bundleDiscounts.$inferSelect;
+export type InsertBundleDiscount = z.infer<typeof insertBundleDiscountSchema>;
+
+export type TenantPayrollAddon = typeof tenantPayrollAddon.$inferSelect;
+export type InsertTenantPayrollAddon = z.infer<typeof insertTenantPayrollAddonSchema>;
+
 // Insert schemas
 export const insertAddonSchema = createInsertSchema(addons).omit({
   id: true,
