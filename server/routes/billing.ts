@@ -21,6 +21,7 @@ import { CYCLE_MONTHS, calculateSavings } from "@shared/billing/types";
 import payrollAddonRoutes from "./billing/payroll-addon";
 import razorpayWebhookRoutes from "./billing/razorpay-webhooks";
 import { countryRolloutService } from "../services/country-rollout";
+import { getAddonAccess } from "../core/addon-gating";
 
 const router = Router();
 
@@ -29,6 +30,35 @@ router.use("/webhooks/razorpay", razorpayWebhookRoutes);
 
 const optionalAuth = authenticateJWT({ required: false });
 const requiredAuth = authenticateJWT({ required: true });
+
+router.get("/addons/access", requiredAuth, async (req: Request, res: Response) => {
+  try {
+    const resolution = await resolveTenantId(req);
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    }
+
+    const tenantId = resolution.tenantId!;
+    const access = await getAddonAccess(tenantId);
+
+    return res.json({
+      success: true,
+      addons: {
+        payroll: {
+          hasAccess: access.payroll,
+          tierId: access.payrollTierId,
+          status: access.payrollStatus || "not_subscribed",
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[billing] Error checking addon access:", error);
+    res.status(500).json({ code: "SERVER_ERROR", error: "Failed to check addon access" });
+  }
+});
 
 const selectPlanSchema = z.object({
   planCode: z.string().min(1),
