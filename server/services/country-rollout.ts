@@ -18,6 +18,17 @@ export interface CountryConfig {
   disabledFeatures: string[];
   enabledAddons: string[];
   enabledPlans: string[];
+  payrollStatus: "disabled" | "beta" | "live";
+  payrollCohortTenantIds: number[];
+  payrollDisclaimerText?: string;
+}
+
+export interface PayrollAccessResult {
+  allowed: boolean;
+  code?: "COUNTRY_PAYROLL_DISABLED" | "TENANT_NOT_IN_COHORT";
+  message?: string;
+  disclaimerText?: string;
+  isBeta?: boolean;
 }
 
 export interface RolloutValidationResult {
@@ -67,6 +78,9 @@ class CountryRolloutService {
       disabledFeatures: rolloutPolicy?.disabledFeatures || [],
       enabledAddons: rolloutPolicy?.enabledAddons || [],
       enabledPlans: rolloutPolicy?.enabledPlans || [],
+      payrollStatus: rolloutPolicy?.payrollStatus || "disabled",
+      payrollCohortTenantIds: rolloutPolicy?.payrollCohortTenantIds || [],
+      payrollDisclaimerText: rolloutPolicy?.payrollDisclaimerText || undefined,
     };
 
     // Cache the result
@@ -244,6 +258,63 @@ class CountryRolloutService {
       
       return created;
     }
+  }
+
+  async checkPayrollAccess(countryCode: string, tenantId: string | number): Promise<PayrollAccessResult> {
+    const config = await this.getCountryConfig(countryCode);
+    
+    if (!config) {
+      return {
+        allowed: false,
+        code: "COUNTRY_PAYROLL_DISABLED",
+        message: "Payroll is not available for this country.",
+      };
+    }
+
+    // Check payroll status
+    if (config.payrollStatus === "disabled") {
+      return {
+        allowed: false,
+        code: "COUNTRY_PAYROLL_DISABLED",
+        message: `Payroll is currently disabled for ${config.countryName}.`,
+      };
+    }
+
+    // For beta status, check if tenant is in the cohort
+    if (config.payrollStatus === "beta") {
+      const cohort = config.payrollCohortTenantIds || [];
+      // Normalize tenantId to number for comparison
+      const tenantIdNum = typeof tenantId === "string" ? parseInt(tenantId, 10) : tenantId;
+      // If cohort is empty, all tenants can access beta
+      if (cohort.length > 0 && !cohort.includes(tenantIdNum)) {
+        return {
+          allowed: false,
+          code: "TENANT_NOT_IN_COHORT",
+          message: `Payroll is in beta for ${config.countryName}. Your account is not yet included.`,
+        };
+      }
+
+      return {
+        allowed: true,
+        isBeta: true,
+        disclaimerText: config.payrollDisclaimerText,
+      };
+    }
+
+    // For live status, all tenants can access
+    return {
+      allowed: true,
+      isBeta: false,
+      disclaimerText: config.payrollDisclaimerText,
+    };
+  }
+
+  async getPayrollStatus(countryCode: string): Promise<{ status: string; disclaimer?: string }> {
+    const config = await this.getCountryConfig(countryCode);
+    return {
+      status: config?.payrollStatus || "disabled",
+      disclaimer: config?.payrollDisclaimerText,
+    };
   }
 
   clearCache(): void {

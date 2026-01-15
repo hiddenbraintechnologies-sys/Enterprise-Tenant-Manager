@@ -8862,12 +8862,17 @@ export type InsertBillingPromoRedemption = z.infer<typeof insertBillingPromoRede
 // COUNTRY ROLLOUT POLICY (extends platformRegionConfigs for granular control)
 // ============================================
 
+export const payrollStatusEnum = pgEnum("payroll_status", ["disabled", "beta", "live"]);
+
 export const countryRolloutPolicy = pgTable("country_rollout_policy", {
   countryCode: varchar("country_code", { length: 5 }).primaryKey(),
   enabledBusinessTypes: jsonb("enabled_business_types").$type<string[]>().default([]),
   disabledFeatures: jsonb("disabled_features").$type<string[]>().default([]),
   enabledAddons: jsonb("enabled_addons").$type<string[]>().default([]),
   enabledPlans: jsonb("enabled_plans").$type<string[]>().default([]),
+  payrollStatus: payrollStatusEnum("payroll_status").default("disabled"),
+  payrollCohortTenantIds: jsonb("payroll_cohort_tenant_ids").$type<string[]>().default([]),
+  payrollDisclaimerText: text("payroll_disclaimer_text"),
   notes: text("notes"),
   updatedBy: varchar("updated_by"),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -8880,3 +8885,53 @@ export const insertCountryRolloutPolicySchema = createInsertSchema(countryRollou
 });
 
 export type InsertCountryRolloutPolicy = z.infer<typeof insertCountryRolloutPolicySchema>;
+
+// ============================================
+// EMPLOYEE PORTAL (Self-Service)
+// ============================================
+
+export const employeePortalInvites = pgTable("employee_portal_invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  employeeId: varchar("employee_id").notNull(),
+  email: text("email").notNull(),
+  inviteToken: varchar("invite_token", { length: 64 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).default("pending"),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_emp_portal_inv_tenant").on(table.tenantId),
+  index("idx_emp_portal_inv_employee").on(table.employeeId),
+  index("idx_emp_portal_inv_token").on(table.inviteToken),
+]);
+
+export const employeePortalSessions = pgTable("employee_portal_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  employeeId: varchar("employee_id").notNull(),
+  sessionToken: varchar("session_token", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_emp_portal_sess_tenant").on(table.tenantId),
+  index("idx_emp_portal_sess_employee").on(table.employeeId),
+  index("idx_emp_portal_sess_token").on(table.sessionToken),
+]);
+
+export type EmployeePortalInvite = typeof employeePortalInvites.$inferSelect;
+export type EmployeePortalSession = typeof employeePortalSessions.$inferSelect;
+
+export const insertEmployeePortalInviteSchema = createInsertSchema(employeePortalInvites).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEmployeePortalSessionSchema = createInsertSchema(employeePortalSessions).omit({
+  id: true,
+  createdAt: true,
+});

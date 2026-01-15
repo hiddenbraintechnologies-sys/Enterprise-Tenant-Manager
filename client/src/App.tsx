@@ -47,6 +47,9 @@ import HrBilling from "@/pages/hr/billing";
 import HrProjects from "@/pages/hr/projects";
 import HrTimesheets from "@/pages/hr/timesheets";
 import HrAllocations from "@/pages/hr/allocations";
+import EmployeePortalLogin from "@/pages/employee-portal/login";
+import EmployeePayslips from "@/pages/employee-portal/payslips";
+import EmployeeAttendance from "@/pages/employee-portal/attendance";
 import Customers from "@/pages/customers";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
@@ -64,6 +67,7 @@ import SuperAdminBusinessRegistry from "@/pages/super-admin-business-registry";
 import SuperAdminModuleRegistry from "@/pages/super-admin-module-registry";
 import SuperAdminFeatureRegistry from "@/pages/super-admin-feature-registry";
 import SuperAdminCountries from "@/pages/super-admin/countries";
+import SuperAdminPayrollAnalytics from "@/pages/super-admin/payroll-analytics";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import TenantUsers from "@/pages/admin/tenant-users";
@@ -386,6 +390,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/settings" component={AdminSettings} />
         <Route path="/super-admin/regions" component={AdminRegions} />
         <Route path="/super-admin/countries" component={SuperAdminCountries} />
+        <Route path="/super-admin/payroll-analytics" component={SuperAdminPayrollAnalytics} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
         <Route path="/super-admin/security/sessions" component={AdminSecuritySessions} />
         <Route path="/super-admin/security" component={AdminSecurity} />
@@ -511,6 +516,7 @@ function AppRouter() {
   const isAdminLoginPath = location === "/admin-login";
   const isAdminForgotPasswordPath = location === "/admin-forgot-password";
   const isPortalPath = location.startsWith("/portal");
+  const isEmployeePortalPath = location.startsWith("/employee");
   
   // PUBLIC ROUTES - Always accessible, no subscription checks, no TenantProvider
   // Must check BEFORE authenticated routes to prevent OnboardingGuard from running
@@ -532,6 +538,17 @@ function AppRouter() {
         <Route path="/portal/dashboard" component={PortalDashboard} />
         <Route path="/portal/invite/:inviteToken" component={PortalRegister} />
         <Route path="/portal/:token" component={PortalLogin} />
+        <Route component={NotFound} />
+      </Switch>
+    );
+  }
+
+  if (isEmployeePortalPath) {
+    return (
+      <Switch>
+        <Route path="/employee/login" component={EmployeePortalLogin} />
+        <Route path="/employee/payslips" component={EmployeePayslips} />
+        <Route path="/employee/attendance" component={EmployeeAttendance} />
         <Route component={NotFound} />
       </Switch>
     );

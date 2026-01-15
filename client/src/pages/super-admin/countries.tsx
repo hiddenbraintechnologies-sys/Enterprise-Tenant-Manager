@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Globe, Settings2, Building2, Zap, Package, FileText, Loader2, ChevronRight } from "lucide-react";
+import { Globe, Settings2, Building2, Zap, Package, FileText, Loader2, ChevronRight, Wallet, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { FEATURE_CATALOG } from "@shared/billing/feature-catalog";
 
 interface CountryWithPolicy {
@@ -44,8 +45,17 @@ interface CountryWithPolicy {
     enabledAddons: string[];
     enabledPlans: string[];
     notes: string | null;
+    payrollStatus?: "disabled" | "beta" | "live";
+    payrollCohortTenantIds?: number[];
+    payrollDisclaimerText?: string | null;
   } | null;
 }
+
+const PAYROLL_STATUS_COLORS: Record<string, string> = {
+  disabled: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+  beta: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  live: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+};
 
 const BUSINESS_TYPES = [
   { value: "clinic", label: "Clinic / Healthcare" },
@@ -86,6 +96,11 @@ export default function SuperAdminCountries() {
   const [formDisabledFeatures, setFormDisabledFeatures] = useState<string[]>([]);
   const [formEnabledAddons, setFormEnabledAddons] = useState<string[]>([]);
   const [formNotes, setFormNotes] = useState("");
+  
+  // Payroll rollout settings
+  const [formPayrollStatus, setFormPayrollStatus] = useState<"disabled" | "beta" | "live">("disabled");
+  const [formPayrollCohort, setFormPayrollCohort] = useState("");
+  const [formPayrollDisclaimer, setFormPayrollDisclaimer] = useState("");
 
   const countriesQuery = useQuery<CountryWithPolicy[]>({
     queryKey: ["/api/super-admin/countries"],
@@ -135,6 +150,9 @@ export default function SuperAdminCountries() {
     setFormDisabledFeatures(country.rolloutPolicy?.disabledFeatures || []);
     setFormEnabledAddons(country.rolloutPolicy?.enabledAddons || []);
     setFormNotes(country.rolloutPolicy?.notes || "");
+    setFormPayrollStatus(country.rolloutPolicy?.payrollStatus || "disabled");
+    setFormPayrollCohort(country.rolloutPolicy?.payrollCohortTenantIds?.join(", ") || "");
+    setFormPayrollDisclaimer(country.rolloutPolicy?.payrollDisclaimerText || "");
     setRolloutDialogOpen(true);
   };
 
@@ -152,6 +170,14 @@ export default function SuperAdminCountries() {
 
   const handleSaveRollout = () => {
     if (!selectedCountry) return;
+    
+    const cohortIds = formPayrollCohort
+      .split(",")
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .map(s => parseInt(s, 10))
+      .filter(n => !isNaN(n));
+    
     updateRolloutMutation.mutate({
       countryCode: selectedCountry.countryCode,
       updates: {
@@ -159,6 +185,9 @@ export default function SuperAdminCountries() {
         disabledFeatures: formDisabledFeatures,
         enabledAddons: formEnabledAddons,
         notes: formNotes,
+        payrollStatus: formPayrollStatus,
+        payrollCohortTenantIds: cohortIds,
+        payrollDisclaimerText: formPayrollDisclaimer || null,
       },
     });
   };
@@ -231,11 +260,22 @@ export default function SuperAdminCountries() {
                 </div>
               </div>
 
-              <div className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {country.rolloutPolicy?.enabledBusinessTypes?.length || country.allowedBusinessTypes?.length || "All"}
-                </span>
-                {" business types enabled"}
+              <div className="flex items-center gap-4 text-sm">
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {country.rolloutPolicy?.enabledBusinessTypes?.length || country.allowedBusinessTypes?.length || "All"}
+                  </span>
+                  {" business types"}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-3 w-3 text-muted-foreground" />
+                  <Badge 
+                    className={PAYROLL_STATUS_COLORS[country.rolloutPolicy?.payrollStatus || "disabled"]} 
+                    data-testid={`badge-payroll-${country.countryCode}`}
+                  >
+                    Payroll: {country.rolloutPolicy?.payrollStatus || "disabled"}
+                  </Badge>
+                </div>
               </div>
 
               <Separator />
@@ -380,6 +420,63 @@ export default function SuperAdminCountries() {
                     </Label>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                <Label className="text-base font-medium">Payroll Rollout Settings</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Control payroll module availability in this country
+              </p>
+              
+              <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
+                <div className="space-y-2">
+                  <Label>Payroll Status</Label>
+                  <Select 
+                    value={formPayrollStatus} 
+                    onValueChange={(v) => setFormPayrollStatus(v as "disabled" | "beta" | "live")}
+                  >
+                    <SelectTrigger data-testid="select-payroll-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="disabled">Disabled - Not available</SelectItem>
+                      <SelectItem value="beta">Beta - Cohort tenants only</SelectItem>
+                      <SelectItem value="live">Live - Available to all</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {formPayrollStatus === "beta" && (
+                  <div className="space-y-2">
+                    <Label>Beta Cohort Tenant IDs</Label>
+                    <Input
+                      value={formPayrollCohort}
+                      onChange={(e) => setFormPayrollCohort(e.target.value)}
+                      placeholder="e.g., 1, 5, 12, 23"
+                      data-testid="input-payroll-cohort"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Comma-separated tenant IDs with beta access to payroll
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Disclaimer Text</Label>
+                  <Textarea
+                    value={formPayrollDisclaimer}
+                    onChange={(e) => setFormPayrollDisclaimer(e.target.value)}
+                    placeholder="Optional disclaimer for payroll features in this country..."
+                    rows={2}
+                    data-testid="textarea-payroll-disclaimer"
+                  />
+                </div>
               </div>
             </div>
 

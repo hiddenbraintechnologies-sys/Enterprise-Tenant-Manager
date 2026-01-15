@@ -137,6 +137,9 @@ const updateRolloutSchema = z.object({
   disabledFeatures: z.array(z.string()).optional(),
   enabledAddons: z.array(z.string()).optional(),
   enabledPlans: z.array(z.string()).optional(),
+  payrollStatus: z.enum(["disabled", "beta", "live"]).optional(),
+  payrollCohortTenantIds: z.array(z.number()).optional(),
+  payrollDisclaimerText: z.string().nullable().optional(),
   notes: z.string().optional(),
 });
 
@@ -161,6 +164,13 @@ router.patch("/:countryCode/rollout", authenticateJWT(), requirePlatformAdmin("S
       adminId
     );
 
+    // Determine the audit action based on what was updated
+    const isPayrollUpdate = parsed.data.payrollStatus !== undefined || 
+                            parsed.data.payrollCohortTenantIds !== undefined ||
+                            parsed.data.payrollDisclaimerText !== undefined;
+    
+    const auditAction = isPayrollUpdate ? "COUNTRY_PAYROLL_ROLLOUT_UPDATED" : "COUNTRY_ROLLOUT_UPDATED";
+    
     // Audit log for country rollout update
     await db.insert(auditLogs).values({
       action: "update",
@@ -168,9 +178,14 @@ router.patch("/:countryCode/rollout", authenticateJWT(), requirePlatformAdmin("S
       resourceId: normalizedCode,
       userId: adminId,
       metadata: {
-        action: "COUNTRY_ROLLOUT_UPDATED",
+        action: auditAction,
         before,
         after: updated,
+        payrollChanges: isPayrollUpdate ? {
+          previousStatus: before?.payrollStatus,
+          newStatus: updated.payrollStatus,
+          cohortChanged: JSON.stringify(before?.payrollCohortTenantIds) !== JSON.stringify(updated.payrollCohortTenantIds),
+        } : undefined,
       },
       ipAddress: req.ip,
     });

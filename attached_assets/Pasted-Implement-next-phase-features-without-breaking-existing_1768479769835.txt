@@ -1,0 +1,78 @@
+Implement next phase features without breaking existing auth, billing, or rollout logic.
+
+PART A — UK Payroll Readiness (Gated Rollout)
+
+1) Extend country rollout policy:
+- payroll_status: disabled | beta | live
+- payroll_cohort_tenant_ids (optional array)
+- payroll_disclaimer_text
+
+Defaults:
+- MY: payroll_status=beta
+- UK: payroll_status=disabled (or beta with cohort)
+- Statutory filing remains OFF everywhere
+
+2) Runtime guard:
+- If payroll_status=disabled → 403 COUNTRY_FEATURE_DISABLED
+- If beta + cohort list → allow only listed tenants
+- Show country-specific disclaimer on payroll pages + payslip PDF footer
+
+3) Super Admin UI:
+- Edit payroll_status
+- Manage cohort tenant list
+- Edit disclaimer text
+- Audit log COUNTRY_PAYROLL_ROLLOUT_UPDATED
+
+PART B — Employee Self-Service Portal (Minimal)
+
+1) New portal auth (separate from tenant/admin):
+- Invite-based employee login
+- Strict tenant + employee isolation
+
+2) API:
+- POST /api/employee-portal/invite
+- POST /api/employee-portal/accept-invite
+- POST /api/employee-portal/login
+- GET /api/employee-portal/payslips
+- GET /api/employee-portal/payslips/:id/pdf
+- GET /api/employee-portal/attendance
+
+3) Frontend routes (public, no TenantProvider):
+- /employee/login
+- /employee/payslips
+- /employee/attendance
+
+4) Security:
+- Rate limit login
+- httpOnly session cookies
+- Audit logs for login + PDF downloads
+
+PART C — Payroll Revenue Analytics (Super Admin)
+
+1) Backend endpoints:
+- GET /api/admin/analytics/payroll/summary
+- GET /api/admin/analytics/payroll/tenants
+
+Metrics:
+- Payroll MRR by country
+- Active tenants
+- Trial count
+- Trial→Paid conversion
+- Churn
+- Tier + base-plan breakdown
+
+2) Admin UI:
+- /super-admin/analytics/payroll
+- KPI cards + filters (date, country)
+- Tables for trials ending soon + grace period tenants
+
+RULES:
+- Do NOT change existing tenant/admin auth flows
+- Payroll statutory filing remains disabled
+- All public routes bypass TenantProvider
+- Add tests for UK gating, portal isolation, analytics auth
+
+DONE WHEN:
+- UK payroll safely gated
+- Employee portal works (payslips + attendance)
+- Super Admin sees payroll revenue analytics

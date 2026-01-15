@@ -101,8 +101,10 @@ import adminBillingPlansRoutes from "./routes/admin-billing-plans";
 import adminBillingOffersRoutes from "./routes/admin-billing-offers";
 import adminBillingPromosRoutes from "./routes/admin/promos";
 import adminCountriesRoutes from "./routes/admin/countries";
+import adminPayrollAnalyticsRoutes from "./routes/admin/payroll-analytics";
 import publicRoutes from "./routes/public";
 import promoRoutes from "./routes/billing/promos";
+import employeePortalRoutes from "./routes/employee-portal";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
 import tenantSettingsRoutes from "./routes/tenant-settings";
@@ -352,6 +354,9 @@ export async function registerRoutes(
   
   // Public routes (no auth required)
   app.use('/api/public', publicRoutes);
+  
+  // Employee Self-Service Portal (public, no TenantProvider)
+  app.use('/api/employee-portal', employeePortalRoutes);
 
   // Phase 3: Onboarding, Subscription Selection & Dashboard APIs
   app.use('/api/auth', phase3OnboardingRoutes);
@@ -2417,6 +2422,9 @@ export async function registerRoutes(
   
   // Admin country rollout routes
   app.use('/api/super-admin/countries', adminCountriesRoutes);
+  
+  // Payroll Revenue Analytics (Super Admin only)
+  app.use('/api/admin/analytics/payroll', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), adminPayrollAnalyticsRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {

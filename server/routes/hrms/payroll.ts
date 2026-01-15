@@ -37,6 +37,7 @@ import PayrollService from "../../services/hrms/payrollService";
 import { hrmsStorage } from "../../storage/hrms";
 import { db } from "../../db";
 import { getPayrollComplianceConfig, getSalaryComponentsForCountry } from "../../services/hrms/payroll-compliance";
+import { countryRolloutService } from "../../services/country-rollout";
 import { 
   hrPayrollSettings, 
   hrPayRuns, 
@@ -81,13 +82,16 @@ const salaryStructureSchema = z.object({
 
 const router = Router();
 
-function requirePayrollFeature() {
+function requirePayrollWithCountryAccess() {
   return async (req: Request, res: Response, next: NextFunction) => {
     const tenantId = req.context?.tenant?.id;
+    const tenantCountry = req.context?.tenant?.country;
+    
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant ID required" });
     }
     
+    // Check payroll feature flag first
     const hasFeature = await hrmsStorage.hasFeatureFlag(tenantId, "payroll");
     if (!hasFeature) {
       return res.status(403).json({ 
@@ -95,6 +99,23 @@ function requirePayrollFeature() {
         message: "The payroll feature is not enabled for your subscription" 
       });
     }
+    
+    // Then check country-level payroll access
+    const countryCode = normalizeCountryCodeFromTenant(tenantCountry);
+    const accessResult = await countryRolloutService.checkPayrollAccess(countryCode, tenantId);
+    
+    if (!accessResult.allowed) {
+      return res.status(403).json({
+        error: accessResult.code || "COUNTRY_FEATURE_DISABLED",
+        message: accessResult.message || "Payroll is not available for your country",
+      });
+    }
+    
+    (req as any).payrollAccess = {
+      isBeta: accessResult.isBeta,
+      disclaimerText: accessResult.disclaimerText,
+    };
+    
     next();
   };
 }
@@ -148,9 +169,35 @@ router.get("/salary-components", async (req, res) => {
   }
 });
 
+router.get("/access-status", async (req, res) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    const tenantCountry = req.context?.tenant?.country;
+    
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant ID required" });
+    }
+    
+    const countryCode = normalizeCountryCodeFromTenant(tenantCountry);
+    const accessResult = await countryRolloutService.checkPayrollAccess(countryCode, tenantId);
+    
+    res.json({
+      countryCode,
+      allowed: accessResult.allowed,
+      isBeta: accessResult.isBeta || false,
+      disclaimerText: accessResult.disclaimerText,
+      message: accessResult.message,
+      code: accessResult.code,
+    });
+  } catch (error) {
+    console.error("Error checking payroll access:", error);
+    res.status(500).json({ error: "Failed to check payroll access status" });
+  }
+});
+
 // ==================== SETTINGS ====================
 
-router.get("/settings", requirePayrollFeature(), async (req, res) => {
+router.get("/settings", requirePayrollWithCountryAccess(), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -182,7 +229,7 @@ router.get("/settings", requirePayrollFeature(), async (req, res) => {
   }
 });
 
-router.patch("/settings", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.patch("/settings", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -228,7 +275,7 @@ router.patch("/settings", requirePayrollFeature(), requireMinimumRole("admin"), 
 
 // ==================== SALARY STRUCTURES ====================
 
-router.get("/salary-structures", requirePayrollFeature(), async (req, res) => {
+router.get("/salary-structures", requirePayrollWithCountryAccess(), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -262,7 +309,7 @@ router.get("/salary-structures", requirePayrollFeature(), async (req, res) => {
   }
 });
 
-router.get("/salary-structures/:employeeId", requirePayrollFeature(), async (req, res) => {
+router.get("/salary-structures/:employeeId", requirePayrollWithCountryAccess(), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -270,7 +317,7 @@ router.get("/salary-structures/:employeeId", requirePayrollFeature(), async (req
   res.json(structure);
 });
 
-router.post("/salary-structures", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.post("/salary-structures", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -292,7 +339,7 @@ router.post("/salary-structures", requirePayrollFeature(), requireMinimumRole("a
   }
 });
 
-router.patch("/salary-structures/:id", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.patch("/salary-structures/:id", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -328,7 +375,7 @@ router.patch("/salary-structures/:id", requirePayrollFeature(), requireMinimumRo
 
 // ==================== PAY RUNS ====================
 
-router.get("/pay-runs", requirePayrollFeature(), async (req, res) => {
+router.get("/pay-runs", requirePayrollWithCountryAccess(), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -365,7 +412,7 @@ router.get("/pay-runs", requirePayrollFeature(), async (req, res) => {
   }
 });
 
-router.post("/pay-runs/generate", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.post("/pay-runs/generate", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     const userId = req.context?.user?.id;
@@ -503,7 +550,7 @@ router.post("/pay-runs/generate", requirePayrollFeature(), requireMinimumRole("a
   }
 });
 
-router.get("/pay-runs/:id/items", requirePayrollFeature(), async (req, res) => {
+router.get("/pay-runs/:id/items", requirePayrollWithCountryAccess(), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -551,7 +598,7 @@ router.get("/pay-runs/:id/items", requirePayrollFeature(), async (req, res) => {
   }
 });
 
-router.post("/pay-runs/:id/approve", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.post("/pay-runs/:id/approve", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     const userId = req.context?.user?.id;
@@ -583,7 +630,7 @@ router.post("/pay-runs/:id/approve", requirePayrollFeature(), requireMinimumRole
   }
 });
 
-router.post("/pay-runs/:id/mark-paid", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.post("/pay-runs/:id/mark-paid", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -615,7 +662,7 @@ router.post("/pay-runs/:id/mark-paid", requirePayrollFeature(), requireMinimumRo
 
 // ==================== PAYSLIPS ====================
 
-router.get("/payslips/:itemId/pdf", requirePayrollFeature(), async (req, res) => {
+router.get("/payslips/:itemId/pdf", requirePayrollWithCountryAccess(), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     const countryCode = normalizeCountryCodeFromTenant(req.context?.tenant?.country);
@@ -760,7 +807,7 @@ router.get("/payslips/:itemId/pdf", requirePayrollFeature(), async (req, res) =>
 });
 
 // Legacy endpoints for backward compatibility
-router.get("/", requirePayrollFeature(), async (req, res) => {
+router.get("/", requirePayrollWithCountryAccess(), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -769,7 +816,7 @@ router.get("/", requirePayrollFeature(), async (req, res) => {
   res.json(result);
 });
 
-router.post("/", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.post("/", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
@@ -778,7 +825,7 @@ router.post("/", requirePayrollFeature(), requireMinimumRole("admin"), async (re
   res.status(201).json(payroll);
 });
 
-router.put("/:id", requirePayrollFeature(), requireMinimumRole("admin"), async (req, res) => {
+router.put("/:id", requirePayrollWithCountryAccess(), requireMinimumRole("admin"), async (req, res) => {
   const tenantId = req.context?.tenant?.id;
   if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
   
