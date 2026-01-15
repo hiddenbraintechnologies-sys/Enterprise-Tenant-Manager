@@ -1,0 +1,60 @@
+Fix tenant dashboard API authentication + module gating so “Create Engagement/Project” and Timesheet dropdown work.
+
+Observed:
+- POST /api/hr/projects or /api/services/consulting/projects returns 401 {"code":"MISSING_TOKEN"} even when user is logged in.
+- GET /api/notifications/unread-count returns 401.
+- Timesheet “Log Time” dropdown is empty even though engagements/projects exist (likely list endpoint fails).
+- Console sometimes shows token refresh JSON parse error: Unexpected token '<' (HTML returned).
+
+Goal:
+1) After tenant login, ALL tenant API calls succeed using the same auth method consistently.
+2) Engagements/projects can be created (no 401).
+3) Timesheet dropdown loads saved engagements/projects.
+4) If a module is not included in the plan, show a clean “Module locked – upgrade” UI, but do not break auth.
+
+Implement:
+A) Unify auth for tenant routes:
+- Support BOTH cookie-session and Bearer token.
+- In server middleware (auth middleware used by /api/* tenant routes), accept:
+  - Authorization: Bearer <token>
+  - OR session cookie (req.session / req.user)
+- Return 401 only when neither is present.
+
+B) Fix frontend API client:
+- Ensure every internal API call uses SAME ORIGIN relative paths (e.g., "/api/…", never hardcoded host).
+- Ensure fetch includes credentials:
+  fetch(url, { credentials: "include", ... })
+- Ensure Authorization header is added only if token exists (do not require token if cookie session is valid).
+- Ensure refresh handler does not crash if response is HTML; detect non-JSON and redirect to /login.
+
+Files to check/update:
+- client/src/lib/api.ts (or wherever fetch wrapper is)
+- client/src/lib/queryClient.ts (react-query base fetch)
+- client/src/hooks/useAuth.ts (token refresh logic)
+- server/middleware/auth*.ts (tenant auth middleware)
+- server/routes/services/* and server/routes/hr/* (ensure they use the unified middleware)
+- server/routes/notifications.ts (ensure same auth middleware)
+
+C) Fix Timesheet dropdown:
+- Identify which endpoint the dropdown uses (projects/engagements list).
+- Ensure it calls the correct module endpoint for the current business type:
+  Consulting: /api/services/consulting/projects (or engagements)
+  Software Services: /api/services/software-services/projects
+- Ensure the list endpoint returns 200 with tenant-scoped records.
+- Add a fallback empty-state message if list is genuinely empty.
+
+D) Module gating:
+- If plan lacks software_services, timesheets, invoicing etc:
+  backend returns 403 MODULE_NOT_AVAILABLE,
+  frontend shows “Locked – Upgrade” instead of throwing errors.
+- Do NOT return 401 for module gating.
+
+Add tests:
+- Auth: logged-in tenant can POST create engagement/project without Authorization header (cookie only).
+- Timesheets: list returns saved engagements/projects for tenant.
+- Module not available returns 403 and UI shows upgrade lock state.
+
+Deliverables:
+- Commit fixes
+- Provide the exact endpoints for consulting + software services used by create + list + timesheets
+- Confirm in browser network tab: requests are same-origin and include cookies, and 401s are gone.

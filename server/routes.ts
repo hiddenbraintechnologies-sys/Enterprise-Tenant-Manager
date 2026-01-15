@@ -317,14 +317,14 @@ export async function registerRoutes(
   app.use('/api/services/consulting', ...moduleProtectedMiddleware("consulting"), servicesRoutes);
 
   // Register HRMS module routes (protected, cross-business horizontal module)
-  // Uses JWT auth (not session-based) to match frontend token-based auth
-  app.use('/api/hr', authenticateJWT({ required: true }), enforceTenantBoundary(), requireModule("hrms"), hrmsRoutes);
+  // Uses hybrid auth (session + JWT) to support both cookie-based dashboard access and token-based API access
+  app.use('/api/hr', authenticateHybrid({ required: true }), enforceTenantBoundary(), requireModule("hrms"), hrmsRoutes);
 
   // Register Reseller/White-label routes
-  app.use('/api/resellers', authenticateJWT({ required: true }), resellerRoutes);
+  app.use('/api/resellers', authenticateHybrid({ required: true }), resellerRoutes);
 
   // Register Branding/Theming routes
-  app.use('/api/branding', authenticateJWT({ required: true }), enforceTenantBoundary(), brandingRoutes);
+  app.use('/api/branding', authenticateHybrid({ required: true }), enforceTenantBoundary(), brandingRoutes);
 
   // Register Add-on Marketplace routes
   app.use('/api/addons', addonRoutes);

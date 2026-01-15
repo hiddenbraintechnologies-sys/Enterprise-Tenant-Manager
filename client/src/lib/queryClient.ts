@@ -51,12 +51,25 @@ async function refreshAccessToken(): Promise<boolean> {
       body: JSON.stringify({ refreshToken }),
     });
     
-    if (response.ok) {
+    // Check content-type to avoid parsing HTML as JSON
+    const contentType = response.headers.get("content-type");
+    const isJson = contentType && contentType.includes("application/json");
+    
+    if (response.ok && isJson) {
       const tokens = await response.json();
       localStorage.setItem("accessToken", tokens.accessToken);
       localStorage.setItem("refreshToken", tokens.refreshToken);
       console.log("[queryClient] Token refreshed successfully");
       return true;
+    }
+    
+    // If we got HTML instead of JSON, likely a redirect to login page
+    if (!isJson) {
+      console.warn("[queryClient] Token refresh returned non-JSON response, redirecting to login");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      // Don't redirect here - let the calling code handle it
+      return false;
     }
     
     // Only clear tokens if server explicitly rejected them
