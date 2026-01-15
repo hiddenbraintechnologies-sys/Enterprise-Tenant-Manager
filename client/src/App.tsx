@@ -106,6 +106,7 @@ import SubscriptionDashboard from "@/pages/subscription-dashboard";
 import Pricing from "@/pages/pricing";
 import Packages from "@/pages/packages";
 import Checkout from "@/pages/checkout";
+import BillingAddons from "@/pages/billing-addons";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -299,6 +300,7 @@ function AuthenticatedRoutes() {
       <Route path="/reseller" component={ResellerDashboard} />
       <Route path="/subscription/select" component={SubscriptionSelect} />
       <Route path="/subscription-dashboard" component={SubscriptionDashboard} />
+      <Route path="/billing/addons" component={BillingAddons} />
       
       <Route path="/hr">
         <ModuleGuard moduleId="hrms">
