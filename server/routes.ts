@@ -102,6 +102,7 @@ import adminBillingOffersRoutes from "./routes/admin-billing-offers";
 import adminBillingPromosRoutes from "./routes/admin/promos";
 import adminCountriesRoutes from "./routes/admin/countries";
 import adminPayrollAnalyticsRoutes from "./routes/admin/payroll-analytics";
+import adminAddonsRoutes from "./routes/admin/addons";
 import publicRoutes from "./routes/public";
 import promoRoutes from "./routes/billing/promos";
 import employeePortalRoutes from "./routes/employee-portal";
@@ -2435,6 +2436,9 @@ export async function registerRoutes(
   
   // Payroll Revenue Analytics (Super Admin only)
   app.use('/api/admin/analytics/payroll', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), adminPayrollAnalyticsRoutes);
+  
+  // Admin add-ons management routes (RBAC protected)
+  app.use('/api/admin/addons', adminAddonsRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
