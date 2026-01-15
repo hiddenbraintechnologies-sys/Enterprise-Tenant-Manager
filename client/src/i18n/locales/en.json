@@ -143,19 +143,21 @@
   "addons": {
     "pageTitle": "Add-ons",
     "pageSubtitle": "Enhance your plan with powerful add-ons",
+    "optionalAddons": "Optional Add-ons",
+    "optionalAddonsDesc": "Enhance your plan with optional add-ons. You can add or remove these later.",
     "payroll": {
-      "title": "Payroll Add-on",
+      "title": "Payroll",
       "locked": "Payroll (Locked)",
-      "description": "Complete payroll management with country-specific compliance",
+      "description": "Automate salary, statutory deductions, and payslips for your team.",
       "subscribeToAccess": "Subscribe to Payroll Add-on to access HRMS features",
       "selectTier": "Select a tier based on your employee count",
-      "tierA": "Small Business",
-      "tierB": "Medium Business",
-      "tierC": "Enterprise",
+      "tierA": "Up to 25 employees",
+      "tierB": "Up to 100 employees",
+      "tierC": "Unlimited employees",
       "employees": "employees",
       "employeesUnlimited": "101+ employees",
-      "perMonth": "/month",
-      "perYear": "/year",
+      "perMonth": "/ month",
+      "perYear": "/ year",
       "billedMonthly": "Billed monthly",
       "billedYearly": "Billed yearly",
       "yearlySavings": "Save {{amount}} yearly",
@@ -164,6 +166,11 @@
       "active": "Active",
       "expired": "Expired",
       "trial": "Trial",
+      "trialBadge": "7-day free trial",
+      "trialHelperText": "Try Payroll free for 7 days. Charges apply only after trial ends.",
+      "trialActive": "Trial active — no charge today",
+      "trialEndingSoon": "Payroll trial ending soon",
+      "trialEndingSoonMessage": "Your Payroll trial ends tomorrow. Please complete payment to continue uninterrupted access.",
       "gracePeriod": "Grace Period",
       "currentTier": "Current tier",
       "changeTier": "Change tier",
@@ -171,6 +178,13 @@
       "renewNow": "Renew Now",
       "expiresOn": "Expires on {{date}}",
       "validUntil": "Valid until {{date}}",
+      "addPayroll": "Add Payroll",
+      "summaryLine": "Payroll add-on",
+      "activated": "Payroll activated",
+      "activatedMessage": "Payroll has been successfully added to your subscription.",
+      "notEnabled": "Payroll not enabled",
+      "notEnabledMessage": "Add Payroll to automate salaries and statutory compliance.",
+      "upgradeToPayroll": "Upgrade to Payroll",
       "features": {
         "salaryProcessing": "Salary processing",
         "taxCalculations": "Automatic tax calculations",
@@ -186,5 +200,13 @@
     "retry": "Retry",
     "included": "Included with your plan",
     "notAvailable": "Not available in your region"
+  },
+  "admin": {
+    "payroll": {
+      "enableForMalaysia": "Enable Payroll for Malaysia",
+      "enableHelperText": "Controls availability of Payroll add-on for Malaysian tenants.",
+      "revenue": "Payroll Revenue",
+      "activeSubscriptions": "Active Payroll subscriptions"
+    }
   }
 }

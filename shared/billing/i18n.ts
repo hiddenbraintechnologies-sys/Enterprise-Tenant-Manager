@@ -1,37 +1,53 @@
-export type Lang = "en" | "hi";
+export type Lang = "en" | "hi" | "ms" | "ta";
 
 export const BILLING_STRINGS = {
   pageTitle: {
     en: "Choose your plan",
-    hi: "अपना प्लान चुनें"
+    hi: "अपना प्लान चुनें",
+    ms: "Pilih pelan anda",
+    ta: "உங்கள் திட்டத்தைத் தேர்ந்தெடுங்கள்"
   },
   pageSubtitle: {
     en: "Start free and upgrade as your business grows. All plans include a 14-day trial.",
-    hi: "मुफ्त में शुरू करें और अपने बिज़नेस के साथ अपग्रेड करें। सभी प्लान में 14 दिन का ट्रायल शामिल है।"
+    hi: "मुफ्त में शुरू करें और अपने बिज़नेस के साथ अपग्रेड करें। सभी प्लान में 14 दिन का ट्रायल शामिल है।",
+    ms: "Mulakan secara percuma dan naik taraf apabila perniagaan anda berkembang. Semua pelan termasuk percubaan 14 hari.",
+    ta: "இலவசமாகத் தொடங்குங்கள், உங்கள் வணிகம் வளரும்போது மேம்படுத்துங்கள். அனைத்து திட்டங்களிலும் 14 நாள் சோதனை உள்ளது."
   },
   monthly: {
     en: "Monthly",
-    hi: "मासिक"
+    hi: "मासिक",
+    ms: "Bulanan",
+    ta: "மாதாந்திர"
   },
   yearly: {
     en: "Yearly",
-    hi: "वार्षिक"
+    hi: "वार्षिक",
+    ms: "Tahunan",
+    ta: "வருடாந்திர"
   },
   perMonth: {
     en: "/month",
-    hi: "/महीना"
+    hi: "/महीना",
+    ms: "/bulan",
+    ta: "/மாதம்"
   },
   perYear: {
     en: "/year",
-    hi: "/वर्ष"
+    hi: "/वर्ष",
+    ms: "/tahun",
+    ta: "/வருடம்"
   },
   billedMonthly: {
     en: "Billed monthly",
-    hi: "हर महीने बिल"
+    hi: "हर महीने बिल",
+    ms: "Dibilkan bulanan",
+    ta: "மாதாந்திர பில்லிங்"
   },
   billedYearly: {
     en: "Billed yearly",
-    hi: "हर साल बिल"
+    hi: "हर साल बिल",
+    ms: "Dibilkan tahunan",
+    ta: "வருடாந்திர பில்லிங்"
   },
   recommended: {
     en: "Recommended",
@@ -747,7 +763,147 @@ export const BILLING_STRINGS = {
   },
   featureCustomBranding: {
     en: "Custom Branding",
-    hi: "कस्टम ब्रांडिंग"
+    hi: "कस्टम ब्रांडिंग",
+    ms: "Penjenamaan Tersuai",
+    ta: "தனிப்பயன் பிராண்டிங்"
+  },
+  payrollTitle: {
+    en: "Payroll",
+    ms: "Gaji & Payroll",
+    ta: "சம்பள மேலாண்மை (Payroll)",
+    hi: "पेरोल"
+  },
+  payrollSubtitle: {
+    en: "Automate salary, statutory deductions, and payslips for your team.",
+    ms: "Automatikkan gaji, potongan berkanun, dan slip gaji pekerja anda.",
+    ta: "உங்கள் குழுவிற்கான சம்பளம், சட்டப்படி கழிப்புகள் மற்றும் சம்பள சீட்டுகளை தானியங்கி செய்யுங்கள்.",
+    hi: "अपनी टीम के लिए वेतन, वैधानिक कटौती और पे स्लिप को स्वचालित करें।"
+  },
+  payrollTrialBadge: {
+    en: "7-day free trial",
+    ms: "Percubaan percuma 7 hari",
+    ta: "7 நாள் இலவச சோதனை",
+    hi: "7 दिन का फ्री ट्रायल"
+  },
+  payrollAddButton: {
+    en: "Add Payroll",
+    ms: "Tambah Payroll",
+    ta: "Payroll சேர்க்கவும்",
+    hi: "पेरोल जोड़ें"
+  },
+  payrollTierA: {
+    en: "Up to 25 employees",
+    ms: "Sehingga 25 pekerja",
+    ta: "25 ஊழியர்கள் வரை",
+    hi: "25 कर्मचारियों तक"
+  },
+  payrollTierB: {
+    en: "Up to 100 employees",
+    ms: "Sehingga 100 pekerja",
+    ta: "100 ஊழியர்கள் வரை",
+    hi: "100 कर्मचारियों तक"
+  },
+  payrollTierC: {
+    en: "Unlimited employees",
+    ms: "Pekerja tanpa had",
+    ta: "வரம்பற்ற ஊழியர்கள்",
+    hi: "असीमित कर्मचारी"
+  },
+  optionalAddons: {
+    en: "Optional Add-ons",
+    ms: "Tambahan Pilihan",
+    ta: "விருப்பமான கூடுதல் அம்சங்கள்",
+    hi: "वैकल्पिक ऐड-ऑन"
+  },
+  optionalAddonsDesc: {
+    en: "Enhance your plan with optional add-ons. You can add or remove these later.",
+    ms: "Tingkatkan pelan anda dengan tambahan pilihan. Anda boleh menambah atau membuang kemudian.",
+    ta: "விருப்பமான கூடுதல் அம்சங்களை உங்கள் திட்டத்தில் சேர்க்கலாம். பின்னர் மாற்றலாம்.",
+    hi: "वैकल्पिक ऐड-ऑन के साथ अपने प्लान को बेहतर बनाएं। आप बाद में इन्हें जोड़ या हटा सकते हैं।"
+  },
+  payrollTrialHelperText: {
+    en: "Try Payroll free for 7 days. Charges apply only after trial ends.",
+    ms: "Cuba Payroll secara percuma selama 7 hari. Caj hanya dikenakan selepas percubaan tamat.",
+    ta: "Payroll ஐ 7 நாட்கள் இலவசமாக முயற்சிக்கவும். சோதனை முடிந்த பிறகே கட்டணம் விதிக்கப்படும்.",
+    hi: "7 दिनों के लिए पेरोल मुफ्त आज़माएं। ट्रायल समाप्त होने के बाद ही शुल्क लागू होते हैं।"
+  },
+  payrollSummaryLine: {
+    en: "Payroll add-on",
+    ms: "Tambahan Payroll",
+    ta: "Payroll கூடுதல் அம்சம்",
+    hi: "पेरोल ऐड-ऑन"
+  },
+  payrollTrialNotice: {
+    en: "Trial active — no charge today",
+    ms: "Percubaan aktif — tiada caj hari ini",
+    ta: "சோதனை செயலில் உள்ளது — இன்று கட்டணம் இல்லை",
+    hi: "ट्रायल सक्रिय — आज कोई शुल्क नहीं"
+  },
+  payrollActivated: {
+    en: "Payroll activated",
+    ms: "Payroll diaktifkan",
+    ta: "Payroll செயல்படுத்தப்பட்டது",
+    hi: "पेरोल सक्रिय"
+  },
+  payrollActivatedMessage: {
+    en: "Payroll has been successfully added to your subscription.",
+    ms: "Payroll telah berjaya ditambah ke langganan anda.",
+    ta: "Payroll உங்கள் சந்தாவிற்கு வெற்றிகரமாக சேர்க்கப்பட்டது.",
+    hi: "पेरोल सफलतापूर्वक आपकी सदस्यता में जोड़ दिया गया है।"
+  },
+  payrollTrialEndingSoon: {
+    en: "Payroll trial ending soon",
+    ms: "Percubaan Payroll akan tamat",
+    ta: "Payroll சோதனை விரைவில் முடிவடையும்",
+    hi: "पेरोल ट्रायल जल्द समाप्त हो रहा है"
+  },
+  payrollTrialEndingSoonMessage: {
+    en: "Your Payroll trial ends tomorrow. Please complete payment to continue uninterrupted access.",
+    ms: "Percubaan Payroll anda tamat esok. Sila buat pembayaran untuk terus menggunakan perkhidmatan tanpa gangguan.",
+    ta: "உங்கள் Payroll சோதனை நாளை முடிவடைகிறது. தொடர்ந்த பயன்பாட்டிற்கு கட்டணம் செலுத்தவும்.",
+    hi: "आपका पेरोल ट्रायल कल समाप्त हो रहा है। निर्बाध पहुंच जारी रखने के लिए कृपया भुगतान पूरा करें।"
+  },
+  payrollNotEnabled: {
+    en: "Payroll not enabled",
+    ms: "Payroll belum diaktifkan",
+    ta: "Payroll செயல்படுத்தப்படவில்லை",
+    hi: "पेरोल सक्षम नहीं है"
+  },
+  payrollNotEnabledMessage: {
+    en: "Add Payroll to automate salaries and statutory compliance.",
+    ms: "Tambah Payroll untuk automatikkan gaji dan pematuhan berkanun.",
+    ta: "சம்பளமும் சட்டபூர்த்தியும் தானியங்கியாக்க Payroll ஐ சேர்க்கவும்.",
+    hi: "वेतन और वैधानिक अनुपालन को स्वचालित करने के लिए पेरोल जोड़ें।"
+  },
+  payrollUpgrade: {
+    en: "Upgrade to Payroll",
+    ms: "Naik taraf ke Payroll",
+    ta: "Payroll க்கு மேம்படுத்தவும்",
+    hi: "पेरोल में अपग्रेड करें"
+  },
+  payrollEnableForMalaysia: {
+    en: "Enable Payroll for Malaysia",
+    ms: "Aktifkan Payroll untuk Malaysia",
+    ta: "மலேசியாவிற்கான Payroll ஐ செயல்படுத்தவும்",
+    hi: "मलेशिया के लिए पेरोल सक्षम करें"
+  },
+  payrollEnableHelperText: {
+    en: "Controls availability of Payroll add-on for Malaysian tenants.",
+    ms: "Mengawal ketersediaan tambahan Payroll untuk penyewa Malaysia.",
+    ta: "மலேசிய வாடிக்கையாளர்களுக்கான Payroll கூடுதல் அம்சத்தின் கிடைப்பை கட்டுப்படுத்துகிறது.",
+    hi: "मलेशियाई किरायेदारों के लिए पेरोल ऐड-ऑन की उपलब्धता को नियंत्रित करता है।"
+  },
+  payrollRevenue: {
+    en: "Payroll Revenue",
+    ms: "Hasil Payroll",
+    ta: "Payroll வருமானம்",
+    hi: "पेरोल राजस्व"
+  },
+  payrollActiveSubscriptions: {
+    en: "Active Payroll subscriptions",
+    ms: "Langganan Payroll aktif",
+    ta: "செயலில் உள்ள Payroll சந்தாக்கள்",
+    hi: "सक्रिय पेरोल सदस्यताएं"
   },
 } as const;
 
@@ -815,7 +971,8 @@ export function downgradeBannerText(lang: Lang, targetPlanName: string, effectiv
 }
 
 export function t(lang: Lang, key: keyof typeof BILLING_STRINGS): string {
-  return BILLING_STRINGS[key][lang];
+  const entry = BILLING_STRINGS[key] as Record<string, string>;
+  return entry[lang] || entry["en"] || "";
 }
 
 export function getTierLabel(lang: Lang, tier: string): string {
@@ -827,7 +984,9 @@ export function getTierLabel(lang: Lang, tier: string): string {
     enterprise: "tierEnterprise",
   };
   const key = tierMap[tier?.toLowerCase() || "free"];
-  return key ? (BILLING_STRINGS[key]?.[safeLang] || tier) : tier;
+  if (!key) return tier;
+  const entry = BILLING_STRINGS[key] as Record<string, string>;
+  return entry[safeLang] || entry["en"] || tier;
 }
 
 const FEATURE_KEY_I18N_MAP: Record<string, keyof typeof BILLING_STRINGS> = {
@@ -845,15 +1004,20 @@ const FEATURE_KEY_I18N_MAP: Record<string, keyof typeof BILLING_STRINGS> = {
 export function getFeatureLabel(lang: Lang, featureKey: string): string {
   const safeLang = lang || "en";
   const i18nKey = FEATURE_KEY_I18N_MAP[featureKey];
-  return i18nKey ? (BILLING_STRINGS[i18nKey]?.[safeLang] || featureKey) : featureKey;
+  if (!i18nKey) return featureKey;
+  const entry = BILLING_STRINGS[i18nKey] as Record<string, string>;
+  return entry[safeLang] || entry["en"] || featureKey;
 }
 
 export function getLimitChangeText(lang: Lang, type: "users" | "records", from: number | string, to: number | string): string {
   const safeLang = lang || "en";
+  const usersEntry = BILLING_STRINGS.usersLimit as Record<string, string>;
+  const recordsEntry = BILLING_STRINGS.recordsLimit as Record<string, string>;
+  const unlimitedEntry = BILLING_STRINGS.unlimited as Record<string, string>;
   const label = type === "users" 
-    ? (BILLING_STRINGS.usersLimit?.[safeLang] || "Users") 
-    : (BILLING_STRINGS.recordsLimit?.[safeLang] || "Records");
-  const unlimitedStr = BILLING_STRINGS.unlimited?.[safeLang] || "Unlimited";
+    ? (usersEntry[safeLang] || usersEntry["en"] || "Users") 
+    : (recordsEntry[safeLang] || recordsEntry["en"] || "Records");
+  const unlimitedStr = unlimitedEntry[safeLang] || unlimitedEntry["en"] || "Unlimited";
   const fromStr = from === -1 || from === "Unlimited" ? unlimitedStr : String(from);
   const toStr = to === -1 || to === "Unlimited" ? unlimitedStr : String(to);
   return `${label}: ${fromStr} → ${toStr}`;
@@ -861,15 +1025,20 @@ export function getLimitChangeText(lang: Lang, type: "users" | "records", from: 
 
 export function getLimitText(lang: Lang, limitKey: string, value: number): string {
   const safeLang = lang || "en";
-  const unlimitedStr = BILLING_STRINGS.unlimited[safeLang] || "Unlimited";
+  const unlimitedEntry = BILLING_STRINGS.unlimited as Record<string, string>;
+  const unlimitedStr = unlimitedEntry[safeLang] || unlimitedEntry["en"] || "Unlimited";
   const labelMap: Record<string, keyof typeof BILLING_STRINGS> = {
     users: "usersLimit",
     records: "recordsLimit",
     customers: "usersLimit",
   };
   const i18nKey = labelMap[limitKey];
-  const labelStr = i18nKey ? BILLING_STRINGS[i18nKey]?.[safeLang] : undefined;
-  const label = labelStr ? labelStr.toLowerCase() : limitKey;
+  let label = limitKey;
+  if (i18nKey) {
+    const entry = BILLING_STRINGS[i18nKey] as Record<string, string>;
+    const labelStr = entry[safeLang] || entry["en"];
+    if (labelStr) label = labelStr.toLowerCase();
+  }
   if (value === -1) {
     return `${unlimitedStr} ${label}`;
   }
@@ -877,7 +1046,13 @@ export function getLimitText(lang: Lang, limitKey: string, value: number): strin
 }
 
 export function formatDateLocalized(lang: Lang, date: Date | string): string {
-  const locale = lang === "hi" ? "hi-IN" : "en-IN";
+  const localeMap: Record<Lang, string> = {
+    en: "en-IN",
+    hi: "hi-IN",
+    ms: "ms-MY",
+    ta: "ta-MY"
+  };
+  const locale = localeMap[lang] || "en-IN";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
 }
