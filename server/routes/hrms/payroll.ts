@@ -36,6 +36,7 @@ import { requireMinimumRole, auditService } from "../../core";
 import PayrollService from "../../services/hrms/payrollService";
 import { hrmsStorage } from "../../storage/hrms";
 import { db } from "../../db";
+import { getPayrollComplianceConfig } from "../../services/hrms/payroll-compliance";
 import { 
   hrPayrollSettings, 
   hrPayRuns, 
@@ -97,6 +98,27 @@ function requirePayrollFeature() {
     next();
   };
 }
+
+// ==================== COMPLIANCE CONFIG ====================
+
+router.get("/compliance-config", async (req, res) => {
+  try {
+    const countryCode = req.context?.tenant?.country || "IN";
+    const config = getPayrollComplianceConfig(countryCode);
+    
+    if (!config) {
+      return res.status(404).json({ 
+        error: "COUNTRY_NOT_SUPPORTED",
+        message: `Payroll is not configured for country: ${countryCode}` 
+      });
+    }
+    
+    res.json(config);
+  } catch (error) {
+    console.error("Error fetching payroll compliance config:", error);
+    res.status(500).json({ error: "Failed to fetch compliance configuration" });
+  }
+});
 
 // ==================== SETTINGS ====================
 

@@ -59,6 +59,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PayrollComplianceBanner } from "@/components/hrms/PayrollComplianceBanner";
 
 interface PayRun {
   id: string;
@@ -225,6 +226,7 @@ export default function PayRuns() {
 
   return (
     <DashboardLayout title="Pay Runs">
+      <PayrollComplianceBanner />
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Pay Runs</h1>

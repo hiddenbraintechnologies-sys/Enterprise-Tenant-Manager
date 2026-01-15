@@ -59,6 +59,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PayrollComplianceBanner } from "@/components/hrms/PayrollComplianceBanner";
 
 interface PayrollRecord {
   id: string;
@@ -259,6 +260,7 @@ export default function HrPayroll() {
 
   return (
     <DashboardLayout title="Payroll Management">
+      <PayrollComplianceBanner />
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Payroll Management</h1>

@@ -1,5 +1,7 @@
 import { db } from "../db";
 import { eq, and, gte, lte, ilike, or, sql, desc, asc, count } from "drizzle-orm";
+import { countryRolloutService } from "../services/country-rollout";
+import { tenants, tenantFeatures } from "@shared/schema";
 import {
   hrEmployees,
   hrDepartments,
@@ -654,10 +656,33 @@ class HrmsStorage {
   }
 
   async hasFeatureFlag(tenantId: string, featureFlag: string): Promise<boolean> {
-    const FEATURE_FLAGS: Record<string, string[]> = {
-      hrms_it_extensions: ["clinic", "coworking", "service", "education", "legal", "furniture_manufacturing"],
-    };
-    return true;
+    // Get tenant to check country
+    const tenant = await db.select()
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    
+    if (!tenant.length) return false;
+    
+    const countryCode = tenant[0].country || "IN";
+    
+    // Check if feature is blocked by country rollout policy
+    const isBlocked = await countryRolloutService.isFeatureBlockedByCountry(countryCode, featureFlag);
+    if (isBlocked) {
+      return false;
+    }
+    
+    // Check tenant-level feature flags
+    const feature = await db.select()
+      .from(tenantFeatures)
+      .where(and(
+        eq(tenantFeatures.tenantId, tenantId),
+        eq(tenantFeatures.featureCode, featureFlag)
+      ))
+      .limit(1);
+    
+    // If no explicit feature record, check plan features (default to enabled for now)
+    return feature.length === 0 || feature[0].isEnabled !== false;
   }
 
   async checkIn(tenantId: string, employeeId: string): Promise<HrAttendance> {
