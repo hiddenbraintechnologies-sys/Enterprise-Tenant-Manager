@@ -79,7 +79,7 @@ class CountryRolloutService {
       enabledAddons: rolloutPolicy?.enabledAddons || [],
       enabledPlans: rolloutPolicy?.enabledPlans || [],
       payrollStatus: rolloutPolicy?.payrollStatus || "disabled",
-      payrollCohortTenantIds: rolloutPolicy?.payrollCohortTenantIds || [],
+      payrollCohortTenantIds: (rolloutPolicy?.payrollCohortTenantIds as unknown as number[]) || [],
       payrollDisclaimerText: rolloutPolicy?.payrollDisclaimerText || undefined,
     };
 

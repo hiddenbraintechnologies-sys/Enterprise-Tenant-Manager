@@ -1975,10 +1975,13 @@ router.get("/plans-with-cycles", optionalAuth, async (req: Request, res: Respons
     let filteredPlans = plans.filter(p => p.code.startsWith(prefix));
 
     // Filter by country rollout policy if enabled plans are specified
+    // enabledPlans may contain tier names (free, basic, pro) or full plan codes (uk_free, my_basic)
     const enabledPlans = await countryRolloutService.getAvailablePlans(countryCode);
     if (enabledPlans && enabledPlans.length > 0) {
       filteredPlans = filteredPlans.filter(p => 
-        enabledPlans.includes(p.code) || enabledPlans.includes(p.id)
+        enabledPlans.includes(p.code) || // Match full plan code (e.g., "uk_free")
+        enabledPlans.includes(p.id) ||   // Match plan ID
+        enabledPlans.includes(p.tier)    // Match tier name (e.g., "free", "basic", "pro")
       );
     }
 
