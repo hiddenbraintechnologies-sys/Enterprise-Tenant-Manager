@@ -198,6 +198,30 @@ export default function PackagesPage() {
   const { t: tBilling, i18n } = useTranslation();
   const lang = (i18n.language || "en") as Lang;
   
+  // Derive country from tenant or localStorage for plan fetching
+  const getCountryCode = (): string => {
+    // First check tenant's country
+    const tenantCountry = tenant?.country;
+    if (tenantCountry) {
+      const countryMap: Record<string, string> = {
+        india: "IN",
+        uae: "AE",
+        uk: "UK",
+        malaysia: "MY",
+        singapore: "SG",
+      };
+      return countryMap[tenantCountry] || "IN";
+    }
+    // Fall back to localStorage selectedCountry
+    const storedCountry = localStorage.getItem("selectedCountry");
+    if (storedCountry) {
+      return storedCountry.toUpperCase();
+    }
+    return "IN";
+  };
+  
+  const countryCode = getCountryCode();
+  
   // Fetch subscription when user is authenticated and auth is not loading
   // This prevents using stale tokens from previous sessions
   const canFetchSubscription = isAuthenticated && !isAuthLoading;
@@ -233,7 +257,12 @@ export default function PackagesPage() {
   const hasRealSubscriptionError = isSubscriptionError && !isOnboardingState;
 
   const { data: plansData, isLoading, isError: isPlansError, refetch: refetchPlans } = useQuery<PlansResponse>({
-    queryKey: ["/api/billing/plans-with-cycles"],
+    queryKey: ["/api/billing/plans-with-cycles", countryCode],
+    queryFn: async () => {
+      const response = await fetch(`/api/billing/plans-with-cycles?country=${countryCode.toLowerCase()}`);
+      if (!response.ok) throw new Error("Failed to fetch plans");
+      return response.json();
+    },
     retry: 2,
   });
 
@@ -951,7 +980,7 @@ export default function PackagesPage() {
         )}
 
         <div className="mt-12 text-center text-sm text-muted-foreground">
-          <p>{t("allPricesInr")}</p>
+          <p>{t(`allPrices_${plansData?.currencyCode || (countryCode === "MY" ? "MYR" : countryCode === "UK" || countryCode === "GB" ? "GBP" : "INR")}`)}</p>
           <p className="mt-1">{t("upgradeDowngradeAnytime")}</p>
         </div>
       </main>

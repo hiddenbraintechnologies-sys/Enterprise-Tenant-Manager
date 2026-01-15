@@ -1925,8 +1925,24 @@ router.post("/quote", optionalAuth, async (req: Request, res: Response) => {
 router.get("/plans-with-cycles", optionalAuth, async (req: Request, res: Response) => {
   try {
     const countryParam = req.query.country as string | undefined;
-    let countryCode = countryParam || "IN";
+    let countryCode = (countryParam || "IN").toUpperCase();
     let tenantCountry = "india";
+    
+    // Map ISO country codes to tenant country values for plan prefix lookup
+    const isoToTenantCountry: Record<string, string> = {
+      "IN": "india",
+      "AE": "uae",
+      "UK": "uk",
+      "GB": "uk",
+      "MY": "malaysia",
+      "SG": "singapore",
+    };
+    
+    // If country param was provided, derive tenantCountry from it
+    if (countryParam) {
+      const normalizedParam = countryParam.toUpperCase();
+      tenantCountry = isoToTenantCountry[normalizedParam] || countryParam.toLowerCase();
+    }
 
     const resolution = await resolveTenantId(req);
     if (!resolution.error && resolution.tenantId) {
