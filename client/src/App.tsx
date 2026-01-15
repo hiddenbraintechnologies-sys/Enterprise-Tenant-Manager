@@ -351,9 +351,9 @@ function SuperAdminRoutes() {
           <Redirect to="/super-admin" />
         </Route>
         <Route path="/super-admin" component={SuperAdminDashboard} />
-        <Route path="/super-admin/tenants" component={AdminTenants} />
-        <Route path="/super-admin/tenants/:tenantId" component={TenantDetails} />
         <Route path="/super-admin/tenants/:tenantId/users" component={TenantUsers} />
+        <Route path="/super-admin/tenants/:tenantId" component={TenantDetails} />
+        <Route path="/super-admin/tenants" component={AdminTenants} />
         <Route path="/super-admin/admins" component={AdminPlatformAdmins} />
         <Route path="/super-admin/business-registry" component={SuperAdminBusinessRegistry} />
         <Route path="/super-admin/module-registry" component={SuperAdminModuleRegistry} />
@@ -369,8 +369,8 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/settings" component={AdminSettings} />
         <Route path="/super-admin/regions" component={AdminRegions} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
-        <Route path="/super-admin/security" component={AdminSecurity} />
         <Route path="/super-admin/security/sessions" component={AdminSecuritySessions} />
+        <Route path="/super-admin/security" component={AdminSecurity} />
         <Route path="/not-authorized" component={NotAuthorized} />
         <Route component={NotFound} />
       </Switch>
@@ -400,8 +400,8 @@ function PlatformAdminRoutes() {
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/regions" component={AdminRegions} />
       <Route path="/admin/subscriptions" component={SubscriptionManagement} />
-      <Route path="/admin/security" component={AdminSecurity} />
       <Route path="/admin/security/sessions" component={AdminSecuritySessions} />
+      <Route path="/admin/security" component={AdminSecurity} />
       <Route path="/not-authorized" component={NotAuthorized} />
       <Route component={NotFound} />
     </Switch>
