@@ -164,12 +164,38 @@ export default function AdminAddons() {
     });
   };
 
+  const validatePricing = (monthly: string, yearly: string): string | null => {
+    const monthlyNum = parseFloat(monthly);
+    const yearlyNum = parseFloat(yearly);
+    if (isNaN(monthlyNum) || monthlyNum < 0) {
+      return "Monthly price must be a non-negative number";
+    }
+    if (isNaN(yearlyNum) || yearlyNum < 0) {
+      return "Yearly price must be a non-negative number";
+    }
+    return null;
+  };
+
   const handleCreateTier = () => {
+    const validationError = validatePricing(newTier.monthlyPrice, newTier.yearlyPrice);
+    if (validationError) {
+      toast({ title: "Validation Error", description: validationError, variant: "destructive" });
+      return;
+    }
+    if (!newTier.tierName.trim()) {
+      toast({ title: "Validation Error", description: "Tier name is required", variant: "destructive" });
+      return;
+    }
     createTierMutation.mutate(newTier);
   };
 
   const handleUpdateTier = () => {
     if (!editingTier) return;
+    const validationError = validatePricing(editingTier.monthlyPrice, editingTier.yearlyPrice);
+    if (validationError) {
+      toast({ title: "Validation Error", description: validationError, variant: "destructive" });
+      return;
+    }
     updateTierMutation.mutate({
       id: editingTier.id,
       data: {

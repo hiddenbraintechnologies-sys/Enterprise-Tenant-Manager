@@ -193,12 +193,15 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const { t } = useTranslation();
   const { user, logout, isLoggingOut, businessType: authBusinessType } = useAuth();
   const { canAccessModule, getModuleAccessInfo, isFreePlan } = useModuleAccess();
-  const { hasPayrollAccess, isPayrollTrialing, countryCode } = usePayrollAddon();
+  const { hasPayrollAccess, isPayrollTrialing, countryCode, isLoading: isPayrollLoading } = usePayrollAddon();
 
   const effectiveBusinessType = (businessType || authBusinessType || "service") as BusinessType;
   
   const payrollEnabled = hasPayrollAccess();
-  const showHrmsSection = countryCode === "MY" || countryCode === "IN";
+  const hrmsModuleEnabled = canAccessModule("hrms") || canAccessModule("payroll");
+  const countrySupportsPayroll = countryCode === "MY" || countryCode === "IN";
+  const showHrmsSection = Boolean(user && countrySupportsPayroll && (hrmsModuleEnabled || payrollEnabled));
+  const hrmsReady = showHrmsSection && !isPayrollLoading;
   const mainNavItems = NAV_ITEMS_BY_BUSINESS_TYPE[effectiveBusinessType] || NAV_ITEMS_BY_BUSINESS_TYPE.service;
   const dashboardRoute = DASHBOARD_ROUTES[effectiveBusinessType] || DASHBOARD_ROUTES.service;
   
@@ -296,12 +299,15 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {showHrmsSection && (
-          <SidebarGroup>
+        {hrmsReady && (
+          <SidebarGroup data-testid="sidebar-group-hrms">
             <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               HRMS / Payroll
               {isPayrollTrialing() && (
-                <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 rounded">
+                <span 
+                  className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 rounded"
+                  data-testid="badge-payroll-trial"
+                >
                   Trial
                 </span>
               )}
@@ -317,7 +323,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                       >
                         <Link
                           href={item.url}
-                          data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                          data-testid={`link-hrms-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                         >
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
@@ -330,13 +336,16 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                     <SidebarMenuItem>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-not-allowed">
+                          <div 
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-not-allowed"
+                            data-testid="div-payroll-locked"
+                          >
                             <Lock className="h-4 w-4" />
-                            <span>{t("addons.payroll.title")}</span>
+                            <span>{t("addons.payroll.locked")}</span>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Subscribe to Payroll Add-on to access HRMS features</p>
+                          <p>{t("addons.payroll.subscribeToAccess")}</p>
                         </TooltipContent>
                       </Tooltip>
                     </SidebarMenuItem>

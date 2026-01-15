@@ -20,11 +20,16 @@ export function usePayrollAddon() {
   const { data, isLoading, error, refetch } = useQuery<{
     addon: PayrollAddonStatus | null;
   }>({
-    queryKey: ["/api/billing/payroll-addon/status"],
+    queryKey: ["/api/billing/payroll-addon/status", tenantId],
     enabled: Boolean(isAuthenticated && tenantId),
     staleTime: 60000,
     refetchOnWindowFocus: false,
-    select: (response) => response,
+    retry: (failureCount, error: Error & { status?: number }) => {
+      if (error?.status === 401 || error?.status === 403) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 
   const hasPayrollAccess = (): boolean => {
