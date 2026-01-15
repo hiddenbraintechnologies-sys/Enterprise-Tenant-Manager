@@ -12,33 +12,33 @@ export interface ModuleConfig {
   routes: string[];
 }
 
-export type FeatureFlag = "hrms_it_extensions" | "advanced_analytics" | "multi_currency";
+export type FeatureFlag = "hrms_it_extensions" | "advanced_analytics" | "multi_currency" | "payroll";
 
 export interface FeatureFlagConfig {
   [businessType: string]: FeatureFlag[];
 }
 
 const FEATURE_FLAGS: FeatureFlagConfig = {
-  clinic: ["hrms_it_extensions"],
-  salon: [],
-  pg: [],
-  coworking: ["hrms_it_extensions"],
-  service: ["hrms_it_extensions"],
-  real_estate: [],
-  tourism: [],
-  education: ["hrms_it_extensions"],
-  logistics: [],
-  legal: ["hrms_it_extensions"],
-  furniture_manufacturing: ["hrms_it_extensions", "multi_currency"],
-  software_services: ["hrms_it_extensions", "multi_currency"],
-  consulting: ["hrms_it_extensions", "multi_currency"],
+  clinic: ["hrms_it_extensions", "payroll"],
+  salon: ["payroll"],
+  pg: ["payroll"],
+  coworking: ["hrms_it_extensions", "payroll"],
+  service: ["hrms_it_extensions", "payroll"],
+  real_estate: ["payroll"],
+  tourism: ["payroll"],
+  education: ["hrms_it_extensions", "payroll"],
+  logistics: ["payroll"],
+  legal: ["hrms_it_extensions", "payroll"],
+  furniture_manufacturing: ["hrms_it_extensions", "multi_currency", "payroll"],
+  software_services: ["hrms_it_extensions", "multi_currency", "payroll"],
+  consulting: ["hrms_it_extensions", "multi_currency", "payroll"],
 };
 
 const HRMS_MODULE: ModuleConfig = {
   id: "hrms",
   name: "HR Management",
   enabled: true,
-  routes: ["/hr", "/hr/employees", "/hr/attendance", "/hr/leaves", "/hr/payroll", "/hr/projects", "/hr/timesheets", "/hr/allocations"],
+  routes: ["/hr", "/hr/employees", "/hr/attendance", "/hr/leaves", "/hr/payroll", "/hr/pay-runs", "/hr/projects", "/hr/timesheets", "/hr/allocations"],
 };
 
 const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {

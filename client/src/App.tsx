@@ -42,6 +42,7 @@ import HrEmployees from "@/pages/hr/employees";
 import HrAttendance from "@/pages/hr/attendance";
 import HrLeaves from "@/pages/hr/leaves";
 import HrPayroll from "@/pages/hr/payroll";
+import HrPayRuns from "@/pages/hr/pay-runs";
 import HrProjects from "@/pages/hr/projects";
 import HrTimesheets from "@/pages/hr/timesheets";
 import HrAllocations from "@/pages/hr/allocations";
@@ -314,6 +315,13 @@ function AuthenticatedRoutes() {
       <Route path="/hr/payroll">
         <ModuleGuard moduleId="hrms">
           <HrPayroll />
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/pay-runs">
+        <ModuleGuard moduleId="hrms">
+          <FeatureGuard featureId="payroll">
+            <HrPayRuns />
+          </FeatureGuard>
         </ModuleGuard>
       </Route>
       <Route path="/hr/projects">

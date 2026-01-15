@@ -290,6 +290,11 @@ export default function HrDashboard() {
             <DollarSign className="mr-2 h-4 w-4" /> Process Payroll
           </Link>
         </Button>
+        <Button asChild variant="outline" data-testid="button-pay-runs">
+          <Link href="/hr/pay-runs">
+            <DollarSign className="mr-2 h-4 w-4" /> Pay Runs
+          </Link>
+        </Button>
         {hasItExtensions && (
           <>
             <Button asChild variant="outline" data-testid="button-manage-projects">

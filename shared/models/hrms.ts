@@ -10,6 +10,7 @@ export const hrWorkLocationEnum = pgEnum("hr_work_location", ["onsite", "remote"
 export const hrLeaveStatusEnum = pgEnum("hr_leave_status", ["pending", "approved", "rejected", "cancelled"]);
 export const hrAttendanceStatusEnum = pgEnum("hr_attendance_status", ["present", "absent", "half_day", "on_leave", "holiday", "weekend"]);
 export const hrPayrollStatusEnum = pgEnum("hr_payroll_status", ["draft", "processing", "processed", "paid", "failed"]);
+export const hrPayRunStatusEnum = pgEnum("hr_pay_run_status", ["draft", "approved", "paid", "cancelled"]);
 export const hrProjectStatusEnum = pgEnum("hr_project_status", ["active", "completed", "on_hold", "cancelled"]);
 export const hrTimesheetStatusEnum = pgEnum("hr_timesheet_status", ["draft", "submitted", "approved", "rejected"]);
 export const hrDocumentTypeEnum = pgEnum("hr_document_type", ["id_proof", "offer_letter", "contract", "experience_letter", "other"]);
@@ -247,6 +248,76 @@ export const hrPayroll = pgTable("hr_payroll", {
   uniqueIndex("idx_hr_payroll_emp_period").on(table.employeeId, table.payrollYear, table.payrollMonth),
 ]);
 
+export const hrPayrollSettings = pgTable("hr_payroll_settings", {
+  tenantId: varchar("tenant_id").primaryKey().references(() => tenants.id, { onDelete: "cascade" }),
+  currencyCode: varchar("currency_code", { length: 10 }).default("INR"),
+  payCycleDay: integer("pay_cycle_day").default(1),
+  pfEnabled: boolean("pf_enabled").default(false),
+  esiEnabled: boolean("esi_enabled").default(false),
+  ptEnabled: boolean("pt_enabled").default(false),
+  pfEmployerRate: decimal("pf_employer_rate", { precision: 5, scale: 2 }).default("12.00"),
+  pfEmployeeRate: decimal("pf_employee_rate", { precision: 5, scale: 2 }).default("12.00"),
+  esiEmployerRate: decimal("esi_employer_rate", { precision: 5, scale: 2 }).default("3.25"),
+  esiEmployeeRate: decimal("esi_employee_rate", { precision: 5, scale: 2 }).default("0.75"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const hrPayRuns = pgTable("hr_pay_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  month: integer("month").notNull(),
+  year: integer("year").notNull(),
+  status: hrPayRunStatusEnum("status").default("draft"),
+  totalEmployees: integer("total_employees").default(0),
+  totalGross: decimal("total_gross", { precision: 14, scale: 2 }).default("0"),
+  totalDeductions: decimal("total_deductions", { precision: 14, scale: 2 }).default("0"),
+  totalNet: decimal("total_net", { precision: 14, scale: 2 }).default("0"),
+  generatedAt: timestamp("generated_at"),
+  approvedAt: timestamp("approved_at"),
+  paidAt: timestamp("paid_at"),
+  createdBy: varchar("created_by"),
+  approvedBy: varchar("approved_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_hr_pay_runs_tenant").on(table.tenantId),
+  index("idx_hr_pay_runs_period").on(table.year, table.month),
+  uniqueIndex("idx_hr_pay_runs_tenant_period").on(table.tenantId, table.year, table.month),
+]);
+
+export const hrPayRunItems = pgTable("hr_pay_run_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  payRunId: varchar("pay_run_id").notNull().references(() => hrPayRuns.id, { onDelete: "cascade" }),
+  employeeId: varchar("employee_id").notNull().references(() => hrEmployees.id, { onDelete: "cascade" }),
+  earningsJson: jsonb("earnings_json").default({}),
+  deductionsJson: jsonb("deductions_json").default({}),
+  gross: decimal("gross", { precision: 12, scale: 2 }).notNull(),
+  totalDeductions: decimal("total_deductions", { precision: 12, scale: 2 }).default("0"),
+  net: decimal("net", { precision: 12, scale: 2 }).notNull(),
+  attendanceDays: integer("attendance_days").default(0),
+  unpaidLeaveDays: integer("unpaid_leave_days").default(0),
+  overtimeHours: decimal("overtime_hours", { precision: 5, scale: 2 }).default("0"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_hr_pay_run_items_pay_run").on(table.payRunId),
+  index("idx_hr_pay_run_items_employee").on(table.employeeId),
+]);
+
+export const hrPayslips = pgTable("hr_payslips", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  payRunItemId: varchar("pay_run_item_id").notNull().references(() => hrPayRunItems.id, { onDelete: "cascade" }),
+  pdfUrl: text("pdf_url"),
+  issuedAt: timestamp("issued_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_hr_payslips_pay_run_item").on(table.payRunItemId),
+]);
+
 export const hrProjects = pgTable("hr_projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
@@ -383,6 +454,14 @@ export type HrSalaryStructure = typeof hrSalaryStructures.$inferSelect;
 export type InsertHrSalaryStructure = typeof hrSalaryStructures.$inferInsert;
 export type HrPayroll = typeof hrPayroll.$inferSelect;
 export type InsertHrPayroll = typeof hrPayroll.$inferInsert;
+export type HrPayrollSettings = typeof hrPayrollSettings.$inferSelect;
+export type InsertHrPayrollSettings = typeof hrPayrollSettings.$inferInsert;
+export type HrPayRun = typeof hrPayRuns.$inferSelect;
+export type InsertHrPayRun = typeof hrPayRuns.$inferInsert;
+export type HrPayRunItem = typeof hrPayRunItems.$inferSelect;
+export type InsertHrPayRunItem = typeof hrPayRunItems.$inferInsert;
+export type HrPayslip = typeof hrPayslips.$inferSelect;
+export type InsertHrPayslip = typeof hrPayslips.$inferInsert;
 export type HrProject = typeof hrProjects.$inferSelect;
 export type InsertHrProject = typeof hrProjects.$inferInsert;
 export type HrAllocation = typeof hrAllocations.$inferSelect;
@@ -406,6 +485,10 @@ export const insertHrLeaveSchema = createInsertSchema(hrLeaves).omit({ id: true,
 export const insertHrHolidaySchema = createInsertSchema(hrHolidays).omit({ id: true, createdAt: true });
 export const insertHrSalaryStructureSchema = createInsertSchema(hrSalaryStructures).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHrPayrollSchema = createInsertSchema(hrPayroll).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHrPayrollSettingsSchema = createInsertSchema(hrPayrollSettings).omit({ createdAt: true, updatedAt: true });
+export const insertHrPayRunSchema = createInsertSchema(hrPayRuns).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHrPayRunItemSchema = createInsertSchema(hrPayRunItems).omit({ id: true, createdAt: true });
+export const insertHrPayslipSchema = createInsertSchema(hrPayslips).omit({ id: true, createdAt: true });
 export const insertHrProjectSchema = createInsertSchema(hrProjects).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHrAllocationSchema = createInsertSchema(hrAllocations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHrTimesheetSchema = createInsertSchema(hrTimesheets).omit({ id: true, createdAt: true, updatedAt: true });

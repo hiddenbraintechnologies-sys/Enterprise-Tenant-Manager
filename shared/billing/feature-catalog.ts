@@ -2,7 +2,7 @@ export interface FeatureCatalogItem {
   key: string;
   label: string;
   description: string;
-  group: "core_modules" | "notifications" | "analytics" | "support";
+  group: "core_modules" | "hrms_payroll" | "notifications" | "analytics" | "support";
   restrictedOnFree?: boolean;
 }
 
@@ -19,6 +19,10 @@ export const FEATURE_CATALOG: FeatureCatalogItem[] = [
   { key: "invoicing", label: "Invoicing", description: "Create and manage invoices", group: "core_modules", restrictedOnFree: true },
   { key: "gst_features", label: "GST Features", description: "GSTIN validation + tax breakdown", group: "core_modules" },
   { key: "custom_roles", label: "Custom Roles", description: "Create custom staff roles and permissions", group: "core_modules" },
+  { key: "payroll", label: "Payroll", description: "Process employee payroll and generate payslips", group: "hrms_payroll", restrictedOnFree: true },
+  { key: "payroll_payslips", label: "Payslip Generation", description: "Generate and download PDF payslips", group: "hrms_payroll", restrictedOnFree: true },
+  { key: "payroll_payout_export", label: "Payout Export", description: "Export payout data for bank transfers", group: "hrms_payroll", restrictedOnFree: true },
+  { key: "payroll_compliance_tracking", label: "Compliance Tracking", description: "Track PF, ESI, PT compliance", group: "hrms_payroll", restrictedOnFree: true },
   { key: "email_notifications", label: "Email Notifications", description: "Automated email alerts", group: "notifications" },
   { key: "sms_notifications", label: "SMS Notifications", description: "SMS alerts and reminders", group: "notifications" },
   { key: "whatsapp_automation", label: "WhatsApp Automation", description: "Automated WhatsApp reminders and updates", group: "notifications", restrictedOnFree: true },
@@ -34,6 +38,8 @@ export const LIMIT_CATALOG: LimitCatalogItem[] = [
   { key: "projects", label: "Projects", description: "Maximum active projects", defaultValue: 3 },
   { key: "invoices_per_month", label: "Invoices/Month", description: "Monthly invoice generation limit", defaultValue: 0 },
   { key: "storage_mb", label: "Storage (MB)", description: "File storage capacity in MB", defaultValue: 100 },
+  { key: "payroll_employees", label: "Payroll Employees", description: "Maximum employees for payroll processing (-1 unlimited)", defaultValue: 10 },
+  { key: "pay_runs_per_month", label: "Pay Runs/Month", description: "Maximum pay runs per month (-1 unlimited)", defaultValue: 1 },
 ];
 
 export const FEATURE_KEYS = FEATURE_CATALOG.map(f => f.key);
@@ -45,6 +51,7 @@ export const FREE_PLAN_RESTRICTED_FEATURES = FEATURE_CATALOG
 
 export const FEATURE_GROUPS = {
   core_modules: "Core Modules",
+  hrms_payroll: "HRMS / Payroll",
   notifications: "Notifications",
   analytics: "Analytics",
   support: "Support",
