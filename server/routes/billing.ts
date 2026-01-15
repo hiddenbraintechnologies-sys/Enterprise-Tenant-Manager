@@ -2044,10 +2044,21 @@ router.get("/plans-with-cycles", optionalAuth, async (req: Request, res: Respons
       };
     });
 
+    // Determine currency code from country code (handle both UK and GB for United Kingdom)
+    const getCurrencyCode = (cc: string): string => {
+      const upperCC = cc.toUpperCase();
+      if (upperCC === "IN") return "INR";
+      if (upperCC === "AE") return "AED";
+      if (upperCC === "GB" || upperCC === "UK") return "GBP";
+      if (upperCC === "MY") return "MYR";
+      if (upperCC === "SG") return "SGD";
+      return "USD";
+    };
+
     return res.json({ 
       plans: plansWithCycles,
       countryCode,
-      currencyCode: countryCode === "IN" ? "INR" : countryCode === "AE" ? "AED" : countryCode === "GB" ? "GBP" : countryCode === "MY" ? "MYR" : "USD",
+      currencyCode: getCurrencyCode(countryCode),
     });
   } catch (error) {
     console.error("[billing/plans-with-cycles] Error:", error);
