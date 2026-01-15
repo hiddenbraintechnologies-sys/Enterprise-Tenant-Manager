@@ -1,0 +1,148 @@
+You are working on MyBizStream (multi-tenant SaaS). Implement Malaysia Payroll as an ADD-ON (not included by default in plan), controlled by Super Admin rollout settings, purchasable at signup or later, and only activated after payment success. Keep existing auth frozen. Do not break existing tests. Add new tests for MY add-on flow.
+
+GOALS
+1) Country rollout control:
+   - Super Admin can enable/disable Payroll for MY country.
+   - Super Admin can enable HRMS for MY (already exists) and keep Payroll separate.
+   - Country selector should show MY as ACTIVE when rollout enabled (not "Coming soon").
+
+2) Subscription/Entitlement rules:
+   - Payroll access requires BOTH:
+     a) Country rollout MY enables payroll
+     b) Tenant subscription has payroll add-on active (paid)
+   - If tenant doesn't have payroll add-on, Payroll module is hidden OR locked with upgrade CTA.
+   - Downgrades/cancellations apply at month-end (existing rule).
+
+3) Purchase flows:
+   A) During signup (Malaysia only):
+      - After choosing plan, show optional add-ons step:
+        - Payroll add-on toggle + pricing (monthly/yearly if available).
+      - Selecting paid items sends user to payment.
+      - Only after payment success: subscription becomes ACTIVE and payroll entitlement is enabled.
+   B) Post-signup:
+      - Tenant admin can go to Billing → Add-ons and purchase Payroll.
+      - After payment success, payroll entitlement activates immediately.
+      - Show trial: 7 days for Payroll add-on (Malaysia only) as a promo, but still require payment method capture if your system supports it; otherwise implement trial as “free access until trial_end then auto-disable unless paid”.
+
+4) Pricing and tiers (Malaysia Payroll add-on):
+   - Payroll is priced by employee count tiers:
+     Tier A: up to 25 employees  -> MYR 29 / month
+     Tier B: up to 100 employees -> MYR 79 / month
+     Tier C: Unlimited employees  -> MYR 149 / month
+   - These tiers must be configurable by Super Admin in an "Add-ons" admin UI (similar to plan builder).
+   - Store tier thresholds and prices in DB.
+
+5) Razorpay mapping preparation:
+   - Implement a payment provider abstraction now, but keep "mock provider" for dev.
+   - Create DB records needed to map to Razorpay subscription later:
+     - provider = 'razorpay'
+     - provider_plan_id, provider_subscription_id, provider_payment_id
+   - Add webhook handler stubs:
+     /api/payments/webhook/razorpay
+     - verify signature (placeholder)
+     - handle events: payment.captured, subscription.activated, subscription.charged, subscription.cancelled
+   - For now in dev: simulate successful payment using a “/api/billing/mock-pay/success” endpoint gated to dev.
+
+DATABASE CHANGES
+A) Add-ons tables
+- pricing_addons:
+  id, code (e.g., "payroll"), name, description, country_code, currency_code, is_active, billing_cycles (json), created_at, updated_at
+- pricing_addon_tiers:
+  id, addon_id, tier_code ("A","B","C"), employee_limit (25,100,-1), monthly_price, yearly_price, sort_order, is_active
+B) Tenant add-on subscriptions
+- tenant_addons:
+  id, tenant_id, addon_code, tier_code, status (PENDING_PAYMENT|ACTIVE|CANCELLED|TRIALING), trial_start, trial_end, current_period_start, current_period_end,
+  provider, provider_subscription_id, provider_payment_id, created_at, updated_at
+
+BACKEND API
+1) Rollout settings
+- Ensure rollout settings model supports:
+  country_code -> enabled_business_types, enabled_features/modules
+  Add payroll_enabled boolean for MY.
+  Expose GET /api/rollout (public) for country selector.
+
+2) Admin manage add-ons (RBAC: PLATFORM_SUPER_ADMIN only)
+- GET /api/admin/billing/addons?country=MY
+- POST /api/admin/billing/addons (create addon)
+- PATCH /api/admin/billing/addons/:id (update)
+- POST /api/admin/billing/addons/:id/tiers
+- PATCH /api/admin/billing/addons/tiers/:tierId
+- POST /api/admin/billing/addons/:id/activate|deactivate
+Include audit logs for changes.
+
+3) Tenant-facing add-ons catalog
+- GET /api/billing/addons (requires tenant + auth) returns available add-ons for tenant country and their pricing tiers, and tenant’s current status.
+
+4) Checkout endpoints
+- POST /api/billing/checkout
+  Input:
+    planCode, billingCycle, addons: [{addonCode:"payroll", tierCode:"A"}]
+  Behavior:
+    - validate country rollout
+    - validate plan exists for that country
+    - create checkout session record (existing or new)
+    - mark tenant subscription/addons as PENDING_PAYMENT (do not activate)
+    - return redirect URL to /checkout?session=...
+- POST /api/billing/confirm-payment
+  Input:
+    sessionId, paymentStatus=SUCCESS
+  Behavior:
+    - activates subscription and activates addon if included
+    - sets tenant_addons.status ACTIVE or TRIALING if trial used
+    - returns redirect to dashboard
+
+5) Module gating
+- When requesting payroll routes, enforce:
+  - rollout enabled AND tenant_addons ACTIVE/TRIALING for payroll
+  - else return 403 MODULE_NOT_AVAILABLE
+
+FRONTEND UI
+1) Country selector modal:
+- If rollout says MY active, remove "Coming soon" and allow selecting Malaysia.
+- Persist selection same as existing.
+
+2) Signup packages flow for MY:
+- After plan selection, show add-ons step for MY:
+  - Payroll card with tier dropdown (A/B/C) + monthly/yearly toggle.
+  - Show trial badge: "7-day trial" for Payroll in MY.
+  - Total summary on right.
+  - CTA:
+     - If total = 0 => Activate and go dashboard
+     - If total > 0 => Continue to payment
+- Add bilingual copy EN + HI for:
+  - "Add Payroll (optional)"
+  - "7-day trial"
+  - tier labels ("Up to 25 employees", "Up to 100", "Unlimited")
+
+3) Tenant Billing → Add-ons page:
+- List available add-ons and current status.
+- Payroll: choose tier + purchase
+- If active: show "Manage" with cancel at month-end.
+
+4) Sidebar/module locking:
+- If payroll not active: hide payroll menu for Free, lock for paid (consistent with existing hide vs lock rules).
+
+TESTS
+- Backend: unit tests for:
+  - rollout enforcement
+  - addon tier pricing validation
+  - checkout creates PENDING_PAYMENT records
+  - confirm-payment activates addon
+- Frontend: basic component tests for MY add-ons step rendering and pricing summary.
+
+FILES / LOCATIONS (follow existing patterns)
+- server/routes/billing.ts (extend)
+- server/routes/admin/billing.ts (add add-ons)
+- server/rollout/* or wherever rollout lives
+- client/src/pages/packages.tsx (add-ons step for MY)
+- client/src/pages/billing/addons.tsx (tenant add-ons)
+- client/src/pages/admin/billing-addons.tsx (super admin add-ons)
+- client/src/hooks/useModuleAccess.ts (gating)
+- shared catalogs if needed (ADDON_CATALOG)
+
+DELIVERABLE
+- MY is selectable and active when rollout enabled.
+- Tenant in MY can purchase payroll add-on at signup or later.
+- Payroll only usable after payment success (or trial status).
+- Super Admin can configure Payroll tiers for MY in admin UI.
+- All existing flows remain working. Add tests; all tests pass.

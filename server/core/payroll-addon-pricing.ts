@@ -38,6 +38,43 @@ export const INDIA_PAYROLL_TIERS = {
   },
 } as const;
 
+// Malaysia Payroll Tiers (as per requirements: A=MYR29, B=MYR79, C=MYR149)
+export const MALAYSIA_PAYROLL_TIER_CODES = {
+  TIER_A: "tier_a",
+  TIER_B: "tier_b",
+  TIER_C: "tier_c",
+} as const;
+
+export const MALAYSIA_PAYROLL_TIERS = {
+  [MALAYSIA_PAYROLL_TIER_CODES.TIER_A]: {
+    tierName: "Payroll Tier A",
+    minEmployees: 1,
+    maxEmployees: 25,
+    monthlyPrice: "29",
+    yearlyPrice: "290", // ~2 months free
+    currencyCode: "MYR",
+    countryCode: "MY",
+  },
+  [MALAYSIA_PAYROLL_TIER_CODES.TIER_B]: {
+    tierName: "Payroll Tier B",
+    minEmployees: 26,
+    maxEmployees: 100,
+    monthlyPrice: "79",
+    yearlyPrice: "790", // ~2 months free
+    currencyCode: "MYR",
+    countryCode: "MY",
+  },
+  [MALAYSIA_PAYROLL_TIER_CODES.TIER_C]: {
+    tierName: "Payroll Tier C (Unlimited)",
+    minEmployees: 101,
+    maxEmployees: 999999, // Unlimited
+    monthlyPrice: "149",
+    yearlyPrice: "1490", // ~2 months free
+    currencyCode: "MYR",
+    countryCode: "MY",
+  },
+} as const;
+
 export const INDIA_BUNDLE_DISCOUNTS = [
   {
     name: "Basic + Payroll Starter Bundle",
@@ -77,10 +114,13 @@ export const INDIA_BUNDLE_DISCOUNTS = [
   },
 ];
 
-export async function seedPayrollAddonTiers(): Promise<void> {
-  console.log("[payroll-addon] Seeding India payroll addon tiers...");
+async function seedCountryPayrollTiers(
+  tiers: Record<string, { tierName: string; minEmployees: number; maxEmployees: number; monthlyPrice: string; yearlyPrice: string; currencyCode: string; countryCode: string }>,
+  countryName: string
+): Promise<void> {
+  console.log(`[payroll-addon] Seeding ${countryName} payroll addon tiers...`);
 
-  for (const [tierCode, config] of Object.entries(INDIA_PAYROLL_TIERS)) {
+  for (const [tierCode, config] of Object.entries(tiers)) {
     try {
       const existing = await db
         .select()
@@ -125,7 +165,12 @@ export async function seedPayrollAddonTiers(): Promise<void> {
     }
   }
 
-  console.log("[payroll-addon] Payroll addon tiers seeded successfully");
+  console.log(`[payroll-addon] ${countryName} payroll addon tiers seeded successfully`);
+}
+
+export async function seedPayrollAddonTiers(): Promise<void> {
+  await seedCountryPayrollTiers(INDIA_PAYROLL_TIERS, "India");
+  await seedCountryPayrollTiers(MALAYSIA_PAYROLL_TIERS, "Malaysia");
 }
 
 export async function seedBundleDiscounts(): Promise<void> {
