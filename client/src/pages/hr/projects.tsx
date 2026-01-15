@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, parseISO } from "date-fns";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { useTenant } from "@/contexts/tenant-context";
+import { getServicesApiBase } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -80,12 +82,23 @@ interface Project {
 
 interface ProjectResponse {
   data: Project[];
-  pagination: {
+  pagination?: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
   };
+  meta?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+function getPagination(response: ProjectResponse | undefined) {
+  if (!response) return { page: 1, limit: 10, total: 0, totalPages: 0 };
+  return response.pagination || response.meta || { page: 1, limit: 10, total: 0, totalPages: 0 };
 }
 
 const projectFormSchema = z.object({
@@ -132,14 +145,17 @@ function formatCurrency(amount: string | number | null, currency: string = "INR"
 
 export default function HrProjects() {
   const { toast } = useToast();
+  const { businessType } = useTenant();
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
     status: "all",
   });
 
+  const apiBase = useMemo(() => getServicesApiBase(businessType), [businessType]);
+
   const { data: projectsData, isLoading } = useQuery<ProjectResponse>({
-    queryKey: ["/api/hr/projects", page, filters],
+    queryKey: [`${apiBase}/projects`, page, filters],
   });
 
   const form = useForm<ProjectFormValues>({
@@ -157,7 +173,7 @@ export default function HrProjects() {
 
   const createMutation = useMutation({
     mutationFn: async (data: ProjectFormValues) => {
-      return apiRequest("POST", "/api/hr/projects", {
+      return apiRequest("POST", `${apiBase}/projects`, {
         ...data,
         startDate: data.startDate ? format(data.startDate, "yyyy-MM-dd") : null,
         endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : null,
@@ -165,7 +181,7 @@ export default function HrProjects() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/projects"] });
+      queryClient.invalidateQueries({ queryKey: [`${apiBase}/projects`] });
       toast({ title: "Project created successfully" });
       setIsDialogOpen(false);
       form.reset();
@@ -183,7 +199,7 @@ export default function HrProjects() {
     active: projectsData?.data.filter(p => p.status === "active").length || 0,
     completed: projectsData?.data.filter(p => p.status === "completed").length || 0,
     onHold: projectsData?.data.filter(p => p.status === "on_hold").length || 0,
-    total: projectsData?.pagination.total || 0,
+    total: getPagination(projectsData).total,
   };
 
   return (
@@ -497,10 +513,10 @@ export default function HrProjects() {
                 </TableBody>
               </Table>
 
-              {projectsData.pagination.totalPages > 1 && (
+              {getPagination(projectsData).totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Page {projectsData.pagination.page} of {projectsData.pagination.totalPages}
+                    Page {getPagination(projectsData).page} of {getPagination(projectsData).totalPages}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -516,7 +532,7 @@ export default function HrProjects() {
                       variant="outline"
                       size="sm"
                       onClick={() => setPage((p) => p + 1)}
-                      disabled={page >= projectsData.pagination.totalPages}
+                      disabled={page >= getPagination(projectsData).totalPages}
                       data-testid="button-next-page"
                     >
                       <ChevronRight className="h-4 w-4" />

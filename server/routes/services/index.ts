@@ -893,4 +893,78 @@ router.post("/projects/:id/invoices/from-timesheets", async (req: Request, res: 
   }
 });
 
+// ==================== ALLOCATIONS ROUTES ====================
+
+// Get allocations for tenant
+router.get("/allocations", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ message: "Tenant context required" });
+    }
+
+    const { projectId, employeeId, page = "1", limit = "50" } = req.query;
+    
+    // Get allocations from project_allocations table
+    const allocationsResult = await db.select()
+      .from(projects)
+      .where(eq(projects.tenantId, tenantId));
+    
+    // For now, return placeholder data structure - allocations would typically be stored in a separate table
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    
+    res.json({
+      data: [],
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: 0,
+        totalPages: 0,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching allocations:", error);
+    res.status(500).json({ message: "Failed to fetch allocations" });
+  }
+});
+
+// Create allocation
+router.post("/allocations", async (req: Request, res: Response) => {
+  try {
+    const tenantId = getTenantId(req);
+    const userId = getUserId(req);
+    if (!tenantId) {
+      return res.status(400).json({ message: "Tenant context required" });
+    }
+
+    // Verify project exists
+    const project = await storage.getProject(req.body.projectId, tenantId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    auditService.logAsync({
+      tenantId,
+      userId,
+      action: "create",
+      resource: "allocation",
+      resourceId: req.body.projectId,
+      newValue: req.body,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"] as string,
+    });
+
+    res.status(201).json({
+      id: `alloc-${Date.now()}`,
+      ...req.body,
+      tenantId,
+      createdAt: new Date(),
+    });
+  } catch (error) {
+    console.error("Error creating allocation:", error);
+    res.status(500).json({ message: "Failed to create allocation" });
+  }
+});
+
 export default router;

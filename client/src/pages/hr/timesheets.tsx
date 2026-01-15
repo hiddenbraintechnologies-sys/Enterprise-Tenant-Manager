@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, parseISO, startOfWeek, endOfWeek, subWeeks } from "date-fns";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { useTenant } from "@/contexts/tenant-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,7 +62,7 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getServicesApiBase } from "@/lib/utils";
 
 interface Timesheet {
   id: string;
@@ -87,12 +88,23 @@ interface Timesheet {
 
 interface TimesheetResponse {
   data: Timesheet[];
-  pagination: {
+  pagination?: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
   };
+  meta?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+function getPagination(response: TimesheetResponse | undefined) {
+  if (!response) return { page: 1, limit: 10, total: 0, totalPages: 0 };
+  return response.pagination || response.meta || { page: 1, limit: 10, total: 0, totalPages: 0 };
 }
 
 const timesheetFormSchema = z.object({
@@ -126,6 +138,7 @@ function getStatusBadge(status: string) {
 
 export default function HrTimesheets() {
   const { toast } = useToast();
+  const { businessType } = useTenant();
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
@@ -134,8 +147,10 @@ export default function HrTimesheets() {
     endDate: format(endOfWeek(new Date()), "yyyy-MM-dd"),
   });
 
+  const apiBase = useMemo(() => getServicesApiBase(businessType), [businessType]);
+
   const { data: timesheetData, isLoading } = useQuery<TimesheetResponse>({
-    queryKey: ["/api/hr/timesheets", page, filters],
+    queryKey: [`${apiBase}/timesheets`, page, filters],
   });
 
   const { data: employees } = useQuery<{ data: any[] }>({
@@ -143,7 +158,7 @@ export default function HrTimesheets() {
   });
 
   const { data: projects } = useQuery<{ data: any[] }>({
-    queryKey: ["/api/hr/projects", { limit: 100 }],
+    queryKey: [`${apiBase}/projects`, { limit: 100, status: "active" }],
   });
 
   const form = useForm<TimesheetFormValues>({
@@ -161,14 +176,14 @@ export default function HrTimesheets() {
 
   const createMutation = useMutation({
     mutationFn: async (data: TimesheetFormValues) => {
-      return apiRequest("POST", "/api/hr/timesheets", {
+      return apiRequest("POST", `${apiBase}/timesheets`, {
         ...data,
         timesheetDate: format(data.timesheetDate, "yyyy-MM-dd"),
         status: "draft",
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/timesheets"] });
+      queryClient.invalidateQueries({ queryKey: [`${apiBase}/timesheets`] });
       toast({ title: "Timesheet entry created successfully" });
       setIsDialogOpen(false);
       form.reset();
@@ -180,12 +195,12 @@ export default function HrTimesheets() {
 
   const approveMutation = useMutation({
     mutationFn: async (timesheetId: string) => {
-      return apiRequest("PATCH", `/api/hr/timesheets/${timesheetId}`, {
+      return apiRequest("PATCH", `${apiBase}/timesheets/${timesheetId}`, {
         status: "approved",
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/timesheets"] });
+      queryClient.invalidateQueries({ queryKey: [`${apiBase}/timesheets`] });
       toast({ title: "Timesheet approved" });
     },
     onError: (error: any) => {
@@ -195,12 +210,12 @@ export default function HrTimesheets() {
 
   const rejectMutation = useMutation({
     mutationFn: async (timesheetId: string) => {
-      return apiRequest("PATCH", `/api/hr/timesheets/${timesheetId}`, {
+      return apiRequest("PATCH", `${apiBase}/timesheets/${timesheetId}`, {
         status: "rejected",
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/timesheets"] });
+      queryClient.invalidateQueries({ queryKey: [`${apiBase}/timesheets`] });
       toast({ title: "Timesheet rejected" });
     },
     onError: (error: any) => {
@@ -538,10 +553,10 @@ export default function HrTimesheets() {
                 </TableBody>
               </Table>
 
-              {timesheetData.pagination.totalPages > 1 && (
+              {getPagination(timesheetData).totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Page {timesheetData.pagination.page} of {timesheetData.pagination.totalPages}
+                    Page {getPagination(timesheetData).page} of {getPagination(timesheetData).totalPages}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -557,7 +572,7 @@ export default function HrTimesheets() {
                       variant="outline"
                       size="sm"
                       onClick={() => setPage((p) => p + 1)}
-                      disabled={page >= timesheetData.pagination.totalPages}
+                      disabled={page >= getPagination(timesheetData).totalPages}
                       data-testid="button-next-page"
                     >
                       <ChevronRight className="h-4 w-4" />

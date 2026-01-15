@@ -1,0 +1,149 @@
+1️⃣ Correct the HRMS Architecture
+
+HRMS must be treated as a feature module, not a business.
+
+Access must be controlled via feature_flags.hrms, not business type.
+
+Example:
+
+feature_flags: {
+  hrms: true,
+  projects: true,
+  timesheets: true,
+  invoicing: true
+}
+
+2️⃣ Fix API Routing (Critical)
+
+❌ Do NOT use:
+
+/api/hr/projects
+/api/hr/timesheets
+
+
+✅ Use business-scoped routes:
+
+/api/services/{business}/projects
+/api/services/{business}/timesheets
+
+
+Examples:
+
+/api/services/consulting/projects
+/api/services/software-services/projects
+
+
+Update all frontend API calls accordingly.
+
+3️⃣ Authorization Middleware Fix
+
+Ensure session-based authentication works everywhere.
+
+Support BOTH:
+
+Cookie-based sessions
+
+JWT (if present)
+
+Do NOT require Authorization header if session cookie exists
+
+Inject tenant context consistently:
+
+req.user
+req.tenant
+req.tenantId
+
+
+Never clear tokens on:
+
+/api/auth/me
+
+/api/notifications/unread-count
+
+Return proper errors:
+
+403 MODULE_NOT_AVAILABLE → feature disabled
+
+401 only if user truly unauthenticated
+
+4️⃣ Feature-Flag Gating (Backend)
+
+Before accessing HRMS routes:
+
+if (!tenant.features.hrms) {
+  return res.status(403).json({
+    code: "MODULE_NOT_AVAILABLE",
+    module: "hrms"
+  });
+}
+
+5️⃣ UI Behavior Rules
+
+Free plan:
+
+Hide HRMS menus entirely
+
+Basic plan:
+
+Show HRMS but lock actions (upgrade CTA)
+
+Pro / Consulting / Software Services:
+
+Full HRMS access
+
+No empty dropdowns:
+
+If user has projects → show them
+
+If module disabled → show upgrade message
+
+6️⃣ Timesheets Dropdown Bug (Fix)
+
+Timesheets project dropdown must fetch from:
+
+GET /api/services/{business}/projects
+
+
+NOT /api/hr/projects
+
+If no access:
+
+Show inline message instead of empty dropdown
+
+7️⃣ Super Admin Consistency
+
+Super Admin must bypass plan restrictions
+
+Still requires valid tenant context
+
+Tenant details page should route to:
+
+/super-admin/tenants/:tenantId
+
+✅ Expected Outcome
+
+After fixes:
+
+Engagements can be created without 401
+
+Timesheet project dropdown populates correctly
+
+No MISSING_TOKEN errors
+
+HRMS only appears when enabled
+
+Clear upgrade paths for Free/Basic plans
+
+Stable behavior after clearing cache or switching browsers
+
+🚀 Deliverables
+
+Refactored API routes
+
+Updated frontend service calls
+
+Fixed auth middleware
+
+Feature-flag-based HRMS gating
+
+No breaking changes to existing tenants

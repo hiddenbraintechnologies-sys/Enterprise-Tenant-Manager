@@ -20,3 +20,11 @@ export function formatStorageLimit(storageMb: number): string {
   }
   return `${storageMb} MB`;
 }
+
+export function getServicesApiBase(businessType: string | null | undefined): string {
+  const typeMapping: Record<string, string> = {
+    consulting: "/api/services/consulting",
+    software_services: "/api/services/software",
+  };
+  return typeMapping[businessType || ""] || "/api/services/consulting";
+}

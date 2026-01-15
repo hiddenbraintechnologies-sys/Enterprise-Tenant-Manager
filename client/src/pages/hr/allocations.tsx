@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, parseISO } from "date-fns";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { useTenant } from "@/contexts/tenant-context";
+import { getServicesApiBase } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -84,12 +86,23 @@ interface Allocation {
 
 interface AllocationResponse {
   data: Allocation[];
-  pagination: {
+  pagination?: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
   };
+  meta?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+function getPagination(response: AllocationResponse | undefined) {
+  if (!response) return { page: 1, limit: 10, total: 0, totalPages: 0 };
+  return response.pagination || response.meta || { page: 1, limit: 10, total: 0, totalPages: 0 };
 }
 
 const allocationFormSchema = z.object({
@@ -119,11 +132,14 @@ function getPercentageBadge(percentage: number) {
 
 export default function HrAllocations() {
   const { toast } = useToast();
+  const { businessType } = useTenant();
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  const apiBase = useMemo(() => getServicesApiBase(businessType), [businessType]);
+
   const { data: allocationsData, isLoading } = useQuery<AllocationResponse>({
-    queryKey: ["/api/hr/allocations", page],
+    queryKey: [`${apiBase}/allocations`, page],
   });
 
   const { data: employees } = useQuery<{ data: any[] }>({
@@ -131,7 +147,7 @@ export default function HrAllocations() {
   });
 
   const { data: projects } = useQuery<{ data: any[] }>({
-    queryKey: ["/api/hr/projects", { limit: 100 }],
+    queryKey: [`${apiBase}/projects`, { limit: 100, status: "active" }],
   });
 
   const form = useForm<AllocationFormValues>({
@@ -148,14 +164,14 @@ export default function HrAllocations() {
 
   const createMutation = useMutation({
     mutationFn: async (data: AllocationFormValues) => {
-      return apiRequest("POST", "/api/hr/allocations", {
+      return apiRequest("POST", `${apiBase}/allocations`, {
         ...data,
         startDate: format(data.startDate, "yyyy-MM-dd"),
         endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : null,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hr/allocations"] });
+      queryClient.invalidateQueries({ queryKey: [`${apiBase}/allocations`] });
       toast({ title: "Allocation created successfully" });
       setIsDialogOpen(false);
       form.reset();
@@ -172,7 +188,7 @@ export default function HrAllocations() {
   const allocationPercentage = form.watch("allocationPercentage");
 
   const stats = {
-    totalAllocations: allocationsData?.pagination.total || 0,
+    totalAllocations: getPagination(allocationsData).total,
     fullTimeAllocations: allocationsData?.data.filter(a => a.allocationPercentage === 100).length || 0,
     activeEmployees: new Set(allocationsData?.data.map(a => a.employeeId)).size || 0,
     activeProjects: new Set(allocationsData?.data.map(a => a.projectId)).size || 0,
@@ -478,10 +494,10 @@ export default function HrAllocations() {
                 </TableBody>
               </Table>
 
-              {allocationsData.pagination.totalPages > 1 && (
+              {getPagination(allocationsData).totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Page {allocationsData.pagination.page} of {allocationsData.pagination.totalPages}
+                    Page {getPagination(allocationsData).page} of {getPagination(allocationsData).totalPages}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -497,7 +513,7 @@ export default function HrAllocations() {
                       variant="outline"
                       size="sm"
                       onClick={() => setPage((p) => p + 1)}
-                      disabled={page >= allocationsData.pagination.totalPages}
+                      disabled={page >= getPagination(allocationsData).totalPages}
                       data-testid="button-next-page"
                     >
                       <ChevronRight className="h-4 w-4" />
