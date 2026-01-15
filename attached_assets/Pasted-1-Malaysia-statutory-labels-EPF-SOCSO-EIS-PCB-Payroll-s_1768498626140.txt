@@ -1,0 +1,405 @@
+1️⃣ Malaysia statutory labels (EPF / SOCSO / EIS / PCB)
+Payroll statutory section (UI)
+
+EN
+
+Statutory Contributions
+
+EPF (KWSP)
+
+SOCSO (PERKESO)
+
+EIS (SIP)
+
+PCB / MTD (Tax deduction)
+
+Employer contribution
+
+Employee contribution
+
+Registration number (optional)
+
+Contribution type
+
+Effective month
+
+Generate statutory reports
+
+BM
+
+Caruman Berkanun
+
+KWSP (EPF)
+
+PERKESO (SOCSO)
+
+SIP (EIS)
+
+PCB / MTD (Potongan cukai)
+
+Caruman majikan
+
+Caruman pekerja
+
+Nombor pendaftaran (pilihan)
+
+Jenis caruman
+
+Bulan berkuat kuasa
+
+Jana laporan berkanun
+
+TA
+
+சட்டப்படி கட்டாயக் கழிப்புகள்
+
+EPF (KWSP)
+
+SOCSO (PERKESO)
+
+EIS (SIP)
+
+PCB / MTD (வரி கழிப்பு)
+
+நிறுவனர் பங்கு
+
+ஊழியர் பங்கு
+
+பதிவு எண் (விருப்பம்)
+
+பங்களிப்பு வகை
+
+அமல்படும் மாதம்
+
+சட்ட அறிக்கைகளை உருவாக்கு
+
+Compliance notes (small helper text)
+
+EN: Settings should match your company registration and local payroll requirements.
+BM: Tetapan perlu sepadan dengan pendaftaran syarikat dan keperluan gaji tempatan.
+TA: உங்கள் நிறுவன பதிவு மற்றும் உள்ளூர் சம்பள விதிகளுடன் அமைப்புகள் பொருந்த வேண்டும்.
+
+2️⃣ Payroll onboarding checklist (Malaysia)
+Stepper Title
+
+EN: Payroll setup checklist
+
+BM: Senarai semak persediaan Payroll
+
+TA: Payroll அமைப்பு சரிபார்ப்பு பட்டியல்
+
+Checklist items (with short helper)
+
+Company details
+
+EN: Add company name, address, payroll month, pay day
+
+BM: Tambah nama syarikat, alamat, bulan gaji, hari bayaran
+
+TA: நிறுவனம் பெயர், முகவரி, சம்பள மாதம், சம்பள நாள் சேர்க்கவும்
+
+Statutory setup
+
+EN: Configure EPF/KWSP, SOCSO/PERKESO, EIS/SIP, PCB/MTD
+
+BM: Konfigurasi KWSP, PERKESO, SIP, PCB/MTD
+
+TA: EPF/KWSP, SOCSO/PERKESO, EIS/SIP, PCB/MTD அமைக்கவும்
+
+Employee list
+
+EN: Add employees or import CSV, set salary & allowance
+
+BM: Tambah pekerja atau import CSV, tetapkan gaji & elaun
+
+TA: ஊழியர்களை சேர்க்கவும்/CSV இறக்குமதி, சம்பளம் & படிகள் அமைக்கவும்
+
+Bank & payment method
+
+EN: Choose payment method (bank transfer/manual), set approval flow
+
+BM: Pilih kaedah bayaran (pindahan bank/manual), tetapkan aliran kelulusan
+
+TA: கட்டண முறை (வங்கி மாற்றம்/கைமுறை) தேர்வு, ஒப்புதல் ஓட்டம் அமைக்கவும்
+
+Salary components
+
+EN: Define allowances, deductions, overtime, reimbursements
+
+BM: Tetapkan elaun, potongan, kerja lebih masa, tuntutan
+
+TA: படிகள், கழிப்புகள், OT, செலவீன திருப்பிச் செலுத்தல் அமைக்கவும்
+
+Run a test payroll
+
+EN: Generate a sample payslip and verify totals
+
+BM: Jana slip gaji contoh dan semak jumlah
+
+TA: மாதிரி சம்பள சீட்டு உருவாக்கி தொகைகளை சரிபார்க்கவும்
+
+Enable Payroll
+
+EN: Activate Payroll after trial/payment
+
+BM: Aktifkan Payroll selepas percubaan/pembayaran
+
+TA: சோதனை/கட்டணத்திற்குப் பிறகு Payroll ஐ செயல்படுத்தவும்
+
+3️⃣ Razorpay Malaysia mapping (spec: subscriptions, trial, add-ons)
+A) Business rules (recommended)
+
+Payroll is an Add-on subscription item (separate plan) OR combined plan (plan+payroll bundle price)
+
+For Malaysia, you want:
+
+7-day trial for Payroll add-on
+
+Charge only after trial ends
+
+Plan upgrades: immediate
+
+Plan downgrades: month-end
+
+Payroll add-on removal: month-end (or immediate revoke access but keep data)
+
+B) Razorpay objects you’ll likely use
+
+Option 1: Razorpay Subscriptions (best for recurring)
+
+Create Razorpay “Plan” objects for:
+
+Core plans: MY_FREE, MY_BASIC, MY_PRO
+
+Payroll tiers: MY_PAYROLL_25, MY_PAYROLL_100, MY_PAYROLL_UNLIMITED
+
+Create a Subscription for core plan
+
+Create another Subscription for payroll add-on (with start_at after trial OR trial via offer/custom flow)
+
+Option 2: Razorpay Orders + internal recurring (not recommended)
+
+More complexity; only do if subscriptions not available in your Razorpay account setup.
+
+C) Trial handling (clean + controllable)
+
+Recommended approach
+
+In your DB: store payrollTrialEndsAt, payrollStatus=TRIALING
+
+On add-on enable:
+
+Immediately unlock payroll access
+
+Schedule billing creation on trial end:
+
+either create Razorpay subscription at that time
+
+or create subscription now with start_at = trial end
+
+If payment fails after trial:
+
+payroll becomes PAST_DUE, show banner + restrict actions
+
+D) Webhooks you MUST implement
+
+subscription.activated
+
+subscription.charged
+
+invoice.paid
+
+payment.failed
+
+subscription.paused / cancelled (if supported)
+
+subscription.completed
+
+E) What you store in your DB per tenant
+
+coreSubscriptionId, corePlanCode, coreStatus
+
+payrollSubscriptionId (optional), payrollTier, payrollStatus
+
+trialEndsAt (payroll)
+
+nextBillingAt and cancelAtPeriodEnd flags
+
+lastPaymentId, lastInvoiceId
+
+4️⃣ Employee-facing payslip UI copy (EN + BM + TA)
+Payslip page title
+
+EN: Payslip
+
+BM: Slip Gaji
+
+TA: சம்பள சீட்டு
+
+Month selector
+
+EN: Select month
+
+BM: Pilih bulan
+
+TA: மாதத்தைத் தேர்ந்தெடுக்கவும்
+
+Payslip header labels
+
+EN
+
+Employee Name
+
+Employee ID
+
+Pay Period
+
+Pay Date
+
+Department
+
+Net Pay
+
+BM
+
+Nama Pekerja
+
+ID Pekerja
+
+Tempoh Gaji
+
+Tarikh Bayaran
+
+Jabatan
+
+Gaji Bersih
+
+TA
+
+ஊழியர் பெயர்
+
+ஊழியர் ID
+
+சம்பள காலம்
+
+சம்பள தேதி
+
+துறை
+
+நிகர சம்பளம்
+
+Earnings section
+
+EN
+
+Earnings
+
+Basic Salary
+
+Allowances
+
+Overtime
+
+Bonus
+
+Reimbursements
+
+Total Earnings
+
+BM
+
+Pendapatan
+
+Gaji Asas
+
+Elaun
+
+Kerja Lebih Masa
+
+Bonus
+
+Tuntutan
+
+Jumlah Pendapatan
+
+TA
+
+வருமானம்
+
+அடிப்படை சம்பளம்
+
+படிகள்
+
+கூடுதல் நேரம்
+
+போனஸ்
+
+செலவீன திருப்பிச் செலுத்தல்
+
+மொத்த வருமானம்
+
+Deductions section
+
+EN
+
+Deductions
+
+EPF (Employee)
+
+SOCSO (Employee)
+
+EIS (Employee)
+
+PCB/MTD
+
+Other Deductions
+
+Total Deductions
+
+BM
+
+Potongan
+
+KWSP (Pekerja)
+
+PERKESO (Pekerja)
+
+SIP (Pekerja)
+
+PCB/MTD
+
+Potongan Lain
+
+Jumlah Potongan
+
+TA
+
+கழிப்புகள்
+
+EPF/KWSP (ஊழியர்)
+
+SOCSO/PERKESO (ஊழியர்)
+
+EIS/SIP (ஊழியர்)
+
+PCB/MTD
+
+பிற கழிப்புகள்
+
+மொத்த கழிப்புகள்
+
+Download button
+
+EN: Download PDF
+
+BM: Muat turun PDF
+
+TA: PDF பதிவிறக்கவும்
+
+Empty state
+
+EN: No payslip available for this month.
+
+BM: Tiada slip gaji untuk bulan ini.
+
+TA: இந்த மாதத்திற்கு சம்பள சீட்டு கிடைக்கவில்லை.
