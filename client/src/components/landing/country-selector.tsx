@@ -12,10 +12,10 @@ import { Globe } from "lucide-react";
 
 const COUNTRIES = [
   { code: "IN", name: "India", path: "/in", available: true },
-  { code: "UK", name: "United Kingdom", path: "/uk", available: false },
+  { code: "UK", name: "United Kingdom", path: "/uk", available: true },
   { code: "AE", name: "UAE", path: "/uae", available: false },
   { code: "SG", name: "Singapore", path: "/sg", available: false },
-  { code: "MY", name: "Malaysia", path: "/my", available: false },
+  { code: "MY", name: "Malaysia", path: "/my", available: true },
 ] as const;
 
 export function getCountryFromPath(pathname: string): CountryCode | "GLOBAL" {

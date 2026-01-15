@@ -182,6 +182,16 @@ export async function registerRoutes(
       } catch (err) {
         console.log("[bootstrap] India pricing seeding skipped:", err);
       }
+
+      // Seed UK and Malaysia pricing plans
+      try {
+        const { seedUKPricingPlans, seedMYPricingPlans } = await import("./core/uk-my-pricing");
+        await seedUKPricingPlans();
+        await seedMYPricingPlans();
+        console.log("[bootstrap] UK and Malaysia pricing seeded");
+      } catch (err) {
+        console.log("[bootstrap] UK/MY pricing seeding skipped:", err);
+      }
       
       // Seed payroll addon tiers and bundle discounts
       try {
