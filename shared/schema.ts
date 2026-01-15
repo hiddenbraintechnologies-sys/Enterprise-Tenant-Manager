@@ -8750,3 +8750,110 @@ export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
 
 export type InvoiceProjectLink = typeof invoiceProjectLinks.$inferSelect;
 export type InsertInvoiceProjectLink = z.infer<typeof insertInvoiceProjectLinkSchema>;
+
+// ============================================
+// WAITLIST
+// ============================================
+
+export const waitlist = pgTable("waitlist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  countryCode: varchar("country_code", { length: 10 }).notNull(),
+  source: varchar("source", { length: 50 }).default("landing"),
+  referrer: text("referrer"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_waitlist_email").on(table.email),
+  index("idx_waitlist_country").on(table.countryCode),
+  uniqueIndex("idx_waitlist_email_country").on(table.email, table.countryCode),
+]);
+
+export type Waitlist = typeof waitlist.$inferSelect;
+
+export const insertWaitlistSchema = createInsertSchema(waitlist).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertWaitlist = z.infer<typeof insertWaitlistSchema>;
+
+// ============================================
+// PROMO/COUPON ENGINE
+// ============================================
+
+export const promoAppliesEnum = pgEnum("promo_applies", ["plan", "addon", "bundle", "any"]);
+export const discountTypeEnum = pgEnum("discount_type", ["flat", "percent"]);
+
+export const billingPromos = pgTable("billing_promos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  appliesTo: promoAppliesEnum("applies_to").default("any"),
+  targetIds: jsonb("target_ids").default([]),
+  
+  discountType: discountTypeEnum("discount_type").default("percent"),
+  discountValue: integer("discount_value").notNull(),
+  maxDiscountAmount: integer("max_discount_amount"),
+  minAmount: integer("min_amount"),
+  
+  startAt: timestamp("start_at"),
+  endAt: timestamp("end_at"),
+  
+  usageLimitTotal: integer("usage_limit_total"),
+  usageLimitPerTenant: integer("usage_limit_per_tenant").default(1),
+  usageCount: integer("usage_count").default(0),
+  
+  allowStacking: boolean("allow_stacking").default(false),
+  isActive: boolean("is_active").default(true),
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  archivedAt: timestamp("archived_at"),
+}, (table) => [
+  index("idx_billing_promos_code").on(table.code),
+  index("idx_billing_promos_active").on(table.isActive),
+  index("idx_billing_promos_dates").on(table.startAt, table.endAt),
+]);
+
+export const billingPromoRedemptions = pgTable("billing_promo_redemptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promoId: varchar("promo_id").notNull().references(() => billingPromos.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  paymentId: varchar("payment_id"),
+  
+  amountBefore: integer("amount_before").notNull(),
+  discountAmount: integer("discount_amount").notNull(),
+  amountAfter: integer("amount_after").notNull(),
+  
+  appliedTo: promoAppliesEnum("applied_to"),
+  targetId: varchar("target_id"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_promo_redemptions_promo_id").on(table.promoId),
+  index("idx_promo_redemptions_tenant_id").on(table.tenantId),
+  index("idx_promo_redemptions_payment_id").on(table.paymentId),
+]);
+
+export type BillingPromo = typeof billingPromos.$inferSelect;
+export type BillingPromoRedemption = typeof billingPromoRedemptions.$inferSelect;
+
+export const insertBillingPromoSchema = createInsertSchema(billingPromos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  archivedAt: true,
+  usageCount: true,
+});
+
+export const insertBillingPromoRedemptionSchema = createInsertSchema(billingPromoRedemptions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertBillingPromo = z.infer<typeof insertBillingPromoSchema>;
+export type InsertBillingPromoRedemption = z.infer<typeof insertBillingPromoRedemptionSchema>;

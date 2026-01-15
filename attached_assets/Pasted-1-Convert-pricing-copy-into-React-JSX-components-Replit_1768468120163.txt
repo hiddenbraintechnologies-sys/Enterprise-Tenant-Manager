@@ -1,0 +1,157 @@
+1️⃣ Convert pricing copy into React JSX components (Replit prompt)
+Convert the India pricing + Payroll add-on copy into production-ready React components using shadcn/ui + Tailwind.
+
+Requirements:
+1) Create components:
+- client/src/components/pricing/PricingPage.tsx
+- client/src/components/pricing/PlanCard.tsx
+- client/src/components/pricing/AddOnCard.tsx
+- client/src/components/pricing/BillingToggle.tsx (Monthly / Yearly)
+- client/src/components/pricing/LanguageToggle.tsx (EN / HI + placeholder for regional)
+- client/src/components/pricing/ComparisonTable.tsx (Free vs Basic vs Pro)
+
+2) Data-driven:
+- Base plans loaded from existing /api/billing/plans
+- Add-ons loaded from /api/billing/addons
+- Show monthly/yearly prices from billingCycles
+- Show “Save ₹X” badges for yearly and bundles
+
+3) Copy (must match exactly):
+- EN + HI variants for plan headings/blurbs/CTAs
+- Add Payroll Add-On section with tier table and 7-day trial note
+- Regional placeholder row: தமிழ் | తెలుగు | ಕನ್ನಡ | മലയാളം | मराठी | বাংলা (non-clickable for now)
+
+4) CTA behavior:
+- If not logged in: CTA -> /register
+- If logged in: CTA -> /packages
+- If addon enabled: CTA -> “Manage in Billing”
+- If feature locked: show upgrade modal (reuse existing)
+
+5) SEO:
+- Use <Helmet> (or existing meta helper) to set title/description
+- Add FAQ section (accordion) with EN+HI
+
+6) Tests:
+- Snapshot test for PricingPage in EN and HI
+- Formatting test: INR shows ₹99 not ₹99.00; Free shows “Free”
+
+Deliverable:
+A complete /pricing page that looks consistent with existing design and works with live backend data.
+
+2️⃣ SEO landing pages per country (Replit prompt)
+Implement SEO-friendly country landing pages with shared layout and localized messaging.
+
+Routes:
+- / (global neutral)
+- /in (India live)
+- /uae, /uk, /sg, /my (coming soon + waitlist)
+Add dynamic routing via country code if needed.
+
+Requirements:
+1) Shared layout:
+- client/src/components/landing/LandingLayout.tsx
+- header with country switcher
+- footer with links (privacy, terms, support)
+
+2) India page (/in):
+- Show pricing cards (Free/₹99/₹199) + Payroll Add-On
+- CTA -> /register
+- Add SEO meta: title, description, canonical URL
+- Add OpenGraph tags
+
+3) Coming soon pages (/uae, /uk, /sg, /my):
+- “Launching soon” headline
+- Waitlist email form (POST /api/public/waitlist)
+- Show “We’ll notify you when we launch”
+- Country badge (AE/UK/SG/MY) (no flags)
+
+4) Country selection persistence:
+- On first visit to / show a modal country selector
+- Save selection to localStorage + cookie
+- Header switcher can change anytime
+- If a user selects IN -> redirect to /in
+
+5) Backend:
+- Add endpoint POST /api/public/waitlist { email, countryCode }
+- Save in waitlist table with created_at and source="landing"
+- Rate limit + basic email validation
+
+6) QA:
+- Public routes MUST NOT be wrapped in TenantProvider/OnboardingGuard
+- No subscription calls on public pages
+- Add Cypress/Playwright style minimal smoke test if present: /in loads, /uae submits email
+
+Deliverable:
+Clean marketing landing pages for each country with SEO meta, working waitlist, and stable routing.
+
+4️⃣ Admin promo / coupon engine (Replit prompt)
+
+This gives you Zoho-like early pay discounts, bundle discounts, coupon codes, and super admin control.
+
+Build a Promo/Coupon engine for plans + add-ons with Super Admin management and tenant checkout support.
+
+Scope:
+- Coupons apply to:
+  (a) base plans (Basic/Pro)
+  (b) add-ons (Payroll tiers)
+  (c) bundles (Plan+Payroll)
+- Works with monthly/yearly
+- Enforced server-side in checkout/start
+
+Database:
+1) billing_promos
+- id, code (unique), name, description
+- applies_to: "plan" | "addon" | "bundle" | "any"
+- target_ids: JSON array of planIds/addonTierIds (or null for all)
+- discount_type: "flat" | "percent"
+- discount_value: int (flat in smallest unit; percent 1-100)
+- max_discount_amount (nullable)
+- min_amount (nullable)
+- start_at, end_at
+- usage_limit_total, usage_limit_per_tenant
+- is_active
+- created_by, created_at
+
+2) billing_promo_redemptions
+- id, promo_id, tenant_id, payment_id, amount_before, discount_amount, amount_after, created_at
+
+Backend:
+1) Admin endpoints (SUPER_ADMIN only):
+- POST /api/admin/billing/promos
+- PATCH /api/admin/billing/promos/:id
+- GET /api/admin/billing/promos?page=&limit=
+- POST /api/admin/billing/promos/:id/archive
+
+2) Public/tenant endpoints:
+- POST /api/billing/promos/validate { code, planId?, addonTierId?, cycle }
+  returns { valid, discountAmount, finalAmount, message }
+- Integrate into POST /api/billing/checkout/start:
+  accept optional promoCode
+  apply promo server-side ONLY if valid
+
+Rules:
+- Prevent stacking unless explicitly allowed (default: no stacking)
+- Apply bundle discount rules (existing) FIRST, then promoCode, capped by max_discount_amount
+- Enforce date window, limits, per-tenant usage
+- Audit log all promo usage
+
+Frontend:
+1) Tenant checkout UI:
+- Promo code input
+- “Apply” -> calls /api/billing/promos/validate
+- Shows “You saved ₹X” and final payable
+
+2) Super Admin UI:
+- /admin/billing/promos page
+- Create/Edit promo form with:
+  - code, type, target, validity dates, limits, discount
+  - preview: example final prices (₹99/₹199 + payroll tiers)
+
+Tests:
+- Promo valid/invalid (expired, over limit, wrong target)
+- Percent cap works
+- Redemption counts enforced
+- Checkout/start with promo applies correct finalAmount
+
+Deliverable:
+End-to-end promo engine usable for launch campaigns and early annual-pay discounts.

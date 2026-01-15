@@ -69,6 +69,7 @@ import TenantUsers from "@/pages/admin/tenant-users";
 import TenantDetails from "@/pages/admin/tenant-details";
 import AdminPlatformAdmins from "@/pages/admin/platform-admins";
 import AdminBilling from "@/pages/admin/billing";
+import AdminPromos from "@/pages/admin/promos";
 import AdminAddonRevenue from "@/pages/admin/addon-revenue";
 import AdminExchangeRates from "@/pages/admin/exchange-rates";
 import TaxManagement from "@/pages/admin/tax-management";
@@ -406,6 +407,7 @@ function PlatformAdminRoutes() {
       <Route path="/admin/tenants" component={AdminTenants} />
       <Route path="/admin/admins" component={AdminPlatformAdmins} />
       <Route path="/admin/billing" component={AdminBilling} />
+      <Route path="/admin/billing/promos" component={AdminPromos} />
       <Route path="/admin/addon-revenue" component={AdminAddonRevenue} />
       <Route path="/admin/invoice-templates" component={InvoiceTemplates} />
       <Route path="/admin/tax" component={TaxManagement} />

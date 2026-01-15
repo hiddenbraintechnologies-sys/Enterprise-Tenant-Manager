@@ -98,6 +98,9 @@ import { subscriptionService } from "./services/subscription";
 import billingRoutes from "./routes/billing";
 import adminBillingPlansRoutes from "./routes/admin-billing-plans";
 import adminBillingOffersRoutes from "./routes/admin-billing-offers";
+import adminBillingPromosRoutes from "./routes/admin/promos";
+import publicRoutes from "./routes/public";
+import promoRoutes from "./routes/billing/promos";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
 import tenantSettingsRoutes from "./routes/tenant-settings";
@@ -343,6 +346,10 @@ export async function registerRoutes(
   
   // Billing & Checkout routes (for tenant onboarding)
   app.use('/api/billing', billingRoutes);
+  app.use('/api/billing/promos', promoRoutes);
+  
+  // Public routes (no auth required)
+  app.use('/api/public', publicRoutes);
 
   // Phase 3: Onboarding, Subscription Selection & Dashboard APIs
   app.use('/api/auth', phase3OnboardingRoutes);
@@ -2387,6 +2394,9 @@ export async function registerRoutes(
   
   // Admin billing offers routes - RBAC protected
   app.use('/api/admin/billing', adminBillingOffersRoutes);
+  
+  // Admin promo/coupon routes - Super Admin only
+  app.use('/api/admin/billing/promos', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), adminBillingPromosRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
