@@ -139,5 +139,50 @@
     "body": "Software Services के लिए Basic या Pro में Upgrade करें।",
     "upgradeButton": "Upgrade करें",
     "sidebarTooltip": "Software Services इस्तेमाल करने के लिए Upgrade करें"
+  },
+  "addons": {
+    "pageTitle": "ऐड-ऑन्स",
+    "pageSubtitle": "शक्तिशाली ऐड-ऑन्स के साथ अपने प्लान को बेहतर बनाएं",
+    "payroll": {
+      "title": "पेरोल ऐड-ऑन",
+      "description": "देश-विशिष्ट अनुपालन के साथ पूर्ण पेरोल प्रबंधन",
+      "selectTier": "अपने कर्मचारियों की संख्या के आधार पर एक टियर चुनें",
+      "tierA": "छोटा व्यवसाय",
+      "tierB": "मध्यम व्यवसाय",
+      "tierC": "एंटरप्राइज",
+      "employees": "कर्मचारी",
+      "employeesUnlimited": "101+ कर्मचारी",
+      "perMonth": "/महीना",
+      "perYear": "/वर्ष",
+      "billedMonthly": "हर महीने बिल",
+      "billedYearly": "हर साल बिल",
+      "yearlySavings": "{{amount}} वार्षिक बचत",
+      "subscribe": "सब्सक्राइब करें",
+      "subscribed": "सब्सक्राइब्ड",
+      "active": "सक्रिय",
+      "expired": "समाप्त",
+      "trial": "ट्रायल",
+      "gracePeriod": "ग्रेस पीरियड",
+      "currentTier": "वर्तमान टियर",
+      "changeTier": "टियर बदलें",
+      "cancelSubscription": "सब्सक्रिप्शन रद्द करें",
+      "renewNow": "अभी नवीनीकरण करें",
+      "expiresOn": "{{date}} को समाप्त",
+      "validUntil": "{{date}} तक वैध",
+      "features": {
+        "salaryProcessing": "वेतन प्रोसेसिंग",
+        "taxCalculations": "स्वचालित कर गणना",
+        "payslips": "डिजिटल पेस्लिप",
+        "compliance": "देश-विशिष्ट अनुपालन",
+        "reports": "पेरोल रिपोर्ट",
+        "bankIntegration": "बैंक इंटीग्रेशन"
+      }
+    },
+    "noAddons": "आपके देश के लिए कोई ऐड-ऑन उपलब्ध नहीं है",
+    "loading": "ऐड-ऑन लोड हो रहे हैं...",
+    "error": "ऐड-ऑन लोड करने में विफल",
+    "retry": "पुनः प्रयास करें",
+    "included": "आपके प्लान में शामिल",
+    "notAvailable": "आपके क्षेत्र में उपलब्ध नहीं है"
   }
 }
