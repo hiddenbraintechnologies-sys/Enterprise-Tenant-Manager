@@ -1,0 +1,214 @@
+1️⃣ Payroll Add-on Card (Signup & Billing → Add-ons)
+Title
+
+EN: Payroll
+
+BM: Gaji & Payroll
+
+TA: சம்பள மேலாண்மை (Payroll)
+
+Subtitle
+
+EN: Automate salary, statutory deductions, and payslips for your team.
+
+BM: Automatikkan gaji, potongan berkanun, dan slip gaji pekerja anda.
+
+TA: உங்கள் குழுவிற்கான சம்பளம், சட்டப்படி கழிப்புகள் மற்றும் சம்பள சீட்டுகளை தானியங்கி செய்யுங்கள்.
+
+Trial Badge
+
+EN: 7-day free trial
+
+BM: Percubaan percuma 7 hari
+
+TA: 7 நாள் இலவச சோதனை
+
+Add-on CTA Button
+
+EN: Add Payroll
+
+BM: Tambah Payroll
+
+TA: Payroll சேர்க்கவும்
+
+2️⃣ Payroll Pricing Tier Labels (Employee-based)
+Tier A
+
+EN: Up to 25 employees
+
+BM: Sehingga 25 pekerja
+
+TA: 25 ஊழியர்கள் வரை
+
+Tier B
+
+EN: Up to 100 employees
+
+BM: Sehingga 100 pekerja
+
+TA: 100 ஊழியர்கள் வரை
+
+Tier C
+
+EN: Unlimited employees
+
+BM: Pekerja tanpa had
+
+TA: வரம்பற்ற ஊழியர்கள்
+
+Price Suffix
+
+EN: / month
+
+BM: / bulan
+
+TA: / மாதம்
+
+3️⃣ Signup Add-ons Step (After Plan Selection – MY only)
+Section Heading
+
+EN: Optional Add-ons
+
+BM: Tambahan Pilihan
+
+TA: விருப்பமான கூடுதல் அம்சங்கள்
+
+Description
+
+EN: Enhance your plan with optional add-ons. You can add or remove these later.
+
+BM: Tingkatkan pelan anda dengan tambahan pilihan. Anda boleh menambah atau membuang kemudian.
+
+TA: விருப்பமான கூடுதல் அம்சங்களை உங்கள் திட்டத்தில் சேர்க்கலாம். பின்னர் மாற்றலாம்.
+
+Payroll Helper Text
+
+EN: Try Payroll free for 7 days. Charges apply only after trial ends.
+
+BM: Cuba Payroll secara percuma selama 7 hari. Caj hanya dikenakan selepas percubaan tamat.
+
+TA: Payroll ஐ 7 நாட்கள் இலவசமாக முயற்சிக்கவும். சோதனை முடிந்த பிறகே கட்டணம் விதிக்கப்படும்.
+
+4️⃣ Checkout Summary (Plan + Payroll)
+Summary Line
+
+EN: Payroll add-on
+
+BM: Tambahan Payroll
+
+TA: Payroll கூடுதல் அம்சம்
+
+Trial Notice
+
+EN: Trial active — no charge today
+
+BM: Percubaan aktif — tiada caj hari ini
+
+TA: சோதனை செயலில் உள்ளது — இன்று கட்டணம் இல்லை
+
+5️⃣ Payment Confirmation (After Successful Payment)
+Success Title
+
+EN: Payroll activated
+
+BM: Payroll diaktifkan
+
+TA: Payroll செயல்படுத்தப்பட்டது
+
+Message
+
+EN: Payroll has been successfully added to your subscription.
+
+BM: Payroll telah berjaya ditambah ke langganan anda.
+
+TA: Payroll உங்கள் சந்தாவிற்கு வெற்றிகரமாக சேர்க்கப்பட்டது.
+
+6️⃣ Trial Expiry Warning (Day 6 or Trial End)
+Title
+
+EN: Payroll trial ending soon
+
+BM: Percubaan Payroll akan tamat
+
+TA: Payroll சோதனை விரைவில் முடிவடையும்
+
+Message
+
+EN: Your Payroll trial ends tomorrow. Please complete payment to continue uninterrupted access.
+
+BM: Percubaan Payroll anda tamat esok. Sila buat pembayaran untuk terus menggunakan perkhidmatan tanpa gangguan.
+
+TA: உங்கள் Payroll சோதனை நாளை முடிவடைகிறது. தொடர்ந்த பயன்பாட்டிற்கு கட்டணம் செலுத்தவும்.
+
+7️⃣ Payroll Locked State (If Not Purchased)
+Title
+
+EN: Payroll not enabled
+
+BM: Payroll belum diaktifkan
+
+TA: Payroll செயல்படுத்தப்படவில்லை
+
+Message
+
+EN: Add Payroll to automate salaries and statutory compliance.
+
+BM: Tambah Payroll untuk automatikkan gaji dan pematuhan berkanun.
+
+TA: சம்பளமும் சட்டபூர்த்தியும் தானியங்கியாக்க Payroll ஐ சேர்க்கவும்.
+
+CTA
+
+EN: Upgrade to Payroll
+
+BM: Naik taraf ke Payroll
+
+TA: Payroll க்கு மேம்படுத்தவும்
+
+8️⃣ Admin (Super Admin) – Payroll Rollout Toggle
+Toggle Label
+
+EN: Enable Payroll for Malaysia
+
+BM: Aktifkan Payroll untuk Malaysia
+
+TA: மலேசியாவிற்கான Payroll ஐ செயல்படுத்தவும்
+
+Help Text
+
+EN: Controls availability of Payroll add-on for Malaysian tenants.
+
+BM: Mengawal ketersediaan tambahan Payroll untuk penyewa Malaysia.
+
+TA: மலேசிய வாடிக்கையாளர்களுக்கான Payroll கூடுதல் அம்சத்தின் கிடைப்பை கட்டுப்படுத்துகிறது.
+
+9️⃣ Admin Revenue Analytics (Add-ons)
+Card Title
+
+EN: Payroll Revenue
+
+BM: Hasil Payroll
+
+TA: Payroll வருமானம்
+
+Metric Label
+
+EN: Active Payroll subscriptions
+
+BM: Langganan Payroll aktif
+
+TA: செயலில் உள்ள Payroll சந்தாக்கள்
+
+10️⃣ Language Keys Example (Recommended Structure)
+payroll: {
+  title: {
+    en: "Payroll",
+    ms: "Gaji & Payroll",
+    ta: "சம்பள மேலாண்மை (Payroll)",
+  },
+  trial: {
+    en: "7-day free trial",
+    ms: "Percubaan percuma 7 hari",
+    ta: "7 நாள் இலவச சோதனை",
+  }
+}
