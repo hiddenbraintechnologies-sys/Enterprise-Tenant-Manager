@@ -138,7 +138,7 @@ const updateRolloutSchema = z.object({
   enabledAddons: z.array(z.string()).optional(),
   enabledPlans: z.array(z.string()).optional(),
   payrollStatus: z.enum(["disabled", "beta", "live"]).optional(),
-  payrollCohortTenantIds: z.array(z.number()).optional(),
+  payrollCohortTenantIds: z.array(z.string()).optional(),
   payrollDisclaimerText: z.string().nullable().optional(),
   notes: z.string().optional(),
 });

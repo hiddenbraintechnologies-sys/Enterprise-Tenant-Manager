@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { payrollAddonTiers, bundleDiscounts, tenantPayrollAddon } from "@shared/schema";
+import { payrollAddonTiers, bundleDiscounts, tenantPayrollAddon, countryRolloutPolicy } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export const PAYROLL_TIER_CODES = {
@@ -242,9 +242,63 @@ export async function seedBundleDiscounts(): Promise<void> {
   console.log("[payroll-addon] Bundle discounts seeded successfully");
 }
 
+async function seedCountryPayrollRollout(): Promise<void> {
+  console.log("[payroll-addon] Seeding country payroll rollout policies...");
+
+  const payrollEnabledCountries = [
+    { countryCode: "IN", status: "live" as const, disclaimer: null },
+    { countryCode: "MY", status: "live" as const, disclaimer: "Payroll features are now available for Malaysia with SST compliance." },
+  ];
+
+  for (const country of payrollEnabledCountries) {
+    try {
+      const existing = await db
+        .select()
+        .from(countryRolloutPolicy)
+        .where(eq(countryRolloutPolicy.countryCode, country.countryCode))
+        .limit(1);
+
+      if (existing.length > 0) {
+        const currentAddons = (existing[0].enabledAddons as string[]) || [];
+        const updatedAddons = currentAddons.includes("payroll") ? currentAddons : [...currentAddons, "payroll"];
+        
+        await db
+          .update(countryRolloutPolicy)
+          .set({
+            payrollStatus: country.status,
+            payrollDisclaimerText: country.disclaimer,
+            enabledAddons: updatedAddons,
+            updatedBy: "system",
+            updatedAt: new Date(),
+          })
+          .where(eq(countryRolloutPolicy.countryCode, country.countryCode));
+        console.log(`[payroll-addon] Updated payroll rollout for ${country.countryCode}`);
+      } else {
+        await db.insert(countryRolloutPolicy).values({
+          countryCode: country.countryCode,
+          payrollStatus: country.status,
+          payrollDisclaimerText: country.disclaimer,
+          enabledAddons: ["payroll"],
+          enabledBusinessTypes: [],
+          disabledFeatures: [],
+          enabledPlans: [],
+          payrollCohortTenantIds: [],
+          updatedBy: "system",
+        });
+        console.log(`[payroll-addon] Created payroll rollout for ${country.countryCode}`);
+      }
+    } catch (error) {
+      console.error(`[payroll-addon] Error seeding rollout for ${country.countryCode}:`, error);
+    }
+  }
+
+  console.log("[payroll-addon] Country payroll rollout policies seeded successfully");
+}
+
 export async function seedPayrollAddon(): Promise<void> {
   await seedPayrollAddonTiers();
   await seedBundleDiscounts();
+  await seedCountryPayrollRollout();
 }
 
 export function getRecommendedTier(employeeCount: number): typeof PAYROLL_TIER_CODES[keyof typeof PAYROLL_TIER_CODES] | null {
