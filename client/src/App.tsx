@@ -63,6 +63,7 @@ import SuperAdminDashboard from "@/pages/super-admin-dashboard";
 import SuperAdminBusinessRegistry from "@/pages/super-admin-business-registry";
 import SuperAdminModuleRegistry from "@/pages/super-admin-module-registry";
 import SuperAdminFeatureRegistry from "@/pages/super-admin-feature-registry";
+import SuperAdminCountries from "@/pages/super-admin/countries";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import TenantUsers from "@/pages/admin/tenant-users";
@@ -384,6 +385,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/sso" component={AdminSso} />
         <Route path="/super-admin/settings" component={AdminSettings} />
         <Route path="/super-admin/regions" component={AdminRegions} />
+        <Route path="/super-admin/countries" component={SuperAdminCountries} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
         <Route path="/super-admin/security/sessions" component={AdminSecuritySessions} />
         <Route path="/super-admin/security" component={AdminSecurity} />

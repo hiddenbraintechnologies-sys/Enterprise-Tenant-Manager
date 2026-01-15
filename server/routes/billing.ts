@@ -19,6 +19,7 @@ import type { BillingCycleKey, BillingCyclesMap } from "@shared/billing/types";
 import { CYCLE_MONTHS, calculateSavings } from "@shared/billing/types";
 import payrollAddonRoutes from "./billing/payroll-addon";
 import razorpayWebhookRoutes from "./billing/razorpay-webhooks";
+import { countryRolloutService } from "../services/country-rollout";
 
 const router = Router();
 
@@ -1955,7 +1956,15 @@ router.get("/plans-with-cycles", optionalAuth, async (req: Request, res: Respons
       ))
       .orderBy(globalPricingPlans.sortOrder);
 
-    const filteredPlans = plans.filter(p => p.code.startsWith(prefix));
+    let filteredPlans = plans.filter(p => p.code.startsWith(prefix));
+
+    // Filter by country rollout policy if enabled plans are specified
+    const enabledPlans = await countryRolloutService.getAvailablePlans(countryCode);
+    if (enabledPlans && enabledPlans.length > 0) {
+      filteredPlans = filteredPlans.filter(p => 
+        enabledPlans.includes(p.code) || enabledPlans.includes(p.id)
+      );
+    }
 
     const plansWithCycles = filteredPlans.map(plan => {
       const basePrice = parseFloat(plan.basePrice);

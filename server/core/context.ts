@@ -96,7 +96,7 @@ async function getRolePermissions(roleId: string | undefined | null): Promise<st
   return perms.map(p => p.code).filter(Boolean) as string[];
 }
 
-export async function getTenantFeatures(tenantId: string): Promise<string[]> {
+export async function getTenantFeatures(tenantId: string, countryCode?: string): Promise<string[]> {
   const activeFeatures = await db.select({
     featureCode: tenantFeatures.featureCode,
   })
@@ -115,6 +115,17 @@ export async function getTenantFeatures(tenantId: string): Promise<string[]> {
   const featureSet = new Set<string>();
   defaultFeatures.forEach(f => featureSet.add(f.code));
   activeFeatures.forEach(f => featureSet.add(f.featureCode));
+
+  // Apply country-level feature blocking
+  if (countryCode) {
+    const { countryRolloutService } = await import("../services/country-rollout");
+    const countryConfig = await countryRolloutService.getCountryConfig(countryCode);
+    if (countryConfig && countryConfig.disabledFeatures.length > 0) {
+      for (const blockedFeature of countryConfig.disabledFeatures) {
+        featureSet.delete(blockedFeature);
+      }
+    }
+  }
 
   return Array.from(featureSet);
 }
@@ -149,7 +160,18 @@ export function tenantContextMiddleware() {
         context.permissions = tenantInfo.permissions;
 
         if (tenantInfo.tenant) {
-          context.features = await getTenantFeatures(tenantInfo.tenant.id);
+          // Map tenant country to ISO code for feature blocking
+          const countryMap: Record<string, string> = {
+            india: "IN",
+            uae: "AE",
+            uk: "GB",
+            malaysia: "MY",
+            singapore: "SG",
+          };
+          const isoCountryCode = tenantInfo.tenant.country 
+            ? countryMap[tenantInfo.tenant.country] || undefined
+            : undefined;
+          context.features = await getTenantFeatures(tenantInfo.tenant.id, isoCountryCode);
         }
       }
     }

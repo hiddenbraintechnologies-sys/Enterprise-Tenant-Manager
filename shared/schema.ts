@@ -8857,3 +8857,26 @@ export const insertBillingPromoRedemptionSchema = createInsertSchema(billingProm
 
 export type InsertBillingPromo = z.infer<typeof insertBillingPromoSchema>;
 export type InsertBillingPromoRedemption = z.infer<typeof insertBillingPromoRedemptionSchema>;
+
+// ============================================
+// COUNTRY ROLLOUT POLICY (extends platformRegionConfigs for granular control)
+// ============================================
+
+export const countryRolloutPolicy = pgTable("country_rollout_policy", {
+  countryCode: varchar("country_code", { length: 5 }).primaryKey(),
+  enabledBusinessTypes: jsonb("enabled_business_types").$type<string[]>().default([]),
+  disabledFeatures: jsonb("disabled_features").$type<string[]>().default([]),
+  enabledAddons: jsonb("enabled_addons").$type<string[]>().default([]),
+  enabledPlans: jsonb("enabled_plans").$type<string[]>().default([]),
+  notes: text("notes"),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type CountryRolloutPolicy = typeof countryRolloutPolicy.$inferSelect;
+
+export const insertCountryRolloutPolicySchema = createInsertSchema(countryRolloutPolicy).omit({
+  updatedAt: true,
+});
+
+export type InsertCountryRolloutPolicy = z.infer<typeof insertCountryRolloutPolicySchema>;

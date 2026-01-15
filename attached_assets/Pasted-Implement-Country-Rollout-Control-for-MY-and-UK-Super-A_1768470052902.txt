@@ -1,0 +1,106 @@
+Implement Country Rollout Control for MY and UK: Super Admin can enable/disable features and business types per country, and control which plans/addons are available.
+
+Context:
+We have multi-tenant SaaS with:
+- feature flags per plan
+- add-ons (payroll tiers etc.)
+- multiple business types (consulting, software_services, furniture, clinics, etc.)
+We now need platform-level rollout policy per country.
+
+1) Database
+Create tables:
+
+A) platform_countries
+- country_code (PK) e.g. IN, MY, UK
+- name
+- status: coming_soon | beta | live | paused
+- default_currency_code (INR, MYR, GBP)
+- is_signup_enabled boolean
+- is_billing_enabled boolean
+- created_at, updated_at
+
+B) country_rollout_policy
+- country_code (PK, FK->platform_countries)
+- enabled_business_types jsonb (array of businessType enums)
+- disabled_features jsonb (array of feature keys)  // country-level hard block
+- enabled_addons jsonb (array of addon codes)      // payroll, whatsapp, etc.
+- enabled_plans jsonb (array of plan ids or plan codes e.g. in_basic, my_basic, uk_basic)
+- notes text
+- updated_by (platform admin id)
+- updated_at
+
+Seed defaults:
+- IN: live, signup enabled, billing enabled, all current business types enabled (as per current)
+- MY: live (or beta), signup enabled, billing enabled, enable the business types you choose (start with consulting + software_services), enable payroll addon if desired
+- UK: live (or beta), signup enabled, billing enabled, enable consulting + software_services initially
+
+2) Backend Services
+Create a rollout service:
+- getCountryPolicy(countryCode)
+- isBusinessTypeAllowed(countryCode, businessType)
+- isFeatureBlockedByCountry(countryCode, featureKey)
+- getAvailablePlans(countryCode)
+- getAvailableAddons(countryCode)
+
+3) Enforcement Points
+A) Signup/register:
+- Require selected countryCode and businessType
+- Validate:
+  - platform_countries.status must be live or beta
+  - is_signup_enabled true
+  - businessType must be in enabled_business_types
+Else return 400 with code:
+  - COUNTRY_NOT_AVAILABLE
+  - BUSINESS_NOT_AVAILABLE_IN_COUNTRY
+
+B) Packages / Plans API:
+- /api/billing/plans must filter to country policy enabled_plans
+- Ensure currency rules per country (MYR for MY, GBP for UK)
+- /api/billing/addons must filter to enabled_addons
+
+C) Runtime feature gating:
+- When building tenant context (/api/context), compute effectiveFeatures:
+  - start from tenant plan+addon features
+  - remove any features listed in country policy disabled_features
+- Update requireFeature() to check effectiveFeatures from context (or compute on request)
+
+4) Admin UI (Super Admin)
+Add pages under /super-admin:
+- /super-admin/countries
+  - list countries, status, signup enabled, billing enabled
+  - edit country
+- /super-admin/countries/:countryCode/rollout
+  - Business type toggles (checkbox list of enums)
+  - Feature blocklist toggles (checkbox list from FEATURE_CATALOG)
+  - Plan availability selector (multi-select from plans table filtered by country_code)
+  - Add-on availability selector
+  - Save & audit log changes
+
+Access:
+- Only PLATFORM_SUPER_ADMIN can edit rollout policy
+- PLATFORM_ADMIN can view for assigned countries, edit only if permission exists
+
+5) Audit Logging
+Log rollout changes:
+- action: COUNTRY_ROLLOUT_UPDATED
+- metadata: before/after json
+
+6) Frontend Country Behavior
+- Landing pages:
+  - /my and /uk should show live pricing if status live/beta, else coming soon
+- Country selector should respect platform_countries status
+- Signup country dropdown should show only countries with is_signup_enabled
+
+7) Tests
+Add tests:
+- Signup blocked when business type not allowed in MY/UK
+- Plans endpoint returns only enabled plans for country
+- Add-ons endpoint returns only enabled add-ons
+- Country disabled feature removes it from effectiveFeatures even if plan includes it
+- Super admin rollout update endpoint protected by RBAC
+
+Definition of Done:
+- Super admin can switch MY and UK to live
+- Super admin can enable/disable business types and features per country
+- Tenants in MY/UK only see allowed businesses at signup and allowed plans at packages
+- Country policy can instantly block a feature across all tenants in that country

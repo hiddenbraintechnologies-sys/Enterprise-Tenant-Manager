@@ -90,6 +90,7 @@ import featureFlagsRoutes from "./routes/feature-flags";
 import businessVersionRoutes from "./routes/business-version";
 import regionLockRoutes from "./routes/region-lock";
 import { regionLockService } from "./services/region-lock";
+import { countryRolloutService } from "./services/country-rollout";
 import furnitureRoutes from "./routes/furniture";
 import hrmsRoutes from "./routes/hrms";
 import servicesRoutes from "./routes/services";
@@ -99,6 +100,7 @@ import billingRoutes from "./routes/billing";
 import adminBillingPlansRoutes from "./routes/admin-billing-plans";
 import adminBillingOffersRoutes from "./routes/admin-billing-offers";
 import adminBillingPromosRoutes from "./routes/admin/promos";
+import adminCountriesRoutes from "./routes/admin/countries";
 import publicRoutes from "./routes/public";
 import promoRoutes from "./routes/billing/promos";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
@@ -616,11 +618,26 @@ export async function registerRoutes(
       const selectedRegion = regionConfigs.find(r => r.countryCode === countryCode);
       
       if (!selectedRegion) {
-        return res.status(400).json({ message: "Invalid country selected" });
+        return res.status(400).json({ 
+          message: "Invalid country selected",
+          code: "COUNTRY_NOT_AVAILABLE"
+        });
       }
       
       if (!selectedRegion.registrationEnabled) {
-        return res.status(400).json({ message: "Registration is not available for this country" });
+        return res.status(400).json({ 
+          message: "Registration is not available for this country",
+          code: "COUNTRY_SIGNUP_DISABLED"
+        });
+      }
+
+      // Check country rollout policy for business type
+      const rolloutValidation = await countryRolloutService.isBusinessTypeAllowed(countryCode, businessType);
+      if (!rolloutValidation.allowed) {
+        return res.status(400).json({
+          message: rolloutValidation.message,
+          code: rolloutValidation.code
+        });
       }
 
       // Map countryCode to tenant country enum
@@ -2397,6 +2414,9 @@ export async function registerRoutes(
   
   // Admin promo/coupon routes - Super Admin only
   app.use('/api/admin/billing/promos', authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), adminBillingPromosRoutes);
+  
+  // Admin country rollout routes
+  app.use('/api/super-admin/countries', adminCountriesRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {
