@@ -18,10 +18,12 @@ import { razorpayService } from "../services/razorpay";
 import type { BillingCycleKey, BillingCyclesMap } from "@shared/billing/types";
 import { CYCLE_MONTHS, calculateSavings } from "@shared/billing/types";
 import payrollAddonRoutes from "./billing/payroll-addon";
+import razorpayWebhookRoutes from "./billing/razorpay-webhooks";
 
 const router = Router();
 
 router.use("/payroll-addon", payrollAddonRoutes);
+router.use("/webhooks/razorpay", razorpayWebhookRoutes);
 
 const optionalAuth = authenticateJWT({ required: false });
 const requiredAuth = authenticateJWT({ required: true });

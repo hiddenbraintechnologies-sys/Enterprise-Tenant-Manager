@@ -1,0 +1,162 @@
+🌐 Regional Language Placeholder (for later)
+Coming soon in:
+தமிழ் | తెలుగు | ಕನ್ನಡ | മലയാളം | मराठी | বাংলা
+
+2️⃣ Payroll Onboarding Checklist (In-App)
+
+Show this as a stepper after Payroll is enabled.
+
+✅ Step 1: Company Payroll Settings
+
+Set pay cycle (monthly)
+
+Enable PF / ESI (optional)
+
+Choose payout method (bank/UPI export)
+
+✅ Step 2: Add Employees
+
+Add employee details
+
+Assign salary structure
+
+Select effective date
+
+✅ Step 3: Configure Salary
+
+Basic, HRA, allowances
+
+Deductions (PF, ESI, PT)
+
+Verify CTC
+
+✅ Step 4: Review Attendance
+
+Check attendance & leave summary
+
+Review overtime / unpaid days
+
+✅ Step 5: Generate Pay Run
+
+Generate payroll for the month
+
+Review net pay
+
+Approve
+
+✅ Step 6: Payslips & Payment
+
+Download payslips
+
+Mark as paid
+
+Export bank file (optional)
+
+Completion Message
+
+🎉 Payroll is ready!
+You can now run payroll every month in minutes.
+
+3️⃣ Admin Revenue Analytics (Add-Ons)
+📊 Super Admin → Revenue Dashboard
+Widgets
+💼 Active Subscriptions
+
+Base plans count (Free / Basic / Pro)
+
+Add-ons enabled:
+
+Payroll
+
+WhatsApp
+
+Analytics (future)
+
+💰 MRR Breakdown
+Source	Amount
+Base Plans	₹XX,XXX
+Payroll Add-On	₹XX,XXX
+Other Add-Ons	₹X,XXX
+📈 Add-On Adoption
+
+Payroll adoption %
+
+Avg employees per payroll tenant
+
+Trial → Paid conversion %
+
+🔁 Churn & Downgrade
+
+Payroll disabled this month
+
+Base plan downgrades
+
+Upgrade funnel drop-offs
+
+🌍 Country-wise Revenue
+
+India (live)
+
+UAE / UK (future)
+
+Filters
+
+Date range
+
+Country
+
+Plan
+
+Add-On
+
+4️⃣ Razorpay Webhook Handling Spec (Critical)
+🔔 Webhooks to Listen
+Required Events
+payment.captured
+payment.failed
+subscription.activated
+subscription.charged
+subscription.cancelled
+
+🔐 Verification
+
+Validate Razorpay signature
+
+Reject invalid payloads
+
+🧠 Webhook Processing Logic
+payment.captured
+if (metadata.addon === "payroll") {
+  enablePayrollAddon(tenantId, tier)
+}
+
+payment.failed
+markPaymentFailed(paymentId)
+keepAddonDisabled()
+notifyTenant()
+
+subscription.activated
+activatePlanOrAddon(subscriptionId)
+
+subscription.cancelled
+scheduleAddonDisableAtPeriodEnd()
+
+📦 Idempotency (Very Important)
+
+Store razorpay_event_id
+
+Ignore duplicate events
+
+🧪 Test Webhooks
+
+Razorpay dashboard → Webhooks → Send Test
+
+Verify no double activation
+
+✅ What you now have
+
+✔ Clear pricing page copy
+✔ India-friendly language
+✔ Payroll onboarding UX
+✔ Add-on revenue analytics
+✔ Razorpay-ready backend spec

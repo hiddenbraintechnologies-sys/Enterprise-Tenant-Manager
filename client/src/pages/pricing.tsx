@@ -459,6 +459,15 @@ export default function PricingPage() {
             </span>
           </div>
         </div>
+
+        <div className="mt-12 pt-8 border-t text-center" data-testid="regional-languages-placeholder">
+          <p className="text-sm text-muted-foreground mb-2">
+            {lang === "en" ? "Coming soon in:" : "जल्द ही उपलब्ध:"}
+          </p>
+          <p className="text-sm text-muted-foreground font-medium">
+            தமிழ் | తెలుగు | ಕನ್ನಡ | മലയാളം | मराठी | বাংলা
+          </p>
+        </div>
       </main>
     </div>
   );
