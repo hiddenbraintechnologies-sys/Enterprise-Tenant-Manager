@@ -68,6 +68,7 @@ import SuperAdminModuleRegistry from "@/pages/super-admin-module-registry";
 import SuperAdminFeatureRegistry from "@/pages/super-admin-feature-registry";
 import SuperAdminCountries from "@/pages/super-admin/countries";
 import SuperAdminPayrollAnalytics from "@/pages/super-admin/payroll-analytics";
+import AdminAddons from "@/pages/super-admin/admin-addons";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import TenantUsers from "@/pages/admin/tenant-users";
@@ -393,6 +394,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/regions" component={AdminRegions} />
         <Route path="/super-admin/countries" component={SuperAdminCountries} />
         <Route path="/super-admin/payroll-analytics" component={SuperAdminPayrollAnalytics} />
+        <Route path="/super-admin/addons" component={AdminAddons} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
         <Route path="/super-admin/security/sessions" component={AdminSecuritySessions} />
         <Route path="/super-admin/security" component={AdminSecurity} />
@@ -418,6 +420,7 @@ function PlatformAdminRoutes() {
       <Route path="/admin/billing" component={AdminBilling} />
       <Route path="/admin/billing/promos" component={AdminPromos} />
       <Route path="/admin/addon-revenue" component={AdminAddonRevenue} />
+      <Route path="/admin/addons" component={AdminAddons} />
       <Route path="/admin/invoice-templates" component={InvoiceTemplates} />
       <Route path="/admin/tax" component={TaxManagement} />
       <Route path="/admin/whatsapp" component={AdminWhatsApp} />
