@@ -220,3 +220,54 @@ export function isPayrollAvailableForCountry(countryCode: string): boolean {
   if (!config) return false;
   return config.features.payslipGeneration || config.features.payoutExport;
 }
+
+export interface SalaryComponent {
+  code: string;
+  name: string;
+  type: "earning" | "deduction";
+  calculationType: "fixed" | "percentage" | "variable";
+  taxable: boolean;
+  isStatutory: boolean;
+  defaultValue?: string;
+  description: string;
+}
+
+export const MALAYSIA_SALARY_COMPONENTS: SalaryComponent[] = [
+  { code: "basic_salary", name: "Basic Salary", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Monthly basic salary" },
+  { code: "housing_allowance", name: "Housing Allowance", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Housing/rental allowance" },
+  { code: "transport_allowance", name: "Transport Allowance", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Transport/travel allowance" },
+  { code: "meal_allowance", name: "Meal Allowance", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Meal/food allowance" },
+  { code: "overtime", name: "Overtime", type: "earning", calculationType: "variable", taxable: true, isStatutory: false, description: "Overtime hours payment" },
+  { code: "bonus", name: "Bonus", type: "earning", calculationType: "variable", taxable: true, isStatutory: false, description: "Performance or annual bonus" },
+  { code: "reimbursement", name: "Reimbursement", type: "earning", calculationType: "variable", taxable: false, isStatutory: false, description: "Expense reimbursements (non-taxable)" },
+  { code: "epf_employee", name: "EPF (Employee)", type: "deduction", calculationType: "percentage", taxable: false, isStatutory: true, defaultValue: "11.00", description: "KWSP/EPF employee contribution" },
+  { code: "socso", name: "SOCSO", type: "deduction", calculationType: "fixed", taxable: false, isStatutory: true, description: "PERKESO/SOCSO contribution" },
+  { code: "eis", name: "EIS", type: "deduction", calculationType: "percentage", taxable: false, isStatutory: true, defaultValue: "0.20", description: "Employment Insurance System" },
+  { code: "pcb", name: "PCB (Tax)", type: "deduction", calculationType: "fixed", taxable: false, isStatutory: true, description: "Monthly tax deduction (Potongan Cukai Bulanan)" },
+  { code: "advance_recovery", name: "Advance Recovery", type: "deduction", calculationType: "fixed", taxable: false, isStatutory: false, description: "Salary advance recovery" },
+];
+
+export const INDIA_SALARY_COMPONENTS: SalaryComponent[] = [
+  { code: "basic_salary", name: "Basic Salary", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Monthly basic salary" },
+  { code: "hra", name: "House Rent Allowance", type: "earning", calculationType: "percentage", taxable: true, isStatutory: false, defaultValue: "40.00", description: "HRA based on basic" },
+  { code: "conveyance_allowance", name: "Conveyance Allowance", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Travel/transport allowance" },
+  { code: "medical_allowance", name: "Medical Allowance", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Medical reimbursement" },
+  { code: "special_allowance", name: "Special Allowance", type: "earning", calculationType: "fixed", taxable: true, isStatutory: false, description: "Special/flexible allowance" },
+  { code: "overtime", name: "Overtime", type: "earning", calculationType: "variable", taxable: true, isStatutory: false, description: "Overtime hours payment" },
+  { code: "bonus", name: "Bonus", type: "earning", calculationType: "variable", taxable: true, isStatutory: false, description: "Performance or annual bonus" },
+  { code: "pf_employee", name: "PF (Employee)", type: "deduction", calculationType: "percentage", taxable: false, isStatutory: true, defaultValue: "12.00", description: "EPF employee contribution" },
+  { code: "esi_employee", name: "ESI (Employee)", type: "deduction", calculationType: "percentage", taxable: false, isStatutory: true, defaultValue: "0.75", description: "ESI employee contribution" },
+  { code: "professional_tax", name: "Professional Tax", type: "deduction", calculationType: "fixed", taxable: false, isStatutory: true, description: "State professional tax" },
+  { code: "tds", name: "TDS", type: "deduction", calculationType: "fixed", taxable: false, isStatutory: true, description: "Tax deducted at source" },
+];
+
+export function getSalaryComponentsForCountry(countryCode: string): SalaryComponent[] {
+  switch (countryCode) {
+    case "MY":
+      return MALAYSIA_SALARY_COMPONENTS;
+    case "IN":
+      return INDIA_SALARY_COMPONENTS;
+    default:
+      return INDIA_SALARY_COMPONENTS;
+  }
+}

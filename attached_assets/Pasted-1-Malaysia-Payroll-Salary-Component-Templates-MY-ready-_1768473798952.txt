@@ -1,0 +1,173 @@
+1️⃣ Malaysia Payroll – Salary Component Templates (MY-ready)
+
+Goal: Flexible salary structure without statutory auto-filing risk.
+
+💼 Salary Structure (Recommended)
+Earnings
+Component	Type	Notes
+Basic Salary	Fixed	Mandatory
+Housing Allowance	Fixed	Optional
+Transport Allowance	Fixed	Optional
+Meal Allowance	Fixed	Optional
+Overtime	Variable	From attendance
+Bonus	Variable	One-time / recurring
+Reimbursement	Variable	Non-taxable (flagged)
+Deductions (Tracking Only)
+Component	Type	Mode
+EPF (Employee)	Percentage	Manual %
+SOCSO	Fixed slab	Manual slab
+EIS	Fixed	Manual
+PCB (Tax)	Fixed	Manual entry
+Advance Recovery	Fixed	Optional
+
+⚠️ Important
+All statutory deductions are calculated & tracked only.
+No auto submission.
+
+Suggested DB Structure (conceptual)
+salary_components {
+  id
+  name
+  type: earning | deduction
+  calculation_type: fixed | percentage | variable
+  taxable: boolean
+  country_code: MY
+  is_statutory: boolean
+}
+
+2️⃣ Malaysia Payslip Format (Compliance-Safe)
+🧾 Payslip Header
+Payslip for: January 2026
+Employee Name
+Employee ID
+Designation
+Pay Period
+
+Earnings Section
+EARNINGS
+------------------
+Basic Salary        MYR 3,000.00
+Housing Allowance   MYR   500.00
+Transport Allowance MYR   200.00
+Overtime            MYR   150.00
+------------------
+Gross Earnings      MYR 3,850.00
+
+Deductions Section
+DEDUCTIONS (Tracking Only)
+------------------
+EPF (Employee)      MYR  330.00
+SOCSO               MYR   33.00
+EIS                 MYR   10.00
+PCB (Tax)           MYR  120.00
+------------------
+Total Deductions    MYR  493.00
+
+Net Pay
+NET PAY             MYR 3,357.00
+
+Footer (Legal Protection – IMPORTANT)
+
+⚠️ Disclaimer:
+Statutory contributions (EPF, SOCSO, EIS, PCB) are calculated for reference only.
+Employer is responsible for submission and payment to respective authorities.
+
+Optional Payslip Fields
+
+Bank Name
+
+Account Number (masked)
+
+Generated Date
+
+Approved By
+
+3️⃣ Malaysia Payroll QA Checklist (Pre-Launch)
+
+Use this before enabling Payroll toggle.
+
+🔐 Access & Permissions
+
+ Payroll visible only for MY tenants
+
+ UK tenants receive 403 for payroll APIs
+
+ Payroll requires payroll feature flag
+
+👥 Employee Management
+
+ Employee create/edit works
+
+ Salary structure assignable
+
+ Joining date respected in payroll
+
+⏱ Attendance & Timesheets
+
+ Attendance reflects correctly
+
+ Overtime calculated from hours
+
+ Leave deductions applied correctly
+
+🧮 Payroll Calculation
+
+ Gross earnings correct
+
+ Manual statutory deductions saved
+
+ Net pay accurate
+
+ Decimal precision correct (MYR 2 decimals)
+
+📄 Payslips
+
+ Payslip PDF generated
+
+ Disclaimer present
+
+ Currency shown as MYR
+
+ Payslip locked after approval
+
+🔁 Pay Run Lifecycle
+
+ Draft → Approved → Paid flow works
+
+ Approved payroll is read-only
+
+ Paid payroll cannot be modified
+
+📦 Exports
+
+ Bank CSV export works
+
+ Amounts match payslip totals
+
+ No sensitive data leakage
+
+💳 Billing Integration
+
+ Payroll add-on must be active
+
+ Trial expiry locks payroll
+
+ Grace period respected
+
+🛑 Negative Testing
+
+ Cannot run payroll without employees
+
+ Cannot delete employee with payslip history
+
+ Cannot change salary after approval
+
+✅ FINAL STATUS CRITERIA
+
+Payroll can be marked LIVE for MY when:
+
+All checklist items pass
+
+Payslips reviewed by you
+
+Banner disclaimer visible

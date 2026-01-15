@@ -36,7 +36,7 @@ import { requireMinimumRole, auditService } from "../../core";
 import PayrollService from "../../services/hrms/payrollService";
 import { hrmsStorage } from "../../storage/hrms";
 import { db } from "../../db";
-import { getPayrollComplianceConfig } from "../../services/hrms/payroll-compliance";
+import { getPayrollComplianceConfig, getSalaryComponentsForCountry } from "../../services/hrms/payroll-compliance";
 import { 
   hrPayrollSettings, 
   hrPayRuns, 
@@ -101,9 +101,21 @@ function requirePayrollFeature() {
 
 // ==================== COMPLIANCE CONFIG ====================
 
+function normalizeCountryCodeFromTenant(country: string | null | undefined): string {
+  if (!country) return "IN";
+  const map: Record<string, string> = {
+    india: "IN", IN: "IN",
+    malaysia: "MY", MY: "MY",
+    uk: "GB", GB: "GB",
+    uae: "AE", AE: "AE",
+    singapore: "SG", SG: "SG",
+  };
+  return map[country] || "IN";
+}
+
 router.get("/compliance-config", async (req, res) => {
   try {
-    const countryCode = req.context?.tenant?.country || "IN";
+    const countryCode = normalizeCountryCodeFromTenant(req.context?.tenant?.country);
     const config = getPayrollComplianceConfig(countryCode);
     
     if (!config) {
@@ -117,6 +129,22 @@ router.get("/compliance-config", async (req, res) => {
   } catch (error) {
     console.error("Error fetching payroll compliance config:", error);
     res.status(500).json({ error: "Failed to fetch compliance configuration" });
+  }
+});
+
+router.get("/salary-components", async (req, res) => {
+  try {
+    const countryCode = normalizeCountryCodeFromTenant(req.context?.tenant?.country);
+    const components = getSalaryComponentsForCountry(countryCode);
+    
+    res.json({
+      countryCode,
+      earnings: components.filter(c => c.type === "earning"),
+      deductions: components.filter(c => c.type === "deduction"),
+    });
+  } catch (error) {
+    console.error("Error fetching salary components:", error);
+    res.status(500).json({ error: "Failed to fetch salary components" });
   }
 });
 
@@ -590,6 +618,7 @@ router.post("/pay-runs/:id/mark-paid", requirePayrollFeature(), requireMinimumRo
 router.get("/payslips/:itemId/pdf", requirePayrollFeature(), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
+    const countryCode = normalizeCountryCodeFromTenant(req.context?.tenant?.country);
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
     
     const hasPayslipFeature = await hrmsStorage.hasFeatureFlag(tenantId, "payroll_payslips");
@@ -638,6 +667,10 @@ router.get("/payslips/:itemId/pdf", requirePayrollFeature(), async (req, res) =>
       return res.status(404).json({ error: "Pay run not found" });
     }
     
+    const complianceConfig = getPayrollComplianceConfig(countryCode);
+    const currencySymbol = countryCode === "MY" ? "MYR " : countryCode === "GB" ? "£" : "₹";
+    const isMY = countryCode === "MY";
+    
     const PDFDocument = (await import("pdfkit")).default;
     const doc = new PDFDocument({ margin: 50 });
     
@@ -646,9 +679,12 @@ router.get("/payslips/:itemId/pdf", requirePayrollFeature(), async (req, res) =>
     
     doc.pipe(res);
     
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthName = monthNames[payRun[0].month - 1] || payRun[0].month;
+    
     doc.fontSize(20).text("PAYSLIP", { align: "center" });
     doc.moveDown();
-    doc.fontSize(12).text(`Period: ${payRun[0].month}/${payRun[0].year}`, { align: "center" });
+    doc.fontSize(12).text(`Payslip for: ${monthName} ${payRun[0].year}`, { align: "center" });
     doc.moveDown(2);
     
     doc.fontSize(14).text("Employee Details", { underline: true });
@@ -657,33 +693,62 @@ router.get("/payslips/:itemId/pdf", requirePayrollFeature(), async (req, res) =>
     doc.text(`Name: ${item[0].firstName} ${item[0].lastName}`);
     doc.text(`Employee ID: ${item[0].employeeCode}`);
     doc.text(`Designation: ${item[0].designation || "N/A"}`);
+    doc.text(`Pay Period: ${monthName} ${payRun[0].year}`);
     doc.moveDown(2);
     
     const earnings = item[0].earningsJson as Record<string, number>;
-    doc.fontSize(14).text("Earnings", { underline: true });
+    doc.fontSize(14).text("EARNINGS", { underline: true });
     doc.moveDown(0.5);
     doc.fontSize(10);
     if (earnings) {
       Object.entries(earnings).forEach(([key, value]) => {
-        doc.text(`${key.charAt(0).toUpperCase() + key.slice(1)}: ₹${value.toFixed(2)}`);
+        const label = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+        doc.text(`${label}: ${currencySymbol}${value.toFixed(2)}`);
       });
     }
-    doc.fontSize(11).text(`Gross: ₹${item[0].gross}`);
+    doc.moveDown(0.5);
+    doc.fontSize(11).text(`Gross Earnings: ${currencySymbol}${parseFloat(item[0].gross).toFixed(2)}`);
     doc.moveDown(2);
     
     const deductions = item[0].deductionsJson as Record<string, number>;
-    doc.fontSize(14).text("Deductions", { underline: true });
+    const deductionsTitle = isMY ? "DEDUCTIONS (Tracking Only)" : "DEDUCTIONS";
+    doc.fontSize(14).text(deductionsTitle, { underline: true });
     doc.moveDown(0.5);
     doc.fontSize(10);
     if (deductions) {
       Object.entries(deductions).forEach(([key, value]) => {
-        doc.text(`${key.charAt(0).toUpperCase() + key.slice(1)}: ₹${value.toFixed(2)}`);
+        let label = key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+        if (isMY) {
+          const myLabels: Record<string, string> = {
+            epf: "EPF (Employee)",
+            epf_employee: "EPF (Employee)",
+            socso: "SOCSO",
+            eis: "EIS",
+            pcb: "PCB (Tax)",
+          };
+          label = myLabels[key.toLowerCase()] || label;
+        }
+        doc.text(`${label}: ${currencySymbol}${value.toFixed(2)}`);
       });
     }
-    doc.fontSize(11).text(`Total Deductions: ₹${item[0].totalDeductions}`);
+    doc.moveDown(0.5);
+    doc.fontSize(11).text(`Total Deductions: ${currencySymbol}${parseFloat(item[0].totalDeductions || "0").toFixed(2)}`);
     doc.moveDown(2);
     
-    doc.fontSize(14).text(`Net Pay: ₹${item[0].net}`, { underline: true });
+    doc.fontSize(14).text(`NET PAY: ${currencySymbol}${parseFloat(item[0].net || "0").toFixed(2)}`, { underline: true });
+    doc.moveDown(3);
+    
+    if (complianceConfig?.disclaimerBanner) {
+      doc.fontSize(8).fillColor("gray");
+      doc.text("DISCLAIMER:", { underline: true });
+      doc.moveDown(0.3);
+      doc.text(complianceConfig.disclaimerBanner, { width: 500 });
+      doc.fillColor("black");
+    }
+    
+    doc.moveDown(2);
+    doc.fontSize(8).fillColor("gray");
+    doc.text(`Generated: ${new Date().toISOString().split("T")[0]}`, { align: "right" });
     
     doc.end();
     
