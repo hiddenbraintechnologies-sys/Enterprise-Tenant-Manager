@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { 
   globalPricingPlans, tenantSubscriptions, billingPayments, tenants,
+  tenantPayrollAddon, payrollAddonTiers,
   type TenantSubscription, type BillingPayment,
 } from "@shared/schema";
 import { eq, and, desc, lte } from "drizzle-orm";
@@ -932,6 +933,36 @@ router.post("/checkout/mock-verify", requiredAuth, async (req: Request, res: Res
         }
       }
 
+      // Activate any pending add-ons from payment metadata
+      const paymentMetadata = payment.metadata as any;
+      if (paymentMetadata?.addons && Array.isArray(paymentMetadata.addons)) {
+        for (const addon of paymentMetadata.addons) {
+          if (addon.addonCode === "payroll") {
+            const now = new Date();
+            const periodEnd = new Date(now);
+            if (addon.billingCycle === "yearly") {
+              periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+            } else {
+              periodEnd.setMonth(periodEnd.getMonth() + 1);
+            }
+
+            await db
+              .update(tenantPayrollAddon)
+              .set({
+                enabled: true,
+                subscriptionStatus: "active",
+                currentPeriodStart: now,
+                currentPeriodEnd: periodEnd,
+                razorpayPaymentId: `mock_${Date.now()}`,
+                updatedAt: now,
+              })
+              .where(eq(tenantPayrollAddon.tenantId, tenantId));
+
+            console.log(`[billing] Mock verify - activated payroll addon for tenant ${tenantId}`);
+          }
+        }
+      }
+
       return res.json({
         success: true,
         message: "Mock payment verified successfully",
@@ -973,6 +1004,226 @@ router.post("/checkout/mock-verify", requiredAuth, async (req: Request, res: Res
   } catch (error) {
     console.error("[billing] Error in mock verify:", error);
     res.status(500).json({ code: "SERVER_ERROR", error: "Failed to mock verify payment" });
+  }
+});
+
+// Enhanced checkout with add-ons support
+const checkoutWithAddonsSchema = z.object({
+  planId: z.string().min(1),
+  cycle: z.enum(["monthly", "quarterly", "half_yearly", "yearly"]).optional().default("monthly"),
+  addons: z.array(z.object({
+    addonCode: z.string().min(1),
+    tierId: z.string().uuid(),
+  })).optional().default([]),
+});
+
+router.post("/checkout/with-addons", requiredAuth, requirePermission(Permissions.SUBSCRIPTION_CHANGE), async (req: Request, res: Response) => {
+  try {
+    const resolution = await resolveTenantId(req);
+    logTenantResolution(req, resolution, "POST /checkout/with-addons");
+
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    }
+
+    const tenantId = resolution.tenantId!;
+    const { planId, cycle, addons } = checkoutWithAddonsSchema.parse(req.body);
+
+    // Validate plan exists and is active
+    const plan = await subscriptionService.getPlan(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({ code: "PLAN_NOT_FOUND", message: "Plan not found or not active" });
+    }
+
+    // Get tenant for country validation
+    const tenant = await getTenant(tenantId);
+    if (!tenant) {
+      return res.status(404).json({ code: "TENANT_NOT_FOUND", message: "Tenant not found" });
+    }
+
+    // Validate plan matches tenant country
+    const countryError = validatePlanCountryMatch(tenant.country, plan.code);
+    if (countryError) {
+      return res.status(400).json({ code: "PLAN_COUNTRY_MISMATCH", message: countryError });
+    }
+
+    // Calculate plan amount
+    const planCycles = (plan.billingCycles || {}) as BillingCyclesMap;
+    const cycleConfig = planCycles[cycle as BillingCycleKey];
+    const planAmount = cycleConfig?.enabled && cycleConfig.price !== undefined 
+      ? parseFloat(cycleConfig.price.toString()) 
+      : parseFloat(plan.basePrice);
+    const currency = plan.currencyCode || "INR";
+
+    // Validate and calculate addon amounts
+    let addonTotal = 0;
+    const validatedAddons: Array<{
+      addonCode: string;
+      tierId: string;
+      tierName: string;
+      amount: number;
+      billingCycle: string;
+    }> = [];
+
+    for (const addon of addons) {
+      if (addon.addonCode === "payroll") {
+        // Check payroll access for country
+        const payrollAccess = await countryRolloutService.checkPayrollAccess(tenant.country || "IN", tenantId);
+        if (!payrollAccess.allowed) {
+          return res.status(403).json({ 
+            code: "ADDON_NOT_AVAILABLE", 
+            message: payrollAccess.message || "Payroll add-on is not available for your country" 
+          });
+        }
+
+        // Get tier
+        const [tier] = await db
+          .select()
+          .from(payrollAddonTiers)
+          .where(and(
+            eq(payrollAddonTiers.id, addon.tierId),
+            eq(payrollAddonTiers.isActive, true)
+          ))
+          .limit(1);
+
+        if (!tier) {
+          return res.status(404).json({ code: "TIER_NOT_FOUND", message: "Addon tier not found" });
+        }
+
+        const addonBillingCycle = cycle === "yearly" || cycle === "half_yearly" ? "yearly" : "monthly";
+        const tierAmount = addonBillingCycle === "yearly" 
+          ? parseFloat(tier.yearlyPrice) 
+          : parseFloat(tier.monthlyPrice);
+
+        addonTotal += tierAmount;
+        validatedAddons.push({
+          addonCode: addon.addonCode,
+          tierId: tier.id,
+          tierName: tier.tierName,
+          amount: tierAmount,
+          billingCycle: addonBillingCycle,
+        });
+      }
+    }
+
+    const totalAmount = planAmount + addonTotal;
+
+    // Get or create subscription
+    let subscription = await getSubscription(tenantId);
+    
+    if (!subscription) {
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + (CYCLE_MONTHS[cycle as BillingCycleKey] || 1));
+      
+      const [newSub] = await db
+        .insert(tenantSubscriptions)
+        .values({
+          tenantId,
+          planId: plan.id,
+          currentBillingCycle: cycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
+          status: "pending_payment",
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+        })
+        .returning();
+      subscription = newSub;
+    }
+
+    // Create billing payment with addon info in metadata
+    const [payment] = await db
+      .insert(billingPayments)
+      .values({
+        tenantId,
+        subscriptionId: subscription.id,
+        planId: plan.id,
+        provider: process.env.NODE_ENV === "production" ? "razorpay" : "mock",
+        status: "created",
+        amount: totalAmount.toFixed(2),
+        currency,
+        metadata: { 
+          cycle,
+          addons: validatedAddons,
+          planAmount,
+          addonTotal,
+          startedAt: new Date().toISOString(),
+        },
+      })
+      .returning();
+
+    // Create pending payroll addon records
+    for (const addon of validatedAddons) {
+      if (addon.addonCode === "payroll") {
+        const existing = await db
+          .select()
+          .from(tenantPayrollAddon)
+          .where(eq(tenantPayrollAddon.tenantId, tenantId))
+          .limit(1);
+
+        if (existing.length > 0) {
+          await db
+            .update(tenantPayrollAddon)
+            .set({
+              tierId: addon.tierId,
+              billingCycle: addon.billingCycle as "monthly" | "yearly",
+              price: addon.amount.toFixed(2),
+              subscriptionStatus: "pending_payment",
+              updatedAt: new Date(),
+            })
+            .where(eq(tenantPayrollAddon.id, existing[0].id));
+        } else {
+          await db.insert(tenantPayrollAddon).values({
+            tenantId,
+            tierId: addon.tierId,
+            enabled: false,
+            billingCycle: addon.billingCycle as "monthly" | "yearly",
+            price: addon.amount.toFixed(2),
+            subscriptionStatus: "pending_payment",
+          });
+        }
+      }
+    }
+
+    // Update subscription with pending fields
+    await db
+      .update(tenantSubscriptions)
+      .set({
+        status: "pending_payment",
+        pendingPlanId: plan.id,
+        pendingBillingCycle: cycle as "monthly" | "quarterly" | "half_yearly" | "yearly",
+        pendingPaymentId: payment.id,
+        pendingQuoteAmount: totalAmount.toFixed(2),
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantSubscriptions.id, subscription.id));
+
+    console.log(`[billing] Checkout with addons started for tenant ${tenantId}, payment ${payment.id}, plan ${plan.code}, addons: ${validatedAddons.length}`);
+
+    return res.json({
+      success: true,
+      paymentId: payment.id,
+      amount: totalAmount,
+      currency,
+      plan: {
+        id: plan.id,
+        name: plan.name,
+        code: plan.code,
+        tier: plan.tier,
+        amount: planAmount,
+      },
+      addons: validatedAddons,
+      cycle,
+      requiresPayment: totalAmount > 0,
+    });
+  } catch (error) {
+    console.error("[billing] Error starting checkout with addons:", error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ code: "VALIDATION_ERROR", error: "Invalid request", details: error.errors });
+    }
+    res.status(500).json({ code: "SERVER_ERROR", error: "Failed to start checkout" });
   }
 });
 
