@@ -95,6 +95,15 @@ async function fetchUser(): Promise<AuthUser | null> {
             body: JSON.stringify({ refreshToken }),
           });
           
+          // Check content-type to avoid parsing HTML as JSON
+          const contentType = refreshResponse.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            console.warn("[useAuth] Token refresh returned non-JSON response, clearing tokens");
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+            return null;
+          }
+          
           if (refreshResponse.ok) {
             const tokens = await refreshResponse.json();
             localStorage.setItem("accessToken", tokens.accessToken);
