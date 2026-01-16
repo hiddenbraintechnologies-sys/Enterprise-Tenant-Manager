@@ -38,6 +38,7 @@ i18n
   .init({
     resources,
     fallbackLng: "en",
+    load: "languageOnly",
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
     interpolation: {
       escapeValue: false,
