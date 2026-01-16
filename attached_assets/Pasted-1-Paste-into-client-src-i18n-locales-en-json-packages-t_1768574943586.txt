@@ -1,0 +1,144 @@
+1) Paste into client/src/i18n/locales/en.json
+{
+  "packages": {
+    "title": "Choose your plan",
+    "subtitle": "Start free and upgrade as your business grows.",
+    "trialNote": "All plans include a {{days}}-day trial.",
+    "billing": {
+      "monthly": "Monthly",
+      "yearlyWithSave": "Yearly (Save {{saveAmount}})"
+    },
+    "recommendedBadge": "Recommended",
+    "chooseToGetStarted": "Choose a plan to get started",
+    "selectFreeOrPaid": "Select Free or a paid plan to continue",
+    "cta": {
+      "startFree": "Start free",
+      "getBasic": "Get Basic",
+      "getPro": "Get Pro"
+    },
+    "footerNote": "All prices are in {{currency}} and include taxes where applicable. You can upgrade or downgrade anytime."
+  },
+  "plans": {
+    "tiers": {
+      "free": {
+        "name": "Free",
+        "blurb": "Get started with essential features"
+      },
+      "basic": {
+        "name": "Basic",
+        "blurb": "Perfect for growing businesses"
+      },
+      "pro": {
+        "name": "Pro",
+        "blurb": "For established businesses that need more"
+      }
+    }
+  }
+}
+
+2) Paste into client/src/i18n/locales/ms.json (Bahasa Malaysia)
+{
+  "packages": {
+    "title": "Pilih pelan anda",
+    "subtitle": "Mulakan secara percuma dan naik taraf apabila perniagaan anda berkembang.",
+    "trialNote": "Semua pelan termasuk percubaan {{days}} hari.",
+    "billing": {
+      "monthly": "Bulanan",
+      "yearlyWithSave": "Tahunan (Jimat {{saveAmount}})"
+    },
+    "recommendedBadge": "Disyorkan",
+    "chooseToGetStarted": "Pilih pelan untuk bermula",
+    "selectFreeOrPaid": "Pilih Percuma atau pelan berbayar untuk teruskan",
+    "cta": {
+      "startFree": "Mulakan Percuma",
+      "getBasic": "Dapatkan Basic",
+      "getPro": "Dapatkan Pro"
+    },
+    "footerNote": "Semua harga dalam {{currency}} dan termasuk cukai jika berkenaan. Anda boleh naik taraf atau turun taraf pada bila-bila masa."
+  },
+  "plans": {
+    "tiers": {
+      "free": {
+        "name": "Percuma",
+        "blurb": "Mulakan dengan ciri asas"
+      },
+      "basic": {
+        "name": "Basic",
+        "blurb": "Sesuai untuk perniagaan yang sedang berkembang"
+      },
+      "pro": {
+        "name": "Pro",
+        "blurb": "Untuk perniagaan yang mantap dan perlukan lebih"
+      }
+    }
+  }
+}
+
+3) Paste into client/src/i18n/locales/ta.json (Tamil)
+{
+  "packages": {
+    "title": "உங்கள் திட்டத்தைத் தேர்ந்தெடுக்கவும்",
+    "subtitle": "இலவசமாக தொடங்கி, உங்கள் வணிகம் வளரும்போது மேம்படுத்துங்கள்.",
+    "trialNote": "அனைத்து திட்டங்களிலும் {{days}} நாட்கள் இலவச முயற்சி உள்ளது.",
+    "billing": {
+      "monthly": "மாதாந்திரம்",
+      "yearlyWithSave": "ஆண்டாந்திரம் ({{saveAmount}} சேமிக்கவும்)"
+    },
+    "recommendedBadge": "பரிந்துரைக்கப்பட்டது",
+    "chooseToGetStarted": "தொடங்க ஒரு திட்டத்தைத் தேர்ந்தெடுக்கவும்",
+    "selectFreeOrPaid": "தொடர இலவசம் அல்லது கட்டண திட்டத்தைத் தேர்ந்தெடுக்கவும்",
+    "cta": {
+      "startFree": "இலவசமாக தொடங்கவும்",
+      "getBasic": "Basic பெறுங்கள்",
+      "getPro": "Pro பெறுங்கள்"
+    },
+    "footerNote": "அனைத்து விலைகளும் {{currency}} ஆகும்; பொருந்துமிடங்களில் வரிகள் சேர்க்கப்பட்டுள்ளன. நீங்கள் எப்போது வேண்டுமானாலும் மேம்படுத்தவும் அல்லது குறைக்கவும் முடியும்."
+  },
+  "plans": {
+    "tiers": {
+      "free": {
+        "name": "இலவசம்",
+        "blurb": "அவசியமான அம்சங்களுடன் தொடங்குங்கள்"
+      },
+      "basic": {
+        "name": "Basic",
+        "blurb": "வளரும் வணிகங்களுக்கு சிறந்தது"
+      },
+      "pro": {
+        "name": "Pro",
+        "blurb": "மேலும் தேவையுள்ள நிலையான வணிகங்களுக்கு"
+      }
+    }
+  }
+}
+
+Important (so it actually shows)
+
+If your UI is still showing raw keys like chooseToGetStarted, it means the page is calling t("chooseToGetStarted") (root key), but we placed it under packages.chooseToGetStarted.
+
+You have two options:
+
+Option A (recommended): Update UI calls
+
+Change:
+
+t("chooseToGetStarted")
+t("selectFreeOrPaid")
+
+
+To:
+
+t("packages.chooseToGetStarted")
+t("packages.selectFreeOrPaid")
+
+Option B: Keep the two keys at root too
+
+Add this to each locale file (top-level):
+
+{
+  "chooseToGetStarted": "....",
+  "selectFreeOrPaid": "...."
+}
+
+
+(But Option A is cleaner.)

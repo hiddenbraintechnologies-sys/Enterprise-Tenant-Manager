@@ -1,6 +1,40 @@
 {
   "chooseToGetStarted": "Choose a plan to get started",
   "selectFreeOrPaid": "Select Free or a paid plan to continue",
+  "packages": {
+    "title": "Choose your plan",
+    "subtitle": "Start free and upgrade as your business grows.",
+    "trialNote": "All plans include a {{days}}-day trial.",
+    "billing": {
+      "monthly": "Monthly",
+      "yearlyWithSave": "Yearly (Save {{saveAmount}})"
+    },
+    "recommendedBadge": "Recommended",
+    "chooseToGetStarted": "Choose a plan to get started",
+    "selectFreeOrPaid": "Select Free or a paid plan to continue",
+    "cta": {
+      "startFree": "Start free",
+      "getBasic": "Get Basic",
+      "getPro": "Get Pro"
+    },
+    "footerNote": "All prices are in {{currency}} and include taxes where applicable. You can upgrade or downgrade anytime."
+  },
+  "plans": {
+    "tiers": {
+      "free": {
+        "name": "Free",
+        "blurb": "Get started with essential features"
+      },
+      "basic": {
+        "name": "Basic",
+        "blurb": "Perfect for growing businesses"
+      },
+      "pro": {
+        "name": "Pro",
+        "blurb": "For established businesses that need more"
+      }
+    }
+  },
   "my": {
     "payroll": {
       "card": {

@@ -1,6 +1,40 @@
 {
   "chooseToGetStarted": "Pilih pelan untuk bermula",
   "selectFreeOrPaid": "Pilih Percuma atau pelan berbayar untuk teruskan",
+  "packages": {
+    "title": "Pilih pelan anda",
+    "subtitle": "Mulakan secara percuma dan naik taraf apabila perniagaan anda berkembang.",
+    "trialNote": "Semua pelan termasuk percubaan {{days}} hari.",
+    "billing": {
+      "monthly": "Bulanan",
+      "yearlyWithSave": "Tahunan (Jimat {{saveAmount}})"
+    },
+    "recommendedBadge": "Disyorkan",
+    "chooseToGetStarted": "Pilih pelan untuk bermula",
+    "selectFreeOrPaid": "Pilih Percuma atau pelan berbayar untuk teruskan",
+    "cta": {
+      "startFree": "Mulakan Percuma",
+      "getBasic": "Dapatkan Basic",
+      "getPro": "Dapatkan Pro"
+    },
+    "footerNote": "Semua harga dalam {{currency}} dan termasuk cukai jika berkenaan. Anda boleh naik taraf atau turun taraf pada bila-bila masa."
+  },
+  "plans": {
+    "tiers": {
+      "free": {
+        "name": "Percuma",
+        "blurb": "Mulakan dengan ciri asas"
+      },
+      "basic": {
+        "name": "Basic",
+        "blurb": "Sesuai untuk perniagaan yang sedang berkembang"
+      },
+      "pro": {
+        "name": "Pro",
+        "blurb": "Untuk perniagaan yang mantap dan perlukan lebih"
+      }
+    }
+  },
   "my": {
     "payroll": {
       "card": {
