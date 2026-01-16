@@ -1,0 +1,80 @@
+Verify it’s fixed (fast checklist)
+1) Confirm the language stored is normalized
+
+Open /packages and run:
+
+localStorage.getItem("app:lang")
+
+
+Expected values should be exactly one of:
+
+"en", "ms", "ta" (not en-IN, ms-MY)
+
+If you still see region codes, then something else is writing into storage.
+
+2) Confirm i18next is actually using the same language
+
+In console, run:
+
+window.__i18n?.language
+
+
+If you don’t expose i18n on window, temporarily add this in client/src/i18n/index.ts after init:
+
+if (import.meta.env.DEV) (window as any).__i18n = i18n;
+
+
+Then reload.
+
+Expected: en / ms / ta.
+
+3) Confirm the keys resolve
+
+In console:
+
+window.__i18n?.t("chooseToGetStarted")
+window.__i18n?.t("selectFreeOrPaid")
+
+
+Expected: translated strings, not the raw keys.
+
+Two small “make it bulletproof” improvements
+A) Normalize any stored language automatically
+
+Even with load: "languageOnly", if someone stores en-IN into app:lang, it can cause confusion elsewhere.
+
+In client/src/i18n/index.ts (before init), normalize:
+
+const raw = localStorage.getItem("app:lang") || "";
+const normalized = raw.split("-")[0];
+if (raw && raw !== normalized) localStorage.setItem("app:lang", normalized);
+
+B) Add a safe fallback if app:lang is invalid
+
+If a user has app:lang="fr" but you don’t support it, force fallback:
+
+const supported = new Set(["en","hi","te","ta","kn","ml","ms"]);
+const stored = (localStorage.getItem("app:lang") || "en").split("-")[0];
+const lng = supported.has(stored) ? stored : "en";
+
+
+Use lng in i18n.init({ lng }).
+
+Replit Prompt (hardening + quick regression test)
+Harden i18n language persistence and add a regression test.
+
+1) In client/src/i18n/index.ts:
+- Normalize stored app:lang by stripping region suffix (en-IN -> en) before i18n.init
+- Validate stored language against SUPPORTED_LANGUAGES; if invalid, fallback to "en"
+- Keep load: "languageOnly"
+
+2) In dev only, expose window.__i18n = i18n for debugging.
+
+3) Add a small unit test:
+- given app:lang="en-IN", init resolves language "en"
+- given app:lang="ms-MY", init resolves "ms"
+- given app:lang="fr", init resolves fallback "en"
+
+Acceptance:
+- /packages renders translated text for chooseToGetStarted/selectFreeOrPaid in EN/MS/TA
+- No raw keys appear after cache clear + hard refresh

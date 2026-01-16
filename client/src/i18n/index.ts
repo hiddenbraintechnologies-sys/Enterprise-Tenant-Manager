@@ -32,11 +32,24 @@ const resources = {
   ms: { translation: ms },
 };
 
+const supportedCodes = SUPPORTED_LANGUAGES.map((l) => l.code);
+const raw = localStorage.getItem("app:lang") || "";
+const normalized = raw.split("-")[0];
+if (raw && raw !== normalized) {
+  localStorage.setItem("app:lang", normalized);
+}
+const isSupported = supportedCodes.includes(normalized as SupportedLanguage);
+const validLng: SupportedLanguage = isSupported ? (normalized as SupportedLanguage) : "en";
+if (raw && !isSupported) {
+  localStorage.setItem("app:lang", "en");
+}
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
+    lng: validLng,
     fallbackLng: "en",
     load: "languageOnly",
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
@@ -52,5 +65,9 @@ i18n
       useSuspense: false,
     },
   });
+
+if (import.meta.env.DEV) {
+  (window as any).__i18n = i18n;
+}
 
 export default i18n;
