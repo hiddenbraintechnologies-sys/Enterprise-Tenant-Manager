@@ -1,0 +1,67 @@
+Build a Promo/Coupon engine for plans + add-ons with Super Admin management and tenant checkout support.
+
+Scope:
+- Coupons apply to:
+  (a) base plans (Basic/Pro)
+  (b) add-ons (Payroll tiers)
+  (c) bundles (Plan+Payroll)
+- Works with monthly/yearly
+- Enforced server-side in checkout/start
+
+Database:
+1) billing_promos
+- id, code (unique), name, description
+- applies_to: "plan" | "addon" | "bundle" | "any"
+- target_ids: JSON array of planIds/addonTierIds (or null for all)
+- discount_type: "flat" | "percent"
+- discount_value: int (flat in smallest unit; percent 1-100)
+- max_discount_amount (nullable)
+- min_amount (nullable)
+- start_at, end_at
+- usage_limit_total, usage_limit_per_tenant
+- is_active
+- created_by, created_at
+
+2) billing_promo_redemptions
+- id, promo_id, tenant_id, payment_id, amount_before, discount_amount, amount_after, created_at
+
+Backend:
+1) Admin endpoints (SUPER_ADMIN only):
+- POST /api/admin/billing/promos
+- PATCH /api/admin/billing/promos/:id
+- GET /api/admin/billing/promos?page=&limit=
+- POST /api/admin/billing/promos/:id/archive
+
+2) Public/tenant endpoints:
+- POST /api/billing/promos/validate { code, planId?, addonTierId?, cycle }
+  returns { valid, discountAmount, finalAmount, message }
+- Integrate into POST /api/billing/checkout/start:
+  accept optional promoCode
+  apply promo server-side ONLY if valid
+
+Rules:
+- Prevent stacking unless explicitly allowed (default: no stacking)
+- Apply bundle discount rules (existing) FIRST, then promoCode, capped by max_discount_amount
+- Enforce date window, limits, per-tenant usage
+- Audit log all promo usage
+
+Frontend:
+1) Tenant checkout UI:
+- Promo code input
+- “Apply” -> calls /api/billing/promos/validate
+- Shows “You saved ₹X” and final payable
+
+2) Super Admin UI:
+- /admin/billing/promos page
+- Create/Edit promo form with:
+  - code, type, target, validity dates, limits, discount
+  - preview: example final prices (₹99/₹199 + payroll tiers)
+
+Tests:
+- Promo valid/invalid (expired, over limit, wrong target)
+- Percent cap works
+- Redemption counts enforced
+- Checkout/start with promo applies correct finalAmount
+
+Deliverable:
+End-to-end promo engine usable for launch campaigns and early annual-pay discounts.
