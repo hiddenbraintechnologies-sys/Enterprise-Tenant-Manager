@@ -1,4 +1,90 @@
 {
+  "my": {
+    "payroll": {
+      "card": {
+        "title": "Payroll",
+        "subtitle": "Automate salary, statutory deductions, and payslips for your team.",
+        "trialBadge": "7-day free trial",
+        "ctaAdd": "Add Payroll",
+        "ctaUpgrade": "Upgrade to Payroll",
+        "ctaManage": "Manage Payroll"
+      },
+      "tiers": {
+        "upTo25": "Up to 25 employees",
+        "upTo100": "Up to 100 employees",
+        "unlimited": "Unlimited employees",
+        "perMonth": "/ month"
+      },
+      "addonsStep": {
+        "title": "Optional Add-ons",
+        "desc": "Enhance your plan with optional add-ons. You can add or remove these later.",
+        "payrollHelp": "Try Payroll free for 7 days. Charges apply only after trial ends."
+      },
+      "checkout": {
+        "lineItem": "Payroll add-on",
+        "trialActive": "Trial active — no charge today"
+      },
+      "status": {
+        "notEnabledTitle": "Payroll not enabled",
+        "notEnabledDesc": "Add Payroll to automate salaries and statutory compliance.",
+        "trialEndingTitle": "Payroll trial ending soon",
+        "trialEndingDesc": "Your Payroll trial ends tomorrow. Please complete payment to continue uninterrupted access.",
+        "activatedTitle": "Payroll activated",
+        "activatedDesc": "Payroll has been successfully added to your subscription."
+      },
+      "statutory": {
+        "sectionTitle": "Statutory Contributions",
+        "epf": "EPF (KWSP)",
+        "socso": "SOCSO (PERKESO)",
+        "eis": "EIS (SIP)",
+        "pcb": "PCB / MTD (Tax deduction)",
+        "employer": "Employer contribution",
+        "employee": "Employee contribution",
+        "regNo": "Registration number (optional)",
+        "contributionType": "Contribution type",
+        "effectiveMonth": "Effective month",
+        "generateReports": "Generate statutory reports",
+        "helper": "Settings should match your company registration and local payroll requirements."
+      },
+      "payslip": {
+        "title": "Payslip",
+        "selectMonth": "Select month",
+        "labels": {
+          "employeeName": "Employee Name",
+          "employeeId": "Employee ID",
+          "payPeriod": "Pay Period",
+          "payDate": "Pay Date",
+          "department": "Department",
+          "netPay": "Net Pay"
+        },
+        "earnings": {
+          "title": "Earnings",
+          "basic": "Basic Salary",
+          "allowances": "Allowances",
+          "overtime": "Overtime",
+          "bonus": "Bonus",
+          "reimbursements": "Reimbursements",
+          "total": "Total Earnings"
+        },
+        "deductions": {
+          "title": "Deductions",
+          "epfEmployee": "EPF (Employee)",
+          "socsoEmployee": "SOCSO (Employee)",
+          "eisEmployee": "EIS (Employee)",
+          "pcb": "PCB/MTD",
+          "other": "Other Deductions",
+          "total": "Total Deductions"
+        },
+        "downloadPdf": "Download PDF",
+        "empty": "No payslip available for this month."
+      }
+    }
+  },
+  "language": {
+    "en": "English",
+    "ms": "Bahasa Malaysia",
+    "ta": "தமிழ்"
+  },
   "billing": {
     "pageTitle": "Choose your plan",
     "pageSubtitle": "Start free and upgrade as your business grows. All plans include a 14-day trial.",

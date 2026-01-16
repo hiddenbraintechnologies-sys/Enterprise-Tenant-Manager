@@ -1,4 +1,90 @@
 {
+  "my": {
+    "payroll": {
+      "card": {
+        "title": "Gaji & Payroll",
+        "subtitle": "Automatikkan gaji, potongan berkanun, dan slip gaji pekerja anda.",
+        "trialBadge": "Percubaan percuma 7 hari",
+        "ctaAdd": "Tambah Payroll",
+        "ctaUpgrade": "Naik taraf ke Payroll",
+        "ctaManage": "Urus Payroll"
+      },
+      "tiers": {
+        "upTo25": "Sehingga 25 pekerja",
+        "upTo100": "Sehingga 100 pekerja",
+        "unlimited": "Pekerja tanpa had",
+        "perMonth": "/ bulan"
+      },
+      "addonsStep": {
+        "title": "Tambahan Pilihan",
+        "desc": "Tingkatkan pelan anda dengan tambahan pilihan. Anda boleh menambah atau membuang kemudian.",
+        "payrollHelp": "Cuba Payroll secara percuma selama 7 hari. Caj hanya dikenakan selepas percubaan tamat."
+      },
+      "checkout": {
+        "lineItem": "Tambahan Payroll",
+        "trialActive": "Percubaan aktif — tiada caj hari ini"
+      },
+      "status": {
+        "notEnabledTitle": "Payroll belum diaktifkan",
+        "notEnabledDesc": "Tambah Payroll untuk automatikkan gaji dan pematuhan berkanun.",
+        "trialEndingTitle": "Percubaan Payroll akan tamat",
+        "trialEndingDesc": "Percubaan Payroll anda tamat esok. Sila buat pembayaran untuk terus menggunakan perkhidmatan tanpa gangguan.",
+        "activatedTitle": "Payroll diaktifkan",
+        "activatedDesc": "Payroll telah berjaya ditambah ke langganan anda."
+      },
+      "statutory": {
+        "sectionTitle": "Caruman Berkanun",
+        "epf": "KWSP (EPF)",
+        "socso": "PERKESO (SOCSO)",
+        "eis": "SIP (EIS)",
+        "pcb": "PCB / MTD (Potongan cukai)",
+        "employer": "Caruman majikan",
+        "employee": "Caruman pekerja",
+        "regNo": "Nombor pendaftaran (pilihan)",
+        "contributionType": "Jenis caruman",
+        "effectiveMonth": "Bulan berkuat kuasa",
+        "generateReports": "Jana laporan berkanun",
+        "helper": "Tetapan perlu sepadan dengan pendaftaran syarikat dan keperluan gaji tempatan."
+      },
+      "payslip": {
+        "title": "Slip Gaji",
+        "selectMonth": "Pilih bulan",
+        "labels": {
+          "employeeName": "Nama Pekerja",
+          "employeeId": "ID Pekerja",
+          "payPeriod": "Tempoh Gaji",
+          "payDate": "Tarikh Bayaran",
+          "department": "Jabatan",
+          "netPay": "Gaji Bersih"
+        },
+        "earnings": {
+          "title": "Pendapatan",
+          "basic": "Gaji Asas",
+          "allowances": "Elaun",
+          "overtime": "Kerja Lebih Masa",
+          "bonus": "Bonus",
+          "reimbursements": "Tuntutan",
+          "total": "Jumlah Pendapatan"
+        },
+        "deductions": {
+          "title": "Potongan",
+          "epfEmployee": "KWSP (Pekerja)",
+          "socsoEmployee": "PERKESO (Pekerja)",
+          "eisEmployee": "SIP (Pekerja)",
+          "pcb": "PCB/MTD",
+          "other": "Potongan Lain",
+          "total": "Jumlah Potongan"
+        },
+        "downloadPdf": "Muat turun PDF",
+        "empty": "Tiada slip gaji untuk bulan ini."
+      }
+    }
+  },
+  "language": {
+    "en": "English",
+    "ms": "Bahasa Malaysia",
+    "ta": "தமிழ்"
+  },
   "billing": {
     "pageTitle": "Pilih pelan anda",
     "pageSubtitle": "Mulakan secara percuma dan naik taraf apabila perniagaan anda berkembang. Semua pelan termasuk percubaan 14 hari.",
