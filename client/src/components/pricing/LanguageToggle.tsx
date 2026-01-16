@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 
-type Lang = "en" | "hi";
+type Lang = "en" | "hi" | "ms" | "ta";
 
 interface LanguageToggleProps {
   lang: Lang;

@@ -5,7 +5,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-type Lang = "en" | "hi";
+type Lang = "en" | "hi" | "ms" | "ta";
 
 interface FAQItem {
   question: { en: string; hi: string };

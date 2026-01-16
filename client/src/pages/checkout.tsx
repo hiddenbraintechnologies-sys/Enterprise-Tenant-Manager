@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
-import { BILLING_STRINGS, t as tStr, getTierLabel } from "@shared/billing/i18n";
+import { BILLING_STRINGS, t as tStr, getTierLabel, getPlanName } from "@shared/billing/i18n";
 import type { Lang } from "@shared/billing/i18n";
 
 declare global {
@@ -420,13 +420,13 @@ export default function CheckoutPage() {
               {t("completeYourPurchase")}
             </CardTitle>
             <CardDescription data-testid="text-checkout-plan">
-              {t("subscribingToPlan")} <strong>{plan.name}</strong> {t("subscribingToPlanSuffix")}
+              {t("subscribingToPlan")} <strong>{getPlanName(lang, plan.tier)}</strong> {t("subscribingToPlanSuffix")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">{plan.name} {t("plan")}</span>
+                <span className="font-medium">{getPlanName(lang, plan.tier)} {t("plan")}</span>
                 <Badge variant="secondary">{getTierLabel(lang as Lang, plan.tier)}</Badge>
               </div>
               <div className="flex justify-between items-center text-sm text-muted-foreground">

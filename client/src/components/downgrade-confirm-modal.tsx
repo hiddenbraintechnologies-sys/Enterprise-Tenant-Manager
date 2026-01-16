@@ -17,7 +17,7 @@ import {
   type PlanWithFlags,
 } from "@shared/billing/downgrade-helpers";
 
-type Lang = "en" | "hi";
+type Lang = "en" | "hi" | "ms" | "ta";
 
 interface Plan extends PlanWithFlags {
   id: string;
@@ -43,8 +43,11 @@ const LIMIT_ICONS: Record<string, typeof Users> = {
   customers: Users,
 };
 
-function t(lang: Lang, en: string, hi: string) {
-  return lang === "hi" ? hi : en;
+function t(lang: Lang, en: string, hi: string, ms?: string, ta?: string) {
+  if (lang === "hi") return hi;
+  if (lang === "ms") return ms || en;
+  if (lang === "ta") return ta || en;
+  return en;
 }
 
 function formatDate(d: Date | string) {
@@ -54,19 +57,19 @@ function formatDate(d: Date | string) {
 
 function getDowngradeTitle(lang: Lang, currentTier: string, targetTier: string) {
   if (currentTier === "pro" && targetTier === "basic") {
-    return t(lang, "Confirm downgrade to Basic", "Basic में डाउनग्रेड कन्फर्म करें");
+    return t(lang, "Confirm downgrade to Basic", "Basic में डाउनग्रेड कन्फर्म करें", "Sahkan turun taraf ke Asas", "அடிப்படைக்கு தரமிறக்கத்தை உறுதிப்படுத்துங்கள்");
   }
   if (currentTier === "basic" && targetTier === "free") {
-    return t(lang, "Confirm downgrade to Free", "Free में डाउनग्रेड कन्फर्म करें");
+    return t(lang, "Confirm downgrade to Free", "Free में डाउनग्रेड कन्फर्म करें", "Sahkan turun taraf ke Percuma", "இலவசத்திற்கு தரமிறக்கத்தை உறுதிப்படுத்துங்கள்");
   }
-  return t(lang, "Confirm plan downgrade", "प्लान डाउनग्रेड कन्फर्म करें");
+  return t(lang, "Confirm plan downgrade", "प्लान डाउनग्रेड कन्फर्म करें", "Sahkan turun taraf pelan", "திட்ட தரமிறக்கத்தை உறுதிப்படுத்துங்கள்");
 }
 
 function getConfirmLabel(lang: Lang, currentTier: string, targetTier: string) {
   if (currentTier === "pro" && targetTier === "basic") {
-    return t(lang, "Confirm downgrade to Basic", "Basic में डाउनग्रेड कन्फर्म करें");
+    return t(lang, "Confirm downgrade to Basic", "Basic में डाउनग्रेड कन्फर्म करें", "Sahkan turun taraf ke Asas", "அடிப்படைக்கு தரமிறக்கத்தை உறுதிப்படுத்துங்கள்");
   }
-  return t(lang, "Confirm downgrade", "डाउनग्रेड कन्फर्म करें");
+  return t(lang, "Confirm downgrade", "डाउनग्रेड कन्फर्म करें", "Sahkan turun taraf", "தரமிறக்கத்தை உறுதிப்படுத்துங்கள்");
 }
 
 export function DowngradeConfirmModal({
@@ -90,7 +93,9 @@ export function DowngradeConfirmModal({
   const subtitle = t(
     lang,
     `Downgrade scheduled. Your plan will change on ${formattedDate}. No data will be lost.`,
-    `Downgrade शेड्यूल हो गया है। आपका प्लान ${formattedDate} को बदलेगा। डेटा सुरक्षित रहेगा।`
+    `Downgrade शेड्यूल हो गया है। आपका प्लान ${formattedDate} को बदलेगा। डेटा सुरक्षित रहेगा।`,
+    `Turun taraf dijadualkan. Pelan anda akan berubah pada ${formattedDate}. Tiada data akan hilang.`,
+    `தரமிறக்கம் திட்டமிடப்பட்டது. உங்கள் திட்டம் ${formattedDate} அன்று மாறும். எந்த தரவும் இழக்கப்படாது.`
   );
 
   return (
@@ -113,7 +118,7 @@ export function DowngradeConfirmModal({
         <div className="space-y-4 py-2">
           <div data-testid="section-lost-features">
             <h4 className="text-sm font-medium mb-3">
-              {t(lang, "You'll lose access to these features", "ये फीचर्स उपलब्ध नहीं रहेंगे")}
+              {t(lang, "You'll lose access to these features", "ये फीचर्स उपलब्ध नहीं रहेंगे", "Anda akan kehilangan akses kepada ciri-ciri ini", "இந்த அம்சங்களுக்கான அணுகலை நீங்கள் இழப்பீர்கள்")}
             </h4>
             {hasLostFeatures ? (
               <ul className="space-y-2">
@@ -141,7 +146,7 @@ export function DowngradeConfirmModal({
               <div className="rounded-xl border p-3 text-sm text-muted-foreground" data-testid="no-lost-features">
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-600" />
-                  {t(lang, "No features will be removed.", "कोई फीचर हटाया नहीं जाएगा।")}
+                  {t(lang, "No features will be removed.", "कोई फीचर हटाया नहीं जाएगा।", "Tiada ciri akan dialih keluar.", "எந்த அம்சங்களும் அகற்றப்படாது.")}
                 </div>
               </div>
             )}
@@ -149,7 +154,7 @@ export function DowngradeConfirmModal({
 
           <div data-testid="section-reduced-limits">
             <h4 className="text-sm font-medium mb-3">
-              {t(lang, "Your limits will change", "आपकी लिमिट्स बदलेंगी")}
+              {t(lang, "Your limits will change", "आपकी लिमिट्स बदलेंगी", "Had anda akan berubah", "உங்கள் வரம்புகள் மாறும்")}
             </h4>
             {hasReducedLimits ? (
               <ul className="space-y-2">
@@ -176,7 +181,7 @@ export function DowngradeConfirmModal({
               <div className="rounded-xl border p-3 text-sm text-muted-foreground" data-testid="no-reduced-limits">
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-600" />
-                  {t(lang, "Your usage limits will remain the same.", "आपकी उपयोग लिमिट्स वही रहेंगी।")}
+                  {t(lang, "Your usage limits will remain the same.", "आपकी उपयोग लिमिट्स वही रहेंगी।", "Had penggunaan anda akan kekal sama.", "உங்கள் பயன்பாட்டு வரம்புகள் அப்படியே இருக்கும்.")}
                 </div>
               </div>
             )}
@@ -187,13 +192,15 @@ export function DowngradeConfirmModal({
               <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
               <div className="text-sm">
                 <p className="font-medium">
-                  {t(lang, "No immediate changes", "अभी कोई बदलाव नहीं")}
+                  {t(lang, "No immediate changes", "अभी कोई बदलाव नहीं", "Tiada perubahan segera", "உடனடி மாற்றங்கள் இல்லை")}
                 </p>
                 <p className="text-muted-foreground mt-1">
                   {t(
                     lang,
                     `You can continue using all current features until ${formattedDate}. You can also cancel or change this downgrade anytime before that date.`,
-                    `आप ${formattedDate} तक सभी मौजूदा फीचर्स इस्तेमाल कर सकते हैं। आप उस तारीख से पहले कभी भी डाउनग्रेड को कैंसल या बदल सकते हैं।`
+                    `आप ${formattedDate} तक सभी मौजूदा फीचर्स इस्तेमाल कर सकते हैं। आप उस तारीख से पहले कभी भी डाउनग्रेड को कैंसल या बदल सकते हैं।`,
+                    `Anda boleh terus menggunakan semua ciri semasa sehingga ${formattedDate}. Anda juga boleh membatalkan atau menukar turun taraf ini pada bila-bila masa sebelum tarikh tersebut.`,
+                    `${formattedDate} வரை அனைத்து தற்போதைய அம்சங்களையும் தொடர்ந்து பயன்படுத்தலாம். அந்த தேதிக்கு முன் எந்த நேரத்திலும் இந்த தரமிறக்கத்தை ரத்து செய்யலாம் அல்லது மாற்றலாம்.`
                   )}
                 </p>
               </div>
@@ -209,7 +216,7 @@ export function DowngradeConfirmModal({
               disabled={isLoading}
               data-testid="button-cancel-downgrade-modal"
             >
-              {t(lang, "Go back", "वापस जाएँ")}
+              {t(lang, "Go back", "वापस जाएँ", "Kembali", "திரும்பிச் செல்லுங்கள்")}
             </Button>
             <Button
               variant="destructive"
@@ -220,7 +227,7 @@ export function DowngradeConfirmModal({
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {t(lang, "Processing...", "प्रोसेसिंग...")}
+                  {t(lang, "Processing...", "प्रोसेसिंग...", "Memproses...", "செயலாக்குகிறது...")}
                 </>
               ) : (
                 getConfirmLabel(lang, currentPlan.tier.toLowerCase(), targetPlan.tier.toLowerCase())
@@ -228,7 +235,7 @@ export function DowngradeConfirmModal({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground text-center sm:text-right">
-            {t(lang, "Tip: You can upgrade again anytime.", "Tip: आप कभी भी फिर से अपग्रेड कर सकते हैं।")}
+            {t(lang, "Tip: You can upgrade again anytime.", "Tip: आप कभी भी फिर से अपग्रेड कर सकते हैं।", "Petua: Anda boleh naik taraf semula pada bila-bila masa.", "குறிப்பு: நீங்கள் எப்போது வேண்டுமானாலும் மீண்டும் மேம்படுத்தலாம்.")}
           </p>
         </DialogFooter>
       </DialogContent>

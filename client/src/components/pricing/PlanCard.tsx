@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Zap, Star, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Lang = "en" | "hi";
+type Lang = "en" | "hi" | "ms" | "ta";
 
 export interface PlanData {
   id: string;

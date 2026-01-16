@@ -1,0 +1,110 @@
+Why it’s happening
+1) Hardcoded UI strings
+
+In client/src/pages/packages.tsx (and/or components/PlanCard.tsx), many strings are still like:
+
+"Choose your plan"
+
+"Start free and upgrade..."
+
+"Monthly", "Yearly (save ...)",
+
+"Get started with essential features", etc.
+
+Those will never translate until you wrap them with t("...").
+
+2) Plan names/descriptions coming from DB (English)
+
+Your API plans likely return:
+
+plan.name, plan.description
+
+Those are currently saved in English, so even if i18n works, the UI will show English unless you:
+
+store localized fields in DB (name_ms, name_ta, etc.), or
+
+translate by tier code in frontend (free/basic/pro → t("plans.tiers.free.name") etc.)
+
+For now, the easiest: translate by tier code.
+
+Replit Prompt (copy/paste)
+
+Use this exactly:
+
+Fix Malaysia /packages translations fully (EN + MS + TA). Current issue: only chooseToGetStarted/selectFreeOrPaid translate, but the rest of the UI stays English because many strings are hardcoded or pulled from DB.
+
+GOAL:
+On /packages, when language is ms or ta, ALL visible UI strings must translate: page title, subtitle, billing cycle toggle labels, yearly savings label, recommended badge, plan tagline text, button labels, footer note, and “Free/Basic/Pro” labels if they’re shown as UI text.
+
+IMPLEMENTATION:
+1) Update client/src/pages/packages.tsx:
+   - Replace ALL literal strings with i18n keys using useTranslation().
+   - Keys needed include:
+     packages.title
+     packages.subtitle
+     packages.trialNote (includes {{days}})
+     packages.billing.monthly
+     packages.billing.yearlyWithSave (includes {{saveAmount}})
+     packages.recommendedBadge
+     packages.cta.startFree
+     packages.cta.getBasic
+     packages.cta.getPro
+     packages.footerNote (includes {{currency}} and tax note)
+     packages.chooseToGetStarted
+     packages.selectFreeOrPaid
+
+2) Do NOT display plan.name / plan.description directly for the 3 standard tiers when country is MY.
+   - Instead, map by plan.tier (free/basic/pro) to translated copy:
+     plans.tiers.free.name / blurb
+     plans.tiers.basic.name / blurb
+     plans.tiers.pro.name / blurb
+   - Keep backend plan.code/price/limits/features for calculations.
+
+3) Update locale files:
+   - client/src/i18n/locales/en.json
+   - client/src/i18n/locales/ms.json
+   - client/src/i18n/locales/ta.json
+   Add all keys required above with correct translations.
+
+4) Ensure “Yearly (save RM198)” is translated properly:
+   - Use interpolation: t("packages.billing.yearlyWithSave", { saveAmount: formatPrice(save, currency) })
+   - In Tamil and Malay, translate the structure, not just words.
+
+5) Verify:
+   - In /packages switch language to ms and ta
+   - Confirm NO English hardcoded strings remain on the page (except dynamic business data).
+   - Confirm no raw keys like “chooseToGetStarted” show.
+
+Return a short summary + the list of files changed.
+
+Files you should expect Replit to edit
+
+These are the usual places:
+
+client/src/pages/packages.tsx ✅ (main issue)
+
+client/src/components/billing/PlanCard.tsx (or wherever the plan cards are rendered)
+
+client/src/i18n/locales/en.json
+
+client/src/i18n/locales/ms.json
+
+client/src/i18n/locales/ta.json
+
+If there’s also a /pricing page with same UI:
+
+client/src/pages/pricing.tsx
+
+After this fix, what will you see?
+
+When language = Malay (ms) or Tamil (ta):
+
+Monthly/Yearly toggle translates ✅
+
+“Recommended” translates ✅
+
+Card tagline (“Get started with essential…”) translates ✅
+
+Buttons (“Start free / Get Basic / Get Pro”) translate ✅
+
+No more raw keys like chooseToGetStarted ✅

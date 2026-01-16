@@ -1,7 +1,7 @@
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Lang = "en" | "hi";
+type Lang = "en" | "hi" | "ms" | "ta";
 
 interface FeatureRow {
   name: { en: string; hi: string };

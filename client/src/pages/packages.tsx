@@ -37,7 +37,6 @@ import { LanguageSelector } from "@/components/language-selector";
 import { useTranslation } from "react-i18next";
 import { getGainedFeatures, getIncreasedLimits, getLostFeatures, getReducedLimits } from "@shared/billing/language-helpers";
 import type { BillingCycleKey } from "@shared/billing/types";
-import { CYCLE_LABELS } from "@shared/billing/types";
 import { 
   BILLING_STRINGS, 
   savingsAmountBadge,
@@ -47,7 +46,9 @@ import {
   getFeatureLabel,
   getLimitChangeText,
   getLimitText,
-  formatDateLocalized 
+  formatDateLocalized,
+  getPlanName,
+  getPlanDescription
 } from "@shared/billing/i18n";
 import { getCurrencySymbol } from "@/lib/currency-service";
 import type { Lang } from "@shared/billing/i18n";
@@ -612,7 +613,7 @@ export default function PackagesPage() {
               onClick={() => setSelectedCycle("monthly")}
               data-testid="button-cycle-monthly"
             >
-              {lang === "hi" ? CYCLE_LABELS.monthly.hi : CYCLE_LABELS.monthly.en}
+              {t("monthly")}
             </Button>
             <Button
               variant={selectedCycle === "yearly" ? "default" : "outline"}
@@ -623,7 +624,7 @@ export default function PackagesPage() {
             >
               {selectedCycle !== "yearly" 
                 ? yearlySavingsToggleLabel(lang as Lang, maxYearlySavingsInfo.amount, maxYearlySavingsInfo.currencySymbol)
-                : (lang === "hi" ? CYCLE_LABELS.yearly.hi : CYCLE_LABELS.yearly.en)
+                : t("yearly")
               }
             </Button>
           </div>
@@ -845,10 +846,10 @@ export default function PackagesPage() {
                       </div>
                     </div>
                     <CardTitle className="text-xl" data-testid={`text-package-name-${plan.tier}`}>
-                      {plan.name}
+                      {getPlanName(lang, plan.tier)}
                     </CardTitle>
                     <CardDescription data-testid={`text-package-desc-${plan.tier}`}>
-                      {plan.description || t("perfectForUsers")}
+                      {getPlanDescription(lang, plan.tier) || t("perfectForUsers")}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1 pb-4">
@@ -966,7 +967,7 @@ export default function PackagesPage() {
                           t("startFree")
                         ) : (
                           <>
-                            {t("getPlan")} {plan.name}
+                            {t("getPlan")} {getPlanName(lang, plan.tier)}
                             <ArrowRight className="h-4 w-4 ml-1" />
                           </>
                         )}
@@ -991,7 +992,7 @@ export default function PackagesPage() {
           onOpenChange={setShowDowngradeModal}
           currentPlan={{
             id: subscriptionData.plan.id,
-            name: subscriptionData.plan.name,
+            name: getPlanName(lang, subscriptionData.plan.tier),
             tier: subscriptionData.plan.tier,
             featureFlags: subscriptionData.plan.featureFlags,
             limits: subscriptionData.plan.limits,
@@ -1000,7 +1001,7 @@ export default function PackagesPage() {
           }}
           targetPlan={{
             id: pendingDowngradePlan.id,
-            name: pendingDowngradePlan.name,
+            name: getPlanName(lang, pendingDowngradePlan.tier),
             tier: pendingDowngradePlan.tier,
             featureFlags: pendingDowngradePlan.featureFlags,
             limits: pendingDowngradePlan.limits,
@@ -1023,11 +1024,11 @@ export default function PackagesPage() {
           open={showUpgradeModal}
           onOpenChange={setShowUpgradeModal}
           currentPlan={{
-            name: subscriptionData?.plan?.name || "Free",
+            name: getPlanName(lang, subscriptionData?.plan?.tier || "free"),
             tier: subscriptionData?.plan?.tier || "free",
           }}
           targetPlan={{
-            name: pendingUpgradePlan.name,
+            name: getPlanName(lang, pendingUpgradePlan.tier),
             tier: pendingUpgradePlan.tier,
           }}
           priceLabel={formatPriceOrFree(getPlanCyclePrice(pendingUpgradePlan).price, pendingUpgradePlan.currencyCode || "INR") + billingInterval}
@@ -1035,7 +1036,7 @@ export default function PackagesPage() {
             subscriptionData?.plan ? {
               id: subscriptionData.plan.id,
               code: "",
-              name: subscriptionData.plan.name,
+              name: getPlanName(lang, subscriptionData.plan.tier),
               description: null,
               tier: subscriptionData.plan.tier,
               basePrice: parseFloat(subscriptionData.plan.basePrice) || 0,

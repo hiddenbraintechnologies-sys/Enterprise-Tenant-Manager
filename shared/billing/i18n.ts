@@ -1,5 +1,57 @@
 export type Lang = "en" | "hi" | "ms" | "ta";
 
+export const PLAN_NAMES: Record<string, Record<Lang, string>> = {
+  free: {
+    en: "Free",
+    hi: "फ्री",
+    ms: "Percuma",
+    ta: "இலவசம்"
+  },
+  basic: {
+    en: "Basic",
+    hi: "बेसिक",
+    ms: "Asas",
+    ta: "அடிப்படை"
+  },
+  pro: {
+    en: "Pro",
+    hi: "प्रो",
+    ms: "Pro",
+    ta: "புரோ"
+  }
+};
+
+export const PLAN_DESCRIPTIONS: Record<string, Record<Lang, string>> = {
+  free: {
+    en: "Perfect for trying out the platform",
+    hi: "प्लेटफॉर्म आज़माने के लिए परफेक्ट",
+    ms: "Sesuai untuk mencuba platform",
+    ta: "தளத்தை முயற்சிக்க சிறந்தது"
+  },
+  basic: {
+    en: "For small businesses getting started",
+    hi: "छोटे बिज़नेस के लिए",
+    ms: "Untuk perniagaan kecil yang baru bermula",
+    ta: "தொடங்கும் சிறு வணிகங்களுக்கு"
+  },
+  pro: {
+    en: "For growing businesses with advanced needs",
+    hi: "बढ़ते बिज़नेस के लिए",
+    ms: "Untuk perniagaan yang berkembang dengan keperluan lanjutan",
+    ta: "மேம்பட்ட தேவைகளுடன் வளரும் வணிகங்களுக்கு"
+  }
+};
+
+export function getPlanName(lang: Lang, tier: string): string {
+  const key = tier.toLowerCase();
+  return PLAN_NAMES[key]?.[lang] || PLAN_NAMES[key]?.en || tier;
+}
+
+export function getPlanDescription(lang: Lang, tier: string): string {
+  const key = tier.toLowerCase();
+  return PLAN_DESCRIPTIONS[key]?.[lang] || PLAN_DESCRIPTIONS[key]?.en || "";
+}
+
 export const BILLING_STRINGS = {
   pageTitle: {
     en: "Choose your plan",
@@ -51,167 +103,249 @@ export const BILLING_STRINGS = {
   },
   recommended: {
     en: "Recommended",
-    hi: "सुझाया गया"
+    hi: "सुझाया गया",
+    ms: "Disyorkan",
+    ta: "பரிந்துரைக்கப்படுகிறது"
   },
   popular: {
     en: "Popular",
-    hi: "लोकप्रिय"
+    hi: "लोकप्रिय",
+    ms: "Popular",
+    ta: "பிரபலமானது"
   },
   bestValue: {
     en: "Best Value",
-    hi: "बेस्ट वैल्यू"
+    hi: "बेस्ट वैल्यू",
+    ms: "Nilai Terbaik",
+    ta: "சிறந்த மதிப்பு"
   },
   currentPlan: {
     en: "Current plan",
-    hi: "वर्तमान प्लान"
+    hi: "वर्तमान प्लान",
+    ms: "Pelan semasa",
+    ta: "தற்போதைய திட்டம்"
   },
   startFree: {
     en: "Start Free",
-    hi: "मुफ्त शुरू करें"
+    hi: "मुफ्त शुरू करें",
+    ms: "Mula Percuma",
+    ta: "இலவசமாகத் தொடங்குங்கள்"
   },
   getFree: {
     en: "Get Free",
-    hi: "मुफ्त में पाएं"
+    hi: "मुफ्त में पाएं",
+    ms: "Dapatkan Percuma",
+    ta: "இலவசமாகப் பெறுங்கள்"
   },
   upgrade: {
     en: "Upgrade",
-    hi: "अपग्रेड करें"
+    hi: "अपग्रेड करें",
+    ms: "Naik taraf",
+    ta: "மேம்படுத்து"
   },
   upgradeNow: {
     en: "Upgrade Now",
-    hi: "अभी अपग्रेड करें"
+    hi: "अभी अपग्रेड करें",
+    ms: "Naik Taraf Sekarang",
+    ta: "இப்போதே மேம்படுத்துங்கள்"
   },
   downgrade: {
     en: "Downgrade",
-    hi: "डाउनग्रेड करें"
+    hi: "डाउनग्रेड करें",
+    ms: "Turun taraf",
+    ta: "தரமிறக்கு"
   },
   selectPlan: {
     en: "Select Plan",
-    hi: "प्लान चुनें"
+    hi: "प्लान चुनें",
+    ms: "Pilih Pelan",
+    ta: "திட்டத்தைத் தேர்ந்தெடுங்கள்"
   },
   getStarted: {
     en: "Get Started",
-    hi: "शुरू करें"
+    hi: "शुरू करें",
+    ms: "Mulakan",
+    ta: "தொடங்குங்கள்"
   },
   choosePlan: {
     en: "Choose Plan",
-    hi: "प्लान चुनें"
+    hi: "प्लान चुनें",
+    ms: "Pilih Pelan",
+    ta: "திட்டத்தைத் தேர்ந்தெடுங்கள்"
   },
   included: {
     en: "Included",
-    hi: "शामिल"
+    hi: "शामिल",
+    ms: "Termasuk",
+    ta: "சேர்க்கப்பட்டுள்ளது"
   },
   notIncluded: {
     en: "Not included",
-    hi: "शामिल नहीं"
+    hi: "शामिल नहीं",
+    ms: "Tidak termasuk",
+    ta: "சேர்க்கப்படவில்லை"
   },
   features: {
     en: "Features",
-    hi: "फीचर्स"
+    hi: "फीचर्स",
+    ms: "Ciri-ciri",
+    ta: "அம்சங்கள்"
   },
   users: {
     en: "users",
-    hi: "यूजर्स"
+    hi: "यूजर्स",
+    ms: "pengguna",
+    ta: "பயனர்கள்"
   },
   customers: {
     en: "customers",
-    hi: "ग्राहक"
+    hi: "ग्राहक",
+    ms: "pelanggan",
+    ta: "வாடிக்கையாளர்கள்"
   },
   records: {
     en: "records",
-    hi: "रिकॉर्ड्स"
+    hi: "रिकॉर्ड्स",
+    ms: "rekod",
+    ta: "பதிவுகள்"
   },
   unlimited: {
     en: "Unlimited",
-    hi: "अनलिमिटेड"
+    hi: "अनलिमिटेड",
+    ms: "Tanpa had",
+    ta: "வரம்பற்றது"
   },
   loading: {
     en: "Loading...",
-    hi: "लोड हो रहा है..."
+    hi: "लोड हो रहा है...",
+    ms: "Memuatkan...",
+    ta: "ஏற்றுகிறது..."
   },
   processing: {
     en: "Processing...",
-    hi: "प्रोसेसिंग..."
+    hi: "प्रोसेसिंग...",
+    ms: "Memproses...",
+    ta: "செயலாக்குகிறது..."
   },
   free: {
     en: "Free",
-    hi: "मुफ्त"
+    hi: "मुफ्त",
+    ms: "Percuma",
+    ta: "இலவசம்"
   },
   pendingDowngrade: {
     en: "Pending downgrade",
-    hi: "डाउनग्रेड पेंडिंग"
+    hi: "डाउनग्रेड पेंडिंग",
+    ms: "Turun taraf tertunda",
+    ta: "நிலுவையில் உள்ள தரமிறக்கம்"
   },
   cancelDowngrade: {
     en: "Cancel downgrade",
-    hi: "डाउनग्रेड रद्द करें"
+    hi: "डाउनग्रेड रद्द करें",
+    ms: "Batal turun taraf",
+    ta: "தரமிறக்கத்தை ரத்து செய்யுங்கள்"
   },
   pendingPayment: {
     en: "Payment pending",
-    hi: "पेमेंट पेंडिंग"
+    hi: "पेमेंट पेंडिंग",
+    ms: "Pembayaran tertunda",
+    ta: "கட்டணம் நிலுவையில்"
   },
   continuePayment: {
     en: "Continue Payment",
-    hi: "पेमेंट जारी रखें"
+    hi: "पेमेंट जारी रखें",
+    ms: "Teruskan Pembayaran",
+    ta: "கட்டணத்தைத் தொடருங்கள்"
   },
   cancelUpgrade: {
     en: "Cancel Upgrade",
-    hi: "अपग्रेड रद्द करें"
+    hi: "अपग्रेड रद्द करें",
+    ms: "Batal Naik Taraf",
+    ta: "மேம்பாட்டை ரத்து செய்யுங்கள்"
   },
   effectiveOn: {
     en: "Effective on",
-    hi: "से लागू"
+    hi: "से लागू",
+    ms: "Berkuat kuasa pada",
+    ta: "முதல் நடைமுறையில்"
   },
   keepCurrent: {
     en: "Keep current plan",
-    hi: "वर्तमान प्लान रखें"
+    hi: "वर्तमान प्लान रखें",
+    ms: "Kekalkan pelan semasa",
+    ta: "தற்போதைய திட்டத்தை வைத்திருங்கள்"
   },
   confirmCancel: {
     en: "Yes, cancel",
-    hi: "हाँ, रद्द करें"
+    hi: "हाँ, रद्द करें",
+    ms: "Ya, batalkan",
+    ta: "ஆம், ரத்து செய்யுங்கள்"
   },
   goBack: {
     en: "Go back",
-    hi: "वापस जाएँ"
+    hi: "वापस जाएँ",
+    ms: "Kembali",
+    ta: "திரும்பிச் செல்லுங்கள்"
   },
   securePayment: {
     en: "Secure payment powered by Razorpay",
-    hi: "Razorpay द्वारा सुरक्षित पेमेंट"
+    hi: "Razorpay द्वारा सुरक्षित पेमेंट",
+    ms: "Pembayaran selamat oleh Razorpay",
+    ta: "Razorpay மூலம் பாதுகாப்பான கட்டணம்"
   },
   noSubscription: {
     en: "Choose a plan to get started with your business management.",
-    hi: "अपने बिज़नेस मैनेजमेंट की शुरुआत के लिए एक प्लान चुनें।"
+    hi: "अपने बिज़नेस मैनेजमेंट की शुरुआत के लिए एक प्लान चुनें।",
+    ms: "Pilih pelan untuk memulakan pengurusan perniagaan anda.",
+    ta: "உங்கள் வணிக மேலாண்மையைத் தொடங்க ஒரு திட்டத்தைத் தேர்ந்தெடுங்கள்."
   },
   errorLoadingPlans: {
     en: "Unable to load plans. Please try again.",
-    hi: "प्लान लोड नहीं हो पाए। कृपया फिर से कोशिश करें।"
+    hi: "प्लान लोड नहीं हो पाए। कृपया फिर से कोशिश करें।",
+    ms: "Tidak dapat memuatkan pelan. Sila cuba lagi.",
+    ta: "திட்டங்களை ஏற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்."
   },
   errorLoadingSubscription: {
     en: "Unable to load subscription. Please try again.",
-    hi: "सब्सक्रिप्शन लोड नहीं हो पाया। कृपया फिर से कोशिश करें।"
+    hi: "सब्सक्रिप्शन लोड नहीं हो पाया। कृपया फिर से कोशिश करें।",
+    ms: "Tidak dapat memuatkan langganan. Sila cuba lagi.",
+    ta: "சந்தாவை ஏற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்."
   },
   retry: {
     en: "Retry",
-    hi: "फिर से कोशिश करें"
+    hi: "फिर से कोशिश करें",
+    ms: "Cuba lagi",
+    ta: "மீண்டும் முயற்சிக்கவும்"
   },
   settingUpWorkspace: {
     en: "Setting up your workspace",
-    hi: "आपका वर्कस्पेस सेट हो रहा है"
+    hi: "आपका वर्कस्पेस सेट हो रहा है",
+    ms: "Menyediakan ruang kerja anda",
+    ta: "உங்கள் பணியிடத்தை அமைக்கிறது"
   },
   justAMoment: {
     en: "Just a moment while we prepare your account",
-    hi: "कृपया प्रतीक्षा करें, हम आपका अकाउंट तैयार कर रहे हैं"
+    hi: "कृपया प्रतीक्षा करें, हम आपका अकाउंट तैयार कर रहे हैं",
+    ms: "Sila tunggu sebentar...",
+    ta: "ஒரு கணம்..."
   },
   cancelUpgradeConfirmTitle: {
     en: "Cancel pending upgrade?",
-    hi: "पेंडिंग अपग्रेड रद्द करें?"
+    hi: "पेंडिंग अपग्रेड रद्द करें?",
+    ms: "Batalkan naik taraf tertunda?",
+    ta: "நிலுவையில் உள்ள மேம்பாட்டை ரத்து செய்யவா?"
   },
   cancelUpgradeConfirmDesc: {
     en: "Your upgrade is pending payment. Would you like to cancel this upgrade and stay on your current plan?",
-    hi: "आपका अपग्रेड पेमेंट के लिए पेंडिंग है। क्या आप इस अपग्रेड को रद्द करके वर्तमान प्लान पर रहना चाहते हैं?"
+    hi: "आपका अपग्रेड पेमेंट के लिए पेंडिंग है। क्या आप इस अपग्रेड को रद्द करके वर्तमान प्लान पर रहना चाहते हैं?",
+    ms: "Ini akan membatalkan naik taraf tertunda anda. Anda akan mengekalkan pelan semasa anda.",
+    ta: "இது உங்கள் நிலுவையில் உள்ள மேம்பாட்டை ரத்து செய்யும். உங்கள் தற்போதைய திட்டத்தை வைத்திருப்பீர்கள்."
   },
   downgradeBannerTitle: {
     en: "Scheduled Downgrade",
-    hi: "निर्धारित डाउनग्रेड"
+    hi: "निर्धारित डाउनग्रेड",
+    ms: "Turun Taraf Dijadualkan",
+    ta: "தரமிறக்கம் திட்டமிடப்பட்டது"
   },
   checkoutTitle: {
     en: "Complete your payment",
@@ -703,19 +837,27 @@ export const BILLING_STRINGS = {
   },
   tierFree: {
     en: "Free",
-    hi: "मुफ्त"
+    hi: "मुफ्त",
+    ms: "Percuma",
+    ta: "இலவசம்"
   },
   tierBasic: {
     en: "Basic",
-    hi: "बेसिक"
+    hi: "बेसिक",
+    ms: "Asas",
+    ta: "அடிப்படை"
   },
   tierPro: {
     en: "Pro",
-    hi: "प्रो"
+    hi: "प्रो",
+    ms: "Pro",
+    ta: "புரோ"
   },
   tierEnterprise: {
     en: "Enterprise",
-    hi: "एंटरप्राइज"
+    hi: "एंटरप्राइज",
+    ms: "Perusahaan",
+    ta: "நிறுவனம்"
   },
   perfectForUsers: {
     en: "Perfect for your business needs",
@@ -930,22 +1072,42 @@ export function savingsAmountBadge(lang: Lang, amount: number, currency = "₹")
 }
 
 export function yearlySavingsToggleLabel(lang: Lang, amount: number, currency = "₹"): string {
-  const yearlyLabel = lang === "hi" ? "वार्षिक" : "Yearly";
+  const yearlyLabels: Record<Lang, string> = {
+    en: "Yearly",
+    hi: "वार्षिक",
+    ms: "Tahunan",
+    ta: "வருடாந்திர",
+  };
+  const yearlyLabel = yearlyLabels[lang] || yearlyLabels.en;
   if (amount <= 0) {
     return yearlyLabel;
   }
+  const formattedAmount = `${currency}${amount.toLocaleString("en-IN")}`;
   if (lang === "hi") {
-    return `${yearlyLabel} (${currency}${amount.toLocaleString("en-IN")} बचत)`;
+    return `${yearlyLabel} (${formattedAmount} बचत)`;
   }
-  return `${yearlyLabel} (Save ${currency}${amount.toLocaleString("en-IN")})`;
+  if (lang === "ms") {
+    return `${yearlyLabel} (Jimat ${formattedAmount})`;
+  }
+  if (lang === "ta") {
+    return `${yearlyLabel} (${formattedAmount} சேமிப்பு)`;
+  }
+  return `${yearlyLabel} (Save ${formattedAmount})`;
 }
 
 export function savingsComparisonText(lang: Lang, amount: number, currency = "₹"): string {
   if (amount <= 0) return "";
+  const formattedAmount = `${currency}${amount.toLocaleString("en-IN")}`;
   if (lang === "hi") {
-    return `मासिक बिलिंग की तुलना में आप ${currency}${amount.toLocaleString("en-IN")} बचाते हैं।`;
+    return `मासिक बिलिंग की तुलना में आप ${formattedAmount} बचाते हैं।`;
   }
-  return `You save ${currency}${amount.toLocaleString("en-IN")} compared to monthly billing.`;
+  if (lang === "ms") {
+    return `Anda jimat ${formattedAmount} berbanding bil bulanan.`;
+  }
+  if (lang === "ta") {
+    return `மாதாந்திர பில்லிங்கோடு ஒப்பிடும்போது ${formattedAmount} சேமிப்பு.`;
+  }
+  return `You save ${formattedAmount} compared to monthly billing.`;
 }
 
 export function pricePerPeriod(lang: Lang, price: string | number, cycle: "monthly" | "yearly"): string {
@@ -966,6 +1128,12 @@ export function billedAs(lang: Lang, cycle: "monthly" | "yearly"): string {
 export function downgradeBannerText(lang: Lang, targetPlanName: string, effectiveDate: string): string {
   if (lang === "hi") {
     return `आपका प्लान ${effectiveDate} को ${targetPlanName} में बदल जाएगा। तब तक आप सभी मौजूदा फीचर्स इस्तेमाल कर सकते हैं।`;
+  }
+  if (lang === "ms") {
+    return `Pelan anda akan bertukar ke ${targetPlanName} pada ${effectiveDate}. Anda boleh terus menggunakan semua ciri sehingga itu.`;
+  }
+  if (lang === "ta") {
+    return `உங்கள் திட்டம் ${effectiveDate} அன்று ${targetPlanName} க்கு மாறும். அதுவரை அனைத்து அம்சங்களையும் பயன்படுத்தலாம்.`;
   }
   return `Your plan will change to ${targetPlanName} on ${effectiveDate}. You'll keep all current features until then.`;
 }

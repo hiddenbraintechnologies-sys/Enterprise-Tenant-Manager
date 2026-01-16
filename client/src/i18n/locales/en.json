@@ -211,7 +211,20 @@
     "paymentCancelledReturnToPlans": "Your payment was cancelled. You can return to plans.",
     "failedToInitiatePayment": "Failed to initiate payment",
     "noPendingPayment": "No pending payment found",
-    "selectAPlanFirst": "Please select a plan first"
+    "selectAPlanFirst": "Please select a plan first",
+    "settingUpWorkspace": "Setting up your workspace",
+    "justAMoment": "Just a moment...",
+    "goToDashboard": "Go to Dashboard",
+    "subscriptionActive": "Your subscription is active",
+    "downgradeBannerTitle": "Downgrade Scheduled",
+    "changeDowngradePlan": "Change downgrade plan",
+    "upgradePendingFor": "Upgrade pending for",
+    "completePaymentToActivate": "Complete payment to activate your new plan",
+    "perfectForUsers": "Perfect for your needs",
+    "getPlan": "Get",
+    "changeToThisPlan": "Change to this plan",
+    "cancelUpgradeConfirmTitle": "Cancel pending upgrade?",
+    "cancelUpgradeConfirmDesc": "This will cancel your pending upgrade. You will keep your current plan."
   },
   "common": {
     "save": "Save",
