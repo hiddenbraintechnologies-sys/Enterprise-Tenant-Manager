@@ -4,6 +4,7 @@ import {
   platformAdminPermissions,
   adminSecurityConfig,
   tenants,
+  countryRolloutPolicy,
   PLATFORM_ADMIN_PERMISSIONS,
   DEFAULT_ADMIN_SECURITY_CONFIG,
 } from "@shared/schema";
@@ -559,6 +560,63 @@ function generateSecurePassword(): string {
     .join("");
 }
 
+async function seedCountryRolloutPolicies(): Promise<void> {
+  const policies = [
+    {
+      countryCode: "IN",
+      status: "live" as const,
+      enabledBusinessTypes: ["pg"],
+      enabledModules: [],
+      notes: "India - Live for PG/Hostel business type",
+      updatedBy: "system",
+    },
+    {
+      countryCode: "MY",
+      status: "beta" as const,
+      enabledBusinessTypes: ["consulting", "software_services"],
+      enabledModules: [],
+      notes: "Malaysia - Beta for Consulting and Software Services",
+      updatedBy: "system",
+    },
+    {
+      countryCode: "GB",
+      status: "beta" as const,
+      enabledBusinessTypes: ["consulting", "software_services"],
+      enabledModules: [],
+      notes: "UK - Beta for Consulting and Software Services",
+      updatedBy: "system",
+    },
+  ];
+
+  for (const policy of policies) {
+    const [existing] = await db
+      .select()
+      .from(countryRolloutPolicy)
+      .where(eq(countryRolloutPolicy.countryCode, policy.countryCode))
+      .limit(1);
+
+    if (existing) {
+      console.log(`  - Country rollout policy for ${policy.countryCode} already exists, updating...`);
+      await db
+        .update(countryRolloutPolicy)
+        .set({
+          status: policy.status,
+          enabledBusinessTypes: policy.enabledBusinessTypes,
+          enabledModules: policy.enabledModules,
+          notes: policy.notes,
+          updatedBy: policy.updatedBy,
+          updatedAt: new Date(),
+        })
+        .where(eq(countryRolloutPolicy.countryCode, policy.countryCode));
+    } else {
+      console.log(`  - Creating country rollout policy for ${policy.countryCode}...`);
+      await db.insert(countryRolloutPolicy).values(policy);
+    }
+  }
+
+  console.log("  Country rollout policies seeded successfully.");
+}
+
 export async function runAllSeeds(options?: { skipMigrations?: boolean; skipSampleData?: boolean }): Promise<void> {
   console.log("Starting database seed...");
   console.log("=".repeat(50));
@@ -592,6 +650,9 @@ export async function runAllSeeds(options?: { skipMigrations?: boolean; skipSamp
     console.log("\n5. Seeding Sample Tenants (Real Estate & Tourism)...");
     await seedSampleTenants();
   }
+
+  console.log("\n6. Seeding Country Rollout Policies...");
+  await seedCountryRolloutPolicies();
 
   console.log("\n" + "=".repeat(50));
   console.log("Seed completed successfully!");

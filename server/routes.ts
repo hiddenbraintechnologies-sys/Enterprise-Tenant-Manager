@@ -104,6 +104,7 @@ import adminCountriesRoutes from "./routes/admin/countries";
 import adminPayrollAnalyticsRoutes from "./routes/admin/payroll-analytics";
 import adminAddonsRoutes from "./routes/admin/addons";
 import publicRoutes from "./routes/public";
+import catalogRoutes from "./routes/catalog";
 import promoRoutes from "./routes/billing/promos";
 import employeePortalRoutes from "./routes/employee-portal";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
@@ -365,6 +366,9 @@ export async function registerRoutes(
   
   // Public routes (no auth required)
   app.use('/api/public', publicRoutes);
+  
+  // Catalog routes - public access for registration flow
+  app.use('/api/catalog', catalogRoutes);
   
   // Employee Self-Service Portal (public, no TenantProvider)
   app.use('/api/employee-portal', employeePortalRoutes);

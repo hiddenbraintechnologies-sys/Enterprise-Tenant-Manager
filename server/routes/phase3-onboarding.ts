@@ -14,6 +14,7 @@ import {
   featureService, auditService
 } from "../core";
 import { subscriptionService } from "../services/subscription";
+import { countryRolloutService } from "../services/country-rollout";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ const tenantSignupSchema = z.object({
   businessType: z.enum([
     "clinic", "salon", "pg", "coworking", "service", 
     "real_estate", "tourism", "education", "logistics", 
-    "legal", "furniture_manufacturing"
+    "legal", "furniture_manufacturing", "software_services", "consulting"
   ]),
   adminFirstName: z.string().min(1, "First name is required").max(100),
   adminLastName: z.string().min(1, "Last name is required").max(100),
@@ -79,6 +80,21 @@ router.post("/signup", rateLimit({ windowMs: 60 * 1000, maxRequests: 5 }), async
           code: "SUBDOMAIN_EXISTS"
         });
       }
+    }
+
+    // Validate business type is allowed for this country
+    const countryCode = country === "india" ? "IN" : 
+                        country === "uae" ? "AE" :
+                        country === "uk" ? "GB" :
+                        country === "malaysia" ? "MY" :
+                        country === "singapore" ? "SG" : "OTHER";
+    
+    const rolloutValidation = await countryRolloutService.isBusinessTypeAllowed(countryCode, businessType);
+    if (!rolloutValidation.allowed) {
+      return res.status(403).json({
+        error: rolloutValidation.message,
+        code: rolloutValidation.code || "BUSINESS_NOT_AVAILABLE_IN_COUNTRY"
+      });
     }
 
     let [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));

@@ -11,10 +11,12 @@ export interface CountryConfig {
   countryCode: string;
   countryName: string;
   status: "enabled" | "disabled" | "maintenance" | "coming_soon";
+  rolloutStatus: "coming_soon" | "beta" | "live";
   isSignupEnabled: boolean;
   isBillingEnabled: boolean;
   defaultCurrency: string;
   enabledBusinessTypes: string[];
+  enabledModules: string[];
   disabledFeatures: string[];
   enabledAddons: string[];
   enabledPlans: string[];
@@ -71,10 +73,12 @@ class CountryRolloutService {
       countryCode: regionConfig.countryCode,
       countryName: regionConfig.countryName,
       status: regionConfig.status,
+      rolloutStatus: rolloutPolicy?.status || "coming_soon",
       isSignupEnabled: regionConfig.registrationEnabled,
       isBillingEnabled: regionConfig.billingEnabled,
       defaultCurrency: regionConfig.defaultCurrency,
-      enabledBusinessTypes: (regionConfig.allowedBusinessTypes as string[]) || [],
+      enabledBusinessTypes: rolloutPolicy?.enabledBusinessTypes || (regionConfig.allowedBusinessTypes as string[]) || [],
+      enabledModules: rolloutPolicy?.enabledModules || [],
       disabledFeatures: rolloutPolicy?.disabledFeatures || [],
       enabledAddons: rolloutPolicy?.enabledAddons || [],
       enabledPlans: rolloutPolicy?.enabledPlans || [],

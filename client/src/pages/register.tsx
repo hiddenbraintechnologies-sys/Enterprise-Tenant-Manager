@@ -61,7 +61,19 @@ const registrationSchema = z.object({
 
 type RegistrationForm = z.infer<typeof registrationSchema>;
 
-const businessTypeOptions = [
+interface BusinessTypeOption {
+  value: string;
+  label: string;
+}
+
+interface CatalogResponse {
+  countryCode: string;
+  rolloutStatus: string;
+  countryName?: string;
+  businessTypes: BusinessTypeOption[];
+}
+
+const defaultBusinessTypeOptions: BusinessTypeOption[] = [
   { value: "clinic", label: "Clinic / Healthcare" },
   { value: "salon", label: "Salon / Beauty" },
   { value: "pg", label: "PG / Hostel / Co-living" },
@@ -80,6 +92,7 @@ const businessTypeOptions = [
 export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [selectedCountry, setSelectedCountry] = useState<string>("");
 
   // Clear any stale tokens AND cached queries when visiting register page
   // This ensures a completely clean slate for new registrations
@@ -101,6 +114,21 @@ export default function Register() {
   const { data: regionConfigs, isLoading: isLoadingRegions } = useQuery<RegionConfig[]>({
     queryKey: ["/api/region-configs/active"],
   });
+
+  // Fetch business types based on selected country
+  const { data: catalogData, isLoading: isLoadingBusinessTypes } = useQuery<CatalogResponse>({
+    queryKey: ["/api/catalog/business-types", selectedCountry],
+    queryFn: async () => {
+      if (!selectedCountry) return { countryCode: "", rolloutStatus: "coming_soon", businessTypes: defaultBusinessTypeOptions };
+      const res = await fetch(`/api/catalog/business-types?country=${selectedCountry}`);
+      if (!res.ok) throw new Error("Failed to fetch business types");
+      return res.json();
+    },
+    enabled: !!selectedCountry,
+  });
+
+  // Get available business types - use catalog data if available, else defaults
+  const businessTypeOptions = catalogData?.businessTypes || defaultBusinessTypeOptions;
 
   // Filter only countries with registration enabled
   const availableCountries = regionConfigs?.filter(r => r.registrationEnabled && r.status === "enabled") || [];
@@ -289,7 +317,14 @@ export default function Register() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Country / Region</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select 
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          setSelectedCountry(value);
+                          form.setValue("businessType", undefined as unknown as RegistrationForm["businessType"]);
+                        }} 
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger data-testid="select-country">
                             <SelectValue placeholder={isLoadingRegions ? "Loading countries..." : "Select your country"} />

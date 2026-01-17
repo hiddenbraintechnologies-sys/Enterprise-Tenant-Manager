@@ -8863,10 +8863,13 @@ export type InsertBillingPromoRedemption = z.infer<typeof insertBillingPromoRede
 // ============================================
 
 export const payrollStatusEnum = pgEnum("payroll_status", ["disabled", "beta", "live"]);
+export const rolloutStatusEnum = pgEnum("rollout_status", ["coming_soon", "beta", "live"]);
 
 export const countryRolloutPolicy = pgTable("country_rollout_policy", {
   countryCode: varchar("country_code", { length: 5 }).primaryKey(),
+  status: rolloutStatusEnum("status").default("coming_soon"),
   enabledBusinessTypes: jsonb("enabled_business_types").$type<string[]>().default([]),
+  enabledModules: jsonb("enabled_modules").$type<string[]>().default([]),
   disabledFeatures: jsonb("disabled_features").$type<string[]>().default([]),
   enabledAddons: jsonb("enabled_addons").$type<string[]>().default([]),
   enabledPlans: jsonb("enabled_plans").$type<string[]>().default([]),

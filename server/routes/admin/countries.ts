@@ -133,7 +133,9 @@ router.patch("/:countryCode", authenticateJWT(), requirePlatformAdmin("SUPER_ADM
 
 // Update country rollout policy (business types, features, addons, plans)
 const updateRolloutSchema = z.object({
+  status: z.enum(["coming_soon", "beta", "live"]).optional(),
   enabledBusinessTypes: z.array(z.string()).optional(),
+  enabledModules: z.array(z.string()).optional(),
   disabledFeatures: z.array(z.string()).optional(),
   enabledAddons: z.array(z.string()).optional(),
   enabledPlans: z.array(z.string()).optional(),
