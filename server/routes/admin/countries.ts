@@ -131,11 +131,14 @@ router.patch("/:countryCode", authenticateJWT(), requirePlatformAdmin("SUPER_ADM
   }
 });
 
-// Update country rollout policy (business types, features, addons, plans)
+// Update country rollout policy (business types, modules, features, addons, plans)
 const updateRolloutSchema = z.object({
+  isActive: z.boolean().optional(),
   status: z.enum(["coming_soon", "beta", "live"]).optional(),
   enabledBusinessTypes: z.array(z.string()).optional(),
   enabledModules: z.array(z.string()).optional(),
+  enabledFeatures: z.record(z.boolean()).optional(),
+  comingSoonMessage: z.string().nullable().optional(),
   disabledFeatures: z.array(z.string()).optional(),
   enabledAddons: z.array(z.string()).optional(),
   enabledPlans: z.array(z.string()).optional(),
@@ -201,20 +204,21 @@ router.patch("/:countryCode/rollout", authenticateJWT(), requirePlatformAdmin("S
 
 // Get available business types for reference
 router.get("/meta/business-types", authenticateJWT(), requirePlatformAdmin(), async (_req, res) => {
+  // Business Type Registry - matches shared/business-types.ts
   const businessTypes = [
-    { value: "clinic", label: "Clinic / Healthcare" },
-    { value: "salon", label: "Salon / Spa" },
-    { value: "pg", label: "PG / Hostel" },
-    { value: "coworking", label: "Coworking" },
-    { value: "service", label: "General Services" },
-    { value: "real_estate", label: "Real Estate" },
-    { value: "tourism", label: "Tourism" },
-    { value: "education", label: "Education" },
-    { value: "logistics", label: "Logistics" },
-    { value: "legal", label: "Legal Services" },
-    { value: "furniture_manufacturing", label: "Furniture Manufacturing" },
-    { value: "software_services", label: "Software Services" },
-    { value: "consulting", label: "Consulting" },
+    { value: "pg_hostel", label: "PG / Hostel", category: "hospitality", phase: "phase1" },
+    { value: "consulting", label: "Consulting / Professional Services", category: "professional", phase: "phase1" },
+    { value: "software_services", label: "Software / IT Services", category: "technology", phase: "phase1" },
+    { value: "clinic_healthcare", label: "Clinic / Healthcare", category: "healthcare", phase: "phase2" },
+    { value: "legal", label: "Legal & Compliance", category: "professional", phase: "later" },
+    { value: "digital_agency", label: "Digital Marketing Agency", category: "technology", phase: "later" },
+    { value: "retail_store", label: "Retail Store / POS", category: "retail", phase: "later" },
+    { value: "salon_spa", label: "Salon / Spa", category: "services", phase: "later" },
+    { value: "furniture_manufacturing", label: "Furniture Manufacturing", category: "manufacturing", phase: "later" },
+    { value: "logistics_fleet", label: "Logistics & Fleet", category: "logistics", phase: "later" },
+    { value: "education_institute", label: "Coaching / Training Institute", category: "education", phase: "later" },
+    { value: "tourism", label: "Tourism / Travel Agency", category: "travel", phase: "later" },
+    { value: "real_estate", label: "Real Estate Agency", category: "property", phase: "later" },
   ];
   res.json(businessTypes);
 });

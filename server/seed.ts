@@ -564,26 +564,35 @@ async function seedCountryRolloutPolicies(): Promise<void> {
   const policies = [
     {
       countryCode: "IN",
+      isActive: true,
       status: "live" as const,
       enabledBusinessTypes: ["pg_hostel"],
-      enabledModules: [],
+      enabledModules: ["dashboard", "pg", "bookings", "customers", "invoicing", "analytics"],
+      enabledFeatures: { hrms: false, payroll: false, gst_invoicing: true, whatsapp_automation: false, sms_notifications: true },
+      comingSoonMessage: null,
       notes: "India Phase-1 - PG/Hostel only",
       updatedBy: "system",
     },
     {
       countryCode: "MY",
+      isActive: true,
       status: "beta" as const,
       enabledBusinessTypes: ["consulting", "software_services"],
-      enabledModules: [],
-      notes: "Malaysia - Beta for Consulting and Software Services",
+      enabledModules: ["dashboard", "projects", "timesheets", "invoicing", "hrms", "analytics"],
+      enabledFeatures: { hrms: true, payroll: true, gst_invoicing: false, whatsapp_automation: true, sms_notifications: true },
+      comingSoonMessage: null,
+      notes: "Malaysia Beta - Consulting and Software Services",
       updatedBy: "system",
     },
     {
       countryCode: "GB",
+      isActive: true,
       status: "beta" as const,
       enabledBusinessTypes: ["consulting", "software_services"],
-      enabledModules: [],
-      notes: "UK - Beta for Consulting and Software Services",
+      enabledModules: ["dashboard", "projects", "timesheets", "invoicing", "hrms", "analytics"],
+      enabledFeatures: { hrms: true, payroll: false, gst_invoicing: false, whatsapp_automation: false, sms_notifications: true },
+      comingSoonMessage: null,
+      notes: "UK Beta - Consulting and Software Services",
       updatedBy: "system",
     },
   ];
@@ -600,9 +609,12 @@ async function seedCountryRolloutPolicies(): Promise<void> {
       await db
         .update(countryRolloutPolicy)
         .set({
+          isActive: policy.isActive,
           status: policy.status,
           enabledBusinessTypes: policy.enabledBusinessTypes,
           enabledModules: policy.enabledModules,
+          enabledFeatures: policy.enabledFeatures,
+          comingSoonMessage: policy.comingSoonMessage,
           notes: policy.notes,
           updatedBy: policy.updatedBy,
           updatedAt: new Date(),

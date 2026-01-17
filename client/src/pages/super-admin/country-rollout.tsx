@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Loader2, Globe, Save, AlertCircle } from "lucide-react";
+import { Loader2, Globe, Save, AlertCircle, Building2, Box, Zap } from "lucide-react";
 
 function getAdminAuthHeaders(): Record<string, string> {
   const adminToken = localStorage.getItem("mybizstream_admin_token") || localStorage.getItem("bizflow_admin_token");
@@ -30,6 +32,15 @@ function getAdminAuthHeaders(): Record<string, string> {
   };
 }
 
+interface RolloutFeatures {
+  hrms?: boolean;
+  payroll?: boolean;
+  whatsapp_automation?: boolean;
+  gst_invoicing?: boolean;
+  sms_notifications?: boolean;
+  [key: string]: boolean | undefined;
+}
+
 interface CountryConfig {
   countryCode: string;
   countryName: string;
@@ -38,9 +49,12 @@ interface CountryConfig {
   billingEnabled: boolean;
   rolloutPolicy: {
     countryCode: string;
+    isActive: boolean;
     status: "coming_soon" | "beta" | "live";
     enabledBusinessTypes: string[];
     enabledModules: string[];
+    enabledFeatures: RolloutFeatures;
+    comingSoonMessage?: string | null;
     notes?: string;
     updatedBy?: string;
     updatedAt?: string;
@@ -48,16 +62,11 @@ interface CountryConfig {
 }
 
 // Business Type Registry - matches shared/business-types.ts
-// ❌ Never change codes after launch | ✅ Labels can be renamed
 const ALL_BUSINESS_TYPES = [
-  // Phase-1 India
   { value: "pg_hostel", label: "PG / Hostel", category: "hospitality", phase: "phase1" },
-  // Phase-1 Multi-country
   { value: "consulting", label: "Consulting / Professional Services", category: "professional", phase: "phase1" },
   { value: "software_services", label: "Software / IT Services", category: "technology", phase: "phase1" },
-  // Phase-2
   { value: "clinic_healthcare", label: "Clinic / Healthcare", category: "healthcare", phase: "phase2" },
-  // Later phases
   { value: "legal", label: "Legal & Compliance", category: "professional", phase: "later" },
   { value: "digital_agency", label: "Digital Marketing Agency", category: "technology", phase: "later" },
   { value: "retail_store", label: "Retail Store / POS", category: "retail", phase: "later" },
@@ -69,6 +78,29 @@ const ALL_BUSINESS_TYPES = [
   { value: "real_estate", label: "Real Estate Agency", category: "property", phase: "later" },
 ];
 
+// All available modules
+const ALL_MODULES = [
+  { value: "dashboard", label: "Dashboard" },
+  { value: "customers", label: "Customers" },
+  { value: "bookings", label: "Bookings" },
+  { value: "pg", label: "PG / Rooms" },
+  { value: "projects", label: "Projects" },
+  { value: "timesheets", label: "Timesheets" },
+  { value: "invoicing", label: "Invoices" },
+  { value: "analytics", label: "Analytics" },
+  { value: "hrms", label: "HRMS" },
+  { value: "payroll", label: "Payroll" },
+];
+
+// All available features
+const ALL_FEATURES = [
+  { key: "hrms", label: "HRMS" },
+  { key: "payroll", label: "Payroll" },
+  { key: "whatsapp_automation", label: "WhatsApp Automation" },
+  { key: "gst_invoicing", label: "GST Invoicing" },
+  { key: "sms_notifications", label: "SMS Notifications" },
+];
+
 const ROLLOUT_STATUSES = [
   { value: "coming_soon", label: "Coming Soon", color: "secondary" },
   { value: "beta", label: "Beta", color: "warning" },
@@ -78,8 +110,12 @@ const ROLLOUT_STATUSES = [
 export default function CountryRolloutManagement() {
   const { toast } = useToast();
   const [selectedCountry, setSelectedCountry] = useState<string>("");
+  const [isActive, setIsActive] = useState(false);
   const [rolloutStatus, setRolloutStatus] = useState<string>("coming_soon");
   const [enabledBusinessTypes, setEnabledBusinessTypes] = useState<string[]>([]);
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [enabledFeatures, setEnabledFeatures] = useState<RolloutFeatures>({});
+  const [comingSoonMessage, setComingSoonMessage] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
   // Fetch all countries with rollout policies
@@ -99,8 +135,12 @@ export default function CountryRolloutManagement() {
     const country = countries?.find(c => c.countryCode === countryCode);
     if (country) {
       setSelectedCountry(countryCode);
+      setIsActive(country.rolloutPolicy?.isActive ?? false);
       setRolloutStatus(country.rolloutPolicy?.status || "coming_soon");
       setEnabledBusinessTypes(country.rolloutPolicy?.enabledBusinessTypes || []);
+      setEnabledModules(country.rolloutPolicy?.enabledModules || []);
+      setEnabledFeatures(country.rolloutPolicy?.enabledFeatures || {});
+      setComingSoonMessage(country.rolloutPolicy?.comingSoonMessage || "");
       setHasChanges(false);
     }
   };
@@ -110,13 +150,14 @@ export default function CountryRolloutManagement() {
     mutationFn: async () => {
       const res = await fetch(`/api/super-admin/countries/${selectedCountry}/rollout`, {
         method: "PATCH",
-        headers: {
-          ...getAdminAuthHeaders(),
-          "Content-Type": "application/json",
-        },
+        headers: getAdminAuthHeaders(),
         body: JSON.stringify({
+          isActive,
           status: rolloutStatus,
           enabledBusinessTypes,
+          enabledModules,
+          enabledFeatures,
+          comingSoonMessage: comingSoonMessage || null,
         }),
       });
       if (!res.ok) {
@@ -144,21 +185,22 @@ export default function CountryRolloutManagement() {
 
   const toggleBusinessType = (value: string) => {
     setEnabledBusinessTypes(prev => {
-      const newTypes = prev.includes(value)
-        ? prev.filter(t => t !== value)
-        : [...prev, value];
+      const newTypes = prev.includes(value) ? prev.filter(t => t !== value) : [...prev, value];
       setHasChanges(true);
       return newTypes;
     });
   };
 
-  const selectAllBusinessTypes = () => {
-    setEnabledBusinessTypes(ALL_BUSINESS_TYPES.map(bt => bt.value));
-    setHasChanges(true);
+  const toggleModule = (value: string) => {
+    setEnabledModules(prev => {
+      const newModules = prev.includes(value) ? prev.filter(m => m !== value) : [...prev, value];
+      setHasChanges(true);
+      return newModules;
+    });
   };
 
-  const clearAllBusinessTypes = () => {
-    setEnabledBusinessTypes([]);
+  const toggleFeature = (key: string, enabled: boolean) => {
+    setEnabledFeatures(prev => ({ ...prev, [key]: enabled }));
     setHasChanges(true);
   };
 
@@ -178,150 +220,10 @@ export default function CountryRolloutManagement() {
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-page-title">Country Rollout Management</h1>
           <p className="text-muted-foreground">
-            Configure which business types are available in each country
+            Configure business types, modules, and features for each country
           </p>
         </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Country Selector */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Select Country
-            </CardTitle>
-            <CardDescription>Choose a country to configure</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedCountry} onValueChange={loadCountryConfig}>
-              <SelectTrigger data-testid="select-country">
-                <SelectValue placeholder="Select a country" />
-              </SelectTrigger>
-              <SelectContent>
-                {countries?.map((country) => (
-                  <SelectItem 
-                    key={country.countryCode} 
-                    value={country.countryCode}
-                    data-testid={`option-country-${country.countryCode}`}
-                  >
-                    {country.countryName} ({country.countryCode})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {selectedCountryData && (
-              <div className="mt-4 space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Region Status:</span>
-                  <Badge variant={selectedCountryData.status === "enabled" ? "default" : "secondary"}>
-                    {selectedCountryData.status}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Registration:</span>
-                  <Badge variant={selectedCountryData.registrationEnabled ? "default" : "outline"}>
-                    {selectedCountryData.registrationEnabled ? "Enabled" : "Disabled"}
-                  </Badge>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Rollout Status */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Rollout Status</CardTitle>
-            <CardDescription>Set the overall rollout stage for this country</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Select 
-              value={rolloutStatus} 
-              onValueChange={(value) => {
-                setRolloutStatus(value);
-                setHasChanges(true);
-              }}
-              disabled={!selectedCountry}
-            >
-              <SelectTrigger data-testid="select-rollout-status">
-                <SelectValue placeholder="Select rollout status" />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLLOUT_STATUSES.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={status.color as "default" | "secondary" | "destructive" | "outline"}>
-                        {status.label}
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {rolloutStatus === "beta" && (
-              <div className="mt-3 flex items-start gap-2 text-sm text-amber-600 dark:text-amber-400">
-                <AlertCircle className="h-4 w-4 mt-0.5" />
-                <span>Beta status allows limited access. Only selected business types will be available.</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Business Types Configuration */}
-      {selectedCountry && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Enabled Business Types</CardTitle>
-              <CardDescription>
-                Select which business types can register in {selectedCountryData?.countryName}
-              </CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={selectAllBusinessTypes}>
-                Select All
-              </Button>
-              <Button variant="outline" size="sm" onClick={clearAllBusinessTypes}>
-                Clear All
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {ALL_BUSINESS_TYPES.map((bt) => (
-                <div key={bt.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`bt-${bt.value}`}
-                    checked={enabledBusinessTypes.includes(bt.value)}
-                    onCheckedChange={() => toggleBusinessType(bt.value)}
-                    data-testid={`checkbox-${bt.value}`}
-                  />
-                  <Label
-                    htmlFor={`bt-${bt.value}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {bt.label}
-                  </Label>
-                </div>
-              ))}
-            </div>
-
-            {enabledBusinessTypes.length === 0 && (
-              <p className="mt-4 text-sm text-muted-foreground">
-                No business types selected. All business types will be available if none are specifically enabled.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Save Button */}
-      {selectedCountry && (
-        <div className="flex justify-end">
+        {selectedCountry && (
           <Button
             onClick={() => saveMutation.mutate()}
             disabled={!hasChanges || saveMutation.isPending}
@@ -334,7 +236,202 @@ export default function CountryRolloutManagement() {
             )}
             Save Changes
           </Button>
+        )}
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-4">
+        {/* Country Selector */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Select Country
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedCountry} onValueChange={loadCountryConfig}>
+              <SelectTrigger data-testid="select-country">
+                <SelectValue placeholder="Select a country" />
+              </SelectTrigger>
+              <SelectContent>
+                {countries?.map((country) => (
+                  <SelectItem key={country.countryCode} value={country.countryCode}>
+                    {country.countryName} ({country.countryCode})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        {/* A) Country Toggle */}
+        {selectedCountry && (
+          <Card className="md:col-span-3">
+            <CardHeader>
+              <CardTitle>Country Status</CardTitle>
+              <CardDescription>Toggle country availability and rollout stage</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="is-active" className="text-base font-medium">Active</Label>
+                  <p className="text-sm text-muted-foreground">Enable this country for registration</p>
+                </div>
+                <Switch
+                  id="is-active"
+                  checked={isActive}
+                  onCheckedChange={(checked) => { setIsActive(checked); setHasChanges(true); }}
+                  data-testid="switch-is-active"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Label>Rollout Status</Label>
+                  <Select
+                    value={rolloutStatus}
+                    onValueChange={(value) => { setRolloutStatus(value); setHasChanges(true); }}
+                  >
+                    <SelectTrigger data-testid="select-rollout-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLLOUT_STATUSES.map((status) => (
+                        <SelectItem key={status.value} value={status.value}>
+                          <Badge variant={status.color as "default" | "secondary" | "destructive"}>
+                            {status.label}
+                          </Badge>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {!isActive && (
+                <div>
+                  <Label htmlFor="coming-soon-msg">Coming Soon Message</Label>
+                  <Textarea
+                    id="coming-soon-msg"
+                    placeholder="Launching soon in this region..."
+                    value={comingSoonMessage}
+                    onChange={(e) => { setComingSoonMessage(e.target.value); setHasChanges(true); }}
+                    data-testid="input-coming-soon-message"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {selectedCountry && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* B) Business Types */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                <CardTitle>Business Types</CardTitle>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setEnabledBusinessTypes(ALL_BUSINESS_TYPES.map(bt => bt.value)); setHasChanges(true); }}>
+                  Select All
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setEnabledBusinessTypes([]); setHasChanges(true); }}>
+                  Clear
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {ALL_BUSINESS_TYPES.map((bt) => (
+                  <div key={bt.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`bt-${bt.value}`}
+                      checked={enabledBusinessTypes.includes(bt.value)}
+                      onCheckedChange={() => toggleBusinessType(bt.value)}
+                      data-testid={`checkbox-bt-${bt.value}`}
+                    />
+                    <Label htmlFor={`bt-${bt.value}`} className="text-sm font-normal cursor-pointer">
+                      {bt.label}
+                      <Badge variant="outline" className="ml-2 text-xs">{bt.phase}</Badge>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* C) Modules */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Box className="h-5 w-5" />
+                <CardTitle>Modules</CardTitle>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setEnabledModules(ALL_MODULES.map(m => m.value)); setHasChanges(true); }}>
+                  Select All
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setEnabledModules([]); setHasChanges(true); }}>
+                  Clear
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {ALL_MODULES.map((mod) => (
+                  <div key={mod.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`mod-${mod.value}`}
+                      checked={enabledModules.includes(mod.value)}
+                      onCheckedChange={() => toggleModule(mod.value)}
+                      data-testid={`checkbox-mod-${mod.value}`}
+                    />
+                    <Label htmlFor={`mod-${mod.value}`} className="text-sm font-normal cursor-pointer">
+                      {mod.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* D) Features */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex flex-row items-center gap-2">
+              <Zap className="h-5 w-5" />
+              <CardTitle>Features</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {ALL_FEATURES.map((feat) => (
+                  <div key={feat.key} className="flex items-center justify-between p-3 border rounded-lg">
+                    <Label htmlFor={`feat-${feat.key}`} className="font-normal cursor-pointer">
+                      {feat.label}
+                    </Label>
+                    <Switch
+                      id={`feat-${feat.key}`}
+                      checked={enabledFeatures[feat.key] ?? false}
+                      onCheckedChange={(checked) => toggleFeature(feat.key, checked)}
+                      data-testid={`switch-feat-${feat.key}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      )}
+
+      {!selectedCountry && (
+        <Card className="text-center py-12">
+          <CardContent>
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-lg text-muted-foreground">Select a country to configure rollout settings</p>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

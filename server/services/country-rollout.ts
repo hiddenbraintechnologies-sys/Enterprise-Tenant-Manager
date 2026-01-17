@@ -116,6 +116,18 @@ class CountryRolloutService {
       };
     }
 
+    // Check rollout policy for isActive flag first
+    const rolloutPolicy = await this.getCountryPolicy(countryCode);
+    
+    // If rollout policy exists and isActive is explicitly false, country is coming soon
+    if (rolloutPolicy && rolloutPolicy.isActive === false) {
+      return {
+        allowed: false,
+        code: "COUNTRY_COMING_SOON",
+        message: rolloutPolicy.comingSoonMessage || `${config.countryName} is coming soon.`,
+      };
+    }
+
     // Check country status - "enabled" maps to "live", "coming_soon" maps to "beta"
     // Only allow signup for enabled (live) or coming_soon (beta) status
     if (config.status === "disabled" || config.status === "maintenance") {
@@ -138,7 +150,6 @@ class CountryRolloutService {
     }
 
     // Check rollout policy for enabled business types
-    const rolloutPolicy = await this.getCountryPolicy(countryCode);
     const enabledBusinessTypes = rolloutPolicy?.enabledBusinessTypes || config.enabledBusinessTypes || [];
 
     // If enabledBusinessTypes is empty, all business types are allowed
@@ -159,6 +170,58 @@ class CountryRolloutService {
     const config = await this.getCountryConfig(countryCode);
     if (!config) return false;
     return config.disabledFeatures.includes(featureKey);
+  }
+
+  // Check if a module is enabled for a country (from rollout policy)
+  async isModuleAllowed(countryCode: string, moduleKey: string): Promise<RolloutValidationResult> {
+    const rolloutPolicy = await this.getCountryPolicy(countryCode);
+    
+    // If no policy or no modules specified, all modules are allowed
+    if (!rolloutPolicy || !rolloutPolicy.enabledModules || rolloutPolicy.enabledModules.length === 0) {
+      return { allowed: true };
+    }
+
+    if (!rolloutPolicy.enabledModules.includes(moduleKey)) {
+      return {
+        allowed: false,
+        code: "MODULE_NOT_AVAILABLE",
+        message: `The "${moduleKey}" module is not available in your country.`,
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  // Check if a feature is enabled for a country (from rollout policy enabledFeatures)
+  async isFeatureAllowed(countryCode: string, featureKey: string): Promise<RolloutValidationResult> {
+    const rolloutPolicy = await this.getCountryPolicy(countryCode);
+    
+    // If no policy, check legacy disabledFeatures from region config
+    if (!rolloutPolicy) {
+      const config = await this.getCountryConfig(countryCode);
+      if (config && config.disabledFeatures.includes(featureKey)) {
+        return {
+          allowed: false,
+          code: "FEATURE_NOT_AVAILABLE",
+          message: `The "${featureKey}" feature is not available in your country.`,
+        };
+      }
+      return { allowed: true };
+    }
+
+    // Check enabledFeatures from rollout policy
+    const enabledFeatures = rolloutPolicy.enabledFeatures || {};
+    
+    // If feature is explicitly set to false, it's disabled
+    if (enabledFeatures[featureKey] === false) {
+      return {
+        allowed: false,
+        code: "FEATURE_NOT_AVAILABLE",
+        message: `The "${featureKey}" feature is not available in your country.`,
+      };
+    }
+
+    return { allowed: true };
   }
 
   async getAvailablePlans(countryCode: string): Promise<string[]> {

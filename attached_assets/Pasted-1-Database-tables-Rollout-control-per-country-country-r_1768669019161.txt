@@ -1,0 +1,198 @@
+1) Database tables (Rollout control per country)
+✅ country_rollouts
+
+Controls what’s enabled for each country.
+
+Columns
+
+country_code (PK) → "IN" | "MY" | "UK" ...
+
+is_active (bool) → whether the country is selectable
+
+enabled_business_types (jsonb string[]) → allowed business codes
+
+enabled_features (jsonb) → global feature flags (payroll/hrms/etc)
+
+enabled_modules (jsonb string[]) → allowed modules for that country
+
+coming_soon_message (text) → optional
+
+Example row:
+
+{
+  "country_code": "IN",
+  "is_active": true,
+  "enabled_business_types": ["pg_hostel"],
+  "enabled_features": { "hrms": false, "payroll": false },
+  "enabled_modules": ["pg", "bookings", "customers", "invoicing"],
+  "coming_soon_message": ""
+}
+
+2) Super Admin UI schema (what the admin edits)
+✅ Rollout Editor UI sections
+A) Country toggle
+
+✅ Active / Coming soon toggle
+
+Optional banner message (“Launching soon in Malaysia”)
+
+B) Business Types (checkbox list)
+
+Use your canonical registry codes:
+
+pg_hostel
+
+consulting
+
+software_services
+
+clinic_healthcare
+
+etc…
+
+C) Modules (checkbox list)
+
+Example:
+
+Dashboard
+
+Customers
+
+Bookings
+
+Projects
+
+Timesheets
+
+Invoices
+
+Analytics
+
+HRMS
+
+Payroll
+
+D) Features (switches)
+
+Example:
+
+HRMS
+
+Payroll
+
+WhatsApp automation
+
+GST invoicing
+
+SMS notifications
+
+E) Save changes → audit log
+3) API endpoints (Super Admin)
+Read rollout config
+
+GET /api/super-admin/rollouts
+
+Update rollout config
+
+PATCH /api/super-admin/rollouts/:countryCode
+
+Payload example:
+
+{
+  "isActive": true,
+  "enabledBusinessTypes": ["pg_hostel"],
+  "enabledModules": ["pg", "bookings", "customers", "invoicing"],
+  "enabledFeatures": { "hrms": false, "payroll": false },
+  "comingSoonMessage": ""
+}
+
+4) Enforcement points (must be backend)
+✅ During signup
+
+When user selects country + business type:
+
+If country is_active=false → reject with COUNTRY_COMING_SOON
+
+If business type not in enabled_business_types → reject with BUSINESS_NOT_AVAILABLE
+
+✅ On every request
+
+Resolve tenant’s country_code and enforce:
+
+if module disabled → return 403 MODULE_NOT_AVAILABLE
+
+if feature disabled → return 403 FEATURE_NOT_AVAILABLE
+
+This ensures even if UI shows it, backend blocks it.
+
+5) “Coming soon” UX (Frontend)
+Country selection modal
+
+If is_active=false:
+
+show “Coming soon”
+
+disable click
+
+optionally allow “Join waitlist”
+
+Signup Business dropdown
+
+Only show business types allowed by rollout.
+
+If user visits a blocked route directly:
+
+show a friendly page:
+
+Title: “Not available in your country yet”
+
+CTA: “Contact sales / Join waitlist”
+
+Optional: “Switch region”
+
+6) Recommended defaults (your example)
+India Phase-1
+
+✅ Only PG/Hostel launch
+
+{
+  "IN": {
+    "isActive": true,
+    "enabledBusinessTypes": ["pg_hostel"],
+    "enabledFeatures": { "hrms": false, "payroll": false },
+    "enabledModules": ["pg", "bookings", "customers", "invoicing", "analytics"]
+  }
+}
+
+Malaysia Beta
+
+✅ Consulting + Software Services, Payroll enabled later
+
+{
+  "MY": {
+    "isActive": true,
+    "enabledBusinessTypes": ["consulting", "software_services"],
+    "enabledFeatures": { "hrms": true, "payroll": true },
+    "enabledModules": ["projects", "timesheets", "invoicing", "hrms"]
+  }
+}
+
+UK Beta
+{
+  "UK": {
+    "isActive": true,
+    "enabledBusinessTypes": ["consulting", "software_services"],
+    "enabledFeatures": { "hrms": true, "payroll": false },
+    "enabledModules": ["projects", "timesheets", "invoicing", "hrms"]
+  }
+}
+
+7) Pricing + plan availability (country specific)
+
+Add: pricing_plans.country_code
+
+Then:
+
+/api/billing/plans?country=MY returns MY plans only
+
+Super Admin can enable/disable plans per country

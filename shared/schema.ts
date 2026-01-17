@@ -8865,14 +8865,27 @@ export type InsertBillingPromoRedemption = z.infer<typeof insertBillingPromoRede
 export const payrollStatusEnum = pgEnum("payroll_status", ["disabled", "beta", "live"]);
 export const rolloutStatusEnum = pgEnum("rollout_status", ["coming_soon", "beta", "live"]);
 
+// Feature flags type for enabled_features JSONB
+export type RolloutFeatures = {
+  hrms?: boolean;
+  payroll?: boolean;
+  whatsapp_automation?: boolean;
+  gst_invoicing?: boolean;
+  sms_notifications?: boolean;
+  [key: string]: boolean | undefined;
+};
+
 export const countryRolloutPolicy = pgTable("country_rollout_policy", {
   countryCode: varchar("country_code", { length: 5 }).primaryKey(),
+  isActive: boolean("is_active").default(false),
   status: rolloutStatusEnum("status").default("coming_soon"),
   enabledBusinessTypes: jsonb("enabled_business_types").$type<string[]>().default([]),
   enabledModules: jsonb("enabled_modules").$type<string[]>().default([]),
+  enabledFeatures: jsonb("enabled_features").$type<RolloutFeatures>().default({}),
   disabledFeatures: jsonb("disabled_features").$type<string[]>().default([]),
   enabledAddons: jsonb("enabled_addons").$type<string[]>().default([]),
   enabledPlans: jsonb("enabled_plans").$type<string[]>().default([]),
+  comingSoonMessage: text("coming_soon_message"),
   payrollStatus: payrollStatusEnum("payroll_status").default("disabled"),
   payrollCohortTenantIds: jsonb("payroll_cohort_tenant_ids").$type<string[]>().default([]),
   payrollDisclaimerText: text("payroll_disclaimer_text"),
