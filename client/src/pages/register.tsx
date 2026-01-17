@@ -51,8 +51,10 @@ const registrationSchema = z.object({
   countryCode: z.string().min(1, "Please select your country"),
   businessName: z.string().min(1, "Business name is required").max(200),
   businessType: z.enum([
-    "clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism",
-    "education", "logistics", "legal", "furniture_manufacturing", "software_services", "consulting"
+    "pg_hostel", "consulting", "software_services", "clinic_healthcare",
+    "legal", "digital_agency", "retail_store", "salon_spa", 
+    "furniture_manufacturing", "logistics_fleet", "education_institute",
+    "tourism", "real_estate"
   ]),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -73,20 +75,26 @@ interface CatalogResponse {
   businessTypes: BusinessTypeOption[];
 }
 
+// Business Type Registry - matches shared/business-types.ts
+// ❌ Never change codes after launch | ✅ Labels can be renamed
 const defaultBusinessTypeOptions: BusinessTypeOption[] = [
-  { value: "clinic", label: "Clinic / Healthcare" },
-  { value: "salon", label: "Salon / Beauty" },
-  { value: "pg", label: "PG / Hostel / Co-living" },
-  { value: "coworking", label: "Coworking Space" },
-  { value: "service", label: "General Service Business" },
-  { value: "real_estate", label: "Real Estate / Property" },
-  { value: "tourism", label: "Tourism / Travel Agency" },
-  { value: "education", label: "Education / Training" },
-  { value: "logistics", label: "Logistics / Delivery" },
-  { value: "legal", label: "Legal Services" },
-  { value: "furniture_manufacturing", label: "Furniture Manufacturing" },
-  { value: "software_services", label: "Software Services / IT" },
+  // Phase-1 India
+  { value: "pg_hostel", label: "PG / Hostel" },
+  // Phase-1 Multi-country
   { value: "consulting", label: "Consulting / Professional Services" },
+  { value: "software_services", label: "Software / IT Services" },
+  // Phase-2
+  { value: "clinic_healthcare", label: "Clinic / Healthcare" },
+  // Later phases
+  { value: "legal", label: "Legal & Compliance" },
+  { value: "digital_agency", label: "Digital Marketing Agency" },
+  { value: "retail_store", label: "Retail Store / POS" },
+  { value: "salon_spa", label: "Salon / Spa" },
+  { value: "furniture_manufacturing", label: "Furniture Manufacturing" },
+  { value: "logistics_fleet", label: "Logistics & Fleet" },
+  { value: "education_institute", label: "Coaching / Training Institute" },
+  { value: "tourism", label: "Tourism / Travel Agency" },
+  { value: "real_estate", label: "Real Estate Agency" },
 ];
 
 export default function Register() {

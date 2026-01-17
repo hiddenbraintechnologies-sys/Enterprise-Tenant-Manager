@@ -565,9 +565,9 @@ async function seedCountryRolloutPolicies(): Promise<void> {
     {
       countryCode: "IN",
       status: "live" as const,
-      enabledBusinessTypes: ["pg"],
+      enabledBusinessTypes: ["pg_hostel"],
       enabledModules: [],
-      notes: "India - Live for PG/Hostel business type",
+      notes: "India Phase-1 - PG/Hostel only",
       updatedBy: "system",
     },
     {

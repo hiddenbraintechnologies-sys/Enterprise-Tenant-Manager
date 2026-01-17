@@ -1,0 +1,189 @@
+🏨 Phase-1 (India launch focus)
+PG / Hostel
+pg_hostel
+
+
+Label: PG / Hostel
+Used modules: Tenants, Rooms, Bookings, Payments, Invoicing
+Launch status: ✅ Phase-1 (India)
+
+🧑‍💼 Professional Services
+Consulting / Professional Services
+consulting
+
+
+Examples: IT consulting, business consulting, freelancers
+Modules: Projects, Timesheets, Invoices, Analytics
+Status: ✅ India / MY / UK
+
+Legal & Compliance
+legal
+
+
+Modules: Cases, Clients, Documents, Billing
+Status: 🔜 Later
+
+💻 Technology & Digital
+Software Services / IT Services
+software_services
+
+
+Modules: Projects, Timesheets, HRMS, Invoicing
+Status: ✅ India / MY / UK
+
+Digital Marketing Agency
+digital_agency
+
+
+Modules: Campaigns, Clients, Billing
+Status: 🔜 Later
+
+🏥 Healthcare
+Clinic / Healthcare
+clinic_healthcare
+
+
+Modules: Appointments, Patients, Billing
+Restrictions: Currency + timezone locked
+Status: 🔜 Phase-2 India
+
+🛍 Retail & Services
+Retail Store / POS
+retail_store
+
+
+Modules: POS, Inventory, GST, Invoicing
+Status: 🔜 Later
+
+Salon / Spa
+salon_spa
+
+
+Modules: Appointments, Staff, Billing
+Status: 🔜 Later
+
+🏗 Manufacturing & Trade
+Furniture Manufacturing
+furniture_manufacturing
+
+
+Modules: Inventory, Orders, GST, Payroll
+Status: 🔜 Later
+
+Logistics & Fleet
+logistics_fleet
+
+
+Modules: Vehicles, Trips, Expenses
+Status: 🔜 Later
+
+🏫 Education
+Coaching / Training Institute
+education_institute
+
+
+Modules: Students, Courses, Fees
+Status: 🔜 Later
+
+🌍 Travel & Property
+Tourism / Travel Agency
+tourism
+
+
+Modules: Bookings, Vendors, Billing
+Status: 🔜 Later
+
+Real Estate Agency
+real_estate
+
+
+Modules: Properties, Leads, Commissions
+Status: 🔜 Later
+
+📦 Registry Object (recommended)
+
+Create a single source of truth:
+
+export const BUSINESS_TYPE_REGISTRY = {
+  pg_hostel: {
+    label: "PG / Hostel",
+    category: "hospitality",
+  },
+  consulting: {
+    label: "Consulting / Professional Services",
+    category: "professional",
+  },
+  software_services: {
+    label: "Software / IT Services",
+    category: "technology",
+  },
+  clinic_healthcare: {
+    label: "Clinic / Healthcare",
+    category: "healthcare",
+  },
+  retail_store: {
+    label: "Retail Store",
+    category: "retail",
+  },
+  salon_spa: {
+    label: "Salon / Spa",
+    category: "services",
+  },
+  furniture_manufacturing: {
+    label: "Furniture Manufacturing",
+    category: "manufacturing",
+  },
+  logistics_fleet: {
+    label: "Logistics & Fleet",
+    category: "logistics",
+  },
+  education_institute: {
+    label: "Education Institute",
+    category: "education",
+  },
+  tourism: {
+    label: "Tourism / Travel",
+    category: "travel",
+  },
+  real_estate: {
+    label: "Real Estate",
+    category: "property",
+  },
+};
+
+🔒 How Super Admin rollout uses this
+Example: India Phase-1
+{
+  "country_code": "IN",
+  "enabled_business_types": ["pg_hostel"]
+}
+
+Example: MY / UK beta
+{
+  "country_code": "MY",
+  "enabled_business_types": ["consulting", "software_services"]
+}
+
+🚫 Enforcement points (must match these codes)
+
+Signup (POST /auth/register)
+
+Business type dropdown
+
+Sidebar visibility
+
+Module access checks
+
+Plan feature validation
+
+Payroll / HRMS availability
+
+⚠️ Important rules (do NOT skip)
+
+❌ Never change business type codes after launch
+
+✅ You may rename labels freely
+
+❌ Never trust frontend → always enforce in backend
+
+✅ Use rollout table as the single authority
