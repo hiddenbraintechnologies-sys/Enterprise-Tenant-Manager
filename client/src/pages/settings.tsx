@@ -225,7 +225,10 @@ export default function Settings() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="timezone">Timezone</Label>
-                <Select defaultValue="Asia/Kolkata">
+                <Select 
+                  defaultValue="Asia/Kolkata"
+                  disabled={businessType === "clinic"}
+                >
                   <SelectTrigger data-testid="select-timezone">
                     <SelectValue placeholder="Select timezone" />
                   </SelectTrigger>
@@ -236,10 +239,18 @@ export default function Settings() {
                     <SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
                   </SelectContent>
                 </Select>
+                {businessType === "clinic" && (
+                  <p className="text-xs text-muted-foreground">
+                    Timezone is locked after registration for Clinic/Healthcare.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="currency">Currency</Label>
-                <Select defaultValue="INR">
+                <Select 
+                  defaultValue="INR"
+                  disabled={businessType === "clinic"}
+                >
                   <SelectTrigger data-testid="select-currency">
                     <SelectValue placeholder="Select currency" />
                   </SelectTrigger>
@@ -250,6 +261,11 @@ export default function Settings() {
                     <SelectItem value="GBP">GBP (£)</SelectItem>
                   </SelectContent>
                 </Select>
+                {businessType === "clinic" && (
+                  <p className="text-xs text-muted-foreground">
+                    Currency is locked after registration for Clinic/Healthcare.
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex justify-end pt-4">

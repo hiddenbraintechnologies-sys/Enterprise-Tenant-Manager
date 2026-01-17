@@ -1,0 +1,112 @@
+✅ Fix plan (recommended)
+1) Frontend: Disable (or render read-only) for Clinic/Healthcare
+
+In the Settings “Business” section, detect the tenant business type and lock those fields.
+
+Where to change (most likely):
+
+client/src/pages/settings.tsx or client/src/pages/Settings.tsx
+
+or client/src/components/settings/BusinessSettings.tsx
+(Search for: Business Name, Timezone, Currency, Save Changes)
+
+JSX pattern (disabled selects + helper text):
+
+const businessType = tenant?.businessType; // from tenant context
+const isClinic = businessType === "clinic_healthcare" || businessType === "clinic";
+
+<Select
+  value={timezone}
+  onValueChange={setTimezone}
+  disabled={isClinic}
+>
+  {/* options */}
+</Select>
+{isClinic && (
+  <p className="text-xs text-muted-foreground mt-1">
+    Timezone is locked after registration for Clinic/Healthcare.
+  </p>
+)}
+
+<Select
+  value={currency}
+  onValueChange={setCurrency}
+  disabled={isClinic}
+>
+  {/* options */}
+</Select>
+{isClinic && (
+  <p className="text-xs text-muted-foreground mt-1">
+    Currency is locked after registration for Clinic/Healthcare.
+  </p>
+)}
+
+
+If you prefer true “read-only text” instead of disabled dropdowns:
+
+{isClinic ? (
+  <div className="rounded-md border px-3 py-2 text-sm bg-muted">
+    {timezoneLabel}
+  </div>
+) : (
+  <Select value={timezone} onValueChange={setTimezone}>...</Select>
+)}
+
+2) Backend: Enforce immutability (must-have)
+
+Even if UI disables it, users can still modify via API calls unless backend blocks it.
+
+Where to change (most likely):
+
+server/routes/tenant.ts
+
+server/routes/settings.ts
+
+server/routes/business.ts
+(Search for the endpoint that saves settings, e.g. PATCH /api/tenant, PATCH /api/settings, updateBusinessSettings)
+
+Rule:
+If businessType is Clinic/Healthcare → ignore or reject updates to:
+
+timezone
+
+currency
+(and optionally business name too, if you want it locked)
+
+Example logic:
+
+const isClinic = tenant.businessType === "clinic_healthcare" || tenant.businessType === "clinic";
+
+if (isClinic) {
+  if ("timezone" in req.body || "currency" in req.body) {
+    return res.status(403).json({
+      error: "IMMUTABLE_FIELDS",
+      message: "Timezone and currency cannot be changed for Clinic/Healthcare after registration."
+    });
+  }
+}
+
+
+Alternative (more user-friendly):
+Silently ignore those fields and update only allowed fields.
+
+3) Optional: Locking model (more scalable)
+
+Instead of hardcoding “clinic”, introduce a tenant flag like:
+
+tenant.lockedFields: ["timezone","currency"]
+or
+
+tenant.registrationLocked: true
+
+Then UI + backend both respect the same rule.
+
+✅ Expected outcome after fix
+
+For Clinic/Healthcare tenants:
+
+Timezone dropdown disabled (or shown as read-only text)
+
+Currency dropdown disabled (or read-only)
+
+Save Changes cannot modify them (server enforces too)

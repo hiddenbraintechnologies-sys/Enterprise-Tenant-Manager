@@ -50,8 +50,20 @@ export class TenantService {
   }
 
   async updateTenant(id: string, data: Partial<InsertTenant>): Promise<Tenant | undefined> {
+    // Always prevent businessType changes
     if ("businessType" in data) {
       delete data.businessType;
+    }
+
+    // For clinic tenants, enforce immutability on timezone and currency
+    const [currentTenant] = await db.select().from(tenants).where(eq(tenants.id, id));
+    if (currentTenant?.businessType === "clinic") {
+      if ("timezone" in data) {
+        delete data.timezone;
+      }
+      if ("currency" in data) {
+        delete data.currency;
+      }
     }
 
     const [updated] = await db.update(tenants)
