@@ -1,0 +1,128 @@
+Nice — that implementation matches what you need. ✅
+To verify it’s really correct end-to-end (and to catch the 2 common bugs that still happen), do these checks in this exact order.
+
+Verification checklist (5 minutes)
+1) Confirm backend rollout data is correct
+
+In Super Admin → Rollouts:
+
+Set MY: isActive = true
+
+Set UK: isActive = true
+
+Save
+
+Then open:
+
+GET /api/public/rollouts (via browser/network tab)
+
+You must see:
+
+"countryCode":"MY","isActive":true
+
+"countryCode":"UK","isActive":true
+
+If you don’t see those, seed/upsert or API select fields are wrong.
+
+2) Confirm the selector is reading the right storage key
+
+Open landing → select Malaysia.
+
+Now run in console:
+
+localStorage.getItem("selectedCountry")
+
+
+✅ Expected: "MY"
+
+Also check the app’s existing key (some builds use app:country):
+
+localStorage.getItem("app:country")
+
+
+If your app reads app:country elsewhere (register flow), but selector writes selectedCountry, your selection will not actually apply.
+
+✅ Best practice: use one key only (I recommend app:country).
+
+3) Confirm modal fetch happens on open (no stale state)
+
+Open modal → close → change MY to inactive in admin → open modal again.
+
+Expected:
+
+MY now shows Soon
+
+If it still shows Live, your query cache is too sticky.
+Fix = set query staleTime: 0 or call refetch() on open.
+
+4) Confirm “Soon” click shows the correct coming soon message
+
+Set UK inactive + add message: "UK beta opens next week".
+
+Click UK in modal.
+
+Expected:
+
+Coming Soon modal opens
+
+Shows that exact message
+
+5) Confirm registration flow respects rollout
+
+Even if selector is correct, backend must still enforce.
+
+Try:
+
+Select India (IN)
+
+In register, attempt business type "clinic_healthcare" (if India rollout only allows pg_hostel)
+
+Expected:
+
+Signup blocked with 403 BUSINESS_NOT_AVAILABLE (or your equivalent)
+
+This confirms no one can bypass UI.
+
+Two common issues (and how to fix fast)
+Issue A: Country selector key mismatch
+
+Symptom: modal shows MY selected, but register still behaves like IN.
+
+✅ Fix:
+
+Make selector write the same key that register reads.
+
+Prefer: app:country
+
+Replit prompt:
+
+Unify country storage key across app.
+Search for localStorage.getItem usage related to country selection.
+Use a single key: "app:country" everywhere.
+Update landing country selector to set "app:country" instead of "selectedCountry".
+Update any components reading "selectedCountry" to read "app:country".
+
+Issue B: Query not refreshing on modal open
+
+Symptom: admin changes rollout, but modal still shows old status.
+
+✅ Fix:
+In the selector, on open:
+
+call refetch()
+
+or use enabled: open in useQuery
+
+Replit prompt:
+
+In landing country-selector.tsx, ensure rollout query refreshes on modal open.
+Use useQuery({ enabled: open, staleTime: 0 }) and call refetch() in an effect when open becomes true.
+
+
+If you send me:
+
+the exact storage key your Register page reads for country
+
+and whether TanStack Query is using staleTime
+
+…I’ll tell you whether your current implementation will work immediately or will hit Issue A/B.

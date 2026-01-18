@@ -213,8 +213,8 @@ export default function PackagesPage() {
       };
       return countryMap[tenantCountry] || "IN";
     }
-    // Fall back to localStorage selectedCountry
-    const storedCountry = localStorage.getItem("selectedCountry");
+    // Fall back to localStorage app:country
+    const storedCountry = localStorage.getItem("app:country");
     if (storedCountry) {
       return storedCountry.toUpperCase();
     }

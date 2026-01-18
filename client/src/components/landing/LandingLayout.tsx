@@ -33,7 +33,7 @@ interface LandingLayoutProps {
 
 export function LandingLayout({ children, currentCountry = "in", onCountryChange }: LandingLayoutProps) {
   const handleCountryChange = (code: string) => {
-    localStorage.setItem("selected_country", code);
+    localStorage.setItem("app:country", code);
     document.cookie = `country=${code};path=/;max-age=31536000`;
     onCountryChange?.(code);
   };

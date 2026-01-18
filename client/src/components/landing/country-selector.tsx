@@ -18,7 +18,7 @@ type RolloutRow = {
   enabledBusinessTypes?: string[];
 };
 
-const STORAGE_KEY = "selectedCountry";
+const STORAGE_KEY = "app:country";
 
 const COUNTRY_OPTIONS: { code: string; name: string; path: string }[] = [
   { code: "IN", name: "India", path: "/in" },
@@ -83,11 +83,17 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
   const [comingSoonOpen, setComingSoonOpen] = React.useState(false);
   const [comingSoonMsg, setComingSoonMsg] = React.useState<string>("Coming soon.");
 
-  const { data, isLoading, isError } = useQuery<RolloutRow[]>({
+  const { data, isLoading, isError, refetch } = useQuery<RolloutRow[]>({
     queryKey: ["/api/public/rollouts"],
     enabled: open,
-    staleTime: 60_000,
+    staleTime: 0,
   });
+
+  React.useEffect(() => {
+    if (open) {
+      refetch();
+    }
+  }, [open, refetch]);
 
   const rolloutByCode = React.useMemo(() => {
     const map = new Map<string, RolloutRow>();
