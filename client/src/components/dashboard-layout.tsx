@@ -33,7 +33,7 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, title, breadcrumbs = [] }: DashboardLayoutProps) {
-  const { startTour, completedTours } = useTour();
+  const { startTour, completedTours, state } = useTour();
   const hasCompletedDashboardTour = completedTours.includes(dashboardTour.id);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [, setLocation] = useLocation();
@@ -44,6 +44,16 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
       setLocation("/login");
     }
   }, [isAuthLoading, isAuthenticated, setLocation]);
+
+  // Auto-start tour for new users after a short delay
+  useEffect(() => {
+    if (isAuthenticated && !isAuthLoading && !hasCompletedDashboardTour && !state.isRunning) {
+      const timer = setTimeout(() => {
+        startTour(dashboardTour);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, isAuthLoading, hasCompletedDashboardTour, state.isRunning, startTour]);
   
   const sidebarStyle = {
     "--sidebar-width": "16rem",

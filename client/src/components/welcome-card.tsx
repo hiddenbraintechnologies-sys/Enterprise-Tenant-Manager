@@ -3,9 +3,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Plus, ArrowRight, X } from "lucide-react";
+import { Sparkles, Plus, ArrowRight, X, PlayCircle } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useTour } from "@/contexts/tour-context";
+import { dashboardTour } from "@/lib/tours";
 
 interface WelcomeCardProps {
   tenantId: string;
@@ -18,6 +20,12 @@ const WELCOME_DISMISSED_KEY = "mybizstream_welcome_dismissed";
 
 export function WelcomeCard({ tenantId, businessType, subscriptionTier = "free", onCreateFirst }: WelcomeCardProps) {
   const [isDismissed, setIsDismissed] = useState(false);
+  const { startTour, completedTours } = useTour();
+  const hasCompletedTour = completedTours.includes(dashboardTour.id);
+
+  const handleStartTour = () => {
+    startTour(dashboardTour);
+  };
 
   useEffect(() => {
     const dismissed = localStorage.getItem(`${WELCOME_DISMISSED_KEY}_${tenantId}`);
@@ -112,20 +120,24 @@ export function WelcomeCard({ tenantId, businessType, subscriptionTier = "free",
           Start managing your business today. Create your first record to get started, or explore the dashboard.
         </p>
         <div className="flex flex-wrap gap-2">
+          <Button onClick={handleStartTour} data-testid="button-start-tour">
+            <PlayCircle className="h-4 w-4 mr-2" />
+            {hasCompletedTour ? "Replay Tour" : "Take a Tour"}
+          </Button>
           {onCreateFirst ? (
-            <Button onClick={onCreateFirst} data-testid="button-create-first">
+            <Button variant="outline" onClick={onCreateFirst} data-testid="button-create-first">
               <Plus className="h-4 w-4 mr-2" />
               {getCreateButtonText()}
             </Button>
           ) : (
-            <Button asChild data-testid="button-create-first">
+            <Button variant="outline" asChild data-testid="button-create-first">
               <Link href="/customers">
                 <Plus className="h-4 w-4 mr-2" />
                 {getCreateButtonText()}
               </Link>
             </Button>
           )}
-          <Button variant="outline" onClick={() => dismissMutation.mutate()} data-testid="button-skip-welcome">
+          <Button variant="ghost" onClick={() => dismissMutation.mutate()} data-testid="button-skip-welcome">
             Skip for now
           </Button>
           {subscriptionTier === "free" && (
