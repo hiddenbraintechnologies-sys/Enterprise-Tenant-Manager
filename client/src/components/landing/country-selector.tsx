@@ -83,7 +83,7 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
   const [comingSoonOpen, setComingSoonOpen] = React.useState(false);
   const [comingSoonMsg, setComingSoonMsg] = React.useState<string>("Coming soon.");
 
-  const { data, isLoading, isError, refetch } = useQuery<RolloutRow[]>({
+  const { data, isLoading, isError, refetch } = useQuery<{ rollouts: RolloutRow[] } | RolloutRow[]>({
     queryKey: ["/api/public/rollouts"],
     enabled: open,
     staleTime: 0,
@@ -97,10 +97,11 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
 
   const rolloutByCode = React.useMemo(() => {
     const map = new Map<string, RolloutRow>();
-    if (Array.isArray(data)) {
-      for (const r of data) {
-        map.set(safeUpper2(r.countryCode), r);
-      }
+    const rollouts = Array.isArray(data) ? data : (data as { rollouts: RolloutRow[] })?.rollouts || [];
+    for (const r of rollouts) {
+      let code = safeUpper2(r.countryCode);
+      if (code === "GB") code = "UK";
+      map.set(code, r);
     }
     return map;
   }, [data]);

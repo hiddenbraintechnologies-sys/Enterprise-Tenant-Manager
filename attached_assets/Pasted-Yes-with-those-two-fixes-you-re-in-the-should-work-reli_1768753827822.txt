@@ -1,0 +1,96 @@
+Yes — with those two fixes, you’re in the “should work reliably” state. ✅
+Here’s the exact verification run I want you to do now, and what each result means (so you can close this as “done” with confidence).
+
+✅ Verification run (do in this order)
+1) Rollout API truth check
+
+Open the site, then in a new tab hit:
+
+/api/public/rollouts
+
+Confirm you can see rows like:
+
+MY → isActive: true
+
+UK → isActive: true
+
+If MY/UK not present → seed/upsert isn’t running or API is filtering.
+
+2) Storage key check
+
+Open landing → choose Malaysia.
+
+In console:
+
+localStorage.getItem("app:country")
+
+
+✅ Expected: "MY"
+
+If it’s null or "IN" → the selector isn’t writing, or something overwrites it.
+
+3) Immediate freshness check (staleTime/refetch)
+
+Now go to Super Admin → Rollouts and flip:
+
+MY isActive → OFF
+
+Back to landing:
+
+open the modal again
+
+✅ Expected: MY badge becomes Soon immediately.
+
+If it still shows Live → the query isn’t actually refetching on open, or modal isn’t re-mounting.
+
+4) Coming soon message check
+
+Set MY inactive and add message:
+
+“Malaysia launch is opening soon. Join waitlist.”
+
+Reopen modal, click Malaysia.
+
+✅ Expected:
+
+Coming soon modal opens
+
+Message shows exactly from backend
+
+If it shows a generic message → frontend is not using comingSoonMessage field.
+
+5) Registration enforcement check (security)
+
+Set India rollout to Phase-1 only:
+
+enabledBusinessTypes: ["pg_hostel"]
+
+Now try India signup but pick clinic_healthcare (or any disabled type).
+
+✅ Expected:
+
+signup blocked with 403 and code like BUSINESS_NOT_AVAILABLE
+
+If it allows signup → backend enforcement is missing or not using countryCode.
+
+✅ One last “real world” check you should do
+
+New browser / incognito, pick Malaysia, register, land on /packages, pick Free plan.
+
+✅ Expected:
+
+Plans show MY pricing
+
+After signup, tenant country remains MY in context (not defaulting back to IN)
+
+If it returns to IN after registration, then signup payload is not passing countryCode reliably.
+
+If anything fails, tell me which step failed and what you saw
+
+Example:
+
+“Step 3 failed: MY still shows Live after disabling”
+
+“Step 5 failed: clinic signup still works in India”
+
+…and I’ll give you the exact code-level fix for that specific failure.
