@@ -190,11 +190,6 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
               })}
             </div>
           )}
-
-          <div className="text-xs text-muted-foreground mt-4">
-            Tip: Super Admin can activate countries in{" "}
-            <span className="font-medium">Super Admin → Rollouts</span>.
-          </div>
         </DialogContent>
       </Dialog>
 
