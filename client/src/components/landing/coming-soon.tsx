@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Mail, Check, Loader2 } from "lucide-react";
 import { LandingLayout } from "./landing-layout";
 import { type CountryCode } from "./country-selector";
@@ -131,5 +132,33 @@ export function ComingSoonPage({ countryCode, countryName }: ComingSoonPageProps
         </div>
       </section>
     </LandingLayout>
+  );
+}
+
+interface ComingSoonModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  message: string;
+}
+
+export function ComingSoonModal({ open, onOpenChange, message }: ComingSoonModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" data-testid="modal-coming-soon">
+        <DialogHeader>
+          <DialogTitle>Coming soon</DialogTitle>
+        </DialogHeader>
+
+        <div className="text-sm text-muted-foreground py-2" data-testid="text-coming-soon-message">
+          {message}
+        </div>
+
+        <div className="flex justify-end mt-4">
+          <Button onClick={() => onOpenChange(false)} data-testid="button-close-coming-soon">
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

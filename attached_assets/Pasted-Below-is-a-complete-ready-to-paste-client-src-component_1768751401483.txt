@@ -1,0 +1,256 @@
+Below is a complete, ready-to-paste client/src/components/landing/country-selector.tsx that:
+
+Fetches rollouts from GET /api/public/rollouts
+
+Enables/disables countries based on isActive
+
+Shows Coming soon (and message) when disabled
+
+Saves selection to localStorage (uses app:country by default)
+
+Keeps the UI simple and shadcn-friendly
+
+If your project uses a different storage key already, just replace STORAGE_KEY.
+
+✅ File: client/src/components/landing/country-selector.tsx
+import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/use-toast";
+
+import { api } from "@/lib/api"; // must exist in your project
+import ComingSoon from "@/components/landing/coming-soon"; // adjust if default export differs
+
+type RolloutRow = {
+  countryCode: string;
+  isActive: boolean;
+  comingSoonMessage?: string | null;
+  enabledBusinessTypes?: unknown;
+};
+
+const STORAGE_KEY = "app:country";
+
+// Keep this list aligned with your product targets.
+// These are the “candidate” countries. Actual availability is controlled by /api/public/rollouts.
+const COUNTRY_OPTIONS: { code: string; name: string }[] = [
+  { code: "IN", name: "India" },
+  { code: "MY", name: "Malaysia" },
+  { code: "UK", name: "United Kingdom" },
+  { code: "AE", name: "UAE" },
+  { code: "SG", name: "Singapore" },
+];
+
+function safeUpper2(v: unknown) {
+  return String(v || "").toUpperCase().slice(0, 2);
+}
+
+export default function CountrySelector({
+  open,
+  onOpenChange,
+  onSelected,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSelected?: (countryCode: string) => void;
+}) {
+  const [comingSoonOpen, setComingSoonOpen] = React.useState(false);
+  const [comingSoonMsg, setComingSoonMsg] = React.useState<string>("Coming soon.");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["public-rollouts"],
+    queryFn: async () => {
+      const res = await api.get("/api/public/rollouts");
+      // expected: { rollouts: RolloutRow[] }
+      return res.data as { rollouts: RolloutRow[] };
+    },
+    staleTime: 60_000,
+  });
+
+  const rolloutByCode = React.useMemo(() => {
+    const map = new Map<string, RolloutRow>();
+    for (const r of data?.rollouts || []) {
+      map.set(safeUpper2(r.countryCode), r);
+    }
+    return map;
+  }, [data]);
+
+  const handleSelect = (code: string) => {
+    const rollout = rolloutByCode.get(code);
+    const isActive = rollout?.isActive === true;
+
+    if (!isActive) {
+      const msg =
+        rollout?.comingSoonMessage?.trim() ||
+        "We’re not live in this country yet. Please join the waitlist or choose another country.";
+      setComingSoonMsg(msg);
+      setComingSoonOpen(true);
+      return;
+    }
+
+    try {
+      localStorage.setItem(STORAGE_KEY, code);
+    } catch {
+      // ignore storage errors (private mode etc.)
+    }
+
+    toast({ title: "Country selected", description: `${code} selected.` });
+    onSelected?.(code);
+    onOpenChange(false);
+  };
+
+  const selectedCountry = (() => {
+    try {
+      return safeUpper2(localStorage.getItem(STORAGE_KEY));
+    } catch {
+      return "";
+    }
+  })();
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Select your country</DialogTitle>
+          </DialogHeader>
+
+          <div className="text-sm text-muted-foreground">
+            Availability is controlled by rollout settings. Countries marked “Coming soon” cannot register yet.
+          </div>
+
+          <Separator className="my-3" />
+
+          {isLoading && (
+            <div className="text-sm text-muted-foreground">Loading availability…</div>
+          )}
+
+          {isError && (
+            <div className="text-sm text-destructive">
+              Could not load country availability. Please refresh.
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {COUNTRY_OPTIONS.map((c) => {
+              const rollout = rolloutByCode.get(c.code);
+              const isActive = rollout?.isActive === true;
+
+              // If there is no rollout row, treat as coming soon (safe default)
+              const isKnown = rolloutByCode.has(c.code);
+              const disabled = !isActive;
+
+              return (
+                <Button
+                  key={c.code}
+                  type="button"
+                  variant={selectedCountry === c.code ? "default" : "outline"}
+                  className="h-auto justify-between gap-2 py-4"
+                  disabled={isLoading || (disabled && !isActive)} // keep disabled for coming soon
+                  onClick={() => handleSelect(c.code)}
+                >
+                  <div className="flex flex-col items-start">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{c.code}</span>
+                      <span className="text-sm">{c.name}</span>
+                    </div>
+
+                    {!isKnown && (
+                      <span className="text-xs text-muted-foreground mt-1">Coming soon</span>
+                    )}
+
+                    {isKnown && !isActive && (
+                      <span className="text-xs text-muted-foreground mt-1">
+                        Coming soon
+                      </span>
+                    )}
+
+                    {isKnown && isActive && (
+                      <span className="text-xs text-muted-foreground mt-1">
+                        Live
+                      </span>
+                    )}
+                  </div>
+
+                  {!isKnown ? (
+                    <Badge variant="secondary">Soon</Badge>
+                  ) : isActive ? (
+                    <Badge variant="secondary">Live</Badge>
+                  ) : (
+                    <Badge variant="outline">Soon</Badge>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+
+          <div className="text-xs text-muted-foreground mt-4">
+            Tip: Super Admin can activate countries and business types in <span className="font-medium">Super Admin → Rollouts</span>.
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Coming soon modal */}
+      <ComingSoon
+        open={comingSoonOpen}
+        onOpenChange={setComingSoonOpen}
+        message={comingSoonMsg}
+      />
+    </>
+  );
+}
+
+✅ File: client/src/components/landing/coming-soon.tsx
+
+If your ComingSoon component doesn’t already accept open/onOpenChange/message, update it like this:
+
+import * as React from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+export default function ComingSoon({
+  open,
+  onOpenChange,
+  message,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  message: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Coming soon</DialogTitle>
+        </DialogHeader>
+
+        <div className="text-sm text-muted-foreground">{message}</div>
+
+        <div className="flex justify-end mt-4">
+          <Button onClick={() => onOpenChange(false)}>Close</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+Where to use this modal
+
+Wherever you currently open the landing modal (usually client/src/pages/landing.tsx or client/src/pages/index.tsx), keep your existing logic and just render:
+
+<CountrySelector open={open} onOpenChange={setOpen} />
+
+Quick verification
+
+Ensure /api/public/rollouts returns MY/UK with isActive: true
+
+Open landing → country selector
+
+MY & UK show Live and are clickable
+
+AE/SG show Soon if not configured in DB
+
+If you paste your current country-selector.tsx (even partially), I can tailor the replacement so it matches your exact props and avoids any import name mismatch (default vs named exports).

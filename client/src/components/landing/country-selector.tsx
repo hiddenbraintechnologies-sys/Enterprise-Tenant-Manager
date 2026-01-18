@@ -1,38 +1,42 @@
-import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useLocation } from "wouter";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
 import { Globe, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 
-const COUNTRY_OPTIONS = [
+import { ComingSoonModal } from "./coming-soon";
+
+type RolloutRow = {
+  countryCode: string;
+  isActive: boolean;
+  comingSoonMessage?: string | null;
+  enabledBusinessTypes?: string[];
+};
+
+const STORAGE_KEY = "selectedCountry";
+
+const COUNTRY_OPTIONS: { code: string; name: string; path: string }[] = [
   { code: "IN", name: "India", path: "/in" },
   { code: "MY", name: "Malaysia", path: "/my" },
   { code: "UK", name: "United Kingdom", path: "/uk" },
-  { code: "SG", name: "Singapore", path: "/sg" },
   { code: "AE", name: "UAE", path: "/uae" },
-] as const;
+  { code: "SG", name: "Singapore", path: "/sg" },
+];
 
-export type CountryCode = typeof COUNTRY_OPTIONS[number]["code"];
+export type CountryCode = "IN" | "MY" | "UK" | "AE" | "SG";
 
-interface RolloutData {
-  countryCode: string;
-  isActive: boolean;
-  status: string;
-  comingSoonMessage: string | null;
-  enabledBusinessTypes: string[];
+function safeUpper2(v: unknown) {
+  return String(v || "").toUpperCase().slice(0, 2);
 }
 
 export function getCountryFromPath(pathname: string): CountryCode | "GLOBAL" {
   const country = COUNTRY_OPTIONS.find((c) => c.path === pathname);
-  return country ? country.code : "GLOBAL";
+  return country ? (country.code as CountryCode) : "GLOBAL";
 }
 
 export function getCountryLabel(pathname: string): string {
@@ -40,21 +44,31 @@ export function getCountryLabel(pathname: string): string {
   return country ? country.name : "Global";
 }
 
-const STORAGE_KEY = "selectedCountry";
-
 export function getStoredCountry(): CountryCode | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(STORAGE_KEY) as CountryCode | null;
+  try {
+    return localStorage.getItem(STORAGE_KEY) as CountryCode | null;
+  } catch {
+    return null;
+  }
 }
 
 export function setStoredCountry(code: CountryCode) {
-  localStorage.setItem(STORAGE_KEY, code);
-  document.cookie = `country=${code};path=/;max-age=31536000`;
+  try {
+    localStorage.setItem(STORAGE_KEY, code);
+    document.cookie = `country=${code};path=/;max-age=31536000`;
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export function clearStoredCountry() {
-  localStorage.removeItem(STORAGE_KEY);
-  document.cookie = "country=;path=/;max-age=0";
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    document.cookie = "country=;path=/;max-age=0";
+  } catch {
+    // ignore
+  }
 }
 
 interface CountrySelectorModalProps {
@@ -65,132 +79,124 @@ interface CountrySelectorModalProps {
 
 export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySelectorModalProps) {
   const [, navigate] = useLocation();
-  const [comingSoonCountry, setComingSoonCountry] = useState<{
-    code: CountryCode;
-    name: string;
-    message: string;
-  } | null>(null);
+  const { toast } = useToast();
+  const [comingSoonOpen, setComingSoonOpen] = React.useState(false);
+  const [comingSoonMsg, setComingSoonMsg] = React.useState<string>("Coming soon.");
 
-  const { data: rollouts, isLoading } = useQuery<RolloutData[]>({
+  const { data, isLoading, isError } = useQuery<RolloutRow[]>({
     queryKey: ["/api/public/rollouts"],
     enabled: open,
+    staleTime: 60_000,
   });
 
-  const rolloutByCode: Record<string, RolloutData> = {};
-  if (Array.isArray(rollouts)) {
-    for (const r of rollouts) {
-      rolloutByCode[r.countryCode] = r;
+  const rolloutByCode = React.useMemo(() => {
+    const map = new Map<string, RolloutRow>();
+    if (Array.isArray(data)) {
+      for (const r of data) {
+        map.set(safeUpper2(r.countryCode), r);
+      }
     }
-  }
-
-  const isCountryActive = (code: string): boolean => {
-    const rollout = rolloutByCode[code];
-    return rollout?.isActive === true;
-  };
-
-  const getComingSoonMessage = (code: string): string => {
-    const rollout = rolloutByCode[code];
-    return rollout?.comingSoonMessage || "We're launching soon in this region. Stay tuned!";
-  };
+    return map;
+  }, [data]);
 
   const handleSelect = (country: typeof COUNTRY_OPTIONS[number]) => {
-    if (isCountryActive(country.code)) {
-      setStoredCountry(country.code);
-      onOpenChange(false);
-      onSelect?.(country.code);
-      navigate(country.path);
-    } else {
-      setComingSoonCountry({
-        code: country.code,
-        name: country.name,
-        message: getComingSoonMessage(country.code),
-      });
+    const code = country.code as CountryCode;
+    const rollout = rolloutByCode.get(code);
+    const isActive = rollout?.isActive === true;
+
+    if (!isActive) {
+      const msg =
+        rollout?.comingSoonMessage?.trim() ||
+        "We're not live in this country yet. Please join the waitlist or choose another country.";
+      setComingSoonMsg(msg);
+      setComingSoonOpen(true);
+      return;
     }
+
+    setStoredCountry(code);
+    toast({ title: "Country selected", description: `${country.name} selected.` });
+    onSelect?.(code);
+    onOpenChange(false);
+    navigate(country.path);
   };
 
-  const handleBackFromComingSoon = () => {
-    setComingSoonCountry(null);
-  };
-
-  if (comingSoonCountry) {
-    return (
-      <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setComingSoonCountry(null); }}>
-        <DialogContent className="sm:max-w-md" data-testid="modal-coming-soon">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span className="flex h-6 w-8 items-center justify-center rounded border bg-muted text-xs font-semibold">
-                {comingSoonCountry.code}
-              </span>
-              {comingSoonCountry.name}
-            </DialogTitle>
-            <DialogDescription>Coming Soon</DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-muted-foreground" data-testid="text-coming-soon-message">
-              {comingSoonCountry.message}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleBackFromComingSoon}
-              data-testid="button-back-to-countries"
-            >
-              Back
-            </Button>
-            <Button
-              asChild
-              data-testid="button-join-waitlist"
-            >
-              <a href={`/${comingSoonCountry.code.toLowerCase()}`}>Join Waitlist</a>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  const selectedCountry = getStoredCountry() || "";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" data-testid="modal-country-selector">
-        <DialogHeader>
-          <DialogTitle>Choose your country</DialogTitle>
-          <DialogDescription>
-            Select your country to see local pricing and features.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3 py-4">
-          {isLoading ? (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg" data-testid="modal-country-selector">
+          <DialogHeader>
+            <DialogTitle>Select your country</DialogTitle>
+            <DialogDescription>
+              Choose your country to see local pricing and features.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Separator className="my-3" />
+
+          {isLoading && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : (
-            COUNTRY_OPTIONS.map((country) => {
-              const active = isCountryActive(country.code);
-              return (
-                <Button
-                  key={country.code}
-                  variant={active ? "outline" : "ghost"}
-                  className="justify-start h-auto py-3 px-4"
-                  onClick={() => handleSelect(country)}
-                  data-testid={`button-country-${country.code.toLowerCase()}`}
-                >
-                  <span className="flex h-6 w-8 items-center justify-center rounded border bg-muted text-xs font-semibold mr-3">
-                    {country.code}
-                  </span>
-                  <span className="font-medium">{country.name}</span>
-                  {!active && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      Coming soon
-                    </Badge>
-                  )}
-                </Button>
-              );
-            })
           )}
-        </div>
-      </DialogContent>
-    </Dialog>
+
+          {isError && (
+            <div className="text-sm text-destructive py-4">
+              Could not load country availability. Please refresh.
+            </div>
+          )}
+
+          {!isLoading && !isError && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {COUNTRY_OPTIONS.map((c) => {
+                const rollout = rolloutByCode.get(c.code);
+                const isActive = rollout?.isActive === true;
+                const isKnown = rolloutByCode.has(c.code);
+
+                return (
+                  <Button
+                    key={c.code}
+                    type="button"
+                    variant={selectedCountry === c.code ? "default" : "outline"}
+                    className="h-auto justify-between gap-2 py-4"
+                    onClick={() => handleSelect(c)}
+                    data-testid={`button-country-${c.code.toLowerCase()}`}
+                  >
+                    <div className="flex flex-col items-start">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{c.code}</span>
+                        <span className="text-sm">{c.name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground mt-1">
+                        {isKnown && isActive ? "Live" : "Coming soon"}
+                      </span>
+                    </div>
+
+                    {isKnown && isActive ? (
+                      <Badge variant="secondary">Live</Badge>
+                    ) : (
+                      <Badge variant="outline">Soon</Badge>
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="text-xs text-muted-foreground mt-4">
+            Tip: Super Admin can activate countries in{" "}
+            <span className="font-medium">Super Admin → Rollouts</span>.
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ComingSoonModal
+        open={comingSoonOpen}
+        onOpenChange={setComingSoonOpen}
+        message={comingSoonMsg}
+      />
+    </>
   );
 }
 
