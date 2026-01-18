@@ -1,0 +1,274 @@
+🎬 MASTER PROMPT — COMPREHENSIVE SAAS PITCH VIDEO
+
+(Landing page hero video – play button experience)
+
+🎯 GOAL
+
+Create a 60–90 second premium animated explainer video for a multi-tenant SaaS business management platform designed for India-first, global-ready SMBs, covering:
+
+PG / Hostel
+
+Consulting
+
+Software Services
+
+Clinics
+
+HRMS & Payroll
+
+Billing & Payments
+
+Country-based rollout & pricing
+
+This video is for:
+
+Landing page hero section
+
+Investor & customer pitch
+
+WhatsApp sharing & ads
+
+Tone: Professional, trustworthy, modern, scalable, India-first but global
+
+🎨 VISUAL STYLE
+
+Clean modern SaaS UI animation
+
+Light motion graphics (no cartoonish style)
+
+Smooth transitions, subtle zooms
+
+White / light background
+
+Soft shadows, rounded cards
+
+Realistic dashboard screens (inspired by the actual app)
+
+Minimal icons, clean typography
+
+🎨 Color mood:
+
+Professional blue + white
+
+Accent colors for modules (HRMS, Billing, Analytics)
+
+🎧 AUDIO
+
+Calm professional voiceover (male or female)
+
+Light background music (corporate, uplifting)
+
+No aggressive marketing tone
+
+⏱ DURATION
+
+Ideal: 75 seconds
+
+Acceptable range: 60–90 seconds
+
+🎥 SCENE-BY-SCENE SCRIPT (VERY IMPORTANT)
+SCENE 1 – Problem (0–8s)
+
+Visual
+
+Small business owner juggling:
+
+Excel sheets
+
+WhatsApp messages
+
+Invoices
+
+Staff attendance
+
+Screens feel cluttered and messy
+
+Text on screen
+
+“Running a business shouldn’t feel this complicated.”
+
+Voiceover
+
+“Small businesses struggle with scattered tools, manual work, and no real visibility.”
+
+SCENE 2 – Introducing the Platform (8–16s)
+
+Visual
+
+Everything fades into a single clean dashboard
+
+Logo appears (use placeholder if needed)
+
+Text
+
+“One platform. All your business needs.”
+
+Voiceover
+
+“Meet a modern business management platform built for growing businesses.”
+
+SCENE 3 – Multi-Business Support (16–28s)
+
+Visual
+Animated cards showing:
+
+PG / Hostel
+
+Consulting
+
+Software Services
+
+Clinics
+
+Manufacturing
+
+Salons / Gyms
+
+Each card clicks → dashboard morphs slightly
+
+Text
+
+“Built for every kind of business.”
+
+Voiceover
+
+“Whether you run a hostel, consultancy, clinic, or software firm — the system adapts to your business.”
+
+SCENE 4 – Core Features (28–45s)
+
+Visual (Fast transitions)
+
+Customer management
+
+Projects & timesheets
+
+Bookings & schedules
+
+Invoices & GST
+
+HRMS & Payroll
+
+WhatsApp notifications
+
+Analytics graphs animating
+
+Text
+
+“Everything connected. Nothing duplicated.”
+
+Voiceover
+
+“From customers and projects to invoicing, HR, payroll, and analytics — everything works together.”
+
+SCENE 5 – Country & Compliance Control (45–58s)
+
+Visual
+
+Country selector (India, Malaysia, UK)
+
+Features toggle ON/OFF per country
+
+Pricing changes by country
+
+Text
+
+“Country-ready. Compliance-aware.”
+
+Voiceover
+
+“Designed for India and ready for global expansion — with country-specific pricing, compliance, and feature control.”
+
+SCENE 6 – Pricing Simplicity (58–68s)
+
+Visual
+Pricing cards animate in:
+
+Free
+
+₹99
+
+₹199
+
+Upgrade animation → features unlock
+
+Text
+
+“Start free. Upgrade only when you grow.”
+
+Voiceover
+
+“Simple pricing. No pressure. Upgrade only when your business is ready.”
+
+SCENE 7 – Security & Trust (68–78s)
+
+Visual
+
+Lock icon
+
+Role-based access
+
+Audit logs
+
+Cloud infrastructure
+
+Text
+
+“Secure. Reliable. Scalable.”
+
+Voiceover
+
+“Enterprise-grade security with full control over users, roles, and data.”
+
+SCENE 8 – Call to Action (78–90s)
+
+Visual
+
+Dashboard zooms out
+
+Logo + website URL
+
+Play button fades in (loop ready)
+
+Text
+
+“Run your business. We’ll handle the system.”
+
+Voiceover
+
+“Get started today. Your business deserves better tools.”
+
+🧩 OUTPUT REQUIREMENTS
+
+16:9 (landing page hero)
+
+Muted autoplay preview frame
+
+Play button overlay friendly
+
+Loopable first 3 seconds
+
+No watermark
+
+High resolution (1080p or above)
+
+🧠 IMPORTANT NOTES FOR GENERATOR
+
+Do NOT create generic stock SaaS video
+
+Do NOT use cartoon characters
+
+Do NOT oversell
+
+Focus on clarity, trust, simplicity
+
+UI must feel real, not fake
+
+🟢 OPTIONAL VARIANTS (Ask later)
+
+30-second ad cut
+
+India-only version
+
+HRMS / Payroll focused version
+
+Investor pitch version
