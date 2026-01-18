@@ -1,62 +1,47 @@
 import { Request, Response, NextFunction } from "express";
-import { db } from "../db";
-import { countryRolloutPolicy } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { countryRolloutService } from "../services/country-rollout";
 
 /**
  * Middleware to check if a module is enabled for the tenant's country.
- * Returns 403 if the module is not available.
+ * Uses centralized countryRolloutService for consistency.
+ * FAIL-CLOSED: Returns 403/500 on errors, never allows unauthorized access.
  */
 export function requireCountryModule(moduleKey: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Get tenant context from request (set by auth middleware)
       const tenant = (req as any).tenant || (req as any).context?.tenant;
       
-      // If no tenant context or no country code, skip check
       if (!tenant?.countryCode) {
         return next();
       }
 
       const countryCode = String(tenant.countryCode).toUpperCase();
       
-      const [rollout] = await db
-        .select()
-        .from(countryRolloutPolicy)
-        .where(eq(countryRolloutPolicy.countryCode, countryCode))
-        .limit(1);
-
-      // If no rollout policy or country not active, block
-      if (!rollout || rollout.isActive === false) {
-        return res.status(403).json({ 
-          error: "COUNTRY_NOT_ACTIVE",
-          message: "This country is not currently active."
-        });
-      }
-
-      // Check if module is in enabled list
-      const enabledModules = (rollout.enabledModules || []) as string[];
+      const result = await countryRolloutService.isModuleAllowed(countryCode, moduleKey);
       
-      // If enabledModules is empty, all modules are allowed (default behavior)
-      if (enabledModules.length > 0 && !enabledModules.includes(moduleKey)) {
+      if (!result.allowed) {
         return res.status(403).json({ 
-          error: "MODULE_NOT_AVAILABLE", 
+          error: result.code || "MODULE_NOT_AVAILABLE",
           module: moduleKey,
-          message: `The "${moduleKey}" module is not available in your country.`
+          message: result.message || `The "${moduleKey}" module is not available in your country.`
         });
       }
 
       next();
     } catch (error) {
       console.error("[rollout-guard] Error checking module:", error);
-      next(); // On error, allow through (fail-open for now)
+      return res.status(500).json({ 
+        error: "ROLLOUT_CHECK_FAILED",
+        message: "Unable to verify module access. Please try again."
+      });
     }
   };
 }
 
 /**
  * Middleware to check if a feature is enabled for the tenant's country.
- * Returns 403 if the feature is not available.
+ * Uses centralized countryRolloutService for consistency.
+ * FAIL-CLOSED: Returns 403/500 on errors, never allows unauthorized access.
  */
 export function requireCountryFeature(featureKey: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -69,41 +54,31 @@ export function requireCountryFeature(featureKey: string) {
 
       const countryCode = String(tenant.countryCode).toUpperCase();
       
-      const [rollout] = await db
-        .select()
-        .from(countryRolloutPolicy)
-        .where(eq(countryRolloutPolicy.countryCode, countryCode))
-        .limit(1);
-
-      if (!rollout || rollout.isActive === false) {
-        return res.status(403).json({ 
-          error: "COUNTRY_NOT_ACTIVE",
-          message: "This country is not currently active."
-        });
-      }
-
-      // Check enabledFeatures (JSONB object with boolean flags)
-      const enabledFeatures = (rollout.enabledFeatures || {}) as Record<string, boolean>;
+      const result = await countryRolloutService.isFeatureAllowed(countryCode, featureKey);
       
-      // Feature must be explicitly set to true to be enabled
-      if (enabledFeatures[featureKey] !== true) {
+      if (!result.allowed) {
         return res.status(403).json({ 
-          error: "FEATURE_NOT_AVAILABLE", 
+          error: result.code || "FEATURE_NOT_AVAILABLE",
           feature: featureKey,
-          message: `The "${featureKey}" feature is not available in your country.`
+          message: result.message || `The "${featureKey}" feature is not available in your country.`
         });
       }
 
       next();
     } catch (error) {
       console.error("[rollout-guard] Error checking feature:", error);
-      next(); // Fail-open
+      return res.status(500).json({ 
+        error: "ROLLOUT_CHECK_FAILED",
+        message: "Unable to verify feature access. Please try again."
+      });
     }
   };
 }
 
 /**
- * Middleware to check if country is active (for routes that need country check only)
+ * Middleware to check if country is active (for routes that need country check only).
+ * Uses centralized countryRolloutService for consistency.
+ * FAIL-CLOSED: Returns 403/500 on errors, never allows unauthorized access.
  */
 export function requireActiveCountry() {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -116,23 +91,22 @@ export function requireActiveCountry() {
 
       const countryCode = String(tenant.countryCode).toUpperCase();
       
-      const [rollout] = await db
-        .select()
-        .from(countryRolloutPolicy)
-        .where(eq(countryRolloutPolicy.countryCode, countryCode))
-        .limit(1);
-
-      if (!rollout || rollout.isActive === false) {
+      const policy = await countryRolloutService.getCountryPolicy(countryCode);
+      
+      if (!policy || policy.isActive === false) {
         return res.status(403).json({ 
           error: "COUNTRY_NOT_ACTIVE",
-          message: rollout?.comingSoonMessage || "This country is not currently active."
+          message: policy?.comingSoonMessage || "This country is not currently active."
         });
       }
 
       next();
     } catch (error) {
       console.error("[rollout-guard] Error checking country:", error);
-      next();
+      return res.status(500).json({ 
+        error: "ROLLOUT_CHECK_FAILED",
+        message: "Unable to verify country access. Please try again."
+      });
     }
   };
 }
