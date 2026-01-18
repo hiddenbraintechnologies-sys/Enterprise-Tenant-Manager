@@ -1,0 +1,76 @@
+Great — use client/src/components/landing/country-selector.tsx as the source of truth for the landing modal, and make it API-driven using /api/public/rollouts so MY/UK become selectable when isActive=true.
+
+Below is an exact patch you can paste to Replit (it tells Replit exactly what to change), plus the expected behavior.
+
+✅ Replit Prompt (targeted to your file)
+Update landing country selector modal to be API-driven (no hardcoded coming soon).
+
+Files:
+- client/src/components/landing/country-selector.tsx (main modal)
+- client/src/components/landing/coming-soon.tsx (reuse)
+- (optional) client/src/components/country-selector.tsx if it shares logic
+
+Backend already has /api/public/rollouts returning:
+[{ countryCode, isActive, comingSoonMessage, enabledBusinessTypes }]
+
+Implement:
+
+1) In client/src/components/landing/country-selector.tsx:
+- Fetch /api/public/rollouts on mount using TanStack Query.
+- Build a map: rolloutByCode[countryCode] = {isActive, comingSoonMessage}
+- Render country buttons from a COUNTRY_OPTIONS array (IN, MY, UK, AE, SG) but mark each as:
+  - enabled if rolloutByCode[code]?.isActive === true
+  - disabled if missing rollout row OR isActive === false
+
+2) UX:
+- If disabled: show a small "Coming soon" pill below the country name.
+- Clicking disabled country should NOT set selection; instead open ComingSoon component using message from rollout (fallback: "Coming soon").
+- Clicking enabled country sets selection and closes modal.
+
+3) Persist selection:
+- Keep existing storage key app:country (or whatever you use currently).
+- Keep app:lang untouched.
+
+4) Ensure:
+- MY and UK become selectable immediately when rollout config isActive=true
+- If a rollout record is missing, the country defaults to coming soon.
+
+Acceptance:
+- Landing page modal shows IN/MY/UK and status.
+- MY/UK are clickable when rollout says active.
+- Coming soon message uses rollout.comingSoonMessage.
+
+Return: short summary + which files changed.
+
+✅ Implementation details (what the code should do)
+Data source (single truth)
+
+GET /api/public/rollouts → gives:
+
+countryCode
+
+isActive
+
+comingSoonMessage
+
+Country UI behavior
+Country rollout	UI shows	Click result
+isActive=true	normal button	selects country
+isActive=false	disabled + “Coming soon”	shows coming soon message
+no record	treated as coming soon	shows generic coming soon
+🔥 Common mistake to avoid
+
+Do not keep hardcoded “coming soon” logic in the modal.
+The modal must always defer to /api/public/rollouts.
+
+After this change, how you verify quickly
+
+Go to landing /
+
+Open country modal
+
+Confirm MY + UK are clickable (if super admin set active)
+
+Select Malaysia → register → business dropdown should match MY rollout
+
+Select UK → same

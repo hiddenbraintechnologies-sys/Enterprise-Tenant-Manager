@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,28 +7,38 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
-import { Globe } from "lucide-react";
+import { Globe, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
-const COUNTRIES = [
-  { code: "IN", name: "India", path: "/in", available: true },
-  { code: "MY", name: "Malaysia", path: "/my", available: true },
-  { code: "UK", name: "United Kingdom", path: "/uk", available: true },
-  { code: "SG", name: "Singapore", path: "/sg", available: false },
-  { code: "AE", name: "UAE", path: "/uae", available: false },
+const COUNTRY_OPTIONS = [
+  { code: "IN", name: "India", path: "/in" },
+  { code: "MY", name: "Malaysia", path: "/my" },
+  { code: "UK", name: "United Kingdom", path: "/uk" },
+  { code: "SG", name: "Singapore", path: "/sg" },
+  { code: "AE", name: "UAE", path: "/uae" },
 ] as const;
 
+export type CountryCode = typeof COUNTRY_OPTIONS[number]["code"];
+
+interface RolloutData {
+  countryCode: string;
+  isActive: boolean;
+  status: string;
+  comingSoonMessage: string | null;
+  enabledBusinessTypes: string[];
+}
+
 export function getCountryFromPath(pathname: string): CountryCode | "GLOBAL" {
-  const country = COUNTRIES.find((c) => c.path === pathname);
+  const country = COUNTRY_OPTIONS.find((c) => c.path === pathname);
   return country ? country.code : "GLOBAL";
 }
 
 export function getCountryLabel(pathname: string): string {
-  const country = COUNTRIES.find((c) => c.path === pathname);
+  const country = COUNTRY_OPTIONS.find((c) => c.path === pathname);
   return country ? country.name : "Global";
 }
-
-export type CountryCode = typeof COUNTRIES[number]["code"];
 
 const STORAGE_KEY = "selectedCountry";
 
@@ -55,13 +65,90 @@ interface CountrySelectorModalProps {
 
 export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySelectorModalProps) {
   const [, navigate] = useLocation();
+  const [comingSoonCountry, setComingSoonCountry] = useState<{
+    code: CountryCode;
+    name: string;
+    message: string;
+  } | null>(null);
 
-  const handleSelect = (country: typeof COUNTRIES[number]) => {
-    setStoredCountry(country.code);
-    onOpenChange(false);
-    onSelect?.(country.code);
-    navigate(country.path);
+  const { data: rollouts, isLoading } = useQuery<RolloutData[]>({
+    queryKey: ["/api/public/rollouts"],
+    enabled: open,
+  });
+
+  const rolloutByCode: Record<string, RolloutData> = {};
+  if (Array.isArray(rollouts)) {
+    for (const r of rollouts) {
+      rolloutByCode[r.countryCode] = r;
+    }
+  }
+
+  const isCountryActive = (code: string): boolean => {
+    const rollout = rolloutByCode[code];
+    return rollout?.isActive === true;
   };
+
+  const getComingSoonMessage = (code: string): string => {
+    const rollout = rolloutByCode[code];
+    return rollout?.comingSoonMessage || "We're launching soon in this region. Stay tuned!";
+  };
+
+  const handleSelect = (country: typeof COUNTRY_OPTIONS[number]) => {
+    if (isCountryActive(country.code)) {
+      setStoredCountry(country.code);
+      onOpenChange(false);
+      onSelect?.(country.code);
+      navigate(country.path);
+    } else {
+      setComingSoonCountry({
+        code: country.code,
+        name: country.name,
+        message: getComingSoonMessage(country.code),
+      });
+    }
+  };
+
+  const handleBackFromComingSoon = () => {
+    setComingSoonCountry(null);
+  };
+
+  if (comingSoonCountry) {
+    return (
+      <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setComingSoonCountry(null); }}>
+        <DialogContent className="sm:max-w-md" data-testid="modal-coming-soon">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-6 w-8 items-center justify-center rounded border bg-muted text-xs font-semibold">
+                {comingSoonCountry.code}
+              </span>
+              {comingSoonCountry.name}
+            </DialogTitle>
+            <DialogDescription>Coming Soon</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground" data-testid="text-coming-soon-message">
+              {comingSoonCountry.message}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBackFromComingSoon}
+              data-testid="button-back-to-countries"
+            >
+              Back
+            </Button>
+            <Button
+              asChild
+              data-testid="button-join-waitlist"
+            >
+              <a href={`/${comingSoonCountry.code.toLowerCase()}`}>Join Waitlist</a>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -73,23 +160,34 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-4">
-          {COUNTRIES.map((country) => (
-            <Button
-              key={country.code}
-              variant={country.available ? "outline" : "ghost"}
-              className="justify-start h-auto py-3 px-4"
-              onClick={() => handleSelect(country)}
-              data-testid={`button-country-${country.code.toLowerCase()}`}
-            >
-              <span className="flex h-6 w-8 items-center justify-center rounded border bg-muted text-xs font-semibold mr-3">
-                {country.code}
-              </span>
-              <span className="font-medium">{country.name}</span>
-              {!country.available && (
-                <span className="ml-auto text-xs text-muted-foreground">Coming soon</span>
-              )}
-            </Button>
-          ))}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            COUNTRY_OPTIONS.map((country) => {
+              const active = isCountryActive(country.code);
+              return (
+                <Button
+                  key={country.code}
+                  variant={active ? "outline" : "ghost"}
+                  className="justify-start h-auto py-3 px-4"
+                  onClick={() => handleSelect(country)}
+                  data-testid={`button-country-${country.code.toLowerCase()}`}
+                >
+                  <span className="flex h-6 w-8 items-center justify-center rounded border bg-muted text-xs font-semibold mr-3">
+                    {country.code}
+                  </span>
+                  <span className="font-medium">{country.name}</span>
+                  {!active && (
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      Coming soon
+                    </Badge>
+                  )}
+                </Button>
+              );
+            })
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -102,7 +200,7 @@ interface CountrySwitchProps {
 }
 
 export function CountrySwitch({ pathname, onOpenSelector }: CountrySwitchProps) {
-  const country = COUNTRIES.find((c) => c.path === pathname);
+  const country = COUNTRY_OPTIONS.find((c) => c.path === pathname);
   const isGlobal = !country;
 
   return (
@@ -130,4 +228,4 @@ export function CountrySwitch({ pathname, onOpenSelector }: CountrySwitchProps) 
   );
 }
 
-export { COUNTRIES };
+export { COUNTRY_OPTIONS as COUNTRIES };
