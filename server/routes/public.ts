@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db } from "../db";
-import { waitlist, insertWaitlistSchema } from "@shared/schema";
+import { waitlist, insertWaitlistSchema, countryRolloutPolicy } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
@@ -99,6 +99,31 @@ router.get("/waitlist/count/:countryCode", async (req: Request, res: Response) =
   } catch (error: any) {
     console.error("[waitlist] Count error:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/public/rollouts
+ * Lightweight endpoint for landing + register page country picker
+ * Returns only public-safe fields: countryCode, isActive, comingSoonMessage, enabledBusinessTypes
+ */
+router.get("/rollouts", async (_req: Request, res: Response) => {
+  try {
+    const rows = await db
+      .select({
+        countryCode: countryRolloutPolicy.countryCode,
+        isActive: countryRolloutPolicy.isActive,
+        status: countryRolloutPolicy.status,
+        comingSoonMessage: countryRolloutPolicy.comingSoonMessage,
+        enabledBusinessTypes: countryRolloutPolicy.enabledBusinessTypes,
+      })
+      .from(countryRolloutPolicy)
+      .orderBy(countryRolloutPolicy.countryCode);
+
+    res.json({ rollouts: rows });
+  } catch (error) {
+    console.error("[public/rollouts] Error fetching rollouts:", error);
+    res.status(500).json({ error: "Failed to fetch rollouts" });
   }
 });
 

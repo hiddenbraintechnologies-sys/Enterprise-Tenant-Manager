@@ -1,0 +1,659 @@
+1) Prisma (schema + migration)
+✅ File: prisma/schema.prisma
+
+Add this model:
+
+model CountryRollout {
+  countryCode       String   @id @db.VarChar(2) // IN, MY, UK...
+  isActive          Boolean  @default(false)
+
+  // Which business types are allowed to register in this country
+  enabledBusinessTypes Json   @default("[]") // string[] stored as JSON
+
+  // Which modules are allowed to load (sidebar / routes / backend)
+  enabledModules     Json    @default("[]") // string[] stored as JSON
+
+  // Feature switches (payroll/hrms/gst/whatsapp etc)
+  enabledFeatures    Json    @default("{}") // Record<string, boolean>
+
+  comingSoonMessage  String? @db.Text
+
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+
+  @@map("country_rollouts")
+}
+
+Optional (recommended): store countryCode on tenant
+
+If you don’t already have it:
+
+model Tenant {
+  // ...
+  countryCode String? @db.VarChar(2)
+  // ...
+}
+
+✅ Migration
+
+Create SQL migration:
+
+File: prisma/migrations/xxxx_add_country_rollouts/migration.sql
+CREATE TABLE IF NOT EXISTS country_rollouts (
+  country_code VARCHAR(2) PRIMARY KEY,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  enabled_business_types JSONB NOT NULL DEFAULT '[]'::jsonb,
+  enabled_modules JSONB NOT NULL DEFAULT '[]'::jsonb,
+  enabled_features JSONB NOT NULL DEFAULT '{}'::jsonb,
+  coming_soon_message TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_country_rollouts_active ON country_rollouts(is_active);
+
+✅ Seed defaults (India phase 1)
+File: server/seed/countryRollouts.ts
+import { db } from "../db"; // adjust if your prisma client export differs
+
+export async function seedCountryRollouts() {
+  const defaults = [
+    {
+      countryCode: "IN",
+      isActive: true,
+      enabledBusinessTypes: ["pg_hostel"], // Phase-1 only
+      enabledModules: ["dashboard", "pg", "bookings", "customers", "invoicing", "analytics"],
+      enabledFeatures: { hrms: false, payroll: false, gst_features: true, whatsapp_automation: false },
+      comingSoonMessage: null,
+    },
+    {
+      countryCode: "MY",
+      isActive: true, // make selectable
+      enabledBusinessTypes: ["consulting", "software_services"],
+      enabledModules: ["dashboard", "projects", "timesheets", "clients", "invoices", "analytics", "hrms", "payroll"],
+      enabledFeatures: { hrms: true, payroll: true },
+      comingSoonMessage: null,
+    },
+    {
+      countryCode: "UK",
+      isActive: true,
+      enabledBusinessTypes: ["consulting", "software_services"],
+      enabledModules: ["dashboard", "projects", "timesheets", "clients", "invoices", "analytics", "hrms"],
+      enabledFeatures: { hrms: true, payroll: false },
+      comingSoonMessage: null,
+    },
+  ];
+
+  for (const row of defaults) {
+    await db.countryRollout.upsert({
+      where: { countryCode: row.countryCode },
+      update: {
+        isActive: row.isActive,
+        enabledBusinessTypes: row.enabledBusinessTypes as any,
+        enabledModules: row.enabledModules as any,
+        enabledFeatures: row.enabledFeatures as any,
+        comingSoonMessage: row.comingSoonMessage,
+      },
+      create: {
+        countryCode: row.countryCode,
+        isActive: row.isActive,
+        enabledBusinessTypes: row.enabledBusinessTypes as any,
+        enabledModules: row.enabledModules as any,
+        enabledFeatures: row.enabledFeatures as any,
+        comingSoonMessage: row.comingSoonMessage,
+      },
+    });
+  }
+}
+
+
+Then call it from your existing seed/startup (where India pricing seed runs), e.g.:
+
+File: server/index.ts (or wherever seeding happens)
+import { seedCountryRollouts } from "./seed/countryRollouts";
+
+await seedCountryRollouts();
+
+2) API (Super Admin endpoints + enforcement)
+A) Super Admin CRUD endpoints
+File: server/routes/super-admin/rollouts.ts
+import { Router } from "express";
+import { db } from "../../db";
+import { requireRole } from "../../middleware/rbac"; // adjust to your RBAC helper
+
+const router = Router();
+
+/**
+ * GET /api/super-admin/rollouts
+ * Returns all rollout configs
+ */
+router.get(
+  "/",
+  requireRole(["SUPER_ADMIN"]), // adjust roles list
+  async (_req, res) => {
+    const rows = await db.countryRollout.findMany({ orderBy: { countryCode: "asc" } });
+    res.json({ rollouts: rows });
+  }
+);
+
+/**
+ * GET /api/super-admin/rollouts/:countryCode
+ */
+router.get(
+  "/:countryCode",
+  requireRole(["SUPER_ADMIN"]),
+  async (req, res) => {
+    const countryCode = String(req.params.countryCode || "").toUpperCase();
+    const row = await db.countryRollout.findUnique({ where: { countryCode } });
+    if (!row) return res.status(404).json({ error: "NOT_FOUND" });
+    res.json({ rollout: row });
+  }
+);
+
+/**
+ * PATCH /api/super-admin/rollouts/:countryCode
+ */
+router.patch(
+  "/:countryCode",
+  requireRole(["SUPER_ADMIN"]),
+  async (req, res) => {
+    const countryCode = String(req.params.countryCode || "").toUpperCase();
+
+    const {
+      isActive,
+      enabledBusinessTypes,
+      enabledModules,
+      enabledFeatures,
+      comingSoonMessage,
+    } = req.body || {};
+
+    // light validation
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({ error: "VALIDATION", message: "isActive must be boolean" });
+    }
+    if (!Array.isArray(enabledBusinessTypes) || !Array.isArray(enabledModules) || typeof enabledFeatures !== "object") {
+      return res.status(400).json({ error: "VALIDATION", message: "Invalid rollout payload" });
+    }
+
+    const row = await db.countryRollout.upsert({
+      where: { countryCode },
+      update: {
+        isActive,
+        enabledBusinessTypes: enabledBusinessTypes as any,
+        enabledModules: enabledModules as any,
+        enabledFeatures: enabledFeatures as any,
+        comingSoonMessage: comingSoonMessage ?? null,
+      },
+      create: {
+        countryCode,
+        isActive,
+        enabledBusinessTypes: enabledBusinessTypes as any,
+        enabledModules: enabledModules as any,
+        enabledFeatures: enabledFeatures as any,
+        comingSoonMessage: comingSoonMessage ?? null,
+      },
+    });
+
+    // (optional) audit log insert here if you have audit_logs table
+    // await db.auditLog.create(...)
+
+    res.json({ rollout: row });
+  }
+);
+
+export default router;
+
+File: server/routes.ts (or main router index)
+
+Mount it:
+
+import rolloutsRouter from "./routes/super-admin/rollouts";
+
+// ...
+app.use("/api/super-admin/rollouts", rolloutsRouter);
+
+B) Public endpoint to power landing country picker (recommended)
+File: server/routes/public/rollouts.ts
+import { Router } from "express";
+import { db } from "../../db";
+
+const router = Router();
+
+/**
+ * GET /api/public/rollouts
+ * Lightweight for landing + register page
+ */
+router.get("/", async (_req, res) => {
+  const rows = await db.countryRollout.findMany({
+    select: {
+      countryCode: true,
+      isActive: true,
+      comingSoonMessage: true,
+      enabledBusinessTypes: true,
+    },
+    orderBy: { countryCode: "asc" },
+  });
+
+  res.json({ rollouts: rows });
+});
+
+export default router;
+
+
+Mount:
+
+import publicRollouts from "./routes/public/rollouts";
+app.use("/api/public/rollouts", publicRollouts);
+
+C) Enforcement during registration (country + business type)
+
+Wherever your registration creates tenant/user:
+
+File: server/routes/auth.ts (or your register handler file)
+
+Add this check before tenant creation:
+
+const countryCode = String(req.body.countryCode || "").toUpperCase(); // IN/MY/UK
+const businessType = String(req.body.businessType || ""); // pg_hostel, consulting...
+
+const rollout = await db.countryRollout.findUnique({ where: { countryCode } });
+if (!rollout || rollout.isActive === false) {
+  return res.status(403).json({
+    error: "COUNTRY_COMING_SOON",
+    message: rollout?.comingSoonMessage || "This country is not active yet.",
+  });
+}
+
+const allowed = (rollout.enabledBusinessTypes as any[]).map(String);
+if (!allowed.includes(businessType)) {
+  return res.status(403).json({
+    error: "BUSINESS_NOT_AVAILABLE",
+    message: "This business type is not available in this country yet.",
+  });
+}
+
+D) Enforcement on every module API (403 if module disabled)
+
+This is the real “cannot access even by URL” layer.
+
+File: server/middleware/rollout-guard.ts
+import { db } from "../db";
+
+export function requireCountryModule(moduleKey: string) {
+  return async (req: any, res: any, next: any) => {
+    // Assumption: you already have tenant context on req.tenant (or req.ctx.tenant)
+    const tenant = req.tenant || req.ctx?.tenant;
+    if (!tenant?.countryCode) return next(); // if not tenant-scoped route, skip
+
+    const countryCode = String(tenant.countryCode).toUpperCase();
+    const rollout = await db.countryRollout.findUnique({ where: { countryCode } });
+
+    if (!rollout || rollout.isActive === false) {
+      return res.status(403).json({ error: "COUNTRY_NOT_ACTIVE" });
+    }
+
+    const enabledModules = (rollout.enabledModules as any[]).map(String);
+    if (!enabledModules.includes(moduleKey)) {
+      return res.status(403).json({ error: "MODULE_NOT_AVAILABLE", module: moduleKey });
+    }
+
+    next();
+  };
+}
+
+export function requireCountryFeature(featureKey: string) {
+  return async (req: any, res: any, next: any) => {
+    const tenant = req.tenant || req.ctx?.tenant;
+    if (!tenant?.countryCode) return next();
+
+    const rollout = await db.countryRollout.findUnique({ where: { countryCode: String(tenant.countryCode).toUpperCase() } });
+    if (!rollout || rollout.isActive === false) {
+      return res.status(403).json({ error: "COUNTRY_NOT_ACTIVE" });
+    }
+
+    const flags = (rollout.enabledFeatures as Record<string, any>) || {};
+    if (flags[featureKey] !== true) {
+      return res.status(403).json({ error: "FEATURE_NOT_AVAILABLE", feature: featureKey });
+    }
+
+    next();
+  };
+}
+
+
+Use in routes (example):
+
+import { requireCountryModule } from "../middleware/rollout-guard";
+
+router.post("/api/hr/projects", requireCountryModule("projects"), handler);
+router.get("/api/hr/timesheets", requireCountryModule("timesheets"), handler);
+
+3) UI (Super Admin Rollout Manager page)
+✅ Page: client/src/pages/super-admin/rollouts.tsx
+
+This uses shadcn-ish components and react-query (same pattern you’re already using).
+
+import React from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api"; // your API client
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
+
+type RolloutRow = {
+  countryCode: string;
+  isActive: boolean;
+  enabledBusinessTypes: string[];
+  enabledModules: string[];
+  enabledFeatures: Record<string, boolean>;
+  comingSoonMessage?: string | null;
+};
+
+const COUNTRY_OPTIONS: { code: string; name: string }[] = [
+  { code: "IN", name: "India" },
+  { code: "MY", name: "Malaysia" },
+  { code: "UK", name: "United Kingdom" },
+  { code: "AE", name: "UAE" },
+  { code: "SG", name: "Singapore" },
+];
+
+const BUSINESS_TYPES = [
+  { key: "pg_hostel", label: "PG / Hostel" },
+  { key: "consulting", label: "Consulting" },
+  { key: "software_services", label: "Software Services" },
+  { key: "clinic_healthcare", label: "Clinic / Healthcare" },
+  { key: "salon", label: "Salon" },
+  { key: "gym", label: "Gym" },
+  { key: "coaching", label: "Coaching Institute" },
+  { key: "furniture_manufacturing", label: "Furniture Manufacturing" },
+];
+
+const MODULES = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "customers", label: "Customers" },
+  { key: "bookings", label: "Bookings" },
+  { key: "projects", label: "Projects" },
+  { key: "timesheets", label: "Timesheets" },
+  { key: "clients", label: "Clients" },
+  { key: "invoicing", label: "Invoicing" },
+  { key: "analytics", label: "Analytics" },
+  { key: "hrms", label: "HRMS" },
+  { key: "payroll", label: "Payroll" },
+];
+
+const FEATURES = [
+  { key: "hrms", label: "HRMS" },
+  { key: "payroll", label: "Payroll" },
+  { key: "gst_features", label: "GST Features" },
+  { key: "whatsapp_automation", label: "WhatsApp Automation" },
+  { key: "sms_notifications", label: "SMS Notifications" },
+  { key: "priority_support", label: "Priority Support" },
+];
+
+function ensureArray(v: any): string[] {
+  if (Array.isArray(v)) return v.map(String);
+  return [];
+}
+
+export default function SuperAdminRolloutsPage() {
+  const qc = useQueryClient();
+  const [selectedCountry, setSelectedCountry] = React.useState("IN");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["super-admin-rollouts"],
+    queryFn: async () => {
+      const res = await api.get("/api/super-admin/rollouts");
+      return res.data as { rollouts: RolloutRow[] };
+    },
+  });
+
+  const rollouts = data?.rollouts || [];
+  const current = rollouts.find(r => r.countryCode === selectedCountry);
+
+  const [draft, setDraft] = React.useState<RolloutRow | null>(null);
+
+  React.useEffect(() => {
+    if (current) {
+      setDraft({
+        ...current,
+        enabledBusinessTypes: ensureArray(current.enabledBusinessTypes),
+        enabledModules: ensureArray(current.enabledModules),
+        enabledFeatures: current.enabledFeatures || {},
+      });
+    } else {
+      // If missing row, create draft default
+      setDraft({
+        countryCode: selectedCountry,
+        isActive: false,
+        enabledBusinessTypes: [],
+        enabledModules: [],
+        enabledFeatures: {},
+        comingSoonMessage: "Coming soon",
+      });
+    }
+  }, [selectedCountry, current?.countryCode]);
+
+  const mutation = useMutation({
+    mutationFn: async (payload: RolloutRow) => {
+      const res = await api.patch(`/api/super-admin/rollouts/${payload.countryCode}`, {
+        isActive: payload.isActive,
+        enabledBusinessTypes: payload.enabledBusinessTypes,
+        enabledModules: payload.enabledModules,
+        enabledFeatures: payload.enabledFeatures,
+        comingSoonMessage: payload.comingSoonMessage || null,
+      });
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["super-admin-rollouts"] });
+      toast({ title: "Saved", description: "Country rollout updated." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Save failed", description: err?.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  if (isLoading || !draft) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader><CardTitle>Country Rollouts</CardTitle></CardHeader>
+          <CardContent>Loading…</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const toggleInList = (list: string[], key: string) =>
+    list.includes(key) ? list.filter(x => x !== key) : [...list, key];
+
+  return (
+    <div className="p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Country Rollouts</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {COUNTRY_OPTIONS.map(c => (
+              <Button
+                key={c.code}
+                variant={selectedCountry === c.code ? "default" : "outline"}
+                onClick={() => setSelectedCountry(c.code)}
+              >
+                {c.code} • {c.name}
+              </Button>
+            ))}
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium">Country Active</div>
+              <div className="text-sm text-muted-foreground">
+                If off, country shows as “Coming soon” and signup is blocked.
+              </div>
+            </div>
+            <Switch
+              checked={draft.isActive}
+              onCheckedChange={(v) => setDraft({ ...draft, isActive: v })}
+            />
+          </div>
+
+          {!draft.isActive && (
+            <div className="space-y-2">
+              <Label>Coming soon message</Label>
+              <Input
+                value={draft.comingSoonMessage || ""}
+                onChange={(e) => setDraft({ ...draft, comingSoonMessage: e.target.value })}
+                placeholder="Coming soon in this country"
+              />
+            </div>
+          )}
+
+          <Tabs defaultValue="business">
+            <TabsList>
+              <TabsTrigger value="business">Business Types</TabsTrigger>
+              <TabsTrigger value="modules">Modules</TabsTrigger>
+              <TabsTrigger value="features">Features</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="business" className="mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {BUSINESS_TYPES.map(b => (
+                  <div key={b.key} className="flex items-center gap-3 rounded-md border p-3">
+                    <Checkbox
+                      checked={draft.enabledBusinessTypes.includes(b.key)}
+                      onCheckedChange={() =>
+                        setDraft({ ...draft, enabledBusinessTypes: toggleInList(draft.enabledBusinessTypes, b.key) })
+                      }
+                    />
+                    <div className="text-sm">{b.label}</div>
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="modules" className="mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MODULES.map(m => (
+                  <div key={m.key} className="flex items-center gap-3 rounded-md border p-3">
+                    <Checkbox
+                      checked={draft.enabledModules.includes(m.key)}
+                      onCheckedChange={() =>
+                        setDraft({ ...draft, enabledModules: toggleInList(draft.enabledModules, m.key) })
+                      }
+                    />
+                    <div className="text-sm">{m.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground mt-3">
+                Tip: Modules should match backend guards. If module is disabled, API should return 403.
+              </div>
+            </TabsContent>
+
+            <TabsContent value="features" className="mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {FEATURES.map(f => (
+                  <div key={f.key} className="flex items-center justify-between rounded-md border p-3">
+                    <div className="text-sm">{f.label}</div>
+                    <Switch
+                      checked={Boolean(draft.enabledFeatures?.[f.key])}
+                      onCheckedChange={(v) =>
+                        setDraft({
+                          ...draft,
+                          enabledFeatures: { ...(draft.enabledFeatures || {}), [f.key]: v },
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (current) setDraft({ ...current } as any);
+                else setDraft({ ...draft, isActive: false, enabledBusinessTypes: [], enabledModules: [], enabledFeatures: {} });
+              }}
+            >
+              Reset
+            </Button>
+
+            <Button
+              onClick={() => mutation.mutate(draft)}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+✅ Add route + sidebar link
+File: client/src/App.tsx (or your router file)
+
+Add route under super-admin protected routes:
+
+<Route path="/super-admin/rollouts" component={SuperAdminRolloutsPage} />
+
+File: client/src/components/sidebar/... (Super Admin menu)
+
+Add menu item:
+
+Label: Rollouts
+
+Path: /super-admin/rollouts
+
+4) Hook it into “Choose your country” modal (fix “MY/UK coming soon” issue)
+
+Your modal is still hardcoded “coming soon”. Make it dynamic:
+
+File: client/src/hooks/usePublicRollouts.ts
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+
+export function usePublicRollouts() {
+  return useQuery({
+    queryKey: ["public-rollouts"],
+    queryFn: async () => (await api.get("/api/public/rollouts")).data as any,
+  });
+}
+
+
+Then in your country selector modal:
+
+show Coming soon only if rollout says isActive=false
+
+enable click if isActive=true
+
+5) Make HRMS/Payroll selectable on signup (Malaysia case)
+Rule:
+
+Signup business list must come from rollout enabledBusinessTypes
+
+Modules shown after login must be filtered by rollout enabledModules
+
+Features can be used for finer control (Payroll enabled in MY, disabled in UK)
+
+If you want, I’ll paste the exact Register page change and sidebar filtering code for this.
+
+Quick checklist (so your MY/UK show active)
+
+✅ seedCountryRollouts() runs on server start
+✅ /api/public/rollouts returns MY/UK isActive=true
+✅ country selector uses API (not hardcoded “coming soon”)
