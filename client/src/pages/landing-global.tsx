@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { LandingLayout } from "@/components/landing/landing-layout";
 import { Seo } from "@/components/seo";
+import { HowItWorks } from "@/components/landing/how-it-works";
 
 const businessTypes = [
   { name: "Software Services", icon: LayoutDashboard },
@@ -72,6 +73,8 @@ export default function LandingGlobal() {
           </a>
         </div>
       </section>
+
+      <HowItWorks />
 
       <section className="border-t bg-muted/30 px-6 py-16">
         <div className="mx-auto max-w-7xl">
