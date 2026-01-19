@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import howItWorksVideo from "@assets/generated_videos/complete_saas_platform_explainer.mp4";
+import howItWorksVideo from "@assets/generated_videos/saas_sales_pitch_storytelling.mp4";
 
 const steps = [
   {
