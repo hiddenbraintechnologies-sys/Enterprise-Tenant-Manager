@@ -223,11 +223,6 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
             <DialogDescription>
               Choose your country to see local pricing and features.
             </DialogDescription>
-            {data && (
-              <div className="text-xs text-muted-foreground mt-1">
-                v: {data.version ?? "?"} • {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString() : "?"}
-              </div>
-            )}
           </DialogHeader>
 
           <Separator className="my-3" />
