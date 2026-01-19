@@ -310,6 +310,9 @@ app.use((req, res, next) => {
   // Start background job for processing scheduled downgrades
   startScheduledDowngradeProcessor();
   
+  // Start background job for processing expired subscriptions
+  startSubscriptionExpiryProcessor();
+  
   // Server is already listening (started at the top of this async block)
   // This ensures Replit health checks pass immediately
   } catch (error) {
@@ -338,4 +341,24 @@ function startScheduledDowngradeProcessor() {
   runProcessor();
   setInterval(runProcessor, INTERVAL_MS);
   log("Scheduled downgrade processor started (runs hourly)", "billing-job");
+}
+
+function startSubscriptionExpiryProcessor() {
+  const INTERVAL_MS = 60 * 60 * 1000;
+  
+  const runProcessor = async () => {
+    try {
+      const { processExpiredSubscriptions } = await import("./middleware/subscription-guard");
+      const result = await processExpiredSubscriptions();
+      if (result.processed > 0) {
+        log(`Processed ${result.processed} expired subscriptions`, "subscription-expiry-job");
+      }
+    } catch (error) {
+      console.error("[subscription-expiry-job] Error processing expired subscriptions:", error);
+    }
+  };
+
+  setTimeout(() => runProcessor(), 10000);
+  setInterval(runProcessor, INTERVAL_MS);
+  log("Subscription expiry processor started (runs hourly)", "subscription-expiry-job");
 }

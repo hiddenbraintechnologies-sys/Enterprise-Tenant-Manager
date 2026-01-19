@@ -4,7 +4,7 @@ import {
   tenants, tenantSubscriptions, globalPricingPlans,
   users, userTenants
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { 
   authenticateJWT, tenantResolutionMiddleware, enforceTenantBoundary
 } from "../core";
@@ -237,34 +237,78 @@ router.get("/subscription/status", ...dashboardMiddlewareStack.slice(0, 3), asyn
       return res.status(400).json({ error: "Tenant context required" });
     }
 
-    const subscription = await subscriptionService.getActiveSubscription(tenantId);
+    const [subscription] = await db
+      .select()
+      .from(tenantSubscriptions)
+      .where(eq(tenantSubscriptions.tenantId, tenantId))
+      .orderBy(desc(tenantSubscriptions.createdAt))
+      .limit(1);
+    const now = new Date();
     
     if (!subscription) {
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      const tier = tenant?.subscriptionTier || "free";
       return res.json({
         hasSubscription: false,
-        tier: tenant?.subscriptionTier || "free",
-        needsSubscription: tenant?.subscriptionTier !== "free",
+        tier,
+        status: tier === "free" ? "free_tier" : "no_subscription",
+        isExpired: false,
+        canAccess: true,
+        needsSubscription: tier !== "free",
         redirectUrl: "/subscription/select"
       });
     }
 
     const plan = await subscriptionService.getPlan(subscription.planId);
+    const expiresAt = subscription.currentPeriodEnd;
+    const trialEndsAt = subscription.trialEndsAt;
+    
+    const isExpired = (expiresAt && expiresAt < now) || 
+                      (subscription.status === "trialing" && trialEndsAt && trialEndsAt < now);
+    const daysUntilExpiry = expiresAt ? Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+    const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry <= 7 && daysUntilExpiry > 0;
+    
+    let effectiveStatus = subscription.status;
+    if (isExpired && subscription.status === "active") {
+      effectiveStatus = "expired" as any;
+    }
+    
+    const isCancelled = subscription.status === "cancelled" || subscription.cancelAtPeriodEnd;
+    const canAccess = !isExpired && !["cancelled", "suspended"].includes(subscription.status || "");
 
     res.json({
       hasSubscription: true,
       subscription: {
         id: subscription.id,
-        status: subscription.status,
+        status: effectiveStatus,
         trialEndsAt: subscription.trialEndsAt,
         currentPeriodEnd: subscription.currentPeriodEnd,
+        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       },
       plan: plan ? {
         id: plan.id,
         name: plan.name,
         tier: plan.tier,
       } : null,
+      isExpired,
+      isExpiringSoon,
+      daysUntilExpiry,
+      isCancelled,
+      canAccess,
       needsSubscription: false,
+      showExpiryBanner: isExpiringSoon || isExpired || isCancelled || subscription.status === "past_due" || subscription.status === "suspended",
+      expiryMessage: isExpired 
+        ? "Your subscription has expired. Please renew to continue."
+        : isCancelled
+          ? "Your subscription has been cancelled. Please renew to continue."
+          : subscription.status === "suspended"
+            ? "Your subscription has been suspended. Please contact support or renew."
+            : isExpiringSoon 
+              ? `Your subscription expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}. Renew now to avoid interruption.`
+              : subscription.status === "past_due"
+                ? "Your payment is past due. Please update your payment method."
+                : null,
+      redirectUrl: isExpired || isCancelled || subscription.status === "suspended" ? "/billing/renew" : null,
     });
   } catch (error) {
     console.error("[subscription-status] Error:", error);
