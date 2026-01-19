@@ -176,12 +176,12 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
                         <span className="text-sm">{c.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground mt-1">
-                        {isKnown && isActive ? "Live" : "Coming soon"}
+                        {isKnown && isActive ? "Active" : "Coming soon"}
                       </span>
                     </div>
 
                     {isKnown && isActive ? (
-                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500">Live</Badge>
+                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500">Active</Badge>
                     ) : (
                       <Badge variant="outline">Soon</Badge>
                     )}
