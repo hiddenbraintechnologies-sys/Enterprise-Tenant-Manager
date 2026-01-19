@@ -218,19 +218,19 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
                     key={c.code}
                     type="button"
                     variant={selectedCountry === c.code ? "default" : "outline"}
-                    className="h-auto justify-between gap-2 py-4"
+                    className="h-auto justify-between gap-3 py-4 overflow-hidden"
                     onClick={() => handleSelect(c)}
                     data-testid={`button-country-${c.code.toLowerCase()}`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{c.code}</span>
-                      <span className="text-sm">{c.name}</span>
+                    <div className="flex items-center gap-2 min-w-0 flex-shrink">
+                      <span className="font-semibold shrink-0">{c.code}</span>
+                      <span className="text-sm truncate">{c.name}</span>
                     </div>
 
                     {isActive ? (
-                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500 shrink-0">Active</Badge>
+                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500 shrink-0 text-xs">Active</Badge>
                     ) : (
-                      <Badge variant="outline" className="shrink-0 whitespace-nowrap">Coming Soon</Badge>
+                      <Badge variant="outline" className="shrink-0 text-xs">Soon</Badge>
                     )}
                   </Button>
                 );
