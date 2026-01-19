@@ -129,7 +129,7 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
   const { data, isLoading, isError, refetch, isFetching } = useQuery<RolloutResponse>({
     queryKey: ["/api/public/rollouts"],
     queryFn: async () => {
-      const res = await fetch("/api/public/rollouts", {
+      const res = await fetch(`/api/public/rollouts?ts=${Date.now()}`, {
         method: "GET",
         headers: {
           "Cache-Control": "no-cache",
@@ -223,6 +223,11 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
             <DialogDescription>
               Choose your country to see local pricing and features.
             </DialogDescription>
+            {data && (
+              <div className="text-xs text-muted-foreground mt-1">
+                v: {data.version ?? "?"} • {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString() : "?"}
+              </div>
+            )}
           </DialogHeader>
 
           <Separator className="my-3" />

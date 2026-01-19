@@ -1,0 +1,146 @@
+1) You’re still serving an old frontend bundle in production
+Confirm immediately (no guessing)
+
+Add a visible debug line inside the modal UI (temporary):
+
+File: client/src/components/landing/country-selector.tsx
+Add near the modal title:
+
+{process.env.NODE_ENV === "production" && (
+  <div className="text-xs text-muted-foreground mt-1">
+    rollouts updatedAt: {String((rolloutsJson as any)?.updatedAt ?? "missing")}
+    {" • "}
+    version: {String((rolloutsJson as any)?.version ?? "missing")}
+  </div>
+)}
+
+
+If you don’t see updatedAt/version changing in production, you’re not running the latest build.
+
+Replit fix
+
+Republish from Replit Deployments (not just “Run”)
+
+Then hard refresh:
+
+Chrome: Ctrl+Shift+R
+
+Mac: Cmd+Shift+R
+
+Also open in Incognito (you already did—good)
+
+2) The landing page is still calling /api/auth/user and it returns 401 (expected) but your global fetch wrapper may be breaking other requests
+
+Your screenshots show user request 401 on landing. That’s okay — but if you have any global API client/interceptor like:
+
+“if 401 then throw / redirect / set global error”
+
+or a React Query global error handler
+
+or a fetch wrapper that tries to parse HTML error pages
+
+…it can poison the modal logic.
+
+Fix (do this even if you think it’s fine)
+
+On the landing page, do not run any authenticated queries.
+
+Files to check:
+
+client/src/components/landing/LandingLayout.tsx
+
+client/src/pages/landing.tsx (or similar)
+
+client/src/contexts/auth-context.tsx / useAuth.ts
+
+✅ Ensure landing does NOT mount TenantProvider, OnboardingGuard, or anything that fetches /api/auth/*.
+
+Expected: On landing, only /api/public/rollouts should be fetched.
+
+3) You’re rendering the wrong country selector component in production
+
+You mentioned multiple files:
+
+client/src/components/landing/country-selector.tsx ✅ (modal one)
+
+client/src/components/country-selector.tsx (generic)
+
+In production, if the generic component is used by mistake, it may still show static “Coming soon”.
+
+Quick confirm
+
+Search in code for the import actually used on landing:
+
+Look for:
+
+import CountrySelector from "..."
+
+
+Make sure it imports components/landing/country-selector.tsx not the generic one.
+
+4) Your UI is reading the wrong key (rollouts vs data) at render-time
+
+Your API returns:
+
+{ "rollouts": [ ... ], "updatedAt": "...", "version": 123 }
+
+
+So in the UI, the list must come from:
+
+json.rollouts ✅
+
+or fallback json.data ✅
+
+Force it (simplify, avoid cleverness)
+
+In the modal component do:
+
+const rollouts = useMemo(() => {
+  const raw = (rolloutsJson as any)?.rollouts ?? (rolloutsJson as any)?.data ?? [];
+  return raw.map((r: any) => ({
+    countryCode: r.countryCode ?? r.country_code,
+    isActive: r.isActive ?? r.is_active ?? false,
+    countryName: r.countryName ?? r.country_name,
+    message: r.message ?? r.comingSoonMessage ?? r.coming_soon_message,
+  }));
+}, [rolloutsJson]);
+
+
+Then render using rollouts.
+
+This avoids cases where you normalized into a variable but accidentally still render from the old list.
+
+5) Add a “cache buster” ONLY for the rollouts call (Replit-safe)
+
+Even with no-store headers, some environments can still reuse connections.
+
+Update the fetch in the modal:
+
+const res = await fetch(`/api/public/rollouts?ts=${Date.now()}`, {
+  headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+  credentials: "omit",
+});
+
+
+This is harmless and instantly proves whether caching is involved.
+
+Final “Done” checklist (you can do in 2 minutes)
+
+In production, open:
+
+https://payodsoft.co.uk/api/public/rollouts
+Confirm IN & MY true ✅ (you already did)
+
+In production, open the modal and confirm Network shows:
+
+/api/public/rollouts response contains IN/MY true ✅
+
+Add the debug line showing updatedAt/version inside the modal UI
+
+If it says “missing” → wrong bundle/component
+
+If it shows old timestamp → old build still served
+
+If it shows fresh timestamp but UI says Soon → rendering wrong list / wrong field mapping
+
+If you paste one screenshot of the Network response Preview for /api/public/rollouts + one screenshot of the modal (showing IN “Soon”), I can tell you exactly which of the 5 issues it is (and which line in which file is wrong).
