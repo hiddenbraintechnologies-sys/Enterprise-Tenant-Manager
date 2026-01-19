@@ -222,14 +222,9 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
                     onClick={() => handleSelect(c)}
                     data-testid={`button-country-${c.code.toLowerCase()}`}
                   >
-                    <div className="flex flex-col items-start">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{c.code}</span>
-                        <span className="text-sm">{c.name}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground mt-1">
-                        {isActive ? "Live" : "Coming soon"}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{c.code}</span>
+                      <span className="text-sm">{c.name}</span>
                     </div>
 
                     {isActive ? (
