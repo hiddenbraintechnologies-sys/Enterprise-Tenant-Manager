@@ -228,7 +228,7 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
                     </div>
 
                     {isActive ? (
-                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500">Live</Badge>
+                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500">Active</Badge>
                     ) : (
                       <Badge variant="outline">Coming Soon</Badge>
                     )}
