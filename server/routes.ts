@@ -203,6 +203,36 @@ export async function registerRoutes(
       } catch (err) {
         console.log("[bootstrap] Payroll addon pricing seeding skipped:", err);
       }
+
+      // Seed country rollout policies (ensure IN/MY are active)
+      try {
+        const { countryRolloutPolicy } = await import("@shared/schema");
+        const countries = [
+          { code: "IN", active: true },
+          { code: "MY", active: true },
+          { code: "GB", active: false },
+          { code: "SG", active: false },
+        ];
+        for (const country of countries) {
+          const [existing] = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, country.code)).limit(1);
+          if (existing) {
+            await db.update(countryRolloutPolicy).set({ isActive: country.active, updatedAt: new Date() }).where(eq(countryRolloutPolicy.countryCode, country.code));
+          } else {
+            await db.insert(countryRolloutPolicy).values({
+              countryCode: country.code,
+              isActive: country.active,
+              status: "coming_soon",
+              enabledBusinessTypes: ["consulting", "software_services"],
+              enabledModules: [],
+              disabledFeatures: [],
+              updatedBy: "bootstrap",
+            });
+          }
+        }
+        console.log("[bootstrap] Country rollout policies seeded (IN/MY active)");
+      } catch (err) {
+        console.log("[bootstrap] Country rollout seeding skipped:", err);
+      }
       
       await tenantService.getOrCreateDefaultTenant();
       console.log("[bootstrap] Default tenant ready");
