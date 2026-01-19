@@ -109,12 +109,14 @@ router.get("/waitlist/count/:countryCode", async (req: Request, res: Response) =
  * Always returns fresh data with no caching
  */
 router.get("/rollouts", async (_req: Request, res: Response) => {
-  // Disable all caching to ensure fresh data
+  // Disable all caching (browser, CDN, proxy) to ensure fresh data
   res.set({
-    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
     "Pragma": "no-cache",
     "Expires": "0",
     "Surrogate-Control": "no-store",
+    "CDN-Cache-Control": "no-store",
+    "Vary": "Origin",
   });
 
   try {
