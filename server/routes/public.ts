@@ -106,8 +106,17 @@ router.get("/waitlist/count/:countryCode", async (req: Request, res: Response) =
  * GET /api/public/rollouts
  * Lightweight endpoint for landing + register page country picker
  * Returns only public-safe fields: countryCode, isActive, comingSoonMessage, enabledBusinessTypes
+ * Always returns fresh data with no caching
  */
 router.get("/rollouts", async (_req: Request, res: Response) => {
+  // Disable all caching to ensure fresh data
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Surrogate-Control": "no-store",
+  });
+
   try {
     const rows = await db
       .select({
@@ -120,10 +129,22 @@ router.get("/rollouts", async (_req: Request, res: Response) => {
       .from(countryRolloutPolicy)
       .orderBy(countryRolloutPolicy.countryCode);
 
-    res.json({ rollouts: rows });
+    const response = {
+      rollouts: rows,
+      updatedAt: new Date().toISOString(),
+      version: Date.now(),
+    };
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[public/rollouts] Returning fresh rollout data:", response);
+    }
+
+    res.json(response);
   } catch (error) {
-    console.error("[public/rollouts] Error fetching rollouts:", error);
-    res.status(500).json({ error: "Failed to fetch rollouts" });
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[public/rollouts] Error fetching rollouts:", error);
+    }
+    res.status(500).json({ error: "Failed to fetch rollouts", updatedAt: new Date().toISOString() });
   }
 });
 

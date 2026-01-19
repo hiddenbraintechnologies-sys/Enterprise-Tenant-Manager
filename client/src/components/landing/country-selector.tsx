@@ -18,6 +18,12 @@ type RolloutRow = {
   enabledBusinessTypes?: string[];
 };
 
+type RolloutResponse = {
+  rollouts: RolloutRow[];
+  updatedAt?: string;
+  version?: number;
+};
+
 const STORAGE_KEY = "app:country";
 
 const COUNTRY_OPTIONS: { code: string; name: string; path: string }[] = [
@@ -83,21 +89,38 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
   const [comingSoonOpen, setComingSoonOpen] = React.useState(false);
   const [comingSoonMsg, setComingSoonMsg] = React.useState<string>("Coming soon.");
 
-  const { data, isLoading, isError, refetch } = useQuery<{ rollouts: RolloutRow[] } | RolloutRow[]>({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<RolloutResponse>({
     queryKey: ["/api/public/rollouts"],
     enabled: open,
     staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    retry: 2,
   });
 
   React.useEffect(() => {
     if (open) {
       refetch();
+      if (import.meta.env.DEV) {
+        console.log("[CountrySelector] Modal opened, refetching rollout data...");
+      }
     }
   }, [open, refetch]);
 
+  React.useEffect(() => {
+    if (data && import.meta.env.DEV) {
+      console.log("[CountrySelector] Received rollout data:", {
+        rollouts: data.rollouts?.length,
+        updatedAt: data.updatedAt,
+        version: data.version,
+      });
+    }
+  }, [data]);
+
   const rolloutByCode = React.useMemo(() => {
     const map = new Map<string, RolloutRow>();
-    const rollouts = Array.isArray(data) ? data : (data as { rollouts: RolloutRow[] })?.rollouts || [];
+    const rollouts = data?.rollouts || [];
     for (const r of rollouts) {
       let code = safeUpper2(r.countryCode);
       if (code === "GB") code = "UK";
@@ -142,19 +165,29 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
 
           <Separator className="my-3" />
 
-          {isLoading && (
+          {(isLoading || isFetching) && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
 
           {isError && (
-            <div className="text-sm text-destructive py-4">
-              Could not load country availability. Please refresh.
+            <div className="flex flex-col items-center gap-3 py-4">
+              <p className="text-sm text-destructive">
+                Unable to load rollout status.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                data-testid="button-retry-rollouts"
+              >
+                Retry
+              </Button>
             </div>
           )}
 
-          {!isLoading && !isError && (
+          {!isLoading && !isFetching && !isError && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {COUNTRY_OPTIONS.map((c) => {
                 const rollout = rolloutByCode.get(c.code);
@@ -176,12 +209,12 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
                         <span className="text-sm">{c.name}</span>
                       </div>
                       <span className="text-xs text-muted-foreground mt-1">
-                        {isKnown && isActive ? "Active" : "Coming soon"}
+                        {isActive ? "Live" : "Coming soon"}
                       </span>
                     </div>
 
-                    {isKnown && isActive ? (
-                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500">Active</Badge>
+                    {isActive ? (
+                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500">Live</Badge>
                     ) : (
                       <Badge variant="outline">Soon</Badge>
                     )}
