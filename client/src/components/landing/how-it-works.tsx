@@ -1,13 +1,4 @@
-import { useState } from "react";
-import { PlayCircle, UserPlus, Settings, BarChart3, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import howItWorksVideo from "@assets/generated_videos/saas_sales_pitch_storytelling.mp4";
+import { PlayCircle, UserPlus, Settings, BarChart3 } from "lucide-react";
 
 const steps = [
   {
@@ -31,20 +22,14 @@ const steps = [
 ];
 
 export function HowItWorks() {
-  const [isVideoOpen, setIsVideoOpen] = useState(false);
-
   return (
     <section className="px-6 py-20 border-t" data-testid="section-how-it-works">
       <div className="mx-auto max-w-5xl">
         <div className="text-center mb-12">
-          <button
-            onClick={() => setIsVideoOpen(true)}
-            className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-4 hover:bg-primary/20 transition-colors cursor-pointer"
-            data-testid="button-play-how-it-works"
-          >
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-4">
             <PlayCircle className="h-4 w-4" />
             How It Works
-          </button>
+          </div>
           <h2 className="text-2xl font-semibold sm:text-3xl" data-testid="text-how-it-works-title">
             Get started in 3 simple steps
           </h2>
@@ -73,25 +58,6 @@ export function HowItWorks() {
           ))}
         </div>
       </div>
-
-      <Dialog open={isVideoOpen} onOpenChange={setIsVideoOpen}>
-        <DialogContent className="sm:max-w-3xl p-0 overflow-hidden">
-          <DialogHeader className="p-4 pb-0">
-            <DialogTitle>How It Works</DialogTitle>
-          </DialogHeader>
-          <div className="p-4 pt-2">
-            <video
-              src={howItWorksVideo}
-              controls
-              autoPlay
-              className="w-full rounded-lg"
-              data-testid="video-how-it-works"
-            >
-              Your browser does not support the video tag.
-            </video>
-          </div>
-        </DialogContent>
-      </Dialog>
     </section>
   );
 }
