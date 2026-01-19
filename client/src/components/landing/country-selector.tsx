@@ -11,6 +11,17 @@ import { Globe, Loader2 } from "lucide-react";
 
 import { ComingSoonModal } from "./coming-soon";
 
+type RolloutRowRaw = {
+  countryCode?: string;
+  country_code?: string;
+  isActive?: boolean;
+  is_active?: boolean;
+  comingSoonMessage?: string | null;
+  coming_soon_message?: string | null;
+  enabledBusinessTypes?: string[];
+  enabled_business_types?: string[];
+};
+
 type RolloutRow = {
   countryCode: string;
   isActive: boolean;
@@ -18,11 +29,37 @@ type RolloutRow = {
   enabledBusinessTypes?: string[];
 };
 
+type RolloutResponseRaw = {
+  rollouts?: RolloutRowRaw[];
+  data?: RolloutRowRaw[];
+  updatedAt?: string;
+  updated_at?: string;
+  version?: number;
+};
+
 type RolloutResponse = {
   rollouts: RolloutRow[];
   updatedAt?: string;
   version?: number;
 };
+
+function normalizeRollout(raw: RolloutRowRaw): RolloutRow {
+  return {
+    countryCode: raw.countryCode || raw.country_code || "",
+    isActive: raw.isActive ?? raw.is_active ?? false,
+    comingSoonMessage: raw.comingSoonMessage || raw.coming_soon_message || null,
+    enabledBusinessTypes: raw.enabledBusinessTypes || raw.enabled_business_types || [],
+  };
+}
+
+function normalizeResponse(raw: RolloutResponseRaw): RolloutResponse {
+  const rawRollouts = raw.rollouts || raw.data || [];
+  return {
+    rollouts: rawRollouts.map(normalizeRollout),
+    updatedAt: raw.updatedAt || raw.updated_at,
+    version: raw.version,
+  };
+}
 
 const STORAGE_KEY = "app:country";
 
@@ -98,6 +135,7 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
           "Cache-Control": "no-cache",
           "Pragma": "no-cache",
         },
+        credentials: "omit",
       });
       if (!res.ok) {
         throw new Error(`Failed to fetch rollouts: ${res.status}`);
@@ -106,7 +144,12 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
       if (import.meta.env.DEV) {
         console.log("[CountrySelector] Raw API response:", json);
       }
-      return json as RolloutResponse;
+      const normalized = normalizeResponse(json);
+      if (import.meta.env.DEV) {
+        console.log("[CountrySelector] Normalized response:", normalized);
+        console.log("[CountrySelector] version:", normalized.version, "updatedAt:", normalized.updatedAt);
+      }
+      return normalized;
     },
     enabled: open,
     staleTime: 0,
@@ -228,7 +271,7 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
                     </div>
 
                     {isActive ? (
-                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500 shrink-0 text-xs">Active</Badge>
+                      <Badge className="bg-green-500 text-white border-green-600 hover:bg-green-500 shrink-0 text-xs">Live</Badge>
                     ) : (
                       <Badge variant="outline" className="shrink-0 text-xs">Soon</Badge>
                     )}
