@@ -88,7 +88,7 @@ async function fetchUser(): Promise<AuthUser | null> {
       const refreshToken = localStorage.getItem("refreshToken");
       if (refreshToken) {
         try {
-          const refreshResponse = await fetch("/api/auth/refresh", {
+          const refreshResponse = await fetch("/api/auth/token/refresh", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },

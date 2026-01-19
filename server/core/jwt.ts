@@ -14,7 +14,7 @@ function getJwtSecret(): string {
 }
 
 const JWT_SECRET = getJwtSecret();
-const ACCESS_TOKEN_EXPIRY = "15m";
+const ACCESS_TOKEN_EXPIRY = "1h"; // Extended from 15m for better UX
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 const REFRESH_TOKEN_MAX_DAYS = 30;
 
@@ -113,7 +113,7 @@ export class JWTAuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: 15 * 60,
+      expiresIn: 60 * 60, // 1 hour
       tokenType: "Bearer",
     };
   }
@@ -201,7 +201,7 @@ export class JWTAuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: 15 * 60,
+      expiresIn: 60 * 60, // 1 hour
       tokenType: "Bearer",
     };
   }
