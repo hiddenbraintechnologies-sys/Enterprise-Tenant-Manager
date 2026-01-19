@@ -91,6 +91,23 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<RolloutResponse>({
     queryKey: ["/api/public/rollouts"],
+    queryFn: async () => {
+      const res = await fetch("/api/public/rollouts", {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch rollouts: ${res.status}`);
+      }
+      const json = await res.json();
+      if (import.meta.env.DEV) {
+        console.log("[CountrySelector] Raw API response:", json);
+      }
+      return json as RolloutResponse;
+    },
     enabled: open,
     staleTime: 0,
     gcTime: 0,
@@ -110,21 +127,23 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
 
   React.useEffect(() => {
     if (data && import.meta.env.DEV) {
-      console.log("[CountrySelector] Received rollout data:", {
-        rollouts: data.rollouts?.length,
-        updatedAt: data.updatedAt,
-        version: data.version,
-      });
+      console.log("[CountrySelector] Received rollout data:", JSON.stringify(data, null, 2));
     }
   }, [data]);
 
   const rolloutByCode = React.useMemo(() => {
     const map = new Map<string, RolloutRow>();
     const rollouts = data?.rollouts || [];
+    if (import.meta.env.DEV) {
+      console.log("[CountrySelector] Building lookup from rollouts:", rollouts.length, "entries");
+    }
     for (const r of rollouts) {
       let code = safeUpper2(r.countryCode);
       if (code === "GB") code = "UK";
       map.set(code, r);
+      if (import.meta.env.DEV) {
+        console.log(`[CountrySelector] ${code} -> isActive:`, r.isActive);
+      }
     }
     return map;
   }, [data]);
@@ -165,13 +184,13 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
 
           <Separator className="my-3" />
 
-          {(isLoading || isFetching) && (
+          {isLoading && !data && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
 
-          {isError && (
+          {isError && !data && (
             <div className="flex flex-col items-center gap-3 py-4">
               <p className="text-sm text-destructive">
                 Unable to load rollout status.
@@ -187,7 +206,7 @@ export function CountrySelectorModal({ open, onOpenChange, onSelect }: CountrySe
             </div>
           )}
 
-          {!isLoading && !isFetching && !isError && (
+          {data && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {COUNTRY_OPTIONS.map((c) => {
                 const rollout = rolloutByCode.get(c.code);

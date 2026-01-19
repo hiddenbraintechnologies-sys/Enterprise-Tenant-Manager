@@ -1,0 +1,133 @@
+Now I can see:
+
+✅ /api/public/rollouts is being called and returning 200 (multiple times)
+
+❌ UI is still showing “Coming soon / Soon” for every country
+
+⚠️ There is also a /user request returning 401 — that’s normal on a public landing page (no login), but it should not decide the rollout badge.
+
+So the real issue is:
+
+Root Cause (most likely)
+
+The UI is not using the rollout response correctly.
+
+Typical causes (one of these is happening):
+
+A) Field mismatch (API vs UI)
+
+Backend returns something like:
+
+isActive vs is_active
+
+status: "LIVE" vs boolean
+
+rollouts: { countries: [...] } but UI expects data[]
+
+So UI ends up reading undefined → defaults to “Soon”.
+
+B) Wrong key used for matching
+
+Example: API uses "MY" but UI is matching "my" or "Malaysia" or "countryCode" vs "code"
+
+C) UI is still using a hardcoded “Coming soon” list
+
+Even though it fetches rollouts, the render logic might still be:
+
+const isActive = false; // default
+
+
+or it always routes inactive → “Coming soon”.
+
+Why you still see /user 401
+
+That’s because some component on the landing page is calling an authenticated endpoint (/user or /api/auth/user) even when logged out.
+
+✅ It’s OK to get 401 there.
+❌ But it should not affect rollouts UI or country selector.
+
+What to do (fix plan)
+
+You need to log and confirm what /api/public/rollouts returns in production, then map it correctly.
+
+Step 1 — Verify the exact API response (fast)
+
+Open DevTools → click one rollouts request → Response tab → copy JSON.
+
+You’ll probably see something like one of these:
+
+[{ "countryCode":"MY","isActive":true }]
+
+
+or
+
+{ "rollouts":[{ "country_code":"MY","is_active":true }] }
+
+Step 2 — Fix mapping in UI
+
+In the country selector modal, build a lookup like:
+
+normalize country codes to uppercase
+
+support both naming styles (isActive, is_active, active)
+
+show badge = Live only if true
+
+Replit Prompt (copy–paste)
+
+Use this exact prompt in Replit to fix it:
+
+Fix production rollout status not updating in landing page country selector.
+
+Problem:
+- /api/public/rollouts returns 200 (confirmed in Network) but UI still shows "Coming soon" for all countries.
+- Likely mismatch between API response shape/field names and UI mapping logic, so UI falls back to default "Soon".
+
+Requirements:
+1) In client/src/components/landing/country-selector.tsx:
+   - On modal open, fetch /api/public/rollouts (no auth headers).
+   - Console.log the raw response once (only in dev) so we can confirm shape.
+   - Normalize response into a lookup map:
+       const byCode = new Map<string, { isActive: boolean; message?: string }>()
+     Support any of these field names:
+       countryCode / code / country_code
+       isActive / is_active / active
+       message / comingSoonMessage / coming_soon_message
+   - Match using uppercase country code (IN, MY, UK, AE, SG).
+   - Render badge:
+       if isActive true => "Live"
+       else => "Soon"
+   - If inactive and clicked, open ComingSoonModal and show backend message if provided.
+
+2) Ensure React Query does not serve stale rollout data:
+   - staleTime: 0
+   - cacheTime: 0 (or very low)
+   - refetchOnMount: "always"
+   - refetchOnWindowFocus: true
+   - Also call refetch() when modal opens.
+
+3) Ensure NO hardcoded 'coming soon' strings override API:
+   - Remove any fallback that forces "Coming soon" regardless of rollout state.
+   - Only fallback to "Soon" if rollout entry missing.
+
+4) The /user 401 on landing page should not block modal:
+   - Identify where /user is called on landing and guard it behind auth only, or ignore errors silently (do not affect rollout state).
+
+Deliverables:
+- Updated country selector showing correct Live/Soon status based on /api/public/rollouts in production.
+- Clicking MY when active should select it and store localStorage key app:country="MY".
+- Clicking inactive should show ComingSoonModal with backend message.
+
+Files that are usually involved (so you know where to paste)
+
+client/src/components/landing/country-selector.tsx ✅ main fix
+
+client/src/components/landing/coming-soon.tsx ✅ modal message display
+
+client/src/components/landing/landing-layout.tsx (if it triggers /user)
+
+client/src/contexts/country-context.tsx (storage key + selection)
+
+Any API client file like client/src/lib/api.ts (ensure correct base URL + no auth forced)
+
+If you paste the Response JSON from the rollouts request (just the JSON), I can tell you exactly which of A/B/C is happening and the exact mapping lines to change.
