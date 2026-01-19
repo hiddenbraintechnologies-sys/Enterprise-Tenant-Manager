@@ -1,0 +1,167 @@
+✅ What you’ve done is 100% right (sanity check)
+Backend
+
+✔ Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate
+✔ Added updatedAt + version → good for cache busting & visual verification
+✔ Public route (/api/public/rollouts) with no auth dependency
+✔ Dev-only logs → safe
+
+This fully eliminates:
+
+CDN caching
+
+Browser caching
+
+Server-side stale responses
+
+Frontend
+
+✔ Explicit fetch() → bypasses global API client & auth interceptors
+✔ staleTime: 0, gcTime: 0 → no React Query cache reuse
+✔ refetchOnMount: "always" + refetchOnWindowFocus: true
+✔ Manual refetch() on modal open
+✔ Badge logic driven only by isActive === true
+✔ Error boundary + Retry
+✔ Dev-only logging
+
+This is exactly how rollout gating should be done on a public landing page.
+
+🔍 Final Production Verification Checklist (do this in order)
+1️⃣ Network tab (most important)
+
+Open DevTools → Network → Fetch/XHR
+
+Click Get Started → Country Selector
+
+Click the /api/public/rollouts request
+
+Confirm ALL of these:
+
+Response Headers
+
+Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate
+
+
+Response Body
+
+{
+  "version": "...",
+  "updatedAt": "...",
+  "countries": [
+    { "countryCode": "IN", "isActive": true },
+    { "countryCode": "MY", "isActive": true }
+  ]
+}
+
+
+If this matches → backend is perfect.
+
+2️⃣ UI mapping check
+
+In the modal:
+
+Country	Expected
+🇮🇳 India	🟢 Live
+🇲🇾 Malaysia	🟢 Live
+🇬🇧 UK	Soon
+🇦🇪 UAE	Soon
+🇸🇬 SG	Soon
+
+If IN/MY are green, rollout is working.
+
+3️⃣ Selection persistence
+
+Click Malaysia
+
+Then in Console:
+
+localStorage.getItem("app:country")
+
+
+✅ Must return:
+
+"MY"
+
+
+Reload page → pricing & signup must remain MY-specific.
+
+❗ If it is STILL wrong (only 2 real possibilities left)
+Case A — CDN / hosting layer caching (VERY likely)
+
+If you’re using:
+
+Cloudflare
+
+Vercel Edge
+
+Nginx reverse proxy
+
+Then headers alone are not enough.
+
+Fix (one-time):
+
+Force dynamic response at hosting layer.
+
+If Vercel
+
+export const dynamic = "force-dynamic";
+
+
+If Express behind CDN
+Add:
+
+res.setHeader("Surrogate-Control", "no-store");
+
+
+Cloudflare
+
+Page Rule:
+payodsoft.co.uk/api/public/* → Cache Level: Bypass
+
+Case B — Old production bundle
+
+If the Network response is correct but UI still wrong:
+
+Your production site is serving an older JS build
+
+Do a full redeploy
+
+Then hard refresh:
+
+Mac: Cmd + Shift + R
+
+Windows: Ctrl + Shift + R
+
+🧠 One last important note (this is good news)
+
+This error in your Network tab is NOT related:
+
+/user → 401
+
+
+That is expected on landing pages and must be ignored.
+Your rollout logic is correctly isolated — well done.
+
+✅ Verdict
+
+You’ve implemented this the right way, not a workaround.
+
+Once the hosting cache (if any) is bypassed, this system will:
+
+Scale cleanly to 50+ countries
+
+Allow instant rollout toggles
+
+Never require frontend redeploys again for country launches
+
+If you want, next I can help you:
+
+Add “Phase 1 / Phase 2” labels
+
+Add rollout % / beta badge
+
+Add geo-auto-select country
+
+Add A/B rollout per business type
+
+Just tell me 👍
