@@ -58,9 +58,15 @@ router.get("/projects", async (req: Request, res: Response) => {
     const total = result.length;
     const paginated = result.slice((pageNum - 1) * limitNum, pageNum * limitNum);
     
+    // Map to frontend expected format (code -> projectCode)
+    const mapped = paginated.map(p => ({
+      ...p,
+      projectCode: p.code || p.id.substring(0, 8).toUpperCase(),
+    }));
+    
     res.json({
-      data: paginated,
-      meta: {
+      data: mapped,
+      pagination: {
         total,
         page: pageNum,
         limit: limitNum,
