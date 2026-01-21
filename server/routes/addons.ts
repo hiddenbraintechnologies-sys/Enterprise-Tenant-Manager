@@ -33,7 +33,7 @@ const router = Router();
 // PUBLIC: MARKETPLACE BROWSING
 // ============================================
 
-// List published add-ons with filtering
+// List published add-ons with filtering (including country-based filtering at SQL level)
 router.get("/marketplace", async (req: Request, res: Response) => {
   try {
     const { 
@@ -41,17 +41,16 @@ router.get("/marketplace", async (req: Request, res: Response) => {
       search, 
       featured,
       businessType,
-      pricingType,
+      country, // Filter by tenant's country - shows add-ons available in this country
+      currency, // Filter pricing by currency for display
       sortBy = "installCount",
       limit = 20,
       offset = 0,
     } = req.query;
 
-    let query = db.select().from(addons).where(eq(addons.status, "published"));
-
     const conditions = [eq(addons.status, "published")];
     
-    if (category) {
+    if (category && category !== "all") {
       conditions.push(eq(addons.category, category as any));
     }
     
@@ -68,6 +67,39 @@ router.get("/marketplace", async (req: Request, res: Response) => {
       conditions.push(eq(addons.featured, true));
     }
 
+    // Country filtering at SQL level: show add-ons where:
+    // 1. supportedCountries is null/empty (global add-ons) OR
+    // 2. supportedCountries contains the requested country
+    if (country) {
+      conditions.push(
+        or(
+          sql`${addons.supportedCountries} IS NULL`,
+          sql`${addons.supportedCountries} = '[]'::jsonb`,
+          sql`${addons.supportedCountries} @> ${JSON.stringify([country])}::jsonb`
+        )!
+      );
+    }
+
+    // Business type filtering at SQL level: show add-ons where:
+    // 1. supportedBusinessTypes is null/empty (all business types) OR
+    // 2. supportedBusinessTypes contains the requested business type
+    if (businessType) {
+      conditions.push(
+        or(
+          sql`${addons.supportedBusinessTypes} IS NULL`,
+          sql`${addons.supportedBusinessTypes} = '[]'::jsonb`,
+          sql`${addons.supportedBusinessTypes} @> ${JSON.stringify([businessType])}::jsonb`
+        )!
+      );
+    }
+
+    // Get total count for pagination (before limit/offset)
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(addons)
+      .where(and(...conditions));
+
+    // Get paginated results
     const results = await db
       .select()
       .from(addons)
@@ -75,18 +107,28 @@ router.get("/marketplace", async (req: Request, res: Response) => {
       .orderBy(
         sortBy === "rating" ? desc(addons.averageRating) :
         sortBy === "newest" ? desc(addons.publishedAt) :
+        sortBy === "featured" ? desc(addons.featuredOrder) :
         desc(addons.installCount)
       )
       .limit(Number(limit))
       .offset(Number(offset));
 
-    // Get pricing for each addon
+    // Get pricing for each addon, filtered by currency if specified
     const addonsWithPricing = await Promise.all(
       results.map(async (addon) => {
-        const pricing = await db
+        const allPricing = await db
           .select()
           .from(addonPricing)
           .where(and(eq(addonPricing.addonId, addon.id), eq(addonPricing.isActive, true)));
+        
+        // If currency specified, prioritize that currency's pricing
+        let displayPricing = allPricing;
+        if (currency) {
+          const currencyPricing = allPricing.filter(p => p.currency === currency);
+          if (currencyPricing.length > 0) {
+            displayPricing = currencyPricing;
+          }
+        }
         
         const latestVersion = await db
           .select()
@@ -94,15 +136,27 @@ router.get("/marketplace", async (req: Request, res: Response) => {
           .where(and(eq(addonVersions.addonId, addon.id), eq(addonVersions.isLatest, true)))
           .limit(1);
 
+        // Determine if addon is global (available in all countries)
+        const supportedCountries = addon.supportedCountries as string[] | null;
+        const isGlobal = !supportedCountries || supportedCountries.length === 0;
+
         return {
           ...addon,
-          pricing,
+          pricing: displayPricing,
+          allPricing, // Include all pricing for reference
           latestVersion: latestVersion[0] || null,
+          isGlobal,
         };
       })
     );
 
-    res.json({ addons: addonsWithPricing });
+    res.json({ 
+      addons: addonsWithPricing, 
+      total: totalCount,
+      page: Math.floor(Number(offset) / Number(limit)) + 1,
+      pageSize: Number(limit),
+      hasMore: Number(offset) + results.length < totalCount,
+    });
   } catch (error) {
     console.error("Error fetching marketplace:", error);
     res.status(500).json({ error: "Failed to fetch marketplace" });

@@ -6010,6 +6010,7 @@ export const addons = pgTable("addons", {
   permissions: jsonb("permissions").default([]),
   requiredFeatures: jsonb("required_features").default([]),
   supportedBusinessTypes: jsonb("supported_business_types").default([]),
+  supportedCountries: jsonb("supported_countries").default([]), // Array of country codes like ["IN", "MY", "UK", "US"] - empty means all countries
   minPlatformVersion: varchar("min_platform_version", { length: 20 }),
   dependencies: jsonb("dependencies").default([]), // Array of { addonId, optional, minVersion? }
   

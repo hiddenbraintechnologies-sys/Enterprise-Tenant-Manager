@@ -234,6 +234,15 @@ export async function registerRoutes(
       } catch (err) {
         console.log("[bootstrap] Country rollout seeding skipped:", err);
       }
+
+      // Seed marketplace add-ons (Phase 1)
+      try {
+        const { seedMarketplaceAddons } = await import("./bootstrap/seed-marketplace-addons");
+        await seedMarketplaceAddons();
+        console.log("[bootstrap] Marketplace add-ons seeded");
+      } catch (err) {
+        console.log("[bootstrap] Marketplace add-ons seeding skipped:", err);
+      }
       
       await tenantService.getOrCreateDefaultTenant();
       console.log("[bootstrap] Default tenant ready");

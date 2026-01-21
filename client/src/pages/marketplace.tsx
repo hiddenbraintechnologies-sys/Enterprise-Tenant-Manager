@@ -43,6 +43,8 @@ import {
   Trash2,
   ChevronRight,
   Filter,
+  Globe,
+  CheckCircle,
 } from "lucide-react";
 
 interface AddonPricing {
@@ -78,6 +80,9 @@ interface Addon {
   featured: boolean;
   pricing: AddonPricing[];
   latestVersion: AddonVersion | null;
+  supportedCountries?: string[];
+  supportedBusinessTypes?: string[];
+  isGlobal?: boolean;
 }
 
 interface InstalledAddon {
@@ -187,7 +192,7 @@ function AddonCard({
           <CardTitle className="text-base font-semibold truncate" data-testid={`text-addon-name-${addon.id}`}>
             {addon.name}
           </CardTitle>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge variant={getPricingBadgeVariant(pricingType)} className="text-xs">
               {formatPrice(addon.pricing)}
             </Badge>
@@ -195,6 +200,17 @@ function AddonCard({
               <Badge variant="outline" className="gap-1 text-xs">
                 <Crown className="h-3 w-3" />
                 Featured
+              </Badge>
+            )}
+            {addon.isGlobal ? (
+              <Badge variant="outline" className="gap-1 text-xs text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:bg-blue-950">
+                <Globe className="h-3 w-3" />
+                Global
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1 text-xs text-green-600 border-green-200 bg-green-50 dark:text-green-400 dark:border-green-800 dark:bg-green-950">
+                <CheckCircle className="h-3 w-3" />
+                Compatible
               </Badge>
             )}
           </div>
@@ -358,6 +374,8 @@ function InstalledAddonCard({
 export default function Marketplace() {
   const { tenant } = useAuth();
   const tenantId = tenant?.id;
+  const tenantCountry = tenant?.country || "IN"; // Default to India
+  const tenantCurrency = tenant?.currency || "INR"; // Default to INR
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -365,13 +383,18 @@ export default function Marketplace() {
   const [selectedPricingId, setSelectedPricingId] = useState<string>("");
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
 
+  // Fetch add-ons filtered by tenant's country and currency
   const { data: marketplaceData, isLoading: marketplaceLoading } = useQuery<{ addons: Addon[] }>({
-    queryKey: ["/api/addons/marketplace", searchQuery, category],
+    queryKey: ["/api/addons/marketplace", searchQuery, category, tenantCountry, tenantCurrency],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (category && category !== "all") params.append("category", category);
-      const url = `/api/addons/marketplace${params.toString() ? `?${params}` : ""}`;
+      // Add country and currency for filtering and pricing display
+      params.append("country", tenantCountry);
+      params.append("currency", tenantCurrency);
+      params.append("sortBy", "featured"); // Show featured add-ons first
+      const url = `/api/addons/marketplace?${params.toString()}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch marketplace");
       return res.json();
