@@ -660,7 +660,24 @@ export async function registerRoutes(
 
       const [existingUser] = await db.select().from(users).where(eq(users.email, email));
       if (existingUser) {
-        return res.status(409).json({ message: "Email already registered" });
+        // Check if user has any active tenant associations
+        const activeTenantAssociations = await db.select()
+          .from(userTenants)
+          .innerJoin(tenants, eq(userTenants.tenantId, tenants.id))
+          .where(and(
+            eq(userTenants.userId, existingUser.id),
+            eq(userTenants.isActive, true),
+            sql`${tenants.status} != 'deleted'`
+          ));
+        
+        if (activeTenantAssociations.length > 0) {
+          return res.status(409).json({ message: "Email already registered" });
+        }
+        
+        // User exists but has no active tenants - delete orphaned user and allow re-registration
+        await db.delete(userTenants).where(eq(userTenants.userId, existingUser.id));
+        await db.delete(refreshTokens).where(eq(refreshTokens.userId, existingUser.id));
+        await db.delete(users).where(eq(users.id, existingUser.id));
       }
 
       // Look up region config for the selected country
