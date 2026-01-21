@@ -864,9 +864,11 @@ export async function registerRoutes(
         name: error?.name,
         code: error?.code,
       });
+      // Temporarily expose error details to help debug production issue
       res.status(500).json({ 
         message: "Registration failed",
-        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+        error: error?.message,
+        code: error?.code
       });
     }
   });
