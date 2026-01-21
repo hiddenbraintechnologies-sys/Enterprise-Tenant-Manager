@@ -114,7 +114,7 @@ import tenantSettingsRoutes from "./routes/tenant-settings";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql, ne } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, ne, isNull } from "drizzle-orm";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -5743,8 +5743,11 @@ export async function registerRoutes(
         joinedAt: userTenants.joinedAt,
       }).from(userTenants).where(eq(userTenants.tenantId, tenantId));
 
-      const usersData = await Promise.all(tenantUsers.map(async (tu) => {
-        const [user] = await db.select().from(users).where(eq(users.id, tu.userId));
+      const usersData = (await Promise.all(tenantUsers.map(async (tu) => {
+        const [user] = await db.select().from(users).where(
+          and(eq(users.id, tu.userId), isNull(users.deletedAt))
+        );
+        if (!user) return null; // Skip soft-deleted users
         const [role] = await db.select().from(roles).where(eq(roles.id, tu.roleId));
         return {
           id: user.id,
@@ -5757,7 +5760,7 @@ export async function registerRoutes(
           lastLoginAt: null,
           createdAt: tu.joinedAt,
         };
-      }));
+      }))).filter(Boolean);
 
       auditService.logAsync({
         tenantId,

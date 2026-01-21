@@ -1,0 +1,140 @@
+1) Quick verification checklist (do these in order)
+A) Confirm the UI is calling the right endpoints
+
+Open DevTools → Network and test:
+
+Tenant wipe
+
+Open Tenant Details → click Wipe Data
+
+Confirm the modal shows tenant name + tenantId
+
+Click “Preview”
+
+✅ should call: GET /api/super-admin/tenants/:tenantId/delete-summary
+
+Type confirm text → click “Wipe”
+
+✅ should call: POST /api/super-admin/tenants/:tenantId/wipe
+
+User delete
+
+Tenant Users → menu → Delete User
+
+Choose mode
+
+Click “Preview”
+
+✅ should call: GET /api/super-admin/tenants/:tenantId/users/:userId/delete-summary
+
+Confirm → submit
+
+✅ should call: POST /api/super-admin/tenants/:tenantId/users/:userId/delete
+
+If any request returns 401/403, it’s RBAC/session.
+
+B) Confirm jobs actually execute (not just queued)
+
+After you submit wipe/delete:
+
+The API should return a jobId
+
+Your UI should poll:
+
+✅ GET /api/super-admin/delete-jobs/:jobId (or whatever route you created)
+
+Status should move:
+
+queued → running → success (or failed)
+
+If it stays stuck on queued, your worker is not picking it up (or DB write isn’t happening).
+
+C) Confirm the data is truly gone
+
+After Tenant wipe success:
+
+Tenant should be deleted/archived (depending on your design)
+
+Tenant registry should not show it (or show “Deleted”)
+
+Try hitting tenant endpoints with that tenantId → should return 404 Tenant not found
+
+After User delete + data:
+
+user should be removed/deactivated from that tenant
+
+delete-summary counts should drop to 0 for their created objects
+
+2) The most common failure points (fix these if you see issues)
+1) Worker runs in Replit but not in production
+
+Make sure the worker is started in the same deployment process (or a separate always-on process). If you used setInterval inside the server, ensure it runs only once (no multiple instances).
+
+2) Delete order / foreign key constraints
+
+If your schema doesn’t use onDelete: Cascade, jobs will fail midway.
+In failure logs you’ll see FK constraint errors like:
+
+“cannot delete parent row”
+
+“foreign key constraint fails”
+Solution: enforce cascade or delete children first.
+
+3) Cross-tenant safety
+
+Double-check every delete query includes tenantId:
+
+where: { tenantId, ... }
+Never delete by userId alone.
+
+4) Soft-deleted records still appear
+
+If you used deletedAt, ensure all list endpoints filter:
+
+deletedAt: null
+
+3) File names to confirm (most likely places)
+
+Based on your description, these should exist:
+
+Frontend
+
+client/src/pages/super-admin/tenant-details.tsx (contains TenantWipeModal)
+
+client/src/pages/super-admin/tenant-users.tsx (contains UserDeleteModal)
+
+If modals are extracted:
+
+client/src/components/super-admin/TenantWipeModal.tsx
+
+client/src/components/super-admin/UserDeleteModal.tsx
+
+Backend
+
+server/routes/super-admin.ts or server/routes.ts (super-admin endpoints)
+
+server/jobs/delete-job-worker.ts (poller/worker)
+
+server/storage/delete-jobs.ts (DB helper)
+
+Prisma model changes in:
+
+prisma/schema.prisma
+
+migration in prisma/migrations/...
+
+If you tell me what your actual route file is (some projects keep everything in server/routes.ts), I’ll map the exact endpoints to the exact file paths.
+
+4) One “must-have” improvement (if not done yet)
+
+In the modal preview, show:
+
+Total records to delete
+
+Breakdown per module (Projects, Timesheets, Invoices, Clients, Audit logs…)
+
+Estimated time (rough, optional)
+
+This helps you confirm the delete-summary API is correct before nuking.
+
+If you paste one screenshot of the Network tab showing the tenant wipe request + response (URL + status + JSON), I can tell you immediately whether the issue is UI wiring, RBAC, or worker execution.
