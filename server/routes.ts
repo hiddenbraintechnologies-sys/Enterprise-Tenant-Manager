@@ -822,9 +822,17 @@ export async function registerRoutes(
           country: newTenant.country,
         },
       });
-    } catch (error) {
-      console.error("Registration error:", error);
-      res.status(500).json({ message: "Registration failed" });
+    } catch (error: any) {
+      console.error("Registration error:", {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        code: error?.code,
+      });
+      res.status(500).json({ 
+        message: "Registration failed",
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+      });
     }
   });
 
