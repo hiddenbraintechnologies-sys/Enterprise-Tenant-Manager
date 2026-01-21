@@ -451,6 +451,12 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     return <>{children}</>;
   }
 
+  // If subscription was just activated (flag from packages page), allow access while waiting for data refresh
+  // This prevents the flash of packages page during the transition to dashboard
+  if (recentlyActivated) {
+    return <>{children}</>;
+  }
+
   // PENDING_PAYMENT - redirect to checkout to complete payment
   if (status === "pending_payment") {
     return <Redirect to="/checkout" />;
