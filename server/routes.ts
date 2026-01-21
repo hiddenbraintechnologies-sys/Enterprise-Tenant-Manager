@@ -648,6 +648,7 @@ export async function registerRoutes(
 
   app.post("/api/auth/register", authRateLimit, async (req, res) => {
     try {
+      console.log("[register] Step 1: Validating input");
       const parsed = registrationSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -657,8 +658,10 @@ export async function registerRoutes(
       }
 
       const { firstName, lastName, email, password, businessName, businessType, countryCode } = parsed.data;
+      console.log("[register] Step 2: Checking existing user for email:", email);
 
       const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+      console.log("[register] Step 3: Existing user check complete, found:", !!existingUser);
       if (existingUser) {
         // Check if user has any active tenant associations with non-deleted tenants
         try {
@@ -696,15 +699,19 @@ export async function registerRoutes(
       }
 
       // Look up region config for the selected country
+      console.log("[register] Step 4: Looking up region config for:", countryCode);
       const regionConfigs = await storage.getActiveRegionConfigs();
+      console.log("[register] Step 5: Found", regionConfigs.length, "region configs");
       const selectedRegion = regionConfigs.find(r => r.countryCode === countryCode);
       
       if (!selectedRegion) {
+        console.log("[register] Error: Country not found in region configs");
         return res.status(400).json({ 
           message: "Invalid country selected",
           code: "COUNTRY_NOT_AVAILABLE"
         });
       }
+      console.log("[register] Step 6: Region found:", selectedRegion.countryCode);
       
       if (!selectedRegion.registrationEnabled) {
         return res.status(400).json({ 
@@ -714,7 +721,9 @@ export async function registerRoutes(
       }
 
       // Check country rollout policy for business type
+      console.log("[register] Step 7: Checking rollout policy for business type:", businessType);
       const rolloutValidation = await countryRolloutService.isBusinessTypeAllowed(countryCode, businessType);
+      console.log("[register] Step 8: Rollout validation:", rolloutValidation.allowed);
       if (!rolloutValidation.allowed) {
         return res.status(400).json({
           message: rolloutValidation.message,
@@ -744,8 +753,10 @@ export async function registerRoutes(
 
       const passwordHash = await bcrypt.hash(password, 12);
 
+      console.log("[register] Step 9: Looking up admin role");
       let [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
       if (!adminRole) {
+        console.log("[register] Step 9a: Creating admin role");
         [adminRole] = await db.insert(roles).values({
           id: "role_admin",
           name: "Admin",
@@ -757,8 +768,11 @@ export async function registerRoutes(
           [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
         }
       }
+      console.log("[register] Step 10: Admin role ready:", adminRole?.id);
 
+      console.log("[register] Step 11: Starting transaction");
       const result = await db.transaction(async (tx) => {
+        console.log("[register] Step 12: Creating tenant");
         const [newTenant] = await tx.insert(tenants).values({
           name: businessName,
           businessType: businessType,
@@ -768,14 +782,18 @@ export async function registerRoutes(
           currency: selectedRegion.defaultCurrency,
           timezone: selectedRegion.defaultTimezone,
         }).returning();
+        console.log("[register] Step 13: Tenant created:", newTenant?.id);
 
+        console.log("[register] Step 14: Creating user");
         const [newUser] = await tx.insert(users).values({
           email,
           firstName,
           lastName,
           passwordHash,
         }).returning();
+        console.log("[register] Step 15: User created:", newUser?.id);
 
+        console.log("[register] Step 16: Creating user-tenant association");
         await tx.insert(userTenants).values({
           userId: newUser.id,
           tenantId: newTenant.id,
@@ -783,9 +801,11 @@ export async function registerRoutes(
           isDefault: true,
           isActive: true,
         });
+        console.log("[register] Step 17: User-tenant association created");
 
         return { newTenant, newUser };
       });
+      console.log("[register] Step 18: Transaction complete");
 
       const { newTenant, newUser } = result;
 
