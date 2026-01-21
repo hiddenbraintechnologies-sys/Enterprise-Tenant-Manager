@@ -104,7 +104,16 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const skipTour = useCallback(() => {
-    setState({ activeTour: null, currentStepIndex: 0, isRunning: false });
+    setState((prev) => {
+      if (prev.activeTour) {
+        setCompletedTours((completed) => 
+          completed.includes(prev.activeTour!.id) 
+            ? completed 
+            : [...completed, prev.activeTour!.id]
+        );
+      }
+      return { activeTour: null, currentStepIndex: 0, isRunning: false };
+    });
   }, []);
 
   const markTourComplete = useCallback((tourId: string) => {
