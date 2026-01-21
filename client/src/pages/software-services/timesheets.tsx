@@ -157,9 +157,11 @@ export default function SoftwareServicesTimesheets() {
   const createTimesheetMutation = useMutation({
     mutationFn: async (data: TimesheetFormValues) => {
       const payload = {
-        ...data,
-        timesheetDate: format(data.timesheetDate, "yyyy-MM-dd"),
-        hoursWorked: parseFloat(data.hoursWorked),
+        projectId: data.projectId,
+        date: format(data.timesheetDate, "yyyy-MM-dd"),
+        hours: data.hoursWorked,
+        isBillable: data.isBillable,
+        description: data.taskDescription || data.description,
       };
       return apiRequest("POST", "/api/services/software/timesheets", payload);
     },
