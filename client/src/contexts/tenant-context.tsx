@@ -429,9 +429,16 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     );
   }
 
-  // Only proceed if query succeeded - don't allow access on null/undefined data
+  // Only proceed with redirect logic if query actually succeeded
+  // If query didn't run (disabled) or is still pending initial fetch, render children to avoid premature redirect
   if (!isSuccess) {
-    return <Redirect to="/packages" />;
+    // If we can't fetch subscription (no auth/tenant yet), just render children
+    // This prevents redirect on page refresh before auth is restored
+    if (!canFetchSubscription) {
+      return <>{children}</>;
+    }
+    // Query ran but failed - this is handled by isError above, shouldn't reach here
+    return <>{children}</>;
   }
 
   // Normalize status to lowercase for consistent comparison
