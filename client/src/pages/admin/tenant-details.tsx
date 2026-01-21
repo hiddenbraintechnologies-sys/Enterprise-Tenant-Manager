@@ -107,8 +107,14 @@ function TenantDetailsContent() {
   const { data: tenant, isLoading, error } = useQuery<TenantDetails>({
     queryKey: ["/api/super-admin/tenants", tenantId],
     queryFn: async () => {
+      const adminToken = localStorage.getItem("mybizstream_admin_token");
+      const headers: Record<string, string> = {};
+      if (adminToken) {
+        headers.Authorization = `Bearer ${adminToken}`;
+      }
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         credentials: "include",
+        headers,
       });
       if (!res.ok) {
         if (res.status === 404) throw new Error("Tenant not found");
