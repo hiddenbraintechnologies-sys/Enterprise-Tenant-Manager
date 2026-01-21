@@ -113,7 +113,7 @@ import tenantSettingsRoutes from "./routes/tenant-settings";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, ne } from "drizzle-orm";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -667,7 +667,7 @@ export async function registerRoutes(
           .where(and(
             eq(userTenants.userId, existingUser.id),
             eq(userTenants.isActive, true),
-            sql`${tenants.status} != 'deleted'`
+            ne(tenants.status, 'deleted')
           ));
         
         if (activeTenantAssociations.length > 0) {
