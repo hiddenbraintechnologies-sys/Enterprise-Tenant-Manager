@@ -1,0 +1,234 @@
+[
+  {
+    "table_name": "agents",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "api_tokens",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "audit_logs",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "bookings",
+    "column_name": "cancelled_by"
+  },
+  {
+    "table_name": "bookings",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "customers",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "data_breach_records",
+    "column_name": "assigned_to"
+  },
+  {
+    "table_name": "data_breach_records",
+    "column_name": "closed_by"
+  },
+  {
+    "table_name": "data_masking_rules",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "data_retention_policies",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "desk_bookings",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "dsar_activity_log",
+    "column_name": "performed_by"
+  },
+  {
+    "table_name": "dsar_requests",
+    "column_name": "assigned_to"
+  },
+  {
+    "table_name": "error_logs",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "inventory_transactions",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "medical_records",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "payments",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "refresh_tokens",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "sensitive_data_access_logs",
+    "column_name": "reviewed_by"
+  },
+  {
+    "table_name": "services",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "staff",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "staff",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "support_tickets",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "tenant_compliance_packs",
+    "column_name": "assigned_by"
+  },
+  {
+    "table_name": "tenant_compliance_progress",
+    "column_name": "assigned_to"
+  },
+  {
+    "table_name": "tenant_compliance_progress",
+    "column_name": "completed_by"
+  },
+  {
+    "table_name": "tenant_compliance_progress",
+    "column_name": "reviewed_by"
+  },
+  {
+    "table_name": "tenant_features",
+    "column_name": "enabled_by"
+  },
+  {
+    "table_name": "user_tenants",
+    "column_name": "invited_by"
+  },
+  {
+    "table_name": "user_tenants",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "customer_portal_invites",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "bill_of_materials",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "installation_orders",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "delivery_orders",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "raw_materials",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "production_orders",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "production_stages",
+    "column_name": "completed_by"
+  },
+  {
+    "table_name": "raw_material_stock_movements",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "furniture_sales_orders",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "furniture_products",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "furniture_invoice_payments",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "furniture_invoices",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "furniture_invoices",
+    "column_name": "updated_by"
+  },
+  {
+    "table_name": "invoice_reminder_schedules",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "recurring_payment_schedules",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "in_app_notifications",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "project_tasks",
+    "column_name": "assignee_id"
+  },
+  {
+    "table_name": "project_tasks",
+    "column_name": "reviewer_id"
+  },
+  {
+    "table_name": "project_tasks",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "project_tasks",
+    "column_name": "updated_by"
+  },
+  {
+    "table_name": "timesheets",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "timesheets",
+    "column_name": "approved_by"
+  },
+  {
+    "table_name": "timesheets",
+    "column_name": "rejected_by"
+  },
+  {
+    "table_name": "projects",
+    "column_name": "project_manager_id"
+  },
+  {
+    "table_name": "projects",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "projects",
+    "column_name": "updated_by"
+  },
+  {
+    "table_name": "billing_promos",
+    "column_name": "created_by"
+  }
+]
