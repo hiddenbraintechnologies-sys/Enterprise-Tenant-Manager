@@ -13,6 +13,7 @@ import {
   projects,
   refreshTokens,
   auditLogs,
+  timesheets,
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { auditService } from "./audit";
@@ -56,6 +57,14 @@ async function processTenantWipe(job: typeof deleteJobs.$inferSelect): Promise<D
     }},
     { table: "projects", deleteFunc: async () => {
       const result = await db.delete(projects).where(eq(projects.tenantId, tenantId));
+      return 0;
+    }},
+    { table: "timesheets", deleteFunc: async () => {
+      const result = await db.delete(timesheets).where(eq(timesheets.tenantId, tenantId));
+      return 0;
+    }},
+    { table: "audit_logs", deleteFunc: async () => {
+      const result = await db.delete(auditLogs).where(eq(auditLogs.tenantId, tenantId));
       return 0;
     }},
     { table: "refresh_tokens", deleteFunc: async () => {

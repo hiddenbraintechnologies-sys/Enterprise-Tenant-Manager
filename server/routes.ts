@@ -13,7 +13,7 @@ import {
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles, refreshTokens, customers, staff, tenantFeatures, auditLogs,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates, globalPricingPlans,
-  services, bookings, invoices, payments, projects, deleteJobs,
+  services, bookings, invoices, payments, projects, deleteJobs, timesheets,
   insertInvoiceTemplateSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
   adminAccountLockouts, adminLoginAttempts, platformAdmins, adminTwoFactorAuth, adminAuditLogs,
@@ -6111,6 +6111,15 @@ export async function registerRoutes(
       
       const projectsCount = await db.select({ count: sql<number>`count(*)::int` }).from(projects).where(eq(projects.tenantId, tenantId));
       tables.push({ tableName: "projects", count: projectsCount[0]?.count || 0, description: "Projects" });
+      
+      const timesheetsCount = await db.select({ count: sql<number>`count(*)::int` }).from(timesheets).where(eq(timesheets.tenantId, tenantId));
+      tables.push({ tableName: "timesheets", count: timesheetsCount[0]?.count || 0, description: "Timesheets" });
+      
+      const auditLogsCount = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs).where(eq(auditLogs.tenantId, tenantId));
+      tables.push({ tableName: "audit_logs", count: auditLogsCount[0]?.count || 0, description: "Audit Logs" });
+      
+      const refreshTokensCount = await db.select({ count: sql<number>`count(*)::int` }).from(refreshTokens).where(eq(refreshTokens.tenantId, tenantId));
+      tables.push({ tableName: "refresh_tokens", count: refreshTokensCount[0]?.count || 0, description: "Refresh Tokens" });
       
       const totalRecords = tables.reduce((sum, t) => sum + t.count, 0);
 

@@ -1,0 +1,220 @@
+A) Tenant Wipe test (gold standard)
+1) Create a “heavy” tenant dataset (5–10 mins)
+In a fresh tenant:
+
+
+Create 2–3 users
+
+
+Create 3–5 customers/clients
+
+
+Create 2–3 projects/engagements
+
+
+Add 5–10 timesheets/logs
+
+
+Create 2 invoices + 1 payment/transaction (if available)
+
+
+Trigger 2–3 notifications/audit logs (by doing actions)
+
+
+Goal: make sure multiple tables have data.
+2) Run “Preview” and validate counts
+Super Admin → Tenants → Tenant Details → Wipe Data → Preview
+✅ Confirm:
+
+
+Total count > 0
+
+
+Counts match what you expect (projects/timesheets/invoices etc.)
+
+
+The preview includes the “big” tables (not just users)
+
+
+3) Execute wipe and watch job progress
+Submit wipe → capture:
+
+
+jobId
+
+
+First status response
+
+
+✅ Confirm job transitions:
+
+
+queued → running → success
+
+
+processedSteps increases (or progress field)
+
+
+error is null
+
+
+4) Verify post-wipe behavior
+After success:
+✅ Must pass:
+
+
+Tenant no longer accessible: GET /api/tenant/:id (or tenant context load) returns 404 / inactive
+
+
+Tenant list shows “deleted/archived” OR removed entirely (your design)
+
+
+Re-login as an old tenant user:
+
+
+should fail with “tenant not found” or “account deactivated”
+
+
+
+
+Re-register with the same email (previously blocked):
+
+
+should succeed (this is the business reason you wanted this)
+
+
+
+
+5) Critical safety check (no cross-tenant deletion)
+Pick a different tenant that shares:
+
+
+same country
+
+
+same plan
+
+
+maybe even same email domain
+
+
+✅ Confirm nothing changed there:
+
+
+Their projects/users/invoices still exist
+
+
+Their counts unchanged
+
+
+This is the most important test.
+
+B) User delete test (3 modes)
+Pick a tenant with 2 users: User A (creator) + User B (normal).
+Mode 1: Deactivate only
+✅ Expected:
+
+
+user disappears from active list
+
+
+cannot login
+
+
+their created data remains
+
+
+Mode 2: Delete user only
+✅ Expected:
+
+
+user removed from tenant membership
+
+
+their created records remain but “owner” becomes:
+
+
+null OR “Deleted user” placeholder OR reassigned (whichever your system implements)
+
+
+
+
+Mode 3: Delete user + all data
+✅ Expected:
+
+
+preview shows only records attributable to that user
+
+
+after success:
+
+
+that user’s created records are gone
+
+
+other users’ records remain
+
+
+
+
+Also repeat cross-tenant safety:
+
+
+if the same email exists in another tenant, it must not be affected.
+
+
+
+C) What to capture and share (so we can confirm it’s perfect)
+For each test run, capture:
+
+
+Preview screenshot (table counts)
+
+
+Job status JSON at:
+
+
+
+
+immediately after creation
+
+
+mid-run
+
+
+after completion
+
+
+
+
+After-wipe verification:
+
+
+
+
+tenant list row state
+
+
+login attempt result
+
+
+
+One recommendation before you run it (prevents “false success”)
+In the job status response, ensure you store:
+
+
+tenantId
+
+
+requestedByUserId
+
+
+dryRun flag (if preview is “dry run”)
+
+
+startedAt, finishedAt
+
+
+If those fields are present, your audit trail is complete.
+
+If you run Tenant Wipe once using the plan above and paste the job status JSON (final) + preview counts, I’ll validate whether the deletion coverage is complete and whether there are any hidden tables you’re not wiping yet.
