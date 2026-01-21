@@ -105,7 +105,7 @@ export default function SalonDashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-lg">Today's Appointments</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/salon/appointments">
+              <Link href="/bookings">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -118,7 +118,7 @@ export default function SalonDashboard() {
                 No appointments scheduled for today
               </p>
               <Button className="mt-4" asChild>
-                <Link href="/salon/appointments/new">
+                <Link href="/bookings">
                   <Plus className="mr-2 h-4 w-4" />
                   Book Appointment
                 </Link>
@@ -131,7 +131,7 @@ export default function SalonDashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-lg">Popular Services</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/salon/services">
+              <Link href="/services">
                 Manage
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -144,7 +144,7 @@ export default function SalonDashboard() {
                 No services added yet
               </p>
               <Button className="mt-4" asChild>
-                <Link href="/salon/services/new">
+                <Link href="/services">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Service
                 </Link>
