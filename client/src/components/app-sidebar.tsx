@@ -130,12 +130,12 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   ],
   furniture_manufacturing: [
     { title: "Dashboard", url: "/dashboard/furniture", icon: LayoutDashboard },
-    { title: "Products", url: "/furniture/products", icon: Package },
-    { title: "Raw Materials", url: "/furniture/raw-materials", icon: Package },
-    { title: "Production", url: "/furniture/production", icon: Package },
-    { title: "Sales Orders", url: "/furniture/sales-orders", icon: Package },
-    { title: "Invoices", url: "/furniture/invoices", icon: Package },
-    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+    { title: "Products", url: "/dashboard/furniture/products", icon: Package },
+    { title: "Raw Materials", url: "/dashboard/furniture/raw-materials", icon: Package },
+    { title: "Production", url: "/dashboard/furniture/production", icon: Package },
+    { title: "Sales Orders", url: "/dashboard/furniture/sales-orders", icon: Package },
+    { title: "Invoices", url: "/dashboard/furniture/invoices", icon: Package },
+    { title: "Analytics", url: "/dashboard/furniture/analytics", icon: BarChart3 },
   ],
   software_services: [
     { title: "Dashboard", url: "/dashboard/software-services", icon: LayoutDashboard },

@@ -29,6 +29,10 @@ import EducationDashboard from "@/pages/education-dashboard";
 import LogisticsDashboard from "@/pages/logistics-dashboard";
 import LegalDashboard from "@/pages/legal-dashboard";
 import FurnitureDashboard from "@/pages/furniture-dashboard";
+import FurnitureProducts from "@/pages/furniture/products";
+import FurnitureRawMaterials from "@/pages/furniture/raw-materials";
+import FurnitureProduction from "@/pages/furniture/production-orders";
+import FurnitureSalesOrders from "@/pages/furniture/sales-orders";
 import FurnitureInvoices from "@/pages/furniture/invoices";
 import FurnitureAnalytics from "@/pages/furniture/analytics";
 import SoftwareServicesDashboard from "@/pages/software-services-dashboard";
@@ -175,6 +179,26 @@ function AuthenticatedRoutes() {
       <Route path="/dashboard/furniture">
         <DashboardGuard allowedBusinessType="furniture_manufacturing">
           <FurnitureDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/furniture/products">
+        <DashboardGuard allowedBusinessType="furniture_manufacturing">
+          <FurnitureProducts />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/furniture/raw-materials">
+        <DashboardGuard allowedBusinessType="furniture_manufacturing">
+          <FurnitureRawMaterials />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/furniture/production">
+        <DashboardGuard allowedBusinessType="furniture_manufacturing">
+          <FurnitureProduction />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/furniture/sales-orders">
+        <DashboardGuard allowedBusinessType="furniture_manufacturing">
+          <FurnitureSalesOrders />
         </DashboardGuard>
       </Route>
       <Route path="/dashboard/furniture/invoices">
