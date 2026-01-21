@@ -124,7 +124,7 @@ function BookingDialog({
     queryKey: ["/api/customers"],
   });
 
-  const { data: services, isLoading: servicesLoading } = useQuery<Service[]>({
+  const { data: services, isLoading: servicesLoading, isError: servicesError } = useQuery<Service[]>({
     queryKey: ["/api/services"],
   });
 
@@ -182,6 +182,8 @@ function BookingDialog({
 
   const isDataLoading = customersLoading || servicesLoading;
   const hasNoCustomers = !customersLoading && (!customers || customers.length === 0);
+  const hasNoServices = !servicesLoading && (!services || services.filter(s => s.isActive).length === 0);
+  const cannotCreateBooking = hasNoCustomers || hasNoServices || customersError || servicesError;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -193,7 +195,34 @@ function BookingDialog({
           </DialogDescription>
         </DialogHeader>
         
-        {customersError && (
+        {/* Combined error when BOTH customers AND services fail to load */}
+        {customersError && servicesError && (
+          <Alert variant="destructive" data-testid="alert-both-errors">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-3">
+              <span data-testid="text-both-errors">
+                Unable to load customers and services. Please try again or add them manually.
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-customer-both-error">
+                  <Link href="/customers" onClick={() => onOpenChange(false)}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Add Customer
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-service-both-error">
+                  <Link href="/services" onClick={() => onOpenChange(false)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Service
+                  </Link>
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error loading customers only */}
+        {customersError && !servicesError && (
           <Alert variant="destructive" data-testid="alert-customers-error">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="flex flex-col gap-3">
@@ -209,8 +238,53 @@ function BookingDialog({
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Error loading services only */}
+        {!customersError && servicesError && (
+          <Alert variant="destructive" data-testid="alert-services-error">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-3">
+              <span data-testid="text-services-error">
+                Unable to load services. Please try again or add a new service.
+              </span>
+              <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-service-error">
+                <Link href="/services" onClick={() => onOpenChange(false)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Service
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Combined alert when both customers AND services are missing (no error, just empty) */}
+        {!customersError && !servicesError && hasNoCustomers && hasNoServices && (
+          <Alert variant="default" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" data-testid="alert-no-data">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="flex flex-col gap-3">
+              <span className="text-amber-800 dark:text-amber-200" data-testid="text-no-data">
+                No customers or services available. Please add them before creating a booking.
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-customer-combined">
+                  <Link href="/customers" onClick={() => onOpenChange(false)}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Add Customer
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-service-combined">
+                  <Link href="/services" onClick={() => onOpenChange(false)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Service
+                  </Link>
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
         
-        {!customersError && hasNoCustomers && (
+        {/* Only customers missing (services available) */}
+        {!customersError && !servicesError && hasNoCustomers && !hasNoServices && (
           <Alert variant="default" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" data-testid="alert-no-customers">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             <AlertDescription className="flex flex-col gap-3">
@@ -221,6 +295,24 @@ function BookingDialog({
                 <Link href="/customers" onClick={() => onOpenChange(false)}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   Add Customer
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Only services missing (customers available) */}
+        {!customersError && !servicesError && !hasNoCustomers && hasNoServices && (
+          <Alert variant="default" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" data-testid="alert-no-services">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="flex flex-col gap-3">
+              <span className="text-amber-800 dark:text-amber-200" data-testid="text-no-services">
+                No services available. Please add a service before creating a booking.
+              </span>
+              <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-service">
+                <Link href="/services" onClick={() => onOpenChange(false)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Service
                 </Link>
               </Button>
             </AlertDescription>
@@ -264,10 +356,15 @@ function BookingDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Service</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={hasNoServices || servicesLoading || servicesError}>
                     <FormControl>
                       <SelectTrigger data-testid="select-booking-service">
-                        <SelectValue placeholder="Select service" />
+                        <SelectValue placeholder={
+                          servicesLoading ? "Loading services..." : 
+                          servicesError ? "Error loading services" :
+                          hasNoServices ? "No services available" : 
+                          "Select service"
+                        } />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -362,7 +459,7 @@ function BookingDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={mutation.isPending || hasNoCustomers || customersError || isDataLoading} data-testid="button-save-booking">
+              <Button type="submit" disabled={mutation.isPending || cannotCreateBooking || isDataLoading} data-testid="button-save-booking">
                 {mutation.isPending ? "Creating..." : isDataLoading ? "Loading..." : "Create Booking"}
               </Button>
             </DialogFooter>
