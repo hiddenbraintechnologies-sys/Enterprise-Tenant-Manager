@@ -604,3 +604,116 @@ Currently, there are no rate limits implemented. For production use, consider im
 ## Versioning
 
 This is API version 1.0. Future breaking changes will be introduced with a new version prefix (e.g., `/api/v2/`).
+
+---
+
+## Add-on Marketplace
+
+### List Available Add-ons
+
+```http
+GET /api/addons/marketplace?country=IN&currency=INR&category=all
+```
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| country | string | Filter add-ons by country (e.g., IN, MY, UK) |
+| currency | string | Display pricing in specified currency (e.g., INR, MYR, GBP) |
+| category | string | Filter by category (all, hr, automation, analytics, utilities) |
+| search | string | Search by name or description |
+| businessType | string | Filter by business type |
+| featured | boolean | Show only featured add-ons |
+| sortBy | string | Sort by: installCount, rating, newest, featured |
+| limit | number | Results per page (default: 20) |
+| offset | number | Pagination offset |
+
+**Response (200 OK):**
+```json
+{
+  "addons": [
+    {
+      "id": "addon-uuid",
+      "name": "Payroll (India)",
+      "slug": "payroll-india",
+      "shortDescription": "Comprehensive payroll management for Indian businesses",
+      "category": "hr",
+      "featured": true,
+      "pricing": [
+        {
+          "id": "pricing-uuid",
+          "pricingType": "subscription",
+          "basePrice": "49.00",
+          "currency": "INR",
+          "billingCycle": "monthly",
+          "usageMetric": "per_employee"
+        }
+      ],
+      "isGlobal": false,
+      "supportedCountries": ["IN"]
+    }
+  ],
+  "total": 11,
+  "page": 1,
+  "pageSize": 20,
+  "hasMore": false
+}
+```
+
+### Get Tenant Installed Add-ons
+
+```http
+GET /api/addons/tenant/:tenantId/addons
+```
+
+**Response (200 OK):**
+```json
+{
+  "installedAddons": [
+    {
+      "installation": {
+        "id": "installation-uuid",
+        "status": "active",
+        "installedAt": "2026-01-15T00:00:00.000Z"
+      },
+      "addon": {
+        "id": "addon-uuid",
+        "name": "WhatsApp Automation",
+        "category": "automation"
+      },
+      "pricing": {
+        "pricingType": "subscription",
+        "basePrice": "999.00",
+        "currency": "INR"
+      }
+    }
+  ]
+}
+```
+
+### Install Add-on
+
+```http
+POST /api/addons/tenant/:tenantId/addons
+```
+
+**Request Body:**
+```json
+{
+  "addonId": "addon-uuid",
+  "pricingId": "pricing-uuid"
+}
+```
+
+### Enable/Disable Add-on
+
+```http
+POST /api/addons/tenant/:tenantId/addons/:addonId/enable
+POST /api/addons/tenant/:tenantId/addons/:addonId/disable
+```
+
+### Uninstall Add-on
+
+```http
+DELETE /api/addons/tenant/:tenantId/addons/:addonId
+```

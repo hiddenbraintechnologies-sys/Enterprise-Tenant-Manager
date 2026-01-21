@@ -924,19 +924,67 @@ MyBizStream provides specialized dashboards for different business types:
 ### Marketplace Features
 
 - Versioned add-ons (semantic versioning)
-- Per-tenant installation
-- Configuration management
-- Reviews and ratings
+- Per-tenant installation with enable/disable controls
+- Configuration management per add-on
+- Reviews and ratings system
+- Country-specific filtering at SQL level
+- Multi-currency pricing support (INR, MYR, GBP, USD)
+- Compatibility badges ("Global" vs "Compatible")
+
+### Phase 1 Add-ons (11 Available)
+
+| Add-on | Category | Countries | Pricing |
+|--------|----------|-----------|---------|
+| Payroll (India) | HR | India | ₹49/employee/month |
+| Payroll (Malaysia) | HR | Malaysia | MYR 15/employee/month |
+| Payroll (UK) | HR | UK | £3/employee/month |
+| WhatsApp Automation | Automation | Global | Multi-currency |
+| Advanced Analytics | Analytics | Global | Multi-currency |
+| Extra Users Pack | Utilities | Global | Per 5 users |
+| Extra Storage Pack | Utilities | Global | Per 10GB |
+| GST Filing Pack | Compliance | India | ₹499/month |
+| Document Management | Utilities | Global | Multi-currency |
+| Multi-Branch Support | Utilities | Global | Multi-currency |
+| API Access | Developer | Global | Multi-currency |
 
 ### Pricing Models
 
 - Free
 - One-time purchase
-- Subscription
-- Usage-based
+- Subscription (monthly/yearly)
+- Usage-based (per employee, per GB, etc.)
+
+### API Endpoints
+
+- `GET /api/addons/marketplace` - List available add-ons with country/currency filtering
+- `GET /api/addons/tenant/:tenantId/addons` - Get installed add-ons
+- `POST /api/addons/tenant/:tenantId/addons` - Install add-on
+- `POST /api/addons/tenant/:tenantId/addons/:addonId/enable` - Enable add-on
+- `POST /api/addons/tenant/:tenantId/addons/:addonId/disable` - Disable add-on
+- `DELETE /api/addons/tenant/:tenantId/addons/:addonId` - Uninstall add-on
 
 ---
 
-*Document Version: 1.2*
-*Last Updated: January 7, 2026*
+## UX Improvements
+
+### Booking Dialog Enhancements
+
+The booking creation dialog now includes comprehensive error handling:
+
+- **Combined alerts**: When both customers AND services are missing, a single alert with quick action buttons for both
+- **Error handling**: Separate alerts for API errors vs empty data scenarios
+- **Informative placeholders**: Dropdowns show "Loading...", "Error loading...", or "No data available" states
+- **Disabled submit**: Button is disabled when blocking conditions exist
+- **6 mutually exclusive alert states**:
+  1. Both customers and services error
+  2. Only customers error
+  3. Only services error
+  4. Both customers and services empty
+  5. Only customers empty
+  6. Only services empty
+
+---
+
+*Document Version: 1.3*
+*Last Updated: January 21, 2026*
 *Platform: MyBizStream Enterprise SaaS*

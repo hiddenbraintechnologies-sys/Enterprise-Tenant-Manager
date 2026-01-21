@@ -1,7 +1,7 @@
 # MyBizStream Production Readiness Confirmation
 
-**Release Candidate:** RC-1  
-**Date:** January 9, 2026  
+**Release Candidate:** RC-1.3  
+**Date:** January 21, 2026  
 **Status:** PRODUCTION READY  
 
 ---
@@ -140,4 +140,26 @@ The platform is ready for production deployment. Recommended steps:
 
 ---
 
-**Confirmation:** MyBizStream RC-1 is approved for production release.
+**Confirmation:** MyBizStream RC-1.3 is approved for production release.
+
+---
+
+## RC-1.3 Updates (January 21, 2026)
+
+### New Features
+- **Add-on Marketplace Phase 1**: 11 add-ons with multi-currency pricing
+  - Country-specific filtering at SQL level
+  - Compatibility badges (Global/Compatible)
+  - Payroll add-ons for India, Malaysia, UK
+  - WhatsApp Automation, Advanced Analytics, and more
+
+### UX Improvements
+- **Booking Dialog**: Enhanced error handling with 6 mutually exclusive alert states
+  - Combined alerts for missing customers/services
+  - Informative dropdown placeholders
+  - Quick action buttons to add missing data
+
+### Bug Fixes
+- Session-to-JWT exchange for Replit Auth users
+- Super Admin deletion system with accurate counts across 11 tables
+- Soft-delete filtering in user queries

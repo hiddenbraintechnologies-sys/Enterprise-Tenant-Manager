@@ -25,7 +25,26 @@ Multi-tenancy is enforced via JWT claims and an `X-Tenant-ID` header, supporting
 
 A five-tier platform administration system provides scoped access based on roles and country assignments, with full audit trail capabilities. The platform also includes a Customer Portal for self-service, a White-Label & Reseller System for hierarchical tenant management, and extensive Tenant Branding options for customization.
 
-Compliance and data protection are central, with features aligned with HIPAA/DPDP, including PHI access logging, role-based data masking, consent management, and unusual access detection. The system supports country-specific compliance for India (GST, DLT, Aadhaar), UAE (VAT, TRA, Data Residency, Arabic support), UK (GDPR, Data Retention, VAT), Malaysia (SST, PDPA), and US (Multi-state sales tax). It boasts multi-currency support for 15 currencies with historical exchange rates and precise decimal handling. An Add-on Marketplace allows for modular plugin integration with various pricing models. All significant actions are captured in an Audit Logging system.
+Compliance and data protection are central, with features aligned with HIPAA/DPDP, including PHI access logging, role-based data masking, consent management, and unusual access detection. The system supports country-specific compliance for India (GST, DLT, Aadhaar), UAE (VAT, TRA, Data Residency, Arabic support), UK (GDPR, Data Retention, VAT), Malaysia (SST, PDPA), and US (Multi-state sales tax). It boasts multi-currency support for 15 currencies with historical exchange rates and precise decimal handling. All significant actions are captured in an Audit Logging system.
+
+### Add-on Marketplace
+The platform features a comprehensive Add-on Marketplace with:
+- **Country-specific filtering**: Add-ons are filtered at the SQL level using `supportedCountries` jsonb field
+- **Multi-currency pricing**: Each add-on supports multiple pricing tiers with currency variants (INR, MYR, GBP, USD)
+- **Phase 1 Add-ons** (11 seeded):
+  - Payroll (India) - ₹49/employee/month
+  - Payroll (Malaysia) - MYR 15/employee/month
+  - Payroll (UK) - £3/employee/month
+  - WhatsApp Automation - global availability
+  - Advanced Analytics - global availability
+  - Extra Users Pack (5 users)
+  - Extra Storage Pack (10GB)
+  - GST Filing Pack (India only)
+  - Document Management
+  - Multi-Branch Support
+  - API Access
+- **Compatibility badges**: UI shows "Compatible" for country-specific add-ons and "Global" for universally available add-ons
+- **SQL-level filtering**: `supportedCountries @> '["IN"]'::jsonb` ensures only compatible add-ons reach clients with accurate pagination
 
 ### Technical Implementation
 The **Frontend** is developed using React 18 with TypeScript, styled with Tailwind CSS and shadcn/ui components. Data fetching is managed by TanStack Query v5, and routing by Wouter. The design adheres to a professional blue color scheme with Inter font and supports dark/light modes.
@@ -48,6 +67,20 @@ The platform uses a flexible billing system with:
 - **Admin management**: Platform admins can configure monthly/yearly prices via the billing admin UI
 - **API endpoint**: `/api/billing/plans-with-cycles` returns plans with full cycle data for frontend consumption
 - **Frontend pages**: Both `/packages` and `/pricing` pages fetch dynamic pricing and display based on selected billing cycle
+
+### UX Improvements
+- **Booking Dialog**: Enhanced with comprehensive alert system when customers/services are missing:
+  - Combined alerts for both missing scenarios with quick action buttons
+  - Mutually exclusive alert conditions (6 scenarios: both error, customer error only, service error only, both empty, customer empty only, service empty only)
+  - Informative dropdown placeholders (Loading/Error/No data available states)
+  - Submit button disabled when blocking conditions exist
+
+### Recent Changes (January 2026)
+- Added Phase 1 Marketplace with 11 add-ons and multi-currency pricing
+- Implemented SQL-level country filtering for add-ons using jsonb operators
+- Enhanced booking dialog with helpful alerts for missing customers/services
+- Fixed session-to-JWT exchange for Replit Auth users
+- Updated Super Admin deletion system with accurate counts across 11 tables
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
