@@ -108,9 +108,11 @@ export function TourOverlay() {
       const element = document.querySelector(currentStep.target);
       element?.scrollIntoView({ behavior: "smooth", block: "center" });
     } else {
+      // Element not found - auto-skip to next step or end tour
       setSpotlight(null);
+      nextStep();
     }
-  }, [currentStep]);
+  }, [currentStep, nextStep]);
 
   useEffect(() => {
     if (!state.isRunning) return;
