@@ -151,7 +151,7 @@ export default function SoftwareServicesTimesheets() {
   });
 
   const { data: projectsData } = useQuery<ProjectResponse>({
-    queryKey: ["/api/services/software/projects", { limit: 100, status: "active" }],
+    queryKey: ["/api/services/software/projects", { limit: 100 }],
   });
 
   const createTimesheetMutation = useMutation({

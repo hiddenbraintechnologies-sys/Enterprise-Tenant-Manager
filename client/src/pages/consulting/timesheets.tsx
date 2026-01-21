@@ -150,7 +150,7 @@ export default function ConsultingTimesheets() {
   });
 
   const { data: projectsData } = useQuery<ProjectResponse>({
-    queryKey: ["/api/services/consulting/projects", { limit: 100, status: "active" }],
+    queryKey: ["/api/services/consulting/projects", { limit: 100 }],
   });
 
   const createTimesheetMutation = useMutation({
