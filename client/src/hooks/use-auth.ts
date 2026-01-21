@@ -155,7 +155,78 @@ async function fetchUser(): Promise<AuthUser | null> {
     return null;
   }
 
-  return response.json();
+  const userData = await response.json();
+  
+  // If Replit session is valid, exchange it for JWT tokens for subsequent API calls
+  // This ensures all API calls work properly with the JWT auth flow
+  if (userData && userData.id) {
+    console.log("[useAuth] Replit session valid, exchanging for JWT tokens");
+    try {
+      const exchangeResponse = await fetch("/api/auth/session/exchange", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (exchangeResponse.ok) {
+        const tokens = await exchangeResponse.json();
+        localStorage.setItem("accessToken", tokens.accessToken);
+        localStorage.setItem("refreshToken", tokens.refreshToken);
+        if (tokens.tenant?.id) {
+          localStorage.setItem("tenantId", tokens.tenant.id);
+          localStorage.setItem("lastTenantId", tokens.tenant.id);
+        }
+        console.log("[useAuth] Session exchanged for JWT tokens successfully");
+        
+        // Use exchange response data as the authoritative source for all fields
+        const tenant = tokens.tenant ? {
+          id: tokens.tenant.id,
+          name: tokens.tenant.name,
+          businessType: tokens.tenant.businessType,
+          onboardingCompleted: tokens.tenant.onboardingCompleted,
+          country: tokens.tenant.country,
+          region: tokens.tenant.region,
+          currency: tokens.tenant.currency,
+          timezone: tokens.tenant.timezone,
+        } : userData.tenant;
+        
+        // Calculate dashboard route from authoritative tenant data
+        const businessType = tenant?.businessType || "service";
+        const dashboardRoute = `/dashboard/${businessType === "coworking" ? "coworking" : businessType}`;
+        
+        return {
+          id: tokens.user?.id || userData.id,
+          email: tokens.user?.email || userData.email,
+          firstName: tokens.user?.firstName || userData.firstName,
+          lastName: tokens.user?.lastName || userData.lastName,
+          profileImageUrl: userData.profileImageUrl,
+          tenant,
+          dashboardRoute,
+        } as AuthUser;
+      } else {
+        // Exchange failed - this means the session is valid for /api/auth/user but
+        // cannot be exchanged for JWT. Force re-login to ensure proper auth state.
+        console.error("[useAuth] Session exchange failed - forcing re-login");
+        // Clear any stale tokens and redirect to login
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("tenantId");
+        // Redirect to logout to clear session and force fresh login
+        window.location.href = "/api/logout";
+        return null;
+      }
+    } catch (err) {
+      console.error("[useAuth] Session exchange error - forcing re-login:", err);
+      // Clear any stale tokens and redirect to login
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("tenantId");
+      window.location.href = "/api/logout";
+      return null;
+    }
+  }
+
+  return userData;
 }
 
 async function logout(): Promise<void> {

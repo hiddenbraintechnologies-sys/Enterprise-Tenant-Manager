@@ -1,0 +1,151 @@
+1️⃣ What the Marketplace SHOULD be (concept)
+
+Think of plans as foundation and Marketplace as expansion packs.
+
+Plan → sets limits + core access
+
+Add-ons → unlock optional capabilities on top of the plan
+
+User pays only for what they need
+
+This avoids:
+
+Overpricing Basic/Pro
+
+Feature bloat
+
+Churn from SMBs
+
+2️⃣ What Add-ons you should add (realistic & sellable)
+🔹 Core Business Add-ons (High priority)
+
+These are perfect because users actively ask for them later.
+
+Add-on	Why it works	Pricing idea (India)
+Payroll	Compliance + recurring need	₹49–₹99 / employee / month
+HRMS Advanced	Leave, attendance, policies	₹999 / month
+GST Filing Pack	Huge India value	₹499 / month
+WhatsApp Automation	High perceived value	₹799 / month
+Advanced Analytics	Owners love reports	₹499 / month
+Document Management	Needed for clinics/legal	₹299 / month
+Multi-Branch Support	Growing businesses	₹999 / month
+API Access	For tech teams	₹499 / month
+
+✅ These should not all be bundled in Pro — sell them separately.
+
+🔹 Usage / Limit Add-ons (very powerful)
+
+Instead of forcing plan upgrade 👇
+
+Add-on	Example
+Extra Users	+5 users for ₹199
+Extra Storage	+10GB for ₹99
+Extra Invoices	+1,000 invoices
+Extra Projects	+10 projects
+
+This dramatically reduces downgrade friction.
+
+🔹 Country-specific Add-ons (your secret weapon)
+Country	Add-ons
+India	GST, Payroll (India), WhatsApp
+Malaysia	Payroll (EPF, SOCSO), HRMS
+UK	PAYE Payroll, VAT
+UAE	WPS Payroll (later)
+
+Marketplace can auto-filter by country 👌
+
+3️⃣ How Marketplace should behave (UX logic)
+Browse Add-ons tab
+
+Each card shows:
+
+Add-on name
+
+What it unlocks
+
+Price
+
+“Compatible with your plan” badge
+
+Add / Installed state
+
+Install flow
+
+Click Add
+
+Show confirmation:
+
+“Payroll will be added for ₹99/employee/month”
+
+If paid:
+
+Immediate Razorpay subscription / invoice
+
+Feature becomes active instantly
+
+4️⃣ How it interacts with Plans (IMPORTANT)
+Example scenario
+
+User on Basic Plan ₹99
+
+Feature	Status
+Payroll	❌ Not included
+Marketplace → Payroll	✅ Can add
+HRMS Basic	✅ Included
+HRMS Advanced	➕ Add-on
+
+This keeps plans simple and Marketplace powerful.
+
+5️⃣ How to model this technically (simple mental model)
+
+You already have most of this.
+
+Conceptually:
+
+plans → base access
+
+features → capabilities
+
+tenant_features → enabled via plan OR add-on
+
+addons → purchasable feature bundles
+
+Add-on = feature override with billing
+
+6️⃣ What NOT to put in Marketplace ❌
+
+Avoid:
+
+Core navigation (Dashboard, Clients)
+
+Basic CRUD features
+
+Security essentials
+
+Those belong in plans.
+
+7️⃣ What you can show on the Marketplace page (right now)
+
+To avoid “empty” feeling, start with:
+
+Phase 1 (launch-ready)
+
+Payroll (disabled if country not ready)
+
+WhatsApp Automation
+
+Advanced Analytics
+
+Extra Users
+
+Extra Storage
+
+Even 3–4 add-ons is enough to look serious.
+
+8️⃣ Why this is a BIG win for you
+
+✅ Lower entry price
+✅ Higher ARPU over time
+✅ Country-wise compliance control
+✅ Less plan churn
+✅ Easy upsell by sales team

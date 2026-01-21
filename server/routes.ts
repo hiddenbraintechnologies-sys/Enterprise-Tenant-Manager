@@ -5321,7 +5321,7 @@ export async function registerRoutes(
       for (const tu of tenantUsers) {
         const [role] = await db.select().from(roles).where(eq(roles.id, tu.roleId));
         if (role?.name?.toLowerCase() === "owner" || role?.name?.toLowerCase() === "admin") {
-          const [user] = await db.select().from(users).where(eq(users.id, tu.userId));
+          const [user] = await db.select().from(users).where(and(eq(users.id, tu.userId), isNull(users.deletedAt)));
           if (user) {
             owner = {
               id: user.id,
@@ -5804,7 +5804,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "A reason is required" });
       }
 
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const [user] = await db.select().from(users).where(and(eq(users.id, userId), isNull(users.deletedAt)));
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -5849,7 +5849,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "A reason is required" });
       }
 
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const [user] = await db.select().from(users).where(and(eq(users.id, userId), isNull(users.deletedAt)));
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }

@@ -75,7 +75,7 @@ import {
   type InvoiceProjectLink, type InsertInvoiceProjectLink,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, count, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // Tenants
@@ -1411,7 +1411,7 @@ export class DatabaseStorage implements IStorage {
 
   // User Management
   async getUser(id: string): Promise<{ id: string; email: string | null; firstName: string | null; lastName: string | null; passwordHash: string | null; } | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+    const [user] = await db.select().from(users).where(and(eq(users.id, id), isNull(users.deletedAt)));
     return user;
   }
 

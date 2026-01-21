@@ -32,48 +32,48 @@ async function processTenantWipe(job: typeof deleteJobs.$inferSelect): Promise<D
 
   const deleteOrder = [
     { table: "bookings", deleteFunc: async () => {
-      const result = await db.delete(bookings).where(eq(bookings.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(bookings).where(eq(bookings.tenantId, tenantId)).returning({ id: bookings.id });
+      return result.length;
     }},
     { table: "invoices", deleteFunc: async () => {
-      const result = await db.delete(invoices).where(eq(invoices.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(invoices).where(eq(invoices.tenantId, tenantId)).returning({ id: invoices.id });
+      return result.length;
     }},
     { table: "payments", deleteFunc: async () => {
-      const result = await db.delete(payments).where(eq(payments.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(payments).where(eq(payments.tenantId, tenantId)).returning({ id: payments.id });
+      return result.length;
     }},
     { table: "services", deleteFunc: async () => {
-      const result = await db.delete(services).where(eq(services.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(services).where(eq(services.tenantId, tenantId)).returning({ id: services.id });
+      return result.length;
     }},
     { table: "customers", deleteFunc: async () => {
-      const result = await db.delete(customers).where(eq(customers.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(customers).where(eq(customers.tenantId, tenantId)).returning({ id: customers.id });
+      return result.length;
     }},
     { table: "staff", deleteFunc: async () => {
-      const result = await db.delete(staff).where(eq(staff.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(staff).where(eq(staff.tenantId, tenantId)).returning({ id: staff.id });
+      return result.length;
     }},
     { table: "projects", deleteFunc: async () => {
-      const result = await db.delete(projects).where(eq(projects.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(projects).where(eq(projects.tenantId, tenantId)).returning({ id: projects.id });
+      return result.length;
     }},
     { table: "timesheets", deleteFunc: async () => {
-      const result = await db.delete(timesheets).where(eq(timesheets.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(timesheets).where(eq(timesheets.tenantId, tenantId)).returning({ id: timesheets.id });
+      return result.length;
     }},
     { table: "audit_logs", deleteFunc: async () => {
-      const result = await db.delete(auditLogs).where(eq(auditLogs.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(auditLogs).where(eq(auditLogs.tenantId, tenantId)).returning({ id: auditLogs.id });
+      return result.length;
     }},
     { table: "refresh_tokens", deleteFunc: async () => {
-      const result = await db.delete(refreshTokens).where(eq(refreshTokens.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(refreshTokens).where(eq(refreshTokens.tenantId, tenantId)).returning({ id: refreshTokens.id });
+      return result.length;
     }},
     { table: "user_tenants", deleteFunc: async () => {
-      const result = await db.delete(userTenants).where(eq(userTenants.tenantId, tenantId));
-      return 0;
+      const result = await db.delete(userTenants).where(eq(userTenants.tenantId, tenantId)).returning({ id: userTenants.id });
+      return result.length;
     }},
   ];
 
@@ -146,22 +146,28 @@ async function processUserDelete(job: typeof deleteJobs.$inferSelect): Promise<D
   if (mode === "hard_delete") {
     const deleteOrder = [
       { table: "bookings", deleteFunc: async () => {
-        await db.delete(bookings).where(and(eq(bookings.tenantId, tenantId), eq(bookings.createdBy, userId)));
+        const result = await db.delete(bookings).where(and(eq(bookings.tenantId, tenantId), eq(bookings.createdBy, userId))).returning({ id: bookings.id });
+        return result.length;
       }},
       { table: "invoices", deleteFunc: async () => {
-        await db.delete(invoices).where(and(eq(invoices.tenantId, tenantId), eq(invoices.createdBy, userId)));
+        const result = await db.delete(invoices).where(and(eq(invoices.tenantId, tenantId), eq(invoices.createdBy, userId))).returning({ id: invoices.id });
+        return result.length;
       }},
       { table: "services", deleteFunc: async () => {
-        await db.delete(services).where(and(eq(services.tenantId, tenantId), eq(services.createdBy, userId)));
+        const result = await db.delete(services).where(and(eq(services.tenantId, tenantId), eq(services.createdBy, userId))).returning({ id: services.id });
+        return result.length;
       }},
       { table: "customers", deleteFunc: async () => {
-        await db.delete(customers).where(and(eq(customers.tenantId, tenantId), eq(customers.createdBy, userId)));
+        const result = await db.delete(customers).where(and(eq(customers.tenantId, tenantId), eq(customers.createdBy, userId))).returning({ id: customers.id });
+        return result.length;
       }},
       { table: "projects", deleteFunc: async () => {
-        await db.delete(projects).where(and(eq(projects.tenantId, tenantId), eq(projects.createdBy, userId)));
+        const result = await db.delete(projects).where(and(eq(projects.tenantId, tenantId), eq(projects.createdBy, userId))).returning({ id: projects.id });
+        return result.length;
       }},
       { table: "staff", deleteFunc: async () => {
-        await db.delete(staff).where(and(eq(staff.tenantId, tenantId), eq(staff.createdBy, userId)));
+        const result = await db.delete(staff).where(and(eq(staff.tenantId, tenantId), eq(staff.createdBy, userId))).returning({ id: staff.id });
+        return result.length;
       }},
     ];
 
@@ -178,23 +184,24 @@ async function processUserDelete(job: typeof deleteJobs.$inferSelect): Promise<D
           })
           .where(eq(deleteJobs.id, job.id));
 
-        await deleteFunc();
-        summary.deletedTables[table] = 1;
-        summary.totalDeleted += 1;
+        const count = await deleteFunc();
+        summary.deletedTables[table] = count;
+        summary.totalDeleted += count;
       } catch (error) {
         const errorMsg = `Failed to delete from ${table}: ${error instanceof Error ? error.message : String(error)}`;
         summary.errors.push(errorMsg);
       }
     }
 
-    await db.delete(refreshTokens)
-      .where(and(eq(refreshTokens.userId, userId), eq(refreshTokens.tenantId, tenantId)));
+    const refreshResult = await db.delete(refreshTokens)
+      .where(and(eq(refreshTokens.userId, userId), eq(refreshTokens.tenantId, tenantId))).returning({ id: refreshTokens.id });
+    summary.deletedTables["refresh_tokens"] = refreshResult.length;
+    summary.totalDeleted += refreshResult.length;
 
-    await db.delete(userTenants)
-      .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId)));
-
-    summary.deletedTables["user_tenant_removed"] = 1;
-    summary.totalDeleted += 1;
+    const userTenantResult = await db.delete(userTenants)
+      .where(and(eq(userTenants.userId, userId), eq(userTenants.tenantId, tenantId))).returning({ id: userTenants.id });
+    summary.deletedTables["user_tenants"] = userTenantResult.length;
+    summary.totalDeleted += userTenantResult.length;
   }
 
   if (mode === "anonymize") {
