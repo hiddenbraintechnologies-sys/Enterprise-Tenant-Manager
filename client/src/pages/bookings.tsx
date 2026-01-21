@@ -54,7 +54,11 @@ import {
   Check,
   X,
   Calendar as CalendarIconOutline,
+  UserPlus,
+  AlertCircle,
 } from "lucide-react";
+import { Link } from "wouter";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -116,11 +120,11 @@ function BookingDialog({
   const { toast } = useToast();
   const { formatCurrency } = useCountry();
 
-  const { data: customers } = useQuery<Customer[]>({
+  const { data: customers, isLoading: customersLoading, isError: customersError } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
   });
 
-  const { data: services } = useQuery<Service[]>({
+  const { data: services, isLoading: servicesLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
   });
 
@@ -176,6 +180,9 @@ function BookingDialog({
     mutation.mutate(data);
   };
 
+  const isDataLoading = customersLoading || servicesLoading;
+  const hasNoCustomers = !customersLoading && (!customers || customers.length === 0);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -185,6 +192,41 @@ function BookingDialog({
             Create a new booking for a customer.
           </DialogDescription>
         </DialogHeader>
+        
+        {customersError && (
+          <Alert variant="destructive" data-testid="alert-customers-error">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-3">
+              <span data-testid="text-customers-error">
+                Unable to load customers. Please try again or add a new customer.
+              </span>
+              <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-customer-error">
+                <Link href="/customers" onClick={() => onOpenChange(false)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Add Customer
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {!customersError && hasNoCustomers && (
+          <Alert variant="default" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" data-testid="alert-no-customers">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="flex flex-col gap-3">
+              <span className="text-amber-800 dark:text-amber-200" data-testid="text-no-customers">
+                No customers available. Please add a customer before creating a booking.
+              </span>
+              <Button variant="outline" size="sm" asChild className="w-fit" data-testid="button-add-customer">
+                <Link href="/customers" onClick={() => onOpenChange(false)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Add Customer
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -193,10 +235,15 @@ function BookingDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Customer</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={hasNoCustomers || customersLoading || customersError}>
                     <FormControl>
                       <SelectTrigger data-testid="select-booking-customer">
-                        <SelectValue placeholder="Select customer" />
+                        <SelectValue placeholder={
+                          customersLoading ? "Loading customers..." : 
+                          customersError ? "Error loading customers" :
+                          hasNoCustomers ? "No customers available" : 
+                          "Select customer"
+                        } />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -315,8 +362,8 @@ function BookingDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={mutation.isPending} data-testid="button-save-booking">
-                {mutation.isPending ? "Creating..." : "Create Booking"}
+              <Button type="submit" disabled={mutation.isPending || hasNoCustomers || customersError || isDataLoading} data-testid="button-save-booking">
+                {mutation.isPending ? "Creating..." : isDataLoading ? "Loading..." : "Create Booking"}
               </Button>
             </DialogFooter>
           </form>
