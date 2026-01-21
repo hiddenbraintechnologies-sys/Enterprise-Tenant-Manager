@@ -400,5 +400,49 @@
       "revenue": "Payroll Revenue",
       "activeSubscriptions": "Active Payroll subscriptions"
     }
+  },
+  "marketplace": {
+    "title": "Add-on Marketplace",
+    "subtitle": "Install extra features anytime. Pay only for what you use.",
+    "tabs": {
+      "browse": "Browse Add-ons",
+      "installed": "Installed"
+    },
+    "empty": {
+      "title": "No add-ons installed",
+      "subtitle": "Browse the marketplace to find add-ons for your business."
+    },
+    "card": {
+      "trial": "{{days}}-day free trial",
+      "popular": "Popular",
+      "included": "Included in your plan",
+      "comingSoon": "Coming soon",
+      "notAvailable": "Not available for your country",
+      "global": "Global",
+      "compatible": "Compatible"
+    },
+    "pricing": {
+      "perMonth": "/month",
+      "perEmployee": "/employee/month",
+      "perUnit": "/{{unit}}/month",
+      "oneTime": "One-time",
+      "from": "From",
+      "totalToday": "Total today",
+      "startsAfterTrial": "Starts after trial ends"
+    },
+    "actions": {
+      "learnMore": "Learn more",
+      "install": "Install",
+      "startTrial": "Start trial",
+      "payAndEnable": "Pay & enable",
+      "manage": "Manage",
+      "cancel": "Cancel"
+    },
+    "checkout": {
+      "title": "Confirm add-on",
+      "planBundleDiscount": "Bundle discount",
+      "taxNote": "Taxes may apply based on your country settings.",
+      "consent": "By continuing, you agree to be billed according to the selected add-on."
+    }
   }
 }

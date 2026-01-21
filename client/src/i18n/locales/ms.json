@@ -431,5 +431,49 @@
       "revenue": "Hasil Payroll",
       "activeSubscriptions": "Langganan Payroll aktif"
     }
+  },
+  "marketplace": {
+    "title": "Pasaran Add-on",
+    "subtitle": "Pasang ciri tambahan bila-bila masa. Bayar hanya untuk apa yang digunakan.",
+    "tabs": {
+      "browse": "Lihat Add-on",
+      "installed": "Dipasang"
+    },
+    "empty": {
+      "title": "Tiada add-on dipasang",
+      "subtitle": "Semak pasaran untuk mencari add-on bagi perniagaan anda."
+    },
+    "card": {
+      "trial": "Percubaan percuma {{days}} hari",
+      "popular": "Popular",
+      "included": "Termasuk dalam pelan anda",
+      "comingSoon": "Akan datang",
+      "notAvailable": "Tidak tersedia untuk negara anda",
+      "global": "Global",
+      "compatible": "Serasi"
+    },
+    "pricing": {
+      "perMonth": "/bulan",
+      "perEmployee": "/pekerja/bulan",
+      "perUnit": "/{{unit}}/bulan",
+      "oneTime": "Sekali sahaja",
+      "from": "Dari",
+      "totalToday": "Jumlah hari ini",
+      "startsAfterTrial": "Bermula selepas percubaan tamat"
+    },
+    "actions": {
+      "learnMore": "Ketahui lagi",
+      "install": "Pasang",
+      "startTrial": "Mula percubaan",
+      "payAndEnable": "Bayar & aktifkan",
+      "manage": "Urus",
+      "cancel": "Batal"
+    },
+    "checkout": {
+      "title": "Sahkan add-on",
+      "planBundleDiscount": "Diskaun bundle",
+      "taxNote": "Cukai mungkin dikenakan mengikut tetapan negara anda.",
+      "consent": "Dengan meneruskan, anda bersetuju untuk dicaj mengikut add-on yang dipilih."
+    }
   }
 }

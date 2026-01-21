@@ -1,0 +1,472 @@
+Below is a complete Marketplace Add-on design you can paste into Replit: Prisma schema + API contract + UI copy (EN + HI + MS + TA) + Razorpay mapping.
+
+1) Prisma schema (Add-ons Marketplace)
+
+Add these models to your prisma/schema.prisma (or merge into existing). Names are flexible, but keep the relations.
+
+enum AddonStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum BillingModel {
+  MONTHLY_FLAT          // fixed monthly price
+  PER_EMPLOYEE          // monthly price * employeeCount
+  PER_UNIT              // monthly price * quantity (units)
+  ONE_TIME              // one-time purchase (setup fee, migration, etc.)
+}
+
+enum AddonInstallStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+model Addon {
+  id            String      @id @default(cuid())
+  code          String      @unique            // e.g. "payroll", "hrms"
+  name          String
+  description   String?
+  icon          String?
+  status        AddonStatus @default(DRAFT)
+
+  // Gating / rollout control
+  availableCountries String[] @default([])     // e.g. ["IN","MY","GB"]
+  availableBusinessTypes String[] @default([]) // e.g. ["pg_hostel","consulting"]
+
+  billingModel  BillingModel
+  trialDays     Int         @default(0)        // e.g. Payroll MY: 7
+  isBundleEligible Boolean  @default(true)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  prices        AddonPrice[]
+  installs      TenantAddonInstall[]
+}
+
+model AddonPrice {
+  id          String   @id @default(cuid())
+  addonId     String
+  addon       Addon    @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  countryCode String   // "IN", "MY", "GB"
+  currencyCode String  // "INR", "MYR", "GBP"
+
+  // Pricing fields depend on billingModel:
+  // MONTHLY_FLAT: basePrice
+  // PER_EMPLOYEE: unitPrice + minEmployees (optional)
+  // PER_UNIT: unitPrice + unitName
+  // ONE_TIME: oneTimePrice
+  basePrice   Int?     // minor units
+  unitPrice   Int?     // minor units
+  oneTimePrice Int?    // minor units
+
+  unitName    String?  // "employee", "payslip", "timesheet", "branch"
+  minQty      Int?     // min employee count or min units
+  maxQty      Int?     // optional tier ceiling
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([countryCode, currencyCode])
+  @@index([addonId, countryCode])
+}
+
+model TenantAddonInstall {
+  id             String            @id @default(cuid())
+  tenantId        String
+  addonId         String
+  addon           Addon             @relation(fields: [addonId], references: [id])
+
+  status          AddonInstallStatus @default(PENDING_PAYMENT)
+
+  // what tenant selected
+  billingCycle    String            @default("monthly") // "monthly" | "yearly" (if you add yearly later)
+  quantity        Int               @default(1)         // for PER_UNIT or PER_EMPLOYEE (derived)
+  effectiveFrom   DateTime?         // when becomes active
+  effectiveTo     DateTime?         // for cancellations etc.
+  trialEndsAt     DateTime?
+
+  // Billing integration references
+  razorpaySubscriptionId String? @unique
+  razorpayPlanId         String?
+  razorpayCustomerId     String?
+  lastInvoiceId          String?
+
+  // Pricing snapshot at purchase time (so future price changes won’t break history)
+  countryCode    String
+  currencyCode   String
+  pricePerUnit   Int?     // minor units
+  priceFlat      Int?     // minor units
+  discountAmount Int?     // minor units (bundle/coupon)
+  totalPrice     Int?     // minor units
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, addonId])
+  @@index([tenantId])
+}
+
+model BundleDiscountRule {
+  id            String   @id @default(cuid())
+  countryCode   String
+  currencyCode  String
+
+  // "plan + addon" discount rule
+  // apply if tenant has planTier in set and addonCode in set
+  planTiers     String[] @default([]) // ["basic","pro"]
+  addonCodes    String[] @default([]) // ["payroll","hrms"]
+
+  discountType  String   // "PERCENT" | "FIXED"
+  discountValue Int      // percent (e.g. 10) or minor units
+
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([countryCode])
+}
+
+model AddonUsageMeter {
+  id          String   @id @default(cuid())
+  tenantId    String
+  addonCode   String
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Example metrics for PER_UNIT pricing
+  unitsUsed   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, addonCode])
+}
+
+What this gives you
+
+Super Admin can publish add-ons and control which countries + business types can see/install them.
+
+Pricing can be flat, per employee, per unit, or one-time.
+
+Each tenant has an install record with a price snapshot + Razorpay IDs.
+
+2) Billing rules (how pricing should work)
+A) MONTHLY_FLAT
+
+Price = basePrice (e.g., Payroll MYR 199/month)
+
+If trialDays > 0 → activate immediately, charge starts after trial end.
+
+B) PER_EMPLOYEE (best for Payroll/HRMS)
+
+Effective employee count = max(activeEmployees, minQty)
+
+Monthly charge = unitPrice * employeeCount
+
+If you want tiers by employee range:
+
+Use AddonPrice.minQty/maxQty to pick the right unitPrice
+
+Example:
+
+1–25 employees: MYR 8/employee
+
+26–100: MYR 6/employee
+
+101+: MYR 5/employee
+
+C) PER_UNIT (usage based)
+
+Tenant selects quantity (or you compute from usage meter)
+
+Monthly charge = unitPrice * quantity
+
+Example: “Extra branch” MYR 29 per branch.
+
+D) ONE_TIME
+
+Charge once and mark install ACTIVE (no subscription needed)
+
+Example: “Data migration” MYR 499 one-time
+
+Trial (Payroll 7 days)
+
+trialEndsAt = now + 7 days
+
+Access is enabled immediately but billing starts after trial.
+
+Bundle discount (Plan + Payroll combo)
+
+On checkout, compute discount from BundleDiscountRule
+
+total = subtotal - discountAmount
+
+Store discount snapshot in TenantAddonInstall.discountAmount
+
+3) Marketplace UI copy (EN + HI + MS + TA)
+
+Use these translation keys in:
+
+client/src/i18n/locales/en.json
+
+hi.json
+
+ms.json
+
+ta.json
+
+EN (en.json)
+{
+  "marketplace": {
+    "title": "Add-on Marketplace",
+    "subtitle": "Install extra features anytime. Pay only for what you use.",
+    "tabs": {
+      "browse": "Browse Add-ons",
+      "installed": "Installed"
+    },
+    "empty": {
+      "title": "No add-ons installed",
+      "subtitle": "Browse the marketplace to find add-ons for your business."
+    },
+    "card": {
+      "trial": "{{days}}-day free trial",
+      "popular": "Popular",
+      "included": "Included in your plan",
+      "comingSoon": "Coming soon",
+      "notAvailable": "Not available for your country"
+    },
+    "pricing": {
+      "perMonth": "/month",
+      "perEmployee": "/employee/month",
+      "perUnit": "/{{unit}}/month",
+      "oneTime": "One-time",
+      "from": "From",
+      "totalToday": "Total today",
+      "startsAfterTrial": "Starts after trial ends"
+    },
+    "actions": {
+      "learnMore": "Learn more",
+      "install": "Install",
+      "startTrial": "Start trial",
+      "payAndEnable": "Pay & enable",
+      "manage": "Manage",
+      "cancel": "Cancel"
+    },
+    "checkout": {
+      "title": "Confirm add-on",
+      "planBundleDiscount": "Bundle discount",
+      "taxNote": "Taxes may apply based on your country settings.",
+      "consent": "By continuing, you agree to be billed according to the selected add-on."
+    }
+  }
+}
+
+HI (hi.json)
+{
+  "marketplace": {
+    "title": "ऐड-ऑन मार्केटप्लेस",
+    "subtitle": "जब चाहें अतिरिक्त फीचर्स जोड़ें। केवल उतना ही भुगतान करें जितना उपयोग करें।",
+    "tabs": {
+      "browse": "ऐड-ऑन देखें",
+      "installed": "इंस्टॉल किए गए"
+    },
+    "empty": {
+      "title": "कोई ऐड-ऑन इंस्टॉल नहीं है",
+      "subtitle": "अपने बिज़नेस के लिए ऐड-ऑन खोजने हेतु मार्केटप्लेस ब्राउज़ करें।"
+    },
+    "card": {
+      "trial": "{{days}}-दिन का फ्री ट्रायल",
+      "popular": "लोकप्रिय",
+      "included": "आपके प्लान में शामिल",
+      "comingSoon": "जल्द आ रहा है",
+      "notAvailable": "आपके देश में उपलब्ध नहीं"
+    },
+    "pricing": {
+      "perMonth": "/माह",
+      "perEmployee": "/कर्मचारी/माह",
+      "perUnit": "/{{unit}}/माह",
+      "oneTime": "एक बार",
+      "from": "से शुरू",
+      "totalToday": "आज कुल",
+      "startsAfterTrial": "ट्रायल के बाद शुरू होगा"
+    },
+    "actions": {
+      "learnMore": "और जानें",
+      "install": "इंस्टॉल करें",
+      "startTrial": "ट्रायल शुरू करें",
+      "payAndEnable": "भुगतान करें और चालू करें",
+      "manage": "मैनेज करें",
+      "cancel": "रद्द करें"
+    },
+    "checkout": {
+      "title": "ऐड-ऑन की पुष्टि करें",
+      "planBundleDiscount": "बंडल डिस्काउंट",
+      "taxNote": "आपके देश के अनुसार टैक्स लागू हो सकता है।",
+      "consent": "जारी रखते ही चुने गए ऐड-ऑन के अनुसार बिलिंग लागू होगी।"
+    }
+  }
+}
+
+MS (ms.json)
+{
+  "marketplace": {
+    "title": "Pasaran Add-on",
+    "subtitle": "Pasang ciri tambahan bila-bila masa. Bayar hanya untuk apa yang digunakan.",
+    "tabs": {
+      "browse": "Lihat Add-on",
+      "installed": "Dipasan"
+    },
+    "empty": {
+      "title": "Tiada add-on dipasang",
+      "subtitle": "Semak pasaran untuk mencari add-on bagi perniagaan anda."
+    },
+    "card": {
+      "trial": "Percubaan percuma {{days}} hari",
+      "popular": "Popular",
+      "included": "Termasuk dalam pelan anda",
+      "comingSoon": "Akan datang",
+      "notAvailable": "Tidak tersedia untuk negara anda"
+    },
+    "pricing": {
+      "perMonth": "/bulan",
+      "perEmployee": "/pekerja/bulan",
+      "perUnit": "/{{unit}}/bulan",
+      "oneTime": "Sekali sahaja",
+      "from": "Dari",
+      "totalToday": "Jumlah hari ini",
+      "startsAfterTrial": "Bermula selepas percubaan tamat"
+    },
+    "actions": {
+      "learnMore": "Ketahui lagi",
+      "install": "Pasang",
+      "startTrial": "Mula percubaan",
+      "payAndEnable": "Bayar & aktifkan",
+      "manage": "Urus",
+      "cancel": "Batal"
+    },
+    "checkout": {
+      "title": "Sahkan add-on",
+      "planBundleDiscount": "Diskaun bundle",
+      "taxNote": "Cukai mungkin dikenakan mengikut tetapan negara anda.",
+      "consent": "Dengan meneruskan, anda bersetuju untuk dicaj mengikut add-on yang dipilih."
+    }
+  }
+}
+
+TA (ta.json)
+{
+  "marketplace": {
+    "title": "ஆட்-ஆன் மார்க்கெட்ப்ளேஸ்",
+    "subtitle": "தேவைப்படும் போது கூடுதல் அம்சங்களை நிறுவுங்கள். பயன்படுத்துவதற்கே கட்டணம்.",
+    "tabs": {
+      "browse": "ஆட்-ஆன்கள்",
+      "installed": "நிறுவப்பட்டது"
+    },
+    "empty": {
+      "title": "எந்த ஆட்-ஆனும் நிறுவப்படவில்லை",
+      "subtitle": "உங்கள் வணிகத்திற்கு பொருத்தமான ஆட்-ஆன்களை மார்க்கெட்ப்ளேஸில் தேடுங்கள்."
+    },
+    "card": {
+      "trial": "{{days}} நாள் இலவச டிரயல்",
+      "popular": "பிரபலமானது",
+      "included": "உங்கள் திட்டத்தில் உள்ளது",
+      "comingSoon": "விரைவில்",
+      "notAvailable": "உங்கள் நாட்டிற்கு கிடைக்கவில்லை"
+    },
+    "pricing": {
+      "perMonth": "/மாதம்",
+      "perEmployee": "/பணியாளர்/மாதம்",
+      "perUnit": "/{{unit}}/மாதம்",
+      "oneTime": "ஒருமுறை",
+      "from": "இலிருந்து",
+      "totalToday": "இன்றைய மொத்தம்",
+      "startsAfterTrial": "டிரயல் முடிந்த பின் தொடங்கும்"
+    },
+    "actions": {
+      "learnMore": "மேலும் அறிய",
+      "install": "நிறுவ",
+      "startTrial": "டிரயல் தொடங்கு",
+      "payAndEnable": "கட்டணம் செலுத்தி இயக்கு",
+      "manage": "மேலாண்மை",
+      "cancel": "ரத்து"
+    },
+    "checkout": {
+      "title": "ஆட்-ஆனை உறுதிப்படுத்து",
+      "planBundleDiscount": "பண்டில் தள்ளுபடி",
+      "taxNote": "உங்கள் நாட்டின் அமைப்புகளின்படி வரி விதிக்கப்படலாம்.",
+      "consent": "தொடர்வதன் மூலம் தேர்ந்தெடுத்த ஆட்-ஆன் விதிகளின்படி கட்டணம் வசூலிக்க ஒப்புக்கொள்கிறீர்கள்."
+    }
+  }
+}
+
+4) Razorpay add-on subscription mapping (production-safe)
+Key constraint from Razorpay (important)
+
+Razorpay “add-ons” in Subscription Link are upfront add-on items added to the authorisation transaction, not recurring monthly line items.
+So for recurring add-ons (Payroll/HRMS), you should implement recurring billing using subscription plan + quantity, or separate subscription per add-on.
+
+Recommended mapping (simple + clean)
+Option 1 (Best): Separate subscription per add-on
+
+Base plan subscription (already exists): tenant.subscriptionId
+
+Each add-on install creates another Razorpay subscription:
+
+TenantAddonInstall.razorpaySubscriptionId
+
+Pros: easy cancellations, clean invoices, accurate trials per add-on
+
+Cons: multiple subscriptions per tenant
+
+PER_EMPLOYEE pricing using quantity
+Razorpay supports quantity so total charge becomes plan_amount * quantity.
+So create a Razorpay Plan for “Payroll MYR per employee per month” and set quantity = employeeCount.
+
+Month-end downgrade / changes
+Razorpay supports schedule_change_at: "cycle_end" when updating a subscription (perfect for “downgrades only at month-end”).
+
+Option 2: Single subscription (bundle plans)
+
+Create combined plans (Basic, Basic+Payroll, Pro+Payroll)
+
+When user adds/removes add-on, switch plan_id using PATCH /v1/subscriptions/:id with schedule_change_at logic
+
+Pros: one subscription
+
+Cons: too many plan combinations as add-ons grow
+
+Minimal API flow you should implement
+
+A) Checkout / Install add-on
+
+Compute price from DB (AddonPrice + billing model + discount rule)
+
+Create/ensure Razorpay Customer
+
+Create Razorpay Plan (if not created for that country+addon+model)
+
+Create Razorpay Subscription (trial if needed)
+
+Save IDs into TenantAddonInstall
+
+B) Webhook handling
+
+On payment success → set install ACTIVE, set effectiveFrom
+
+On subscription cancelled → set install CANCELLED
+
+On trial ending + first payment success → keep ACTIVE and update trialEndsAt
+
+C) Quantity updates (employee count changes)
+
+If Payroll is PER_EMPLOYEE:
+
+When employee count changes, call update subscription with new quantity
+
+Use schedule_change_at: "now" for upgrades, cycle_end for reductions if you want predictable billing
