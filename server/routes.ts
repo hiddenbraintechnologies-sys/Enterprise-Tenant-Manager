@@ -663,39 +663,8 @@ export async function registerRoutes(
       const [existingUser] = await db.select().from(users).where(eq(users.email, email));
       console.log("[register] Step 3: Existing user check complete, found:", !!existingUser);
       if (existingUser) {
-        // Check if user has any active tenant associations with non-deleted tenants
-        try {
-          const activeTenantAssociations = await db.select()
-            .from(userTenants)
-            .innerJoin(tenants, eq(userTenants.tenantId, tenants.id))
-            .where(and(
-              eq(userTenants.userId, existingUser.id),
-              eq(userTenants.isActive, true),
-              ne(tenants.status, 'deleted')
-            ));
-          
-          if (activeTenantAssociations.length > 0) {
-            return res.status(409).json({ message: "Email already registered" });
-          }
-        } catch (checkError) {
-          // Fallback: if status column check fails, just check for active associations
-          console.warn("Tenant status check failed, using fallback:", checkError);
-          const basicAssociations = await db.select()
-            .from(userTenants)
-            .where(and(
-              eq(userTenants.userId, existingUser.id),
-              eq(userTenants.isActive, true)
-            ));
-          
-          if (basicAssociations.length > 0) {
-            return res.status(409).json({ message: "Email already registered" });
-          }
-        }
-        
-        // User exists but has no active tenants - delete orphaned user and allow re-registration
-        await db.delete(userTenants).where(eq(userTenants.userId, existingUser.id));
-        await db.delete(refreshTokens).where(eq(refreshTokens.userId, existingUser.id));
-        await db.delete(users).where(eq(users.id, existingUser.id));
+        // User already exists - just return error (don't try to delete as they may have linked data)
+        return res.status(409).json({ message: "Email already registered. Please use a different email or login with your existing account." });
       }
 
       // Look up region config for the selected country
