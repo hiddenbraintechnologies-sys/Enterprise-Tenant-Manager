@@ -132,7 +132,7 @@ export default function Login() {
 
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (!data) return;
       
       localStorage.setItem("accessToken", data.accessToken);
@@ -149,9 +149,50 @@ export default function Login() {
         description: `Signed in as ${data.user.email}`,
       });
 
-      setTimeout(() => {
-        setLocation("/packages");
-      }, 100);
+      // Check if tenant already has an active subscription
+      try {
+        const subscriptionResponse = await fetch("/api/billing/subscription", {
+          credentials: "include",
+          headers: {
+            "Authorization": `Bearer ${data.accessToken}`,
+            "X-Tenant-ID": data.tenant?.id || "",
+          },
+        });
+        
+        if (subscriptionResponse.ok) {
+          const subscriptionData = await subscriptionResponse.json();
+          const isActive = subscriptionData?.isActive === true;
+          const status = (subscriptionData?.status || "").toLowerCase();
+          
+          if (isActive || status === "active" || status === "trialing") {
+            // Tenant has active subscription - go to dashboard
+            const businessType = data.tenant?.businessType || "service";
+            const dashboardRoutes: Record<string, string> = {
+              clinic: "/dashboard/clinic",
+              salon: "/dashboard/salon",
+              pg: "/dashboard/pg",
+              coworking: "/dashboard/coworking",
+              service: "/dashboard/service",
+              realestate: "/dashboard/realestate",
+              tourism: "/dashboard/tourism",
+              education: "/dashboard/education",
+              logistics: "/dashboard/logistics",
+              legal: "/dashboard/legal",
+              furniture: "/dashboard/furniture",
+              consulting: "/dashboard/consulting",
+              software_services: "/dashboard/software-services",
+            };
+            const dashboardRoute = dashboardRoutes[businessType] || "/dashboard/service";
+            setLocation(dashboardRoute);
+            return;
+          }
+        }
+      } catch (error) {
+        console.log("[Login] Could not check subscription, redirecting to packages");
+      }
+      
+      // No active subscription or error - go to packages
+      setLocation("/packages");
     },
     onError: (error: Error) => {
       toast({
