@@ -35,7 +35,9 @@ import {
   Mail,
   Phone,
   Clock,
+  Eraser,
 } from "lucide-react";
+import { TenantWipeModal } from "@/components/admin/tenant-wipe-modal";
 
 interface TenantDetails {
   id: string;
@@ -103,6 +105,7 @@ function TenantDetailsContent() {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
+  const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
 
   const { data: tenant, isLoading, error } = useQuery<TenantDetails>({
     queryKey: ["/api/super-admin/tenants", tenantId],
@@ -298,6 +301,14 @@ function TenantDetailsContent() {
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => setWipeDialogOpen(true)}
+              data-testid="button-wipe"
+            >
+              <Eraser className="h-4 w-4 mr-2" />
+              Wipe Data
             </Button>
           </div>
         )}
@@ -530,6 +541,15 @@ function TenantDetailsContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {tenant && (
+        <TenantWipeModal
+          open={wipeDialogOpen}
+          onOpenChange={setWipeDialogOpen}
+          tenantId={tenant.id}
+          tenantName={tenant.name}
+        />
+      )}
     </div>
   );
 }

@@ -98,6 +98,8 @@ export const tenants = pgTable("tenants", {
   parentResellerId: varchar("parent_reseller_id"),
   // Version pinning - null means use latest published version
   pinnedVersionId: varchar("pinned_version_id"),
+  // Protection flag - prevents accidental deletion by Super Admin
+  isProtected: boolean("is_protected").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -8951,3 +8953,89 @@ export const insertEmployeePortalSessionSchema = createInsertSchema(employeePort
   id: true,
   createdAt: true,
 });
+
+// ============================================
+// SUPER ADMIN: Delete Jobs (Background Processing)
+// ============================================
+
+export const deleteJobStatusEnum = pgEnum("delete_job_status", [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+export const deleteJobTargetTypeEnum = pgEnum("delete_job_target_type", [
+  "tenant",
+  "user",
+]);
+
+export const deleteJobModeEnum = pgEnum("delete_job_mode", [
+  "soft_delete",    // Mark as deleted, retain data
+  "hard_delete",    // Permanently delete all data
+  "anonymize",      // Keep records but remove PII
+]);
+
+export const deleteJobs = pgTable("delete_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  targetType: deleteJobTargetTypeEnum("target_type").notNull(),
+  targetId: varchar("target_id").notNull(),
+  tenantId: varchar("tenant_id"),
+  mode: deleteJobModeEnum("mode").notNull().default("hard_delete"),
+  status: deleteJobStatusEnum("status").notNull().default("queued"),
+  requestedBy: varchar("requested_by").notNull(),
+  reason: text("reason").notNull(),
+  confirmText: varchar("confirm_text", { length: 255 }),
+  progress: integer("progress").default(0),
+  currentStep: varchar("current_step", { length: 255 }),
+  totalSteps: integer("total_steps").default(0),
+  summary: jsonb("summary").default({}),
+  errorMessage: text("error_message"),
+  queuedAt: timestamp("queued_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_delete_jobs_status").on(table.status),
+  index("idx_delete_jobs_target").on(table.targetType, table.targetId),
+  index("idx_delete_jobs_tenant").on(table.tenantId),
+  index("idx_delete_jobs_requested_by").on(table.requestedBy),
+]);
+
+export type DeleteJob = typeof deleteJobs.$inferSelect;
+export type InsertDeleteJob = typeof deleteJobs.$inferInsert;
+
+export const insertDeleteJobSchema = createInsertSchema(deleteJobs).omit({
+  id: true,
+  queuedAt: true,
+  startedAt: true,
+  completedAt: true,
+  progress: true,
+  currentStep: true,
+  totalSteps: true,
+  summary: true,
+  errorMessage: true,
+});
+
+// Delete job summary types for UI preview
+export type DeleteSummary = {
+  tableName: string;
+  count: number;
+  description: string;
+};
+
+export type TenantDeleteSummary = {
+  tenantId: string;
+  tenantName: string;
+  isProtected: boolean;
+  tables: DeleteSummary[];
+  totalRecords: number;
+};
+
+export type UserDeleteSummary = {
+  userId: string;
+  userEmail: string;
+  tenantId: string;
+  tables: DeleteSummary[];
+  totalRecords: number;
+};

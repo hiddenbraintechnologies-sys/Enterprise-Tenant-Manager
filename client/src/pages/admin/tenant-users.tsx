@@ -57,7 +57,9 @@ import {
   Calendar,
   Mail,
   Building2,
+  Trash2,
 } from "lucide-react";
+import { UserDeleteModal } from "@/components/admin/user-delete-modal";
 
 interface TenantUser {
   id: string;
@@ -113,6 +115,9 @@ function TenantUsersContent() {
 
   const [changeRoleDialogOpen, setChangeRoleDialogOpen] = useState(false);
   const [newRole, setNewRole] = useState("");
+  
+  const [deleteUserDialogOpen, setDeleteUserDialogOpen] = useState(false);
+  const [deleteUserData, setDeleteUserData] = useState<{ userId: string; email: string } | null>(null);
 
   const { data, isLoading, error } = useQuery<TenantUsersResponse>({
     queryKey: ["/api/super-admin/tenants", tenantId, "users"],
@@ -491,6 +496,18 @@ function TenantUsersContent() {
                               Cannot remove owner
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              setDeleteUserData({ userId: user.id, email: user.email });
+                              setDeleteUserDialogOpen(true);
+                            }}
+                            className="text-destructive"
+                            data-testid={`button-delete-user-${user.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete User
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -684,6 +701,19 @@ function TenantUsersContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {deleteUserData && tenantId && (
+        <UserDeleteModal
+          open={deleteUserDialogOpen}
+          onOpenChange={(open) => {
+            setDeleteUserDialogOpen(open);
+            if (!open) setDeleteUserData(null);
+          }}
+          userId={deleteUserData.userId}
+          userEmail={deleteUserData.email}
+          tenantId={tenantId}
+        />
+      )}
     </div>
   );
 }

@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   lastTenantId: varchar("last_tenant_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export type UpsertUser = typeof users.$inferInsert;
@@ -140,6 +141,10 @@ export const PLATFORM_ADMIN_PERMISSIONS = {
   VIEW_ERROR_LOGS: "view_error_logs",
   MANAGE_ALERTS: "manage_alerts",
   VIEW_PERFORMANCE: "view_performance",
+  // Super Admin data management permissions
+  WIPE_TENANTS: "wipe_tenants",
+  DELETE_USERS: "delete_users",
+  VIEW_DELETE_JOBS: "view_delete_jobs",
 } as const;
 
 export type PlatformAdminPermissionCode = typeof PLATFORM_ADMIN_PERMISSIONS[keyof typeof PLATFORM_ADMIN_PERMISSIONS];

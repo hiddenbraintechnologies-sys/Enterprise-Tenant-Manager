@@ -104,3 +104,4 @@ export {
   validateModuleAccess,
   validateApiModuleAccess,
 } from "./dashboard-access";
+export { startDeleteJobWorker, stopDeleteJobWorker } from "./delete-job-worker";

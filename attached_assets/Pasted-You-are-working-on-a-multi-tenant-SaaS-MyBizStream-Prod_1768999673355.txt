@@ -1,0 +1,46 @@
+You are working on a multi-tenant SaaS (MyBizStream). Production has duplicate-email issues because old tenant/user data still exists and is linked (projects, invoices, timesheets). We need Super Admin tools to delete users and/or wipe tenants including linked data.
+
+Build the following:
+
+A) Prisma
+1. Ensure all tenant-owned tables reference tenantId and are deletable safely.
+2. Prefer onDelete: Cascade relations for tenant -> child entities where appropriate.
+3. Add fields:
+   - Tenant.deletedAt DateTime?
+   - Tenant.isProtected Boolean @default(false)
+   - User.deletedAt DateTime?
+4. If cascade cannot be applied everywhere, implement a manual wipe script using Prisma transaction deleting in correct order.
+
+B) API (Super Admin only, RBAC protected)
+1. POST /api/super-admin/tenants/:tenantId/wipe
+   - Requires confirmText "DELETE TENANT"
+   - If tenant.isProtected=true, return 403
+   - Wipes ALL data for that tenant across all modules (projects, timesheets, invoices, clients, notifications, audit logs, etc.)
+   - Returns {status:"queued", jobId}
+2. POST /api/super-admin/tenants/:tenantId/users/:userId/delete
+   - Supports mode: "deactivate" | "deleteUserOnly" | "deleteUserAndData"
+   - For deleteUserAndData: delete data createdBy=userId within that tenant (projects, engagements, timesheets, invoices, etc.)
+   - Must not affect other tenants
+3. Add GET /api/super-admin/tenants/:tenantId/delete-summary and GET /api/super-admin/tenants/:tenantId/users/:userId/delete-summary
+   - Returns counts per table so UI can show impact before deletion.
+
+C) Background job
+Implement a simple job table (DeleteJob) with status: queued/running/success/failed and progress.
+Wipe endpoints should enqueue jobs and execute safely (avoid request timeout).
+
+D) UI
+1. Super Admin > Tenants table: add "Wipe Tenant Data" action.
+   - Opens modal with red warning
+   - Shows delete-summary counts
+   - Requires typing: DELETE <tenantName>
+   - Requires reason
+   - Calls wipe endpoint and shows job progress.
+2. Super Admin > Tenant Users page: add "Delete user + data" action.
+   - Shows user delete-summary
+   - Requires typing: DELETE USER
+   - Calls user delete endpoint
+
+E) Audit logging
+Log every wipe/delete action with superAdminId, tenantId, targetUserId, reason, timestamp, result.
+
+Make sure all endpoints return clear errors instead of crashing. Ensure strict tenant scoping.

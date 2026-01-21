@@ -13,6 +13,7 @@ import {
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles, refreshTokens, customers, staff, tenantFeatures, auditLogs,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates, globalPricingPlans,
+  services, bookings, invoices, payments, projects, deleteJobs,
   insertInvoiceTemplateSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
   adminAccountLockouts, adminLoginAttempts, platformAdmins, adminTwoFactorAuth, adminAuditLogs,
@@ -238,6 +239,11 @@ export async function registerRoutes(
       console.log("[bootstrap] Default tenant ready");
       await initializeWhatsappProviders();
       console.log("[bootstrap] WhatsApp providers initialized");
+      
+      // Start the delete job background worker
+      const { startDeleteJobWorker } = await import("./core/delete-job-worker");
+      startDeleteJobWorker();
+      console.log("[bootstrap] Delete job worker started");
     } catch (error) {
       console.error("[bootstrap] Background initialization error:", error);
     }
@@ -6060,6 +6066,354 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Super admin remove user error:", error);
       res.status(500).json({ message: "Failed to remove user" });
+    }
+  });
+
+  // ==================== SUPER ADMIN DATA CLEANUP ENDPOINTS ====================
+
+  // Get tenant delete summary - preview what will be deleted
+  app.get("/api/super-admin/tenants/:tenantId/delete-summary", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      // Count records in all tenant-scoped tables
+      const tables: Array<{ tableName: string; count: number; description: string }> = [];
+      
+      // Core business data
+      const userTenantsCount = await db.select({ count: sql<number>`count(*)::int` }).from(userTenants).where(eq(userTenants.tenantId, tenantId));
+      tables.push({ tableName: "user_tenants", count: userTenantsCount[0]?.count || 0, description: "User-tenant associations" });
+      
+      const staffCount = await db.select({ count: sql<number>`count(*)::int` }).from(staff).where(eq(staff.tenantId, tenantId));
+      tables.push({ tableName: "staff", count: staffCount[0]?.count || 0, description: "Staff members" });
+      
+      const customersCount = await db.select({ count: sql<number>`count(*)::int` }).from(customers).where(eq(customers.tenantId, tenantId));
+      tables.push({ tableName: "customers", count: customersCount[0]?.count || 0, description: "Customers" });
+      
+      const servicesCount = await db.select({ count: sql<number>`count(*)::int` }).from(services).where(eq(services.tenantId, tenantId));
+      tables.push({ tableName: "services", count: servicesCount[0]?.count || 0, description: "Services" });
+      
+      const bookingsCount = await db.select({ count: sql<number>`count(*)::int` }).from(bookings).where(eq(bookings.tenantId, tenantId));
+      tables.push({ tableName: "bookings", count: bookingsCount[0]?.count || 0, description: "Bookings" });
+      
+      const invoicesCount = await db.select({ count: sql<number>`count(*)::int` }).from(invoices).where(eq(invoices.tenantId, tenantId));
+      tables.push({ tableName: "invoices", count: invoicesCount[0]?.count || 0, description: "Invoices" });
+      
+      const paymentsCount = await db.select({ count: sql<number>`count(*)::int` }).from(payments).where(eq(payments.tenantId, tenantId));
+      tables.push({ tableName: "payments", count: paymentsCount[0]?.count || 0, description: "Payments" });
+      
+      const projectsCount = await db.select({ count: sql<number>`count(*)::int` }).from(projects).where(eq(projects.tenantId, tenantId));
+      tables.push({ tableName: "projects", count: projectsCount[0]?.count || 0, description: "Projects" });
+      
+      const totalRecords = tables.reduce((sum, t) => sum + t.count, 0);
+
+      res.json({
+        tenantId,
+        tenantName: tenant.name,
+        isProtected: tenant.isProtected || false,
+        tables: tables.filter(t => t.count > 0),
+        totalRecords
+      });
+    } catch (error) {
+      console.error("Tenant delete summary error:", error);
+      res.status(500).json({ message: "Failed to get delete summary" });
+    }
+  });
+
+  // Get user delete summary - preview what will be deleted for a user
+  app.get("/api/super-admin/tenants/:tenantId/users/:userId/delete-summary", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId, userId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Count records created by this user within the tenant
+      const tables: Array<{ tableName: string; count: number; description: string }> = [];
+      
+      const staffCount = await db.select({ count: sql<number>`count(*)::int` }).from(staff)
+        .where(and(eq(staff.tenantId, tenantId), eq(staff.createdBy, userId)));
+      tables.push({ tableName: "staff", count: staffCount[0]?.count || 0, description: "Staff records created by user" });
+      
+      const customersCount = await db.select({ count: sql<number>`count(*)::int` }).from(customers)
+        .where(and(eq(customers.tenantId, tenantId), eq(customers.createdBy, userId)));
+      tables.push({ tableName: "customers", count: customersCount[0]?.count || 0, description: "Customers created by user" });
+      
+      const servicesCount = await db.select({ count: sql<number>`count(*)::int` }).from(services)
+        .where(and(eq(services.tenantId, tenantId), eq(services.createdBy, userId)));
+      tables.push({ tableName: "services", count: servicesCount[0]?.count || 0, description: "Services created by user" });
+      
+      const bookingsCount = await db.select({ count: sql<number>`count(*)::int` }).from(bookings)
+        .where(and(eq(bookings.tenantId, tenantId), eq(bookings.createdBy, userId)));
+      tables.push({ tableName: "bookings", count: bookingsCount[0]?.count || 0, description: "Bookings created by user" });
+      
+      const projectsCount = await db.select({ count: sql<number>`count(*)::int` }).from(projects)
+        .where(and(eq(projects.tenantId, tenantId), eq(projects.createdBy, userId)));
+      tables.push({ tableName: "projects", count: projectsCount[0]?.count || 0, description: "Projects created by user" });
+      
+      const invoicesCount = await db.select({ count: sql<number>`count(*)::int` }).from(invoices)
+        .where(and(eq(invoices.tenantId, tenantId), eq(invoices.createdBy, userId)));
+      tables.push({ tableName: "invoices", count: invoicesCount[0]?.count || 0, description: "Invoices created by user" });
+      
+      const totalRecords = tables.reduce((sum, t) => sum + t.count, 0);
+
+      res.json({
+        userId,
+        userEmail: user.email,
+        tenantId,
+        tables: tables.filter(t => t.count > 0),
+        totalRecords
+      });
+    } catch (error) {
+      console.error("User delete summary error:", error);
+      res.status(500).json({ message: "Failed to get delete summary" });
+    }
+  });
+
+  // Queue tenant data wipe job
+  app.post("/api/super-admin/tenants/:tenantId/wipe", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      const { confirmText, reason } = req.body;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      if (tenant.isProtected) {
+        return res.status(403).json({ message: "This tenant is protected and cannot be wiped" });
+      }
+
+      const expectedConfirmText = `DELETE ${tenant.name}`;
+      if (confirmText !== expectedConfirmText) {
+        return res.status(400).json({ 
+          message: `Confirmation text must be exactly: "${expectedConfirmText}"` 
+        });
+      }
+
+      if (!reason || reason.trim().length < 10) {
+        return res.status(400).json({ message: "A detailed reason (at least 10 characters) is required" });
+      }
+
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin authentication required" });
+      }
+
+      // Create the delete job
+      const [job] = await db.insert(deleteJobs).values({
+        targetType: "tenant",
+        targetId: tenantId,
+        tenantId,
+        mode: "hard_delete",
+        status: "queued",
+        requestedBy: adminId,
+        reason: reason.trim(),
+        confirmText,
+      }).returning();
+
+      // Log the audit event
+      auditService.logAsync({
+        tenantId,
+        userId: adminId,
+        action: "create",
+        resource: "delete_job",
+        resourceId: job.id,
+        metadata: { 
+          accessType: "super_admin",
+          targetType: "tenant",
+          targetId: tenantId,
+          tenantName: tenant.name,
+          reason: reason.trim(),
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ 
+        status: "queued", 
+        jobId: job.id,
+        message: "Tenant wipe job queued successfully. The deletion will be processed in the background."
+      });
+    } catch (error) {
+      console.error("Tenant wipe queue error:", error);
+      res.status(500).json({ message: "Failed to queue tenant wipe" });
+    }
+  });
+
+  // Delete user with data (modes: deactivate, deleteUserOnly, deleteUserAndData)
+  app.post("/api/super-admin/tenants/:tenantId/users/:userId/delete", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId, userId } = req.params;
+      const { mode, confirmText, reason } = req.body;
+      
+      if (!["deactivate", "deleteUserOnly", "deleteUserAndData"].includes(mode)) {
+        return res.status(400).json({ message: "Invalid mode. Must be: deactivate, deleteUserOnly, or deleteUserAndData" });
+      }
+
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (confirmText !== "DELETE USER") {
+        return res.status(400).json({ message: 'Confirmation text must be exactly: "DELETE USER"' });
+      }
+
+      if (!reason || reason.trim().length < 10) {
+        return res.status(400).json({ message: "A detailed reason (at least 10 characters) is required" });
+      }
+
+      const adminId = req.platformAdminContext?.platformAdmin.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin authentication required" });
+      }
+
+      // Check if user is tenant owner
+      const [userTenantRecord] = await db.select().from(userTenants)
+        .innerJoin(roles, eq(userTenants.roleId, roles.id))
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, tenantId)
+        ));
+
+      if (userTenantRecord?.roles?.name?.toLowerCase() === "owner") {
+        return res.status(403).json({ message: "Cannot delete tenant owner. Transfer ownership first." });
+      }
+
+      // Create the delete job
+      const [job] = await db.insert(deleteJobs).values({
+        targetType: "user",
+        targetId: userId,
+        tenantId,
+        mode: mode === "deactivate" ? "soft_delete" : mode === "deleteUserAndData" ? "hard_delete" : "anonymize",
+        status: "queued",
+        requestedBy: adminId,
+        reason: reason.trim(),
+        confirmText,
+        summary: { userEmail: user.email, mode }
+      }).returning();
+
+      // Log the audit event
+      auditService.logAsync({
+        tenantId,
+        userId: adminId,
+        action: "create",
+        resource: "delete_job",
+        resourceId: job.id,
+        metadata: { 
+          accessType: "super_admin",
+          targetType: "user",
+          targetId: userId,
+          targetUserEmail: user.email,
+          mode,
+          reason: reason.trim(),
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({ 
+        status: "queued", 
+        jobId: job.id,
+        message: `User ${mode} job queued successfully. The operation will be processed in the background.`
+      });
+    } catch (error) {
+      console.error("User delete queue error:", error);
+      res.status(500).json({ message: "Failed to queue user delete" });
+    }
+  });
+
+  // Get delete job status
+  app.get("/api/super-admin/delete-jobs/:jobId", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      const [job] = await db.select().from(deleteJobs).where(eq(deleteJobs.id, jobId));
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      res.json(job);
+    } catch (error) {
+      console.error("Get delete job error:", error);
+      res.status(500).json({ message: "Failed to get job status" });
+    }
+  });
+
+  // List delete jobs (with optional filters)
+  app.get("/api/super-admin/delete-jobs", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { status, tenantId, limit = "50" } = req.query;
+      
+      let query = db.select().from(deleteJobs);
+      
+      const conditions = [];
+      if (status && typeof status === "string") {
+        conditions.push(eq(deleteJobs.status, status as any));
+      }
+      if (tenantId && typeof tenantId === "string") {
+        conditions.push(eq(deleteJobs.tenantId, tenantId));
+      }
+      
+      const jobs = await db.select()
+        .from(deleteJobs)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(deleteJobs.queuedAt))
+        .limit(parseInt(limit as string, 10));
+
+      res.json(jobs);
+    } catch (error) {
+      console.error("List delete jobs error:", error);
+      res.status(500).json({ message: "Failed to list jobs" });
+    }
+  });
+
+  // Cancel a queued delete job
+  app.post("/api/super-admin/delete-jobs/:jobId/cancel", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { reason } = req.body;
+      
+      const [job] = await db.select().from(deleteJobs).where(eq(deleteJobs.id, jobId));
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      if (job.status !== "queued") {
+        return res.status(400).json({ message: "Only queued jobs can be cancelled" });
+      }
+
+      const [updatedJob] = await db.update(deleteJobs)
+        .set({ 
+          status: "cancelled", 
+          errorMessage: reason || "Cancelled by admin",
+          completedAt: new Date()
+        })
+        .where(eq(deleteJobs.id, jobId))
+        .returning();
+
+      res.json(updatedJob);
+    } catch (error) {
+      console.error("Cancel delete job error:", error);
+      res.status(500).json({ message: "Failed to cancel job" });
     }
   });
 
