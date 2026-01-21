@@ -12,7 +12,7 @@ import {
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles, refreshTokens, customers, staff, tenantFeatures, auditLogs,
-  tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates,
+  tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates, globalPricingPlans,
   insertInvoiceTemplateSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
   adminAccountLockouts, adminLoginAttempts, platformAdmins, adminTwoFactorAuth, adminAuditLogs,
@@ -3631,12 +3631,43 @@ export async function registerRoutes(
     try {
       const { country, region, status, businessType, search, includeDeleted } = req.query;
       
-      let query = db.select().from(tenants);
+      // Fetch tenants with their active subscription plan names
+      const allTenants = await db.select().from(tenants);
       
-      const allTenants = await query;
+      // Fetch only active subscriptions with plan names in a single query
+      const subscriptionsWithPlans = await db
+        .select({
+          tenantId: tenantSubscriptions.tenantId,
+          planName: globalPricingPlans.name,
+          planCode: globalPricingPlans.code,
+        })
+        .from(tenantSubscriptions)
+        .innerJoin(globalPricingPlans, eq(tenantSubscriptions.planId, globalPricingPlans.id))
+        .where(eq(tenantSubscriptions.status, 'active'));
+      
+      // Create a lookup map for subscription plans by tenant ID (first active subscription wins)
+      const subscriptionMap = new Map<string, { planName: string; planCode: string }>();
+      for (const sub of subscriptionsWithPlans) {
+        if (!subscriptionMap.has(sub.tenantId)) {
+          subscriptionMap.set(sub.tenantId, {
+            planName: sub.planName,
+            planCode: sub.planCode,
+          });
+        }
+      }
+      
+      // Enrich tenants with actual subscription plan name from tenant_subscriptions
+      const enrichedTenants = allTenants.map(t => {
+        const subscription = subscriptionMap.get(t.id);
+        return {
+          ...t,
+          // Use the actual subscription plan name, fallback to legacy subscriptionTier
+          subscriptionTier: subscription?.planName || t.subscriptionTier,
+        };
+      });
       
       // Filter in memory for flexibility (can be optimized with drizzle where clauses)
-      let filtered = allTenants;
+      let filtered = enrichedTenants;
       
       // SCOPE ENFORCEMENT: Platform admins only see tenants in their assigned countries
       const adminScope = getAdminCountryScope(req);
