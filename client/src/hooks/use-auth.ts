@@ -34,6 +34,13 @@ async function fetchUserTenants(accessToken: string): Promise<{ tenants: Tenant[
 
 async function fetchUser(): Promise<AuthUser | null> {
   const accessToken = localStorage.getItem("accessToken");
+  const refreshToken = localStorage.getItem("refreshToken");
+  
+  console.log("[useAuth] fetchUser called", { 
+    hasAccessToken: !!accessToken, 
+    hasRefreshToken: !!refreshToken,
+    accessTokenPrefix: accessToken ? accessToken.substring(0, 20) + "..." : null 
+  });
   
   // JWT Authentication path - primary for registered users
   if (accessToken) {
@@ -135,6 +142,7 @@ async function fetchUser(): Promise<AuthUser | null> {
 
   // Replit Auth fallback - only used when no JWT tokens exist
   // This is for users who haven't registered yet but might have Replit session
+  console.log("[useAuth] No JWT token, falling back to Replit session auth");
   const response = await fetch("/api/auth/user", {
     credentials: "include",
   });
