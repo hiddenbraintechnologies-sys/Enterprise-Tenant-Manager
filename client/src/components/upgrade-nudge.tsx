@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AlertTriangle, ArrowRight, Lock, Sparkles, Users, Database, Zap } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { formatPrice } from "@/lib/formatPrice";
 
 interface UpgradeNudgeProps {
@@ -68,7 +68,7 @@ export function UpgradeNudgeBanner({ type, currentTier, featureName, limit, curr
       <AlertDescription className="flex items-center justify-between gap-4">
         <span className="text-orange-700 dark:text-orange-300" data-testid="text-upgrade-description">{msg.description}</span>
         <Button size="sm" asChild data-testid="button-upgrade-cta">
-          <Link href="/pricing">
+          <Link href="/packages">
             {msg.cta}
             <ArrowRight className="h-4 w-4 ml-1" />
           </Link>
@@ -175,7 +175,7 @@ export function UpgradeNudgeModal({ type, currentTier, featureName, limit, curre
             Maybe later
           </Button>
           <Button asChild data-testid="button-view-plans">
-            <Link href="/pricing">
+            <Link href="/packages">
               View all plans
               <ArrowRight className="h-4 w-4 ml-1" />
             </Link>
@@ -199,7 +199,7 @@ export function ProFeatureLock({ featureName, currentTier }: { featureName: stri
           <p className="font-medium text-sm">{featureName}</p>
           <p className="text-xs text-muted-foreground mb-2">Pro feature</p>
           <Button size="sm" asChild data-testid="button-unlock-feature">
-            <Link href="/pricing">Unlock</Link>
+            <Link href="/packages">Unlock</Link>
           </Button>
         </div>
       </div>

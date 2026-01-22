@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 type Lang = "en" | "hi" | "ms" | "ta";
 
 interface FeatureRow {
-  name: { en: string; hi: string };
+  name: Record<Lang, string>;
   free: boolean | string;
   basic: boolean | string;
   pro: boolean | string;
@@ -20,73 +20,73 @@ interface ComparisonTableProps {
   };
 }
 
-const CONTENT = {
-  compareTitle: { en: "Compare Plans", hi: "प्लान्स की तुलना करें" },
-  feature: { en: "Feature", hi: "विशेषता" },
-  free: { en: "Free", hi: "मुफ़्त" },
-  basic: { en: "Basic", hi: "बेसिक" },
-  pro: { en: "Pro", hi: "प्रो" },
-  perMonth: { en: "/mo", hi: "/माह" },
-  perYear: { en: "/yr", hi: "/वर्ष" }
+const CONTENT: Record<string, Record<Lang, string>> = {
+  compareTitle: { en: "Compare Plans", hi: "प्लान्स की तुलना करें", ms: "Bandingkan Pelan", ta: "திட்டங்களை ஒப்பிடுங்கள்" },
+  feature: { en: "Feature", hi: "विशेषता", ms: "Ciri", ta: "அம்சம்" },
+  free: { en: "Free", hi: "मुफ़्त", ms: "Percuma", ta: "இலவசம்" },
+  basic: { en: "Basic", hi: "बेसिक", ms: "Asas", ta: "அடிப்படை" },
+  pro: { en: "Pro", hi: "प्रो", ms: "Pro", ta: "புரோ" },
+  perMonth: { en: "/mo", hi: "/माह", ms: "/bln", ta: "/மாதம்" },
+  perYear: { en: "/yr", hi: "/वर्ष", ms: "/thn", ta: "/வருடம்" }
 };
 
 const FEATURES: FeatureRow[] = [
   { 
-    name: { en: "Users", hi: "यूज़र्स" },
+    name: { en: "Users", hi: "यूज़र्स", ms: "Pengguna", ta: "பயனர்கள்" },
     free: "1",
     basic: "5",
     pro: "Unlimited"
   },
   { 
-    name: { en: "Records", hi: "रिकॉर्ड्स" },
+    name: { en: "Records", hi: "रिकॉर्ड्स", ms: "Rekod", ta: "பதிவுகள்" },
     free: "Limited",
     basic: "5000",
     pro: "Unlimited"
   },
   { 
-    name: { en: "GST Invoicing", hi: "GST इनवॉइसिंग" },
+    name: { en: "GST Invoicing", hi: "GST इनवॉइसिंग", ms: "Invois GST", ta: "GST விலைப்பட்டியல்" },
     free: false,
     basic: true,
     pro: true
   },
   { 
-    name: { en: "Projects & Timesheets", hi: "Projects और Timesheets" },
+    name: { en: "Projects & Timesheets", hi: "Projects और Timesheets", ms: "Projek & Helaian Masa", ta: "திட்டங்கள் & நேர தாள்கள்" },
     free: false,
     basic: true,
     pro: true
   },
   { 
-    name: { en: "SMS Alerts", hi: "SMS अलर्ट्स" },
+    name: { en: "SMS Alerts", hi: "SMS अलर्ट्स", ms: "Makluman SMS", ta: "SMS எச்சரிக்கைகள்" },
     free: false,
     basic: true,
     pro: true
   },
   { 
-    name: { en: "WhatsApp Automation", hi: "WhatsApp ऑटोमेशन" },
+    name: { en: "WhatsApp Automation", hi: "WhatsApp ऑटोमेशन", ms: "Automasi WhatsApp", ta: "WhatsApp தன்னியக்கம்" },
     free: false,
     basic: false,
     pro: true
   },
   { 
-    name: { en: "Priority Support", hi: "प्राथमिकता सहायता" },
+    name: { en: "Priority Support", hi: "प्राथमिकता सहायता", ms: "Sokongan Keutamaan", ta: "முன்னுரிமை ஆதரவு" },
     free: false,
     basic: false,
     pro: true
   },
   { 
-    name: { en: "Advanced Analytics", hi: "एडवांस एनालिटिक्स" },
+    name: { en: "Advanced Analytics", hi: "एडवांस एनालिटिक्स", ms: "Analitik Lanjutan", ta: "மேம்பட்ட பகுப்பாய்வு" },
     free: false,
     basic: "Basic",
     pro: "Advanced"
   },
   { 
-    name: { en: "Custom Roles", hi: "कस्टम रोल्स" },
+    name: { en: "Custom Roles", hi: "कस्टम रोल्स", ms: "Peranan Tersuai", ta: "தனிப்பயன் பாத்திரங்கள்" },
     free: false,
     basic: false,
     pro: true
   },
   { 
-    name: { en: "Email Notifications", hi: "ईमेल नोटिफिकेशन" },
+    name: { en: "Email Notifications", hi: "ईमेल नोटिफिकेशन", ms: "Pemberitahuan E-mel", ta: "மின்னஞ்சல் அறிவிப்புகள்" },
     free: true,
     basic: true,
     pro: true
@@ -102,11 +102,11 @@ function FeatureValue({ value, lang }: { value: boolean | string; lang: Lang }) 
     );
   }
   
-  const translations: Record<string, { en: string; hi: string }> = {
-    "Limited": { en: "Limited", hi: "सीमित" },
-    "Unlimited": { en: "Unlimited", hi: "अनलिमिटेड" },
-    "Basic": { en: "Basic", hi: "बेसिक" },
-    "Advanced": { en: "Advanced", hi: "एडवांस" }
+  const translations: Record<string, Record<Lang, string>> = {
+    "Limited": { en: "Limited", hi: "सीमित", ms: "Terhad", ta: "வரம்பிற்குட்பட்ட" },
+    "Unlimited": { en: "Unlimited", hi: "अनलिमिटेड", ms: "Tanpa Had", ta: "வரம்பற்ற" },
+    "Basic": { en: "Basic", hi: "बेसिक", ms: "Asas", ta: "அடிப்படை" },
+    "Advanced": { en: "Advanced", hi: "एडवांस", ms: "Lanjutan", ta: "மேம்பட்ட" }
   };
   
   const text = translations[value]?.[lang] || value;

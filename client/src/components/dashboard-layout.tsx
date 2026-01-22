@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { SubscriptionExpiryBanner } from "@/components/subscription-expiry-banner";
+import { PlanUpgradeNudge } from "@/components/plan-upgrade-nudge";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -137,6 +138,7 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
           <main className="flex-1 overflow-auto p-6">
             <div className="mx-auto max-w-7xl">
               <SubscriptionExpiryBanner />
+              <PlanUpgradeNudge />
               <h1 className="mb-6 text-2xl font-semibold" data-testid="text-page-title">{title}</h1>
               {children}
             </div>

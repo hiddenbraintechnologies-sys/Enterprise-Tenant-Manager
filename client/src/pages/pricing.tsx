@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { ComparisonTable } from "@/components/pricing/ComparisonTable";
 
 type Lang = "en" | "hi";
 
@@ -341,6 +342,28 @@ export default function PricingPage() {
               </Card>
             );
           })}
+        </div>
+
+        <div className="max-w-5xl mx-auto mb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold mb-2" data-testid="text-compare-title">
+              {lang === "en" ? "Compare Plans" : "प्लान्स की तुलना करें"}
+            </h2>
+            <p className="text-muted-foreground">
+              {lang === "en" ? "See what's included in each plan" : "देखें हर प्लान में क्या शामिल है"}
+            </p>
+          </div>
+          <Card className="p-6">
+            <ComparisonTable 
+              lang={lang} 
+              billingCycle={billingCycle} 
+              prices={{
+                free: { monthly: 0, yearly: 0 },
+                basic: { monthly: CONTENT.plans.basic.price, yearly: CONTENT.plans.basic.yearlyPrice },
+                pro: { monthly: CONTENT.plans.pro.price, yearly: CONTENT.plans.pro.yearlyPrice }
+              }}
+            />
+          </Card>
         </div>
 
         <div className="max-w-4xl mx-auto mb-16">
