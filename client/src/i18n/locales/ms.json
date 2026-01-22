@@ -572,6 +572,17 @@
     "apiAccess": "Akses API",
     "customerPortal": "Portal Pelanggan"
   },
+  "featureBenefits": {
+    "payroll": "Jalankan payroll patuh peraturan, kira potongan automatik, dan jana slip gaji dengan cepat.",
+    "hrms": "Urus pekerja, kehadiran, cuti dan timesheet dalam satu tempat.",
+    "whatsappAutomation": "Hantar peringatan dan kemas kini automatik kepada pelanggan melalui WhatsApp.",
+    "smsAutomation": "Hantar peringatan pembayaran dan notifikasi melalui SMS dengan templat.",
+    "analytics": "Lihat hasil, trend dan prestasi melalui laporan analitik lanjutan.",
+    "invoicing": "Buat invois profesional, jejaki pembayaran dan urus cukai dengan mudah.",
+    "projects": "Jejaki projek, tugasan dan garis masa penghantaran dengan jelas.",
+    "timesheets": "Rekod masa boleh bil dan pantau produktiviti pasukan dengan tepat.",
+    "customerPortal": "Benarkan pelanggan melihat invois dan membuat pembayaran online melalui portal selamat."
+  },
   "lockedFeature": {
     "title": "Ciri ini tiada dalam pelan semasa anda",
     "body": "Naik taraf ke Basic atau Pro untuk menggunakan Software Services.",

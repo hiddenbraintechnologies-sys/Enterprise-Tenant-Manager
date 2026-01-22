@@ -1,0 +1,95 @@
+Great — here are feature-specific 1-line benefit descriptions for Payroll / HRMS / WhatsApp / Analytics / Invoicing / Projects / Customer Portal, in EN + HI + MS + TA, ready to paste.
+
+I’m keeping them short, sales-friendly, and suitable for:
+
+Marketplace cards
+
+Locked feature screens
+
+Tooltips
+
+Upgrade modals
+
+✅ Add these keys to each locale file
+1) English — client/src/i18n/locales/en.json
+{
+  "featureBenefits": {
+    "payroll": "Run compliant payroll, auto-calculate deductions, and generate payslips in minutes.",
+    "hrms": "Manage employees, attendance, leave, and timesheets in one place.",
+    "whatsappAutomation": "Send automated reminders and updates to customers on WhatsApp.",
+    "smsAutomation": "Send payment reminders and alerts via SMS with templates.",
+    "analytics": "See revenue, trends, and performance insights with advanced reports.",
+    "invoicing": "Create professional invoices, track payments, and manage taxes easily.",
+    "projects": "Track projects, tasks, and delivery timelines with clarity.",
+    "timesheets": "Log billable time and track team productivity accurately.",
+    "customerPortal": "Let customers view invoices and pay online from a secure portal."
+  }
+}
+
+2) Hindi — client/src/i18n/locales/hi.json
+{
+  "featureBenefits": {
+    "payroll": "नियमों के अनुसार पेरोल चलाएं, कटौतियाँ ऑटो-कैल्कुलेट करें और मिनटों में पेस्लिप बनाएं।",
+    "hrms": "कर्मचारी, उपस्थिति, छुट्टी और टाइमशीट एक ही जगह मैनेज करें।",
+    "whatsappAutomation": "WhatsApp पर ऑटोमैटिक रिमाइंडर और अपडेट भेजें।",
+    "smsAutomation": "टेम्पलेट्स के साथ SMS से पेमेंट रिमाइंडर और अलर्ट भेजें।",
+    "analytics": "एडवांस्ड रिपोर्ट्स से रेवेन्यू, ट्रेंड्स और परफॉर्मेंस देखें।",
+    "invoicing": "प्रोफेशनल इनवॉइस बनाएं, पेमेंट ट्रैक करें और टैक्स आसानी से मैनेज करें।",
+    "projects": "प्रोजेक्ट्स, टास्क और डिलीवरी टाइमलाइन को स्पष्ट तरीके से ट्रैक करें।",
+    "timesheets": "बिलेबल समय लॉग करें और टीम प्रोडक्टिविटी सही से ट्रैक करें।",
+    "customerPortal": "सिक्योर पोर्टल में ग्राहक इनवॉइस देख सकें और ऑनलाइन पेमेंट कर सकें।"
+  }
+}
+
+3) Malay — client/src/i18n/locales/ms.json
+{
+  "featureBenefits": {
+    "payroll": "Jalankan payroll patuh peraturan, kira potongan automatik, dan jana slip gaji dengan cepat.",
+    "hrms": "Urus pekerja, kehadiran, cuti dan timesheet dalam satu tempat.",
+    "whatsappAutomation": "Hantar peringatan dan kemas kini automatik kepada pelanggan melalui WhatsApp.",
+    "smsAutomation": "Hantar peringatan pembayaran dan notifikasi melalui SMS dengan templat.",
+    "analytics": "Lihat hasil, trend dan prestasi melalui laporan analitik lanjutan.",
+    "invoicing": "Buat invois profesional, jejaki pembayaran dan urus cukai dengan mudah.",
+    "projects": "Jejaki projek, tugasan dan garis masa penghantaran dengan jelas.",
+    "timesheets": "Rekod masa boleh bil dan pantau produktiviti pasukan dengan tepat.",
+    "customerPortal": "Benarkan pelanggan melihat invois dan membuat pembayaran online melalui portal selamat."
+  }
+}
+
+4) Tamil — client/src/i18n/locales/ta.json
+{
+  "featureBenefits": {
+    "payroll": "விதிமுறைகளுக்கு ஏற்ப சம்பள கணக்கை இயக்கி, கழிப்புகளை தானாக கணக்கிட்டு, payslip-ஐ விரைவில் உருவாக்குங்கள்.",
+    "hrms": "பணியாளர்கள், வருகை, விடுப்பு, டைம்ஷீட்ஸ் அனைத்தையும் ஒரே இடத்தில் நிர்வகிக்கவும்.",
+    "whatsappAutomation": "WhatsApp மூலம் வாடிக்கையாளர்களுக்கு தானியங்கி நினைவூட்டல்கள் மற்றும் அப்டேட்கள் அனுப்புங்கள்.",
+    "smsAutomation": "டெம்ப்ளேட்டுகளுடன் SMS மூலம் கட்டண நினைவூட்டல்கள் மற்றும் அறிவிப்புகள் அனுப்புங்கள்.",
+    "analytics": "மேம்பட்ட அறிக்கைகளுடன் வருமானம், போக்குகள், செயல்திறன் ஆகியவற்றை காணுங்கள்.",
+    "invoicing": "தொழில்முறை இன்வாய்ஸ் உருவாக்கி, கட்டணங்களை கண்காணித்து, வரிகளை எளிதாக நிர்வகிக்கவும்.",
+    "projects": "திட்டங்கள், பணிகள் மற்றும் டெலிவரி காலவரிசையை தெளிவாக கண்காணிக்கவும்.",
+    "timesheets": "பிலாகக் கூடிய நேரத்தை பதிவு செய்து, குழு உற்பத்தித் திறனை துல்லியமாக கண்காணிக்கவும்.",
+    "customerPortal": "பாதுகாப்பான போர்டலில் வாடிக்கையாளர்கள் இன்வாய்ஸ் பார்க்கவும், ஆன்லைனில் பணம் செலுத்தவும் செய்யுங்கள்."
+  }
+}
+
+✅ How to use in UI (example)
+const featureLabel = t(`features.${featureKey}`);
+const benefit = t(`featureBenefits.${featureKey}`);
+
+
+For cards:
+
+Title = features.*
+
+Subtitle = featureBenefits.*
+
+Optional (but powerful): short “micro-benefits” for buttons/tooltips
+
+If you want, I can add a second set like:
+
+featureMicro.payroll = "Payslips + EPF/SOCSO"
+
+featureMicro.hrms = "Attendance + leave"
+
+featureMicro.whatsappAutomation = "Auto reminders"
+
+Say: “add micro-benefits too” and I’ll generate those for EN/HI/MS/TA.

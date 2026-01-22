@@ -599,6 +599,17 @@
     "apiAccess": "API Access",
     "customerPortal": "Customer Portal"
   },
+  "featureBenefits": {
+    "payroll": "Run compliant payroll, auto-calculate deductions, and generate payslips in minutes.",
+    "hrms": "Manage employees, attendance, leave, and timesheets in one place.",
+    "whatsappAutomation": "Send automated reminders and updates to customers on WhatsApp.",
+    "smsAutomation": "Send payment reminders and alerts via SMS with templates.",
+    "analytics": "See revenue, trends, and performance insights with advanced reports.",
+    "invoicing": "Create professional invoices, track payments, and manage taxes easily.",
+    "projects": "Track projects, tasks, and delivery timelines with clarity.",
+    "timesheets": "Log billable time and track team productivity accurately.",
+    "customerPortal": "Let customers view invoices and pay online from a secure portal."
+  },
   "lockedFeature": {
     "title": "This feature is not on your current plan",
     "body": "Upgrade to Basic or Pro to use Software Services.",
