@@ -1,4 +1,4 @@
-export type CountryCode = "IN" | "MY" | "UK" | "AE" | "SG";
+export type CountryCode = "IN" | "MY" | "UK" | "AE" | "SG" | "GLOBAL";
 
 export interface LanguageOption {
   code: string;
@@ -12,6 +12,12 @@ export interface CountryLanguageConfig {
 }
 
 export const COUNTRY_LANGUAGE_MAP: Record<CountryCode, CountryLanguageConfig> = {
+  GLOBAL: {
+    languages: [
+      { code: "en", name: "English", nativeName: "English" },
+    ],
+    defaultLanguage: "en",
+  },
   IN: {
     languages: [
       { code: "en", name: "English (India)", nativeName: "English" },
@@ -59,7 +65,7 @@ export const STORAGE_KEY_LANGUAGE = "app:lang";
 export const STORAGE_KEY_COUNTRY = "app:country";
 
 export function getLanguagesForCountry(countryCode: CountryCode): LanguageOption[] {
-  return COUNTRY_LANGUAGE_MAP[countryCode]?.languages || COUNTRY_LANGUAGE_MAP.IN.languages;
+  return COUNTRY_LANGUAGE_MAP[countryCode]?.languages || COUNTRY_LANGUAGE_MAP.GLOBAL.languages;
 }
 
 export function getDefaultLanguageForCountry(countryCode: CountryCode): string {
@@ -94,7 +100,7 @@ export function getStoredCountryCode(): CountryCode | null {
   if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem(STORAGE_KEY_COUNTRY);
-    if (stored && ["IN", "MY", "UK", "AE", "SG"].includes(stored)) {
+    if (stored && ["IN", "MY", "UK", "AE", "SG", "GLOBAL"].includes(stored)) {
       return stored as CountryCode;
     }
     return null;

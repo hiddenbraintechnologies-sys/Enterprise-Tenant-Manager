@@ -26,7 +26,7 @@ interface LandingLanguageSelectorProps {
 export function LandingLanguageSelector({ countryCode, className = "" }: LandingLanguageSelectorProps) {
   const { i18n } = useTranslation();
   const storedCountry = getStoredCountryCode();
-  const effectiveCountry = countryCode || storedCountry || "IN";
+  const effectiveCountry = countryCode || storedCountry || "GLOBAL";
   const availableLanguages = getLanguagesForCountry(effectiveCountry);
   const currentLang = i18n.language;
   const currentLanguage = availableLanguages.find((l) => l.code === currentLang) || availableLanguages[0];

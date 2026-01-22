@@ -31,7 +31,7 @@ export function LandingLayout({ children, showCountryPrompt = false }: LandingLa
   
   const pathCountry = getCountryFromPath(location);
   const storedCountry = getStoredCountry();
-  const currentCountry: CountryCode | null = pathCountry !== "GLOBAL" ? pathCountry : storedCountry;
+  const currentCountry: CountryCode | null = pathCountry !== "GLOBAL" ? pathCountry : "GLOBAL";
 
   useEffect(() => {
     if (pathCountry !== "GLOBAL" && pathCountry !== storedCountry) {

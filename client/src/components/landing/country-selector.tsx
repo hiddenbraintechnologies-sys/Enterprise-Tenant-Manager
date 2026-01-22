@@ -71,7 +71,7 @@ const COUNTRY_OPTIONS: { code: string; name: string; path: string }[] = [
   { code: "SG", name: "Singapore", path: "/sg" },
 ];
 
-export type CountryCode = "IN" | "MY" | "UK" | "AE" | "SG";
+export type CountryCode = "IN" | "MY" | "UK" | "AE" | "SG" | "GLOBAL";
 
 function safeUpper2(v: unknown) {
   return String(v || "").toUpperCase().slice(0, 2);
