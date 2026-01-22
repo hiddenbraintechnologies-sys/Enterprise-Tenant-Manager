@@ -141,9 +141,9 @@ router.post("/subscribe", requireMinimumRole("admin"), async (req, res) => {
       .from(addonVersions)
       .where(and(
         eq(addonVersions.addonId, addonId),
-        eq(addonVersions.status, "stable")
+        eq(addonVersions.isStable, true)
       ))
-      .orderBy(desc(addonVersions.releasedAt))
+      .orderBy(desc(addonVersions.createdAt))
       .limit(1);
 
     if (!latestVersion) {

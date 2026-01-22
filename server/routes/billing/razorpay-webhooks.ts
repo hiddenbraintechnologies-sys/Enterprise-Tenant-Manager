@@ -280,8 +280,8 @@ async function handleSubscriptionActivated(payload: RazorpayWebhookPayload): Pro
           // Try to get latest stable version
           const [latestVersion] = await db.select()
             .from(addonVersions)
-            .where(and(eq(addonVersions.addonId, addonId), eq(addonVersions.status, "stable")))
-            .orderBy(desc(addonVersions.releasedAt))
+            .where(and(eq(addonVersions.addonId, addonId), eq(addonVersions.isStable, true)))
+            .orderBy(desc(addonVersions.createdAt))
             .limit(1);
           
           if (latestVersion) {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,9 @@ interface Addon {
   supportedCountries?: string[];
   supportedBusinessTypes?: string[];
   isGlobal?: boolean;
+  requiredPlanTier?: string | null;
+  canPurchase?: boolean;
+  purchaseReason?: string;
 }
 
 interface InstalledAddon {
@@ -169,14 +173,17 @@ function AddonCard({
   addon,
   isInstalled,
   onInstall,
+  onUpgrade,
   isInstalling,
 }: {
   addon: Addon;
   isInstalled: boolean;
   onInstall: (addon: Addon) => void;
+  onUpgrade?: () => void;
   isInstalling: boolean;
 }) {
   const pricingType = addon.pricing[0]?.pricingType || "free";
+  const requiresUpgrade = addon.purchaseReason === "PLAN_TOO_LOW";
 
   return (
     <Card className="flex flex-col">
@@ -202,6 +209,12 @@ function AddonCard({
                 Featured
               </Badge>
             )}
+            {addon.requiredPlanTier && addon.requiredPlanTier !== "free" && (
+              <Badge variant="outline" className="gap-1 text-xs text-purple-600 border-purple-200 bg-purple-50 dark:text-purple-400 dark:border-purple-800 dark:bg-purple-950">
+                <Crown className="h-3 w-3" />
+                {addon.requiredPlanTier.charAt(0).toUpperCase() + addon.requiredPlanTier.slice(1)}+
+              </Badge>
+            )}
             {addon.isGlobal ? (
               <Badge variant="outline" className="gap-1 text-xs text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:bg-blue-950">
                 <Globe className="h-3 w-3" />
@@ -220,6 +233,13 @@ function AddonCard({
         <p className="text-sm text-muted-foreground line-clamp-2">
           {addon.shortDescription || addon.description || "No description available"}
         </p>
+        {requiresUpgrade && (
+          <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-800 dark:bg-amber-950" data-testid={`upsell-message-${addon.id}`}>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Requires {addon.requiredPlanTier} plan or higher
+            </p>
+          </div>
+        )}
       </CardContent>
       <CardFooter className="flex items-center justify-between gap-2 pt-0">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -239,6 +259,16 @@ function AddonCard({
             <Check className="h-3 w-3" />
             Installed
           </Badge>
+        ) : requiresUpgrade ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onUpgrade}
+            data-testid={`button-upgrade-${addon.id}`}
+          >
+            <Crown className="mr-1 h-4 w-4" />
+            Upgrade Plan
+          </Button>
         ) : (
           <Button
             size="sm"
@@ -373,6 +403,7 @@ function InstalledAddonCard({
 
 export default function Marketplace() {
   const { tenant } = useAuth();
+  const [, setLocation] = useLocation();
   const tenantId = tenant?.id;
   const tenantCountry = tenant?.country || "IN"; // Default to India
   const tenantCurrency = tenant?.currency || "INR"; // Default to INR
@@ -481,6 +512,10 @@ export default function Marketplace() {
     setInstallDialogOpen(true);
   };
 
+  const handleUpgradeClick = () => {
+    setLocation("/pricing");
+  };
+
   const handleConfirmInstall = () => {
     if (!selectedAddon) return;
     installMutation.mutate({
@@ -556,6 +591,7 @@ export default function Marketplace() {
                   addon={addon}
                   isInstalled={installedAddonIds.has(addon.id)}
                   onInstall={handleInstallClick}
+                  onUpgrade={handleUpgradeClick}
                   isInstalling={installMutation.isPending && selectedAddon?.id === addon.id}
                 />
               ))}

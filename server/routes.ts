@@ -116,6 +116,7 @@ import { requireModule, softSubscriptionCheck } from "./middleware/subscription-
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, ne, isNull } from "drizzle-orm";
+import { buildAddonAccessMap } from "./core/addon-gating";
 
 function getTenantId(req: Request): string {
   return req.context?.tenant?.id || "";
@@ -6975,6 +6976,14 @@ export async function registerRoutes(
       // Get module access based on tenant's subscription plan
       let moduleAccess: Record<string, { access: string; reason?: string }> = {};
       let planTier: string | undefined;
+      let addonAccess: Record<string, {
+        canUse: boolean;
+        canPurchase: boolean;
+        reason?: string;
+        installStatus?: string;
+        subscriptionStatus?: string;
+      }> = {};
+      
       if (tenantId) {
         const plan = await subscriptionService.getTenantPlan(tenantId);
         if (plan) {
@@ -6986,6 +6995,13 @@ export async function registerRoutes(
             const access = await subscriptionService.canAccessModule(tenantId, moduleId);
             moduleAccess[moduleId] = { access: access.allowed ? "included" : "unavailable", reason: access.reason };
           }
+        }
+        
+        // Build addon access map for the tenant
+        try {
+          addonAccess = await buildAddonAccessMap(tenantId);
+        } catch (addonErr) {
+          console.error("[context] Error building addon access map:", addonErr);
         }
       }
       
@@ -7006,6 +7022,7 @@ export async function registerRoutes(
         features: context.features,
         moduleAccess,
         planTier,
+        addonAccess,
       });
     } catch (error) {
       console.error("Error fetching context:", error);

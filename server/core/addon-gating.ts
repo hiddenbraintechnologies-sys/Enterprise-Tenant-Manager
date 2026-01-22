@@ -655,3 +655,303 @@ export async function getAddonPermissionStatus(
     upgradeUrl: useResult.upgradeUrl || purchaseResult.upgradeUrl,
   };
 }
+
+export interface TenantAddonState {
+  addonCode: string;
+  addonName: string;
+  installed: boolean;
+  installStatus: string | null;
+  subscriptionStatus: string | null;
+  trialEndsAt: Date | null;
+  currentPeriodEnd: Date | null;
+  canUse: boolean;
+  canPurchase: boolean;
+  reason?: AddonDenialReason;
+}
+
+export interface EligibleAddon {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category: string;
+  requiredPlanTier: string | null;
+  isInstalled: boolean;
+  canPurchase: boolean;
+  purchaseReason?: AddonDenialReason;
+  pricing: {
+    currency: string;
+    monthlyPrice: string | null;
+    yearlyPrice: string | null;
+    pricingModel: string | null;
+    perUnitLabel: string | null;
+  } | null;
+}
+
+export async function listEligibleAddons(params: {
+  tenantId: string;
+  countryCode?: string;
+  planTier?: string;
+  businessType?: string;
+  includeInstalled?: boolean;
+}): Promise<EligibleAddon[]> {
+  const { tenantId, includeInstalled = true } = params;
+  
+  let countryCode = params.countryCode;
+  let planTier = params.planTier;
+  let businessType = params.businessType;
+
+  if (!countryCode || !planTier || !businessType) {
+    const [tenant] = await db
+      .select({
+        country: tenants.country,
+        businessType: tenants.businessType,
+      })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+
+    if (tenant) {
+      countryCode = countryCode || COUNTRY_CODE_MAP[tenant.country || "india"] || "IN";
+      businessType = businessType || tenant.businessType || "general";
+    }
+
+    if (!planTier) {
+      const [subscription] = await db
+        .select({ tier: globalPricingPlans.tier })
+        .from(tenantSubscriptions)
+        .leftJoin(globalPricingPlans, eq(tenantSubscriptions.planId, globalPricingPlans.id))
+        .where(
+          and(
+            eq(tenantSubscriptions.tenantId, tenantId),
+            eq(tenantSubscriptions.status, "active")
+          )
+        )
+        .limit(1);
+
+      planTier = subscription?.tier || "free";
+    }
+  }
+
+  const allAddons = await db
+    .select({
+      id: addons.id,
+      code: addons.code,
+      name: addons.name,
+      description: addons.description,
+      category: addons.category,
+      requiredPlanTier: addons.requiredPlanTier,
+      supportedCountries: addons.supportedCountries,
+      supportedBusinessTypes: addons.supportedBusinessTypes,
+      status: addons.status,
+    })
+    .from(addons)
+    .where(eq(addons.status, "published"));
+
+  const installedAddons = await db
+    .select({
+      addonId: tenantAddons.addonId,
+      status: tenantAddons.status,
+    })
+    .from(tenantAddons)
+    .where(eq(tenantAddons.tenantId, tenantId));
+
+  const installedMap = new Map(installedAddons.map(i => [i.addonId, i.status]));
+
+  const eligibleAddons: EligibleAddon[] = [];
+  const planOrder = ["free", "basic", "pro", "enterprise"];
+
+  for (const addon of allAddons) {
+    const supportedCountries = addon.supportedCountries as string[] | null;
+    if (supportedCountries && supportedCountries.length > 0) {
+      if (!supportedCountries.includes(countryCode!)) {
+        continue;
+      }
+    }
+
+    const supportedBusinessTypes = addon.supportedBusinessTypes as string[] | null;
+    if (supportedBusinessTypes && supportedBusinessTypes.length > 0) {
+      if (!supportedBusinessTypes.includes(businessType!)) {
+        continue;
+      }
+    }
+
+    const isInstalled = installedMap.has(addon.id);
+    if (!includeInstalled && isInstalled) {
+      continue;
+    }
+
+    const requiredTier = addon.requiredPlanTier || "free";
+    const requiredIndex = planOrder.indexOf(requiredTier);
+    const currentIndex = planOrder.indexOf(planTier!);
+    const meetsPlanRequirement = currentIndex >= requiredIndex;
+
+    let purchaseReason: AddonDenialReason | undefined;
+    if (!meetsPlanRequirement) {
+      purchaseReason = "PLAN_TOO_LOW";
+    }
+
+    const [pricing] = await db
+      .select({
+        currency: addonPricing.currency,
+        monthlyPrice: addonPricing.monthlyPrice,
+        yearlyPrice: addonPricing.yearlyPrice,
+        pricingModel: addonPricing.pricingModel,
+        perUnitLabel: addonPricing.perUnitLabel,
+      })
+      .from(addonPricing)
+      .where(
+        and(
+          eq(addonPricing.addonId, addon.id),
+          eq(addonPricing.currency, countryCode === "IN" ? "INR" : countryCode === "MY" ? "MYR" : countryCode === "UK" ? "GBP" : "USD")
+        )
+      )
+      .limit(1);
+
+    eligibleAddons.push({
+      id: addon.id,
+      code: addon.code,
+      name: addon.name,
+      description: addon.description,
+      category: addon.category,
+      requiredPlanTier: addon.requiredPlanTier,
+      isInstalled,
+      canPurchase: meetsPlanRequirement && !isInstalled,
+      purchaseReason,
+      pricing: pricing || null,
+    });
+  }
+
+  return eligibleAddons;
+}
+
+export async function getTenantAddonState(params: {
+  tenantId: string;
+  addonCode: string;
+}): Promise<TenantAddonState | null> {
+  const { tenantId, addonCode } = params;
+
+  const [addon] = await db
+    .select()
+    .from(addons)
+    .where(eq(addons.code, addonCode))
+    .limit(1);
+
+  if (!addon) {
+    return null;
+  }
+
+  const [installation] = await db
+    .select()
+    .from(tenantAddons)
+    .where(
+      and(
+        eq(tenantAddons.tenantId, tenantId),
+        eq(tenantAddons.addonId, addon.id)
+      )
+    )
+    .limit(1);
+
+  const canUseResult = await canUseAddon({ tenantId, addonCode });
+  const canPurchaseResult = await canPurchaseAddon({ tenantId, addonCode });
+
+  return {
+    addonCode: addon.code,
+    addonName: addon.name,
+    installed: !!installation,
+    installStatus: installation?.status || null,
+    subscriptionStatus: installation?.subscriptionStatus || null,
+    trialEndsAt: installation?.trialEndsAt || null,
+    currentPeriodEnd: installation?.currentPeriodEnd || null,
+    canUse: canUseResult.allowed,
+    canPurchase: canPurchaseResult.allowed,
+    reason: canUseResult.reason || canPurchaseResult.reason,
+  };
+}
+
+export function enforceAddonAccess(addonCode: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = await resolveTenantId(req);
+      if (!tenantId) {
+        return res.status(401).json({
+          error: "Unauthorized",
+          message: "Tenant context required",
+        });
+      }
+
+      const result = await canUseAddon({ tenantId, addonCode });
+
+      if (!result.allowed) {
+        return res.status(403).json({
+          error: "Addon Access Denied",
+          code: result.reason,
+          message: result.message,
+          upgradeUrl: result.upgradeUrl,
+          addonDetails: result.addonDetails,
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error(`[enforceAddonAccess] Error checking addon ${addonCode}:`, error);
+      return res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to verify addon access",
+      });
+    }
+  };
+}
+
+export async function buildAddonAccessMap(tenantId: string): Promise<Record<string, {
+  canUse: boolean;
+  canPurchase: boolean;
+  reason?: AddonDenialReason;
+  installStatus?: string;
+  subscriptionStatus?: string;
+}>> {
+  const accessMap: Record<string, {
+    canUse: boolean;
+    canPurchase: boolean;
+    reason?: AddonDenialReason;
+    installStatus?: string;
+    subscriptionStatus?: string;
+  }> = {};
+
+  const allAddons = await db
+    .select({ code: addons.code })
+    .from(addons)
+    .where(eq(addons.status, "published"));
+
+  const installations = await db
+    .select({
+      addonId: tenantAddons.addonId,
+      status: tenantAddons.status,
+      subscriptionStatus: tenantAddons.subscriptionStatus,
+    })
+    .from(tenantAddons)
+    .where(eq(tenantAddons.tenantId, tenantId));
+
+  const addonDetails = await db
+    .select({ id: addons.id, code: addons.code })
+    .from(addons);
+
+  const addonIdToCode = new Map(addonDetails.map(a => [a.id, a.code]));
+  const installMap = new Map(installations.map(i => [addonIdToCode.get(i.addonId), i]));
+
+  for (const addon of allAddons) {
+    const useResult = await canUseAddon({ tenantId, addonCode: addon.code });
+    const purchaseResult = await canPurchaseAddon({ tenantId, addonCode: addon.code });
+    const install = installMap.get(addon.code);
+
+    accessMap[addon.code] = {
+      canUse: useResult.allowed,
+      canPurchase: purchaseResult.allowed,
+      reason: useResult.reason || purchaseResult.reason,
+      installStatus: install?.status || undefined,
+      subscriptionStatus: install?.subscriptionStatus || undefined,
+    };
+  }
+
+  return accessMap;
+}

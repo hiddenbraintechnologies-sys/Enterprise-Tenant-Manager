@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { canUseAddon, canPurchaseAddon, getAddonPermissionStatus } from "../../core/addon-gating";
+import { canUseAddon, canPurchaseAddon, getAddonPermissionStatus, listEligibleAddons, getTenantAddonState } from "../../core/addon-gating";
 import { authenticateHybrid } from "../../core/auth-middleware";
 import { resolveTenantId } from "../../lib/resolveTenantId";
 import { db } from "../../db";
@@ -299,6 +299,72 @@ router.get("/available", authenticateHybrid, async (req: Request, res: Response)
     return res.status(500).json({
       code: "AVAILABLE_ADDONS_FAILED",
       message: "Failed to fetch available addons",
+    });
+  }
+});
+
+router.get("/eligible", authenticateHybrid, async (req: Request, res: Response) => {
+  try {
+    const resolution = await resolveTenantId(req);
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    }
+
+    const tenantId = resolution.tenantId!;
+    const includeInstalled = req.query.includeInstalled !== "false";
+
+    const eligibleAddons = await listEligibleAddons({
+      tenantId,
+      includeInstalled,
+    });
+
+    return res.json({
+      tenantId,
+      addons: eligibleAddons,
+    });
+  } catch (error) {
+    console.error("[addon-permissions] Error fetching eligible addons:", error);
+    return res.status(500).json({
+      code: "ELIGIBLE_ADDONS_FAILED",
+      message: "Failed to fetch eligible addons",
+    });
+  }
+});
+
+router.get("/state/:addonCode", authenticateHybrid, async (req: Request, res: Response) => {
+  try {
+    const resolution = await resolveTenantId(req);
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    }
+
+    const tenantId = resolution.tenantId!;
+    const addonCode = req.params.addonCode;
+
+    const state = await getTenantAddonState({
+      tenantId,
+      addonCode,
+    });
+
+    if (!state) {
+      return res.status(404).json({
+        code: "ADDON_NOT_FOUND",
+        message: `Add-on with code '${addonCode}' not found`,
+      });
+    }
+
+    return res.json(state);
+  } catch (error) {
+    console.error("[addon-permissions] Error fetching addon state:", error);
+    return res.status(500).json({
+      code: "ADDON_STATE_FAILED",
+      message: "Failed to fetch addon state",
     });
   }
 });
