@@ -1,0 +1,182 @@
+What you have now (and it’s solid)
+🔐 Add-on Permission Engine (core strength)
+
+You’ve implemented the right abstraction:
+
+canUseAddon() → runtime access (API + UI)
+
+canPurchaseAddon() → checkout eligibility
+
+listEligibleAddons() → marketplace filtering
+
+getTenantAddonState() → installed / trial / active / pending
+
+enforceAddonAccess() → hard API guard
+
+buildAddonAccessMap() → single source of truth for frontend
+
+👉 This is exactly how large SaaS platforms (Zoho / Atlassian) do it.
+
+🧩 Marketplace UI (tenant-facing)
+
+You now support:
+
+Browse vs Installed tabs
+
+Locked vs Available vs Installed states
+
+Plan tier badges (Free / Basic / Pro)
+
+Contextual upsell (“Upgrade plan” vs “Buy add-on”)
+
+Correct navigation paths (no dead clicks)
+
+This avoids the most common SaaS mistake: confusing users with features they can’t buy.
+
+💳 Razorpay add-on subscriptions
+
+You have full lifecycle coverage:
+
+Separate subscription per add-on (✔ correct)
+
+Trial → Active → Charged → Cancelled
+
+Quantity-based billing (per employee / unit)
+
+Webhook-driven state changes (idempotent)
+
+This means:
+
+Payroll can scale with headcount
+
+HRMS can be billed independently
+
+No coupling with base plan billing (future-proof)
+
+📊 Revenue & Conversion Analytics (Super Admin)
+
+This is rarely done well, but you have it:
+
+Add-on MRR
+
+Trial → paid conversion
+
+Attach rate (base plan → add-on)
+
+Country-wise performance
+
+Funnel visibility
+
+This directly supports pricing decisions, not just reporting.
+
+🔒 What you should freeze now (very important)
+
+At this stage, do NOT change:
+
+Permission engine logic
+
+Add-on state machine
+
+Razorpay webhook contracts
+
+Installed vs eligible distinction
+
+You can safely:
+
+Add new add-ons
+
+Tune prices
+
+Enable/disable by country
+
+Improve UI copy
+
+But freeze the engine — this is your foundation.
+
+🚀 What to do next (recommended order)
+1️⃣ Add “feature discovery” inside locked modules (HIGH ROI)
+
+When user clicks a locked menu item:
+
+Show why it’s locked
+
+Plan too low
+
+Add-on not installed
+
+Show 1-click action
+
+“Upgrade plan”
+
+“Start trial”
+
+“Contact admin”
+
+This converts intent into revenue.
+
+2️⃣ Add bundle logic (Plan + Add-on discount)
+
+Example:
+
+Pro + HRMS → 10% off HRMS
+
+Payroll + HRMS → combo discount
+
+You already have pricing snapshots → this is easy now.
+
+3️⃣ Add country rollout presets (Super Admin)
+
+One-click presets like:
+
+“India SMB Mode”
+
+“Malaysia Payroll Launch”
+
+“UK Software Only”
+
+This reduces operational mistakes during expansion.
+
+4️⃣ Add in-app notifications for add-on lifecycle
+
+Notify tenant admin when:
+
+Trial ending in 2 days
+
+Payment failed
+
+Quantity changed
+
+Add-on suspended
+
+This reduces churn and support tickets.
+
+5️⃣ Public roadmap page (trust builder)
+
+Expose:
+
+“Payroll – MY (Live)”
+
+“Payroll – UK (Coming Soon)”
+
+“Advanced Analytics – Q2”
+
+This reduces sales friction without committing dates.
+
+🧠 Strategic confirmation (important question)
+
+Before we go further, answer just this:
+
+👉 Do you want add-ons to eventually generate MORE revenue than base plans?
+
+If yes → we optimize marketplace UX + bundles + analytics
+
+If no → we keep add-ons as supporting features only
+
+Your current architecture supports both paths, but the strategy differs.
+
+Just reply with:
+
+“Yes, add-ons should be a major revenue stream”
+or
+
+“No, plans remain primary”
