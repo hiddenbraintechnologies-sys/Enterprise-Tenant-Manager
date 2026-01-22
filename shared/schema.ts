@@ -8484,6 +8484,52 @@ export const insertInAppNotificationSchema = createInsertSchema(inAppNotificatio
 export type InAppNotification = typeof inAppNotifications.$inferSelect;
 export type InsertInAppNotification = z.infer<typeof insertInAppNotificationSchema>;
 
+// Notification preferences table
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Per-type preferences
+  systemEnabled: boolean("system_enabled").default(true),
+  alertEnabled: boolean("alert_enabled").default(true),
+  infoEnabled: boolean("info_enabled").default(true),
+  successEnabled: boolean("success_enabled").default(true),
+  warningEnabled: boolean("warning_enabled").default(true),
+  actionEnabled: boolean("action_enabled").default(true),
+  reminderEnabled: boolean("reminder_enabled").default(true),
+  
+  // Per-severity preferences (critical can't be disabled)
+  lowSeverityEnabled: boolean("low_severity_enabled").default(true),
+  mediumSeverityEnabled: boolean("medium_severity_enabled").default(true),
+  highSeverityEnabled: boolean("high_severity_enabled").default(true),
+  
+  // Channel preferences
+  emailEnabled: boolean("email_enabled").default(true),
+  whatsappEnabled: boolean("whatsapp_enabled").default(false),
+  smsEnabled: boolean("sms_enabled").default(false),
+  
+  // Quiet hours
+  quietHoursEnabled: boolean("quiet_hours_enabled").default(false),
+  quietHoursStart: varchar("quiet_hours_start", { length: 5 }), // HH:MM format
+  quietHoursEnd: varchar("quiet_hours_end", { length: 5 }),     // HH:MM format
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_notification_preferences_user_id").on(table.userId),
+  index("idx_notification_preferences_tenant_id").on(table.tenantId),
+]);
+
+export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreferences = z.infer<typeof insertNotificationPreferencesSchema>;
+
 // ============================================
 // SOFTWARE SERVICES & CONSULTING MODULES
 // ============================================
