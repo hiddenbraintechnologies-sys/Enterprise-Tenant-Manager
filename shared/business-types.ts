@@ -22,7 +22,7 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "phase1",
   },
   software_services: {
-    label: "Software / IT Services",
+    label: "Software Services / IT Business",
     category: "technology",
     modules: ["projects", "timesheets", "hrms", "invoicing"],
     phase: "phase1",
