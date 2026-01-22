@@ -21,19 +21,27 @@ export const userRoleEnum = pgEnum("user_role", ["super_admin", "admin", "manage
 export const bookingStatusEnum = pgEnum("booking_status", ["pending", "confirmed", "completed", "cancelled"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "refunded"]);
 export const businessTypeEnum = pgEnum("business_type", [
-  "clinic", 
-  "salon", 
-  "pg", 
-  "coworking", 
+  "clinic",
+  "clinic_healthcare",
+  "salon",
+  "salon_spa",
+  "pg",
+  "pg_hostel",
+  "coworking",
   "service",
   "real_estate",
   "tourism",
   "education",
+  "education_institute",
   "logistics",
+  "logistics_fleet",
   "legal",
   "furniture_manufacturing",
+  "furniture",
   "software_services",
-  "consulting"
+  "consulting",
+  "digital_agency",
+  "retail_store"
 ]);
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore", "other"]);

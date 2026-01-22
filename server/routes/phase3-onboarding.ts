@@ -23,9 +23,10 @@ const tenantSignupSchema = z.object({
   domain: z.string().min(1).max(100).optional(),
   subdomain: z.string().min(2).max(50).optional(),
   businessType: z.enum([
-    "clinic", "salon", "pg", "coworking", "service", 
-    "real_estate", "tourism", "education", "logistics", 
-    "legal", "furniture_manufacturing", "software_services", "consulting"
+    "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
+    "coworking", "service", "real_estate", "tourism", "education", "education_institute",
+    "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
+    "software_services", "consulting", "digital_agency", "retail_store"
   ]),
   adminFirstName: z.string().min(1, "First name is required").max(100),
   adminLastName: z.string().min(1, "Last name is required").max(100),

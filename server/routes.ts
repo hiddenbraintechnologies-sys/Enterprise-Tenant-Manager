@@ -660,7 +660,12 @@ export async function registerRoutes(
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
     businessName: z.string().min(1, "Business name is required").max(200),
-    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism", "education", "logistics", "legal", "furniture_manufacturing", "software_services", "consulting"]),
+    businessType: z.enum([
+      "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
+      "coworking", "service", "real_estate", "tourism", "education", "education_institute",
+      "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
+      "software_services", "consulting", "digital_agency", "retail_store"
+    ]),
     countryCode: z.string().min(1, "Country is required").max(5),
   });
 
@@ -3836,7 +3841,12 @@ export async function registerRoutes(
   const createTenantSchema = z.object({
     name: z.string().min(1, "Name is required").max(200),
     slug: z.string().min(1).max(100).optional(),
-    businessType: z.enum(["clinic", "salon", "pg", "coworking", "service"]),
+    businessType: z.enum([
+      "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
+      "coworking", "service", "real_estate", "tourism", "education", "education_institute",
+      "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
+      "software_services", "consulting", "digital_agency", "retail_store"
+    ]),
     country: z.enum(["india", "uae", "uk", "malaysia", "singapore"]).default("india"),
     region: z.enum(["asia_pacific", "middle_east", "europe"]).default("asia_pacific"),
     email: z.string().email().optional(),
