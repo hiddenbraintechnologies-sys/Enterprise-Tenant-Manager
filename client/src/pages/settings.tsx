@@ -20,14 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const BUSINESS_TYPE_LABELS: Record<string, string> = {
-  clinic: "Clinic / Healthcare",
-  salon: "Salon / Beauty",
-  pg: "PG / Hostel / Co-living",
-  coworking: "Coworking Space",
-  service: "General Service Business",
-};
+import { getBusinessTypeLabel } from "@shared/business-types";
 
 interface PortalSettings {
   id: string;
@@ -214,7 +207,7 @@ export default function Settings() {
                 <Label htmlFor="businessType">Business Type</Label>
                 <Input
                   id="businessType"
-                  value={BUSINESS_TYPE_LABELS[tenant?.businessType || "service"] || "Service Business"}
+                  value={getBusinessTypeLabel(tenant?.businessType || "service")}
                   disabled
                   className="bg-muted"
                   data-testid="input-business-type"
