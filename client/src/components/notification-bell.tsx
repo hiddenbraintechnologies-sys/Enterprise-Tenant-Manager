@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Bell, Check, CheckCheck, X, AlertCircle, Info, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Bell, Check, CheckCheck, X, AlertCircle, Info, AlertTriangle, CheckCircle2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocation } from "wouter";
 import {
   Popover,
   PopoverContent,
@@ -47,6 +48,7 @@ const severityColors = {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [, setLocation] = useLocation();
 
   const { data: unreadCount } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
@@ -197,6 +199,22 @@ export function NotificationBell() {
             </div>
           )}
         </ScrollArea>
+        <Separator />
+        <div className="p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => {
+              setOpen(false);
+              setLocation("/settings");
+            }}
+            data-testid="button-notification-settings"
+          >
+            <Settings className="mr-2 h-4 w-4" />
+            Notification Settings
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

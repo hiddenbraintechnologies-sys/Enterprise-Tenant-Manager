@@ -15,6 +15,7 @@ import {
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates, globalPricingPlans,
   services, bookings, invoices, payments, projects, deleteJobs, timesheets,
   insertInvoiceTemplateSchema,
+  insertNotificationPreferencesSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
   adminAccountLockouts, adminLoginAttempts, platformAdmins, adminTwoFactorAuth, adminAuditLogs,
   taxRules, taxCalculationLogs, taxReports, insertTaxRuleSchema,
@@ -10657,6 +10658,75 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Create notification error:", error);
       res.status(500).json({ message: "Failed to create notification" });
+    }
+  });
+
+  // ============================================
+  // NOTIFICATION PREFERENCES ROUTES
+  // ============================================
+
+  // Get notification preferences for current user
+  app.get("/api/notifications/preferences", authenticateHybrid(), async (req, res) => {
+    try {
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const preferences = await storage.getNotificationPreferences(userId);
+      
+      // Return default preferences if none exist
+      if (!preferences) {
+        return res.json({
+          systemEnabled: true,
+          alertEnabled: true,
+          infoEnabled: true,
+          successEnabled: true,
+          warningEnabled: true,
+          actionEnabled: true,
+          reminderEnabled: true,
+          lowSeverityEnabled: true,
+          mediumSeverityEnabled: true,
+          highSeverityEnabled: true,
+          emailEnabled: true,
+          whatsappEnabled: false,
+          smsEnabled: false,
+          quietHoursEnabled: false,
+          quietHoursStart: null,
+          quietHoursEnd: null,
+        });
+      }
+
+      res.json(preferences);
+    } catch (error) {
+      console.error("Get notification preferences error:", error);
+      res.status(500).json({ message: "Failed to get notification preferences" });
+    }
+  });
+
+  // Update notification preferences for current user
+  const notificationPrefsUpdateSchema = insertNotificationPreferencesSchema.partial().omit({ userId: true, tenantId: true });
+  
+  app.put("/api/notifications/preferences", authenticateHybrid(), async (req, res) => {
+    try {
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      const tenantId = (req as any).context?.tenant?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const parsed = notificationPrefsUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid preferences data", errors: parsed.error.flatten() });
+      }
+
+      const preferences = await storage.upsertNotificationPreferences(userId, tenantId, parsed.data);
+
+      res.json(preferences);
+    } catch (error) {
+      console.error("Update notification preferences error:", error);
+      res.status(500).json({ message: "Failed to update notification preferences" });
     }
   });
 

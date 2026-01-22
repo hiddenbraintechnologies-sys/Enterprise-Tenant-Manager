@@ -68,6 +68,8 @@ import {
   type FurnitureSalesOrderItem, type InsertFurnitureSalesOrderItem,
   inAppNotifications,
   type InAppNotification, type InsertInAppNotification,
+  notificationPreferences,
+  type NotificationPreferences, type InsertNotificationPreferences,
   projects, projectTasks, timesheets, invoiceProjectLinks,
   type Project, type InsertProject,
   type ProjectTask, type InsertProjectTask,
@@ -148,6 +150,10 @@ export interface IStorage {
   markNotificationAsRead(id: string, userId: string): Promise<InAppNotification | undefined>;
   markAllNotificationsAsRead(userId: string): Promise<number>;
   deleteNotification(id: string, userId: string): Promise<void>;
+  
+  // Notification Preferences
+  getNotificationPreferences(userId: string): Promise<NotificationPreferences | undefined>;
+  upsertNotificationPreferences(userId: string, tenantId: string | undefined, preferences: Partial<InsertNotificationPreferences>): Promise<NotificationPreferences>;
 
   // Invoices
   getInvoices(tenantId: string): Promise<Invoice[]>;
@@ -879,6 +885,39 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotification(id: string, userId: string): Promise<void> {
     await db.delete(inAppNotifications).where(and(eq(inAppNotifications.id, id), eq(inAppNotifications.userId, userId)));
+  }
+
+  // Notification Preferences
+  async getNotificationPreferences(userId: string): Promise<NotificationPreferences | undefined> {
+    const [prefs] = await db.select()
+      .from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, userId));
+    return prefs;
+  }
+
+  async upsertNotificationPreferences(
+    userId: string, 
+    tenantId: string | undefined, 
+    preferences: Partial<InsertNotificationPreferences>
+  ): Promise<NotificationPreferences> {
+    const existing = await this.getNotificationPreferences(userId);
+    
+    if (existing) {
+      const [updated] = await db.update(notificationPreferences)
+        .set({ ...preferences, updatedAt: new Date() })
+        .where(eq(notificationPreferences.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(notificationPreferences)
+        .values({
+          userId,
+          tenantId,
+          ...preferences,
+        })
+        .returning();
+      return created;
+    }
   }
 
   // Invoices
