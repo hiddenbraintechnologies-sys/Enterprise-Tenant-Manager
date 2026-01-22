@@ -9,6 +9,12 @@ export const BUSINESS_TYPE_REGISTRY = {
     modules: ["tenants", "rooms", "bookings", "payments", "invoicing"],
     phase: "phase1",
   },
+  pg: {
+    label: "PG / Hostel / Co-living",
+    category: "hospitality",
+    modules: ["tenants", "rooms", "bookings", "payments", "invoicing"],
+    phase: "phase1",
+  },
   consulting: {
     label: "Consulting / Professional Services",
     category: "professional",
@@ -40,6 +46,13 @@ export const BUSINESS_TYPE_REGISTRY = {
     restrictions: { currencyLocked: true, timezoneLocked: true },
     phase: "phase2",
   },
+  clinic: {
+    label: "Clinic / Healthcare",
+    category: "healthcare",
+    modules: ["appointments", "patients", "billing"],
+    restrictions: { currencyLocked: true, timezoneLocked: true },
+    phase: "phase2",
+  },
   retail_store: {
     label: "Retail Store / POS",
     category: "retail",
@@ -48,6 +61,12 @@ export const BUSINESS_TYPE_REGISTRY = {
   },
   salon_spa: {
     label: "Salon / Spa",
+    category: "services",
+    modules: ["appointments", "staff", "billing"],
+    phase: "later",
+  },
+  salon: {
+    label: "Salon / Beauty",
     category: "services",
     modules: ["appointments", "staff", "billing"],
     phase: "later",
@@ -64,8 +83,20 @@ export const BUSINESS_TYPE_REGISTRY = {
     modules: ["vehicles", "trips", "expenses"],
     phase: "later",
   },
+  logistics: {
+    label: "Logistics & Fleet",
+    category: "logistics",
+    modules: ["vehicles", "trips", "expenses"],
+    phase: "later",
+  },
   education_institute: {
-    label: "Coaching / Training Institute",
+    label: "Training & Education Services",
+    category: "education",
+    modules: ["students", "courses", "fees"],
+    phase: "later",
+  },
+  education: {
+    label: "Training & Education Services",
     category: "education",
     modules: ["students", "courses", "fees"],
     phase: "later",
@@ -80,6 +111,18 @@ export const BUSINESS_TYPE_REGISTRY = {
     label: "Real Estate Agency",
     category: "property",
     modules: ["properties", "leads", "commissions"],
+    phase: "later",
+  },
+  coworking: {
+    label: "Coworking Space",
+    category: "hospitality",
+    modules: ["memberships", "bookings", "invoicing"],
+    phase: "later",
+  },
+  service: {
+    label: "General Service Business",
+    category: "services",
+    modules: ["customers", "bookings", "invoicing"],
     phase: "later",
   },
 } as const;
