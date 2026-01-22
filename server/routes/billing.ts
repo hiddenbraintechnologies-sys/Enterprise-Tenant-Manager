@@ -20,6 +20,7 @@ import type { BillingCycleKey, BillingCyclesMap } from "@shared/billing/types";
 import { CYCLE_MONTHS, calculateSavings } from "@shared/billing/types";
 import payrollAddonRoutes from "./billing/payroll-addon";
 import razorpayWebhookRoutes from "./billing/razorpay-webhooks";
+import marketplaceAddonRoutes from "./billing/marketplace-addon";
 import { countryRolloutService } from "../services/country-rollout";
 import { getAddonAccess } from "../core/addon-gating";
 
@@ -27,6 +28,7 @@ const router = Router();
 
 router.use("/payroll-addon", payrollAddonRoutes);
 router.use("/webhooks/razorpay", razorpayWebhookRoutes);
+router.use("/marketplace-addon", marketplaceAddonRoutes);
 
 const optionalAuth = authenticateJWT({ required: false });
 const requiredAuth = authenticateJWT({ required: true });

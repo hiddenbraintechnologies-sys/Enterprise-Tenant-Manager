@@ -75,7 +75,25 @@ The platform uses a flexible billing system with:
   - Informative dropdown placeholders (Loading/Error/No data available states)
   - Submit button disabled when blocking conditions exist
 
+### Razorpay Subscription Management
+The platform integrates Razorpay for subscription-based billing of marketplace add-ons:
+- **Plan Management**: `createPlan`, `fetchPlan` for creating recurring billing plans
+- **Subscription Lifecycle**: `createSubscription`, `fetchSubscription`, `cancelSubscription`, `pauseSubscription`, `resumeSubscription`, `updateSubscription`
+- **Webhook Handlers**: Idempotent handlers for `subscription.activated`, `subscription.charged`, `subscription.cancelled` events
+- **Marketplace Add-on Billing** (`/api/billing/marketplace-addon`):
+  - `GET /installed` - List tenant's installed add-ons
+  - `GET /status/:addonId` - Get installation status
+  - `POST /subscribe` - Subscribe with free/trial/paid flow
+  - `POST /cancel` - Cancel subscription (immediate or at period end)
+  - `POST /reactivate` - Reactivate cancelled subscription
+- **Trial Support**: Trials create Razorpay subscriptions with delayed start_at, auto-converting to paid when trial ends
+- **Idempotent Webhooks**: Create missing tenantAddons rows using notes data when subscription events arrive
+
 ### Recent Changes (January 2026)
+- Extended Razorpay service with full subscription management capabilities
+- Created marketplace add-on billing routes with free/trial/paid subscription flows
+- Updated webhooks to handle both payroll and marketplace add-on subscription events
+- Implemented idempotent webhook handlers that create missing tenantAddons rows
 - Added Phase 1 Marketplace with 11 add-ons and multi-currency pricing
 - Implemented SQL-level country filtering for add-ons using jsonb operators
 - Enhanced booking dialog with helpful alerts for missing customers/services

@@ -23,6 +23,138 @@ interface AddonSeedData {
 }
 
 const PHASE1_ADDONS: AddonSeedData[] = [
+  // HRMS Add-ons - Per Employee Pricing
+  {
+    slug: "hrms-india",
+    name: "HRMS (India)",
+    shortDescription: "Complete HR management with employee records, attendance, and leave tracking",
+    fullDescription: `Comprehensive HRMS solution designed for Indian businesses:
+    
+• Employee master database with document management
+• Attendance tracking with biometric integration
+• Leave management with customizable policies
+• Timesheet management for projects
+• Employee self-service portal
+• Org chart and reporting hierarchy
+• HR analytics and reports
+• Statutory compliance ready (Shops & Est. Act)`,
+    category: "compliance",
+    supportedCountries: ["IN"],
+    supportedBusinessTypes: [],
+    tags: ["hrms", "hr", "employees", "attendance", "leave", "india"],
+    featured: true,
+    featuredOrder: 0,
+    pricing: [
+      {
+        name: "Per Employee",
+        pricingType: "monthly",
+        prices: [
+          { currency: "INR", price: 49, unit: "per employee" },
+        ],
+        trialDays: 7,
+        features: ["Employee records", "Attendance tracking", "Leave management", "Timesheets", "Self-service portal"],
+      },
+    ],
+  },
+  {
+    slug: "hrms-malaysia",
+    name: "HRMS (Malaysia)",
+    shortDescription: "HR management with Malaysian labor law compliance",
+    fullDescription: `Complete HRMS solution for Malaysian businesses:
+    
+• Employee master database
+• Attendance and shift management
+• Leave management (Annual, Medical, etc.)
+• Timesheet tracking
+• Employee self-service portal
+• Malaysian labor law compliance
+• HR analytics and reports
+• Integration with payroll add-on`,
+    category: "compliance",
+    supportedCountries: ["MY"],
+    supportedBusinessTypes: [],
+    tags: ["hrms", "hr", "employees", "attendance", "leave", "malaysia"],
+    featured: true,
+    featuredOrder: 0,
+    pricing: [
+      {
+        name: "Per Employee",
+        pricingType: "monthly",
+        prices: [
+          { currency: "MYR", price: 10, unit: "per employee" },
+        ],
+        trialDays: 7,
+        features: ["Employee records", "Attendance tracking", "Leave management", "Timesheets", "Self-service portal"],
+      },
+    ],
+  },
+  {
+    slug: "hrms-uk",
+    name: "HRMS (UK)",
+    shortDescription: "HR management with UK employment law compliance",
+    fullDescription: `Complete HRMS solution for UK businesses:
+    
+• Employee master database with right-to-work tracking
+• Attendance and shift management
+• Leave management (Annual, Sick, etc.)
+• Timesheet tracking
+• Employee self-service portal
+• UK employment law compliance
+• GDPR-compliant data handling
+• HR analytics and reports`,
+    category: "compliance",
+    supportedCountries: ["UK"],
+    supportedBusinessTypes: [],
+    tags: ["hrms", "hr", "employees", "attendance", "leave", "uk"],
+    featured: true,
+    featuredOrder: 0,
+    pricing: [
+      {
+        name: "Per Employee",
+        pricingType: "monthly",
+        prices: [
+          { currency: "GBP", price: 2, unit: "per employee" },
+        ],
+        trialDays: 7,
+        features: ["Employee records", "Attendance tracking", "Leave management", "Timesheets", "Self-service portal"],
+      },
+    ],
+  },
+  {
+    slug: "hrms-global",
+    name: "HRMS",
+    shortDescription: "Complete HR management for any business",
+    fullDescription: `Universal HRMS solution for businesses worldwide:
+    
+• Employee master database
+• Attendance tracking
+• Leave management with customizable policies
+• Timesheet management
+• Employee self-service portal
+• Org chart and hierarchy management
+• HR analytics and reports
+• Configurable for any country`,
+    category: "utilities",
+    supportedCountries: [],
+    supportedBusinessTypes: [],
+    tags: ["hrms", "hr", "employees", "attendance", "leave", "global"],
+    featured: false,
+    pricing: [
+      {
+        name: "Per Employee",
+        pricingType: "monthly",
+        prices: [
+          { currency: "USD", price: 3, unit: "per employee" },
+          { currency: "INR", price: 49, unit: "per employee" },
+          { currency: "MYR", price: 10, unit: "per employee" },
+          { currency: "GBP", price: 2, unit: "per employee" },
+        ],
+        trialDays: 7,
+        features: ["Employee records", "Attendance tracking", "Leave management", "Timesheets", "Self-service portal"],
+      },
+    ],
+  },
+  // Payroll Add-ons
   {
     slug: "payroll-india",
     name: "Payroll (India)",

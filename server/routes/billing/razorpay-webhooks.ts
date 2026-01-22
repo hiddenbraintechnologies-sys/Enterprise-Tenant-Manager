@@ -1,8 +1,8 @@
 import { Router, Request, Response, raw } from "express";
 import crypto from "crypto";
 import { db } from "../../db";
-import { webhookEvents, tenantPayrollAddon } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { webhookEvents, tenantPayrollAddon, tenantAddons, addonVersions } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -157,6 +157,45 @@ async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<v
 
     console.log(`[razorpay-webhook] Payroll addon enabled for tenant ${tenantId}, tier ${tierId}`);
   }
+
+  // Handle general marketplace add-on payments
+  if (addonType === "marketplace" && tenantId) {
+    const addonId = notes.addon_id;
+    const pricingId = notes.pricing_id;
+    
+    if (addonId) {
+      const [existing] = await db.select()
+        .from(tenantAddons)
+        .where(and(
+          eq(tenantAddons.tenantId, tenantId),
+          eq(tenantAddons.addonId, addonId)
+        ))
+        .limit(1);
+
+      const now = new Date();
+      const periodEnd = new Date(now);
+      const billingPeriod = notes.billing_period || "month";
+      if (billingPeriod === "year") {
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      } else {
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      }
+
+      if (existing) {
+        await db.update(tenantAddons)
+          .set({
+            status: "active",
+            subscriptionId: notes.subscription_id || null,
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            updatedAt: now
+          })
+          .where(eq(tenantAddons.id, existing.id));
+      }
+
+      console.log(`[razorpay-webhook] Marketplace addon ${addonId} enabled for tenant ${tenantId}`);
+    }
+  }
 }
 
 async function handlePaymentFailed(payload: RazorpayWebhookPayload): Promise<void> {
@@ -195,6 +234,73 @@ async function handleSubscriptionActivated(payload: RazorpayWebhookPayload): Pro
 
     console.log(`[razorpay-webhook] Payroll subscription activated for tenant ${tenantId}`);
   }
+
+  // Handle marketplace add-on subscriptions (idempotent upsert)
+  if (addonType === "marketplace" && tenantId) {
+    const addonId = notes.addon_id;
+    if (addonId) {
+      const [existing] = await db.select()
+        .from(tenantAddons)
+        .where(and(
+          eq(tenantAddons.tenantId, tenantId),
+          eq(tenantAddons.addonId, addonId)
+        ))
+        .limit(1);
+
+      const updateData = {
+        status: "active" as const,
+        subscriptionId: subscription.id,
+        subscriptionStatus: "active",
+        currentPeriodStart: new Date(subscription.current_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_end * 1000),
+        updatedAt: new Date()
+      };
+
+      if (existing) {
+        await db.update(tenantAddons)
+          .set(updateData)
+          .where(eq(tenantAddons.id, existing.id));
+        console.log(`[razorpay-webhook] Marketplace addon ${addonId} subscription activated for tenant ${tenantId}`);
+      } else {
+        // Create missing row using notes data (idempotent)
+        const versionId = notes.version_id;
+        const pricingId = notes.pricing_id;
+        
+        if (versionId) {
+          await db.insert(tenantAddons).values({
+            tenantId,
+            addonId,
+            versionId,
+            pricingId: pricingId || null,
+            ...updateData,
+            config: {},
+          });
+          console.log(`[razorpay-webhook] Created and activated marketplace addon ${addonId} for tenant ${tenantId}`);
+        } else {
+          // Try to get latest stable version
+          const [latestVersion] = await db.select()
+            .from(addonVersions)
+            .where(and(eq(addonVersions.addonId, addonId), eq(addonVersions.status, "stable")))
+            .orderBy(desc(addonVersions.releasedAt))
+            .limit(1);
+          
+          if (latestVersion) {
+            await db.insert(tenantAddons).values({
+              tenantId,
+              addonId,
+              versionId: latestVersion.id,
+              pricingId: pricingId || null,
+              ...updateData,
+              config: {},
+            });
+            console.log(`[razorpay-webhook] Created and activated marketplace addon ${addonId} for tenant ${tenantId} (using latest version)`);
+          } else {
+            console.log(`[razorpay-webhook] Cannot create addon ${addonId} - no version found`);
+          }
+        }
+      }
+    }
+  }
 }
 
 async function handleSubscriptionCharged(payload: RazorpayWebhookPayload): Promise<void> {
@@ -205,8 +311,9 @@ async function handleSubscriptionCharged(payload: RazorpayWebhookPayload): Promi
 
   const notes = subscription.notes || {};
   const tenantId = notes.tenant_id;
+  const addonType = notes.addon;
 
-  if (tenantId) {
+  if (tenantId && addonType === "payroll") {
     await db.update(tenantPayrollAddon)
       .set({
         currentPeriodStart: new Date(subscription.current_start * 1000),
@@ -215,7 +322,36 @@ async function handleSubscriptionCharged(payload: RazorpayWebhookPayload): Promi
       })
       .where(eq(tenantPayrollAddon.tenantId, tenantId));
 
-    console.log(`[razorpay-webhook] Subscription charged for tenant ${tenantId}`);
+    console.log(`[razorpay-webhook] Payroll subscription charged for tenant ${tenantId}`);
+  }
+
+  // Handle marketplace add-on renewals
+  if (tenantId && addonType === "marketplace") {
+    const addonId = notes.addon_id;
+    if (addonId) {
+      const [existing] = await db.select()
+        .from(tenantAddons)
+        .where(and(
+          eq(tenantAddons.tenantId, tenantId),
+          eq(tenantAddons.addonId, addonId)
+        ))
+        .limit(1);
+
+      if (existing) {
+        await db.update(tenantAddons)
+          .set({
+            status: "active",
+            subscriptionStatus: "active",
+            currentPeriodStart: new Date(subscription.current_start * 1000),
+            currentPeriodEnd: new Date(subscription.current_end * 1000),
+            cancelAtPeriodEnd: false,
+            updatedAt: new Date()
+          })
+          .where(eq(tenantAddons.id, existing.id));
+
+        console.log(`[razorpay-webhook] Marketplace addon ${addonId} subscription charged for tenant ${tenantId}`);
+      }
+    }
   }
 }
 
@@ -239,6 +375,32 @@ async function handleSubscriptionCancelled(payload: RazorpayWebhookPayload): Pro
       .where(eq(tenantPayrollAddon.tenantId, tenantId));
 
     console.log(`[razorpay-webhook] Payroll subscription cancelled for tenant ${tenantId}, will disable at period end`);
+  }
+
+  // Handle marketplace add-on cancellations
+  if (addonType === "marketplace" && tenantId) {
+    const addonId = notes.addon_id;
+    if (addonId) {
+      const [existing] = await db.select()
+        .from(tenantAddons)
+        .where(and(
+          eq(tenantAddons.tenantId, tenantId),
+          eq(tenantAddons.addonId, addonId)
+        ))
+        .limit(1);
+
+      if (existing) {
+        await db.update(tenantAddons)
+          .set({
+            cancelAtPeriodEnd: true,
+            subscriptionStatus: "cancelled",
+            updatedAt: new Date()
+          })
+          .where(eq(tenantAddons.id, existing.id));
+
+        console.log(`[razorpay-webhook] Marketplace addon ${addonId} cancelled for tenant ${tenantId}, will disable at period end`);
+      }
+    }
   }
 }
 
