@@ -150,12 +150,38 @@ router.get("/marketplace", async (req: Request, res: Response) => {
       })
     );
 
+    // When a country is specified, filter out global add-ons if a country-specific version exists
+    // This ensures tenants see country-specific add-ons (e.g., HRMS India) instead of global ones
+    let filteredAddons = addonsWithPricing;
+    if (country) {
+      // Group add-ons by their base category/type (extract from slug, e.g., "hrms-india" -> "hrms")
+      const countrySpecificSlugs = new Set<string>();
+      
+      // First, identify all country-specific add-on base names
+      for (const addon of addonsWithPricing) {
+        if (!addon.isGlobal) {
+          // Extract base slug by removing country suffix (e.g., "hrms-india" -> "hrms", "payroll-uk" -> "payroll")
+          const baseSlug = addon.slug.replace(/-(?:india|malaysia|uk|uae|singapore|global)$/i, '');
+          countrySpecificSlugs.add(baseSlug);
+        }
+      }
+      
+      // Filter out global add-ons that have country-specific versions
+      filteredAddons = addonsWithPricing.filter(addon => {
+        if (!addon.isGlobal) return true; // Keep all country-specific add-ons
+        
+        // For global add-ons, check if a country-specific version exists
+        const baseSlug = addon.slug.replace(/-global$/i, '');
+        return !countrySpecificSlugs.has(baseSlug);
+      });
+    }
+
     res.json({ 
-      addons: addonsWithPricing, 
-      total: totalCount,
+      addons: filteredAddons, 
+      total: filteredAddons.length,
       page: Math.floor(Number(offset) / Number(limit)) + 1,
       pageSize: Number(limit),
-      hasMore: Number(offset) + results.length < totalCount,
+      hasMore: Number(offset) + filteredAddons.length < totalCount,
     });
   } catch (error) {
     console.error("Error fetching marketplace:", error);

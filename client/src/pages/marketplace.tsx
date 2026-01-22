@@ -401,12 +401,41 @@ function InstalledAddonCard({
   );
 }
 
+const COUNTRY_NAME_TO_ISO: Record<string, string> = {
+  india: "IN",
+  malaysia: "MY",
+  uk: "UK",
+  "united kingdom": "UK",
+  uae: "AE",
+  "united arab emirates": "AE",
+  singapore: "SG",
+  IN: "IN",
+  MY: "MY",
+  UK: "UK",
+  AE: "AE",
+  SG: "SG",
+};
+
+const COUNTRY_TO_CURRENCY: Record<string, string> = {
+  IN: "INR",
+  MY: "MYR",
+  UK: "GBP",
+  AE: "AED",
+  SG: "SGD",
+};
+
+function normalizeCountryCode(country: string | undefined): string {
+  if (!country) return "IN";
+  const normalized = COUNTRY_NAME_TO_ISO[country.toLowerCase()] || COUNTRY_NAME_TO_ISO[country];
+  return normalized || "IN";
+}
+
 export default function Marketplace() {
   const { tenant } = useAuth();
   const [, setLocation] = useLocation();
   const tenantId = tenant?.id;
-  const tenantCountry = tenant?.country || "IN"; // Default to India
-  const tenantCurrency = tenant?.currency || "INR"; // Default to INR
+  const tenantCountryCode = normalizeCountryCode(tenant?.country);
+  const tenantCurrency = tenant?.currency || COUNTRY_TO_CURRENCY[tenantCountryCode] || "INR";
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -416,13 +445,13 @@ export default function Marketplace() {
 
   // Fetch add-ons filtered by tenant's country and currency
   const { data: marketplaceData, isLoading: marketplaceLoading } = useQuery<{ addons: Addon[] }>({
-    queryKey: ["/api/addons/marketplace", searchQuery, category, tenantCountry, tenantCurrency],
+    queryKey: ["/api/addons/marketplace", searchQuery, category, tenantCountryCode, tenantCurrency],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (category && category !== "all") params.append("category", category);
-      // Add country and currency for filtering and pricing display
-      params.append("country", tenantCountry);
+      // Add country (ISO code) and currency for filtering and pricing display
+      params.append("country", tenantCountryCode);
       params.append("currency", tenantCurrency);
       params.append("sortBy", "featured"); // Show featured add-ons first
       const url = `/api/addons/marketplace?${params.toString()}`;
