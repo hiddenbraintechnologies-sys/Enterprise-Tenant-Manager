@@ -1,0 +1,119 @@
+1️⃣ English (client/src/i18n/locales/en.json)
+{
+  "lockedFeature": {
+    "planLocked": {
+      "title": "Upgrade to unlock {{feature}}",
+      "description": "Your current plan does not include this feature. Upgrade now to continue.",
+      "cta": "Upgrade plan"
+    },
+    "addonLocked": {
+      "title": "Add {{feature}} to your account",
+      "description": "Install this add-on anytime. Start a {{days}}-day free trial.",
+      "cta": "Start trial"
+    },
+    "countryLocked": {
+      "title": "Not available in {{country}} yet",
+      "description": "We’re launching this feature soon. Join the waitlist to get early access.",
+      "cta": "Join waitlist"
+    },
+    "roleLocked": {
+      "title": "Action restricted",
+      "description": "Please contact your administrator to enable or access this feature.",
+      "cta": "Contact admin"
+    }
+  }
+}
+
+2️⃣ Hindi (client/src/i18n/locales/hi.json)
+{
+  "lockedFeature": {
+    "planLocked": {
+      "title": "{{feature}} अनलॉक करने के लिए अपग्रेड करें",
+      "description": "आपके वर्तमान प्लान में यह फीचर शामिल नहीं है। जारी रखने के लिए अपग्रेड करें।",
+      "cta": "अपग्रेड करें"
+    },
+    "addonLocked": {
+      "title": "अपने अकाउंट में {{feature}} जोड़ें",
+      "description": "यह ऐड-ऑन कभी भी जोड़ सकते हैं। {{days}} दिन का फ्री ट्रायल शुरू करें।",
+      "cta": "ट्रायल शुरू करें"
+    },
+    "countryLocked": {
+      "title": "{{country}} में अभी उपलब्ध नहीं है",
+      "description": "यह फीचर जल्द ही लॉन्च किया जाएगा। जल्दी एक्सेस के लिए वेटलिस्ट जॉइन करें।",
+      "cta": "वेटलिस्ट जॉइन करें"
+    },
+    "roleLocked": {
+      "title": "एक्सेस प्रतिबंधित",
+      "description": "इस फीचर को एक्सेस करने के लिए अपने एडमिन से संपर्क करें।",
+      "cta": "एडमिन से संपर्क करें"
+    }
+  }
+}
+
+3️⃣ Malay / Bahasa Malaysia (client/src/i18n/locales/ms.json)
+{
+  "lockedFeature": {
+    "planLocked": {
+      "title": "Naik taraf untuk buka {{feature}}",
+      "description": "Pelan semasa anda tidak termasuk ciri ini. Sila naik taraf untuk teruskan.",
+      "cta": "Naik taraf pelan"
+    },
+    "addonLocked": {
+      "title": "Tambah {{feature}} ke akaun anda",
+      "description": "Pasang add-on ini bila-bila masa. Mulakan percubaan percuma {{days}} hari.",
+      "cta": "Mulakan percubaan"
+    },
+    "countryLocked": {
+      "title": "Belum tersedia di {{country}}",
+      "description": "Ciri ini akan dilancarkan tidak lama lagi. Sertai senarai menunggu untuk akses awal.",
+      "cta": "Sertai senarai menunggu"
+    },
+    "roleLocked": {
+      "title": "Akses terhad",
+      "description": "Sila hubungi pentadbir anda untuk mengaktifkan atau mengakses ciri ini.",
+      "cta": "Hubungi pentadbir"
+    }
+  }
+}
+
+4️⃣ Tamil (client/src/i18n/locales/ta.json)
+{
+  "lockedFeature": {
+    "planLocked": {
+      "title": "{{feature}} பயன்படுத்த அப்கிரேடு செய்யுங்கள்",
+      "description": "உங்கள் தற்போதைய திட்டத்தில் இந்த அம்சம் இல்லை. தொடர அப்கிரேடு செய்யுங்கள்.",
+      "cta": "அப்கிரேடு"
+    },
+    "addonLocked": {
+      "title": "{{feature}} ஐ உங்கள் கணக்கில் சேர்க்கவும்",
+      "description": "இந்த ஆட்-ஆனை எப்போது வேண்டுமானாலும் நிறுவலாம். {{days}} நாள் இலவச டிரயல் தொடங்குங்கள்.",
+      "cta": "டிரயல் தொடங்கு"
+    },
+    "countryLocked": {
+      "title": "{{country}} இல் இன்னும் கிடைக்கவில்லை",
+      "description": "இந்த அம்சம் விரைவில் அறிமுகமாகும். முன் அணுகலுக்காக காத்திருப்பு பட்டியலில் சேருங்கள்.",
+      "cta": "காத்திருப்பு பட்டியல்"
+    },
+    "roleLocked": {
+      "title": "அணுகல் கட்டுப்படுத்தப்பட்டுள்ளது",
+      "description": "இந்த அம்சத்தை பயன்படுத்த உங்கள் நிர்வாகியை தொடர்பு கொள்ளவும்.",
+      "cta": "நிர்வாகியை தொடர்பு கொள்ளவும்"
+    }
+  }
+}
+
+5️⃣ How to use in code (example)
+const { t } = useTranslation();
+
+t("lockedFeature.planLocked.title", { feature: "Payroll" });
+t("lockedFeature.addonLocked.description", { days: 7 });
+
+✅ What this gives you
+
+Consistent UX across India + Malaysia
+
+Local-language clarity (very important for SMB trust)
+
+Zero hardcoded strings in components
+
+Ready for expansion (you can add te, kn, etc. later)
