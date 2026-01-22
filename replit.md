@@ -32,9 +32,25 @@ The platform supports 8 languages with react-i18next:
 - **Kannada (kn)**: For India market
 - **Malayalam (ml)**: For India market
 - **Malay (ms)**: For Malaysia market (Bahasa Malaysia)
-- **Chinese Simplified (zh)**: For Malaysia market (中文简体)
+- **Chinese Simplified (zh)**: For Malaysia and Singapore markets (中文简体)
 
-Language detection order: localStorage -> browser navigator. Fallback chain: Any unsupported language -> English. Translation files are located at `client/src/i18n/locales/`. The LanguageSelector component allows users to switch languages dynamically.
+**Country-Language Mapping:**
+The landing pages use country-driven language selection. Each country has a defined list of available languages:
+- **IN (India)**: en, hi, ta, te, kn, ml (default: en)
+- **MY (Malaysia)**: en, ms, zh, ta (default: en)
+- **UK (United Kingdom)**: en (default: en)
+- **AE (UAE)**: en (default: en)
+- **SG (Singapore)**: en, zh, ms, ta (default: en)
+
+Config location: `client/src/lib/country-language-config.ts`
+
+**Behavior:**
+- When country changes, if current language is not valid for new country, auto-switch to default
+- Both country and language are persisted in localStorage and cookies
+- Country routes (/in, /my, /uk, /uae, /sg) auto-set country and validate language
+- Language detection order: localStorage -> browser navigator. Fallback: English
+
+Translation files: `client/src/i18n/locales/`
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
