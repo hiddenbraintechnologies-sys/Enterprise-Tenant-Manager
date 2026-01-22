@@ -72,7 +72,13 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "later",
   },
   furniture_manufacturing: {
-    label: "Furniture Manufacturing",
+    label: "Furniture Business",
+    category: "manufacturing",
+    modules: ["inventory", "orders", "gst", "payroll"],
+    phase: "later",
+  },
+  furniture: {
+    label: "Furniture Business",
     category: "manufacturing",
     modules: ["inventory", "orders", "gst", "payroll"],
     phase: "later",
