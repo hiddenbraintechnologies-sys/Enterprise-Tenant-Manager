@@ -1,0 +1,93 @@
+Add Chinese now in a clean way without breaking what you already shipped (Malay/English/Tamil). Here’s the safest plan.
+
+1) Decide the Malaysia language set
+
+Use:
+
+en-MY (English)
+
+ms-MY (Malay / Bahasa Melayu)
+
+zh-Hans-MY (Chinese – Simplified, most common in Malaysia apps)
+
+ta-MY (Tamil)
+
+(You can add Traditional later as zh-Hant-MY if needed.)
+
+2) Update your i18n config (add locale + fallback)
+
+Add zh-Hans-MY to supported locales list
+
+Fallback chain recommended:
+
+zh-Hans-MY → zh-Hans → zh → en
+
+ms-MY → ms → en
+
+ta-MY → ta → en
+
+3) Add Chinese translation files
+
+Create:
+
+locales/zh-Hans-MY/common.json
+
+locales/zh-Hans-MY/auth.json
+
+locales/zh-Hans-MY/billing.json
+
+locales/zh-Hans-MY/dashboard.json
+(or whatever namespaces you use)
+
+Start by copying English keys and translating only the user-facing keys you already show in Malaysia flows (landing, login/register, packages, checkout, dashboard).
+
+4) Update the language selector UI for Malaysia
+
+When country = MY, show language options: English / Bahasa Melayu / 中文(简体) / தமிழ்
+
+Store user choice per-tenant or per-user (your existing pattern: localStorage + cookie + DB preference if you have it)
+
+5) Fonts + UI check (important for Chinese)
+
+Ensure your font stack supports Chinese well (e.g., system stack is fine)
+
+Check buttons/cards don’t overflow (Chinese strings can be shorter/longer depending)
+
+6) QA checklist (fast)
+
+Switch language on landing + login + register
+
+Packages shows translated plan labels/features
+
+Checkout shows translated buttons/toasts
+
+Emails/templates (if any) don’t break (optional phase 2)
+
+Replit prompt (paste this)
+We already have Malaysia languages: ms-MY (Malay), en-MY (English), ta-MY (Tamil).
+We forgot Chinese. Implement Simplified Chinese for Malaysia safely.
+
+Requirements:
+1) Add locale: zh-Hans-MY (Chinese Simplified) to i18n supported locales list.
+2) Add fallback chain:
+   zh-Hans-MY -> zh-Hans -> zh -> en
+   ms-MY -> ms -> en
+   ta-MY -> ta -> en
+3) Create translation namespace files for zh-Hans-MY matching existing structure (common/auth/billing/dashboard/etc).
+   - Copy all existing keys from en and translate key values into Simplified Chinese.
+   - Do not change keys. Only add new locale files.
+4) Update the Country+Language selector:
+   - If selected country is MY, show 4 options: English, Bahasa Melayu, 中文(简体), தமிழ்.
+   - Persist selection same as existing pattern (localStorage + cookie; if DB preference exists, update it too).
+5) Ensure UI works (no overflow):
+   - Check key pages: landing, login, register, packages, checkout, dashboard.
+   - Fix any layout issues caused by longer/shorter Chinese text (buttons, cards, headers).
+6) Add tests:
+   - i18n resolver returns zh-Hans-MY strings when selected.
+   - Fallback to en when zh-Hans-MY key missing.
+
+Deliver:
+- New zh-Hans-MY locale files + selector update + passing tests.
+
+
+If you tell me which i18n library you’re using (react-i18next / next-intl / custom keys), I can give you the exact file paths and code snippets to drop in (no guesswork).

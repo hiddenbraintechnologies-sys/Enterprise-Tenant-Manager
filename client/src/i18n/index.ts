@@ -9,6 +9,7 @@ import ta from "./locales/ta.json";
 import kn from "./locales/kn.json";
 import ml from "./locales/ml.json";
 import ms from "./locales/ms.json";
+import zh from "./locales/zh.json";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en", name: "English", nativeName: "English" },
@@ -18,6 +19,7 @@ export const SUPPORTED_LANGUAGES = [
   { code: "kn", name: "Kannada", nativeName: "ಕನ್ನಡ" },
   { code: "ml", name: "Malayalam", nativeName: "മലയാളം" },
   { code: "ms", name: "Malay", nativeName: "Bahasa Malaysia" },
+  { code: "zh", name: "Chinese", nativeName: "中文（简体）" },
 ] as const;
 
 export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number]["code"];
@@ -30,6 +32,7 @@ const resources = {
   kn: { translation: kn },
   ml: { translation: ml },
   ms: { translation: ms },
+  zh: { translation: zh },
 };
 
 const supportedCodes = SUPPORTED_LANGUAGES.map((l) => l.code);
