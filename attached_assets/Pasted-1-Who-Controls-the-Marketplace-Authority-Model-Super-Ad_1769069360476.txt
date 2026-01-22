@@ -1,0 +1,238 @@
+1️⃣ Who Controls the Marketplace? (Authority Model)
+✅ Super Admin (Platform Owner) — FULL CONTROL
+
+Only Super Admin can:
+
+Create / edit / archive Add-ons
+
+Decide:
+
+Which countries an add-on is available in
+
+Which business types can see it
+
+Whether it’s trial-enabled
+
+Pricing model (flat / per employee / usage)
+
+Enable / disable HRMS & Payroll as:
+
+Core module OR
+
+Marketplace add-on (recommended)
+
+👉 This avoids chaos and compliance issues.
+
+🧑‍💼 Tenant Admin (Customer)
+
+Tenant Admin can only:
+
+View available add-ons (filtered by country + plan)
+
+Purchase / activate add-ons
+
+Cancel add-ons (end of billing cycle)
+
+View add-on invoices
+
+🚫 Tenant Admin cannot create or modify add-ons
+
+👤 Normal Users
+
+No access to Marketplace
+
+Can only use features enabled by Admin
+
+2️⃣ Why HRMS & Payroll Are Missing Right Now
+
+This is correct behavior based on your rollout rules.
+
+HRMS
+
+Currently treated as core module
+
+Enabled via:
+
+Country rollout
+
+Plan feature flags
+
+❌ Not yet modeled as an add-on
+
+Payroll
+
+Compliance-heavy (Malaysia EPF, SOCSO, PCB, etc.)
+
+You correctly:
+
+Disabled it per country
+
+Avoided accidental activation
+
+👉 Best practice:
+
+Convert HRMS & Payroll into Marketplace Add-ons
+
+Keep Free / Basic / Pro plans lightweight
+
+Monetize HRMS + Payroll separately
+
+This is exactly how Zoho / Odoo / Freshworks do it.
+
+3️⃣ Recommended Marketplace Structure (Clean & Scalable)
+Add-on Categories
+Operations
+- Advanced Invoicing
+- GST / SST Compliance
+
+People
+- HRMS
+- Payroll
+- Attendance & Leave
+
+Automation
+- WhatsApp Automation
+- SMS Credits
+
+Analytics
+- Advanced Reports
+- AI Insights
+
+Compliance
+- Country Compliance Pack
+
+4️⃣ How HRMS & Payroll Should Appear
+HRMS (Marketplace Add-on)
+
+Pricing: ₹49 / RM10 per employee / month
+
+Trial: 7 days
+
+Includes:
+
+Employees
+
+Attendance
+
+Leave
+
+Timesheets
+
+Payroll (Marketplace Add-on)
+
+Pricing: ₹99 / RM20 per employee / month
+
+Trial: 7 days
+
+Locked behind:
+
+Country = MY / IN
+
+Super Admin approval
+
+Shows “Compliance Ready” badge
+
+5️⃣ MASTER REPLIT PROMPT (Paste This)
+🔥 MASTER PROMPT – Marketplace + HRMS + Payroll
+You are building an enterprise-grade SaaS Marketplace for a multi-tenant platform (MyBizStream).
+
+GOAL:
+Create a controlled Add-on Marketplace where only Super Admin can publish add-ons, and tenants can purchase add-ons based on country, business type, and plan eligibility.
+
+REQUIREMENTS:
+
+1. PRISMA SCHEMA
+Create the following models:
+
+- AddOn
+  - id
+  - code (hrms, payroll, whatsapp, etc.)
+  - name
+  - description
+  - category
+  - pricingModel (FLAT | PER_EMPLOYEE | PER_UNIT)
+  - basePrice
+  - currency
+  - trialDays
+  - isActive
+  - allowedCountries (string[])
+  - allowedBusinessTypes (string[])
+  - createdAt
+  - updatedAt
+
+- TenantAddOn
+  - id
+  - tenantId
+  - addOnId
+  - status (TRIAL | ACTIVE | CANCELLED | EXPIRED)
+  - quantity (employees / units)
+  - startDate
+  - endDate
+  - nextBillingDate
+
+2. ACCESS CONTROL
+- Only SUPER_ADMIN can:
+  - Create / edit / archive AddOns
+  - Control country & business visibility
+- TENANT_ADMIN can:
+  - View eligible add-ons
+  - Purchase / cancel add-ons
+- USERS have no Marketplace access
+
+3. HRMS & PAYROLL
+- Convert HRMS and Payroll into Marketplace Add-ons
+- HRMS:
+  - Pricing per employee
+  - 7-day trial
+- Payroll:
+  - Pricing per employee
+  - Country-restricted (MY, IN)
+  - Disabled by default unless Super Admin enables
+
+4. BILLING RULES
+- Add-ons billed separately from plan
+- Supports:
+  - Monthly billing
+  - Per-employee pricing
+- Cancellation applies end of billing cycle
+
+5. RAZORPAY INTEGRATION
+- Create Razorpay Subscriptions for add-ons
+- Metadata:
+  - tenantId
+  - addOnCode
+  - quantity
+- Webhook handling:
+  - subscription.activated
+  - payment.failed
+  - subscription.cancelled
+
+6. UI
+- Marketplace page:
+  - Browse Add-ons
+  - Installed Add-ons
+- Add-on card:
+  - Price
+  - Trial badge
+  - Country availability
+- HRMS & Payroll should appear as purchasable add-ons
+
+7. ANALYTICS (ADMIN)
+- Revenue per add-on
+- Active tenants per add-on
+- Country-wise add-on adoption
+
+OUTPUT:
+- Prisma schema
+- Backend APIs
+- Frontend UI components
+- Razorpay mapping
+- Safe defaults for compliance-heavy modules
+
+6️⃣ What You’ll Unlock After This
+
+✅ True modular SaaS
+✅ Country-wise monetization
+✅ No forced plan upgrades
+✅ Safer compliance rollout
+✅ Investor-ready architecture
