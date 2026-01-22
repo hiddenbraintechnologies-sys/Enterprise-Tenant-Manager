@@ -579,5 +579,98 @@
       "builtForTitle": "Built for diverse businesses",
       "featuresTitle": "Everything you need to run your business"
     }
+  },
+  "features": {
+    "payroll": "Payroll",
+    "hrms": "HRMS",
+    "attendance": "Attendance",
+    "leave": "Leave Management",
+    "timesheets": "Timesheets",
+    "whatsappAutomation": "WhatsApp Automation",
+    "smsAutomation": "SMS Automation",
+    "invoicing": "Invoicing",
+    "gst": "GST",
+    "analytics": "Advanced Analytics",
+    "projects": "Projects",
+    "softwareServices": "Software Services",
+    "consulting": "Consulting",
+    "marketplace": "Add-on Marketplace",
+    "multiBranch": "Multi-branch",
+    "apiAccess": "API Access",
+    "customerPortal": "Customer Portal"
+  },
+  "lockedFeature": {
+    "tones": {
+      "friendly": {
+        "planLocked": {
+          "title": "Want {{feature}}? You're almost there!",
+          "description": "Upgrade your plan to unlock this feature and keep going.",
+          "cta": "Upgrade now"
+        },
+        "addonLocked": {
+          "title": "Add {{feature}} in one click",
+          "description": "Start a {{days}}-day free trial. Cancel anytime before billing.",
+          "cta": "Start free trial"
+        },
+        "countryLocked": {
+          "title": "{{feature}} is coming soon to {{country}}",
+          "description": "Join the waitlist and we'll notify you as soon as it's live.",
+          "cta": "Join waitlist"
+        },
+        "roleLocked": {
+          "title": "You don't have access yet",
+          "description": "Ask your admin to enable {{feature}} for your account.",
+          "cta": "Contact admin"
+        }
+      },
+      "formal": {
+        "planLocked": {
+          "title": "Upgrade required to access {{feature}}",
+          "description": "Your current plan does not include this feature. Please upgrade to proceed.",
+          "cta": "Upgrade plan"
+        },
+        "addonLocked": {
+          "title": "{{feature}} add-on is not installed",
+          "description": "Install this add-on to enable access. A {{days}}-day trial may be available.",
+          "cta": "Install add-on"
+        },
+        "countryLocked": {
+          "title": "{{feature}} is unavailable in {{country}}",
+          "description": "This feature is not currently offered in your selected country.",
+          "cta": "Learn more"
+        },
+        "roleLocked": {
+          "title": "Insufficient permissions",
+          "description": "Your role does not allow access. Please contact your administrator.",
+          "cta": "Contact administrator"
+        }
+      }
+    },
+    "ab": {
+      "A": {
+        "planLocked": {
+          "title": "Unlock {{feature}} with an upgrade",
+          "description": "Get more users, higher limits, and access to {{feature}}.",
+          "cta": "Upgrade"
+        },
+        "addonLocked": {
+          "title": "Enable {{feature}} instantly",
+          "description": "Start your {{days}}-day free trial and activate in seconds.",
+          "cta": "Start trial"
+        }
+      },
+      "B": {
+        "planLocked": {
+          "title": "{{feature}} is locked on your current plan",
+          "description": "Upgrade now to continue without interruptions.",
+          "cta": "Upgrade now"
+        },
+        "addonLocked": {
+          "title": "{{feature}} is not enabled",
+          "description": "Install this add-on to proceed. Trial: {{days}} days.",
+          "cta": "Enable"
+        }
+      }
+    }
   }
 }

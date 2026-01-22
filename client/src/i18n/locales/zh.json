@@ -682,5 +682,98 @@
       "builtForTitle": "为多元化企业打造",
       "featuresTitle": "经营企业所需的一切"
     }
+  },
+  "features": {
+    "payroll": "薪资管理",
+    "hrms": "人力资源管理系统",
+    "attendance": "考勤管理",
+    "leave": "请假管理",
+    "timesheets": "工时表",
+    "whatsappAutomation": "WhatsApp自动化",
+    "smsAutomation": "短信自动化",
+    "invoicing": "开票",
+    "gst": "增值税",
+    "analytics": "高级分析",
+    "projects": "项目管理",
+    "softwareServices": "软件服务",
+    "consulting": "咨询服务",
+    "marketplace": "附加功能市场",
+    "multiBranch": "多分支",
+    "apiAccess": "API访问",
+    "customerPortal": "客户门户"
+  },
+  "lockedFeature": {
+    "tones": {
+      "friendly": {
+        "planLocked": {
+          "title": "想要{{feature}}？您已经很接近了！",
+          "description": "升级您的计划以解锁此功能并继续使用。",
+          "cta": "立即升级"
+        },
+        "addonLocked": {
+          "title": "一键添加{{feature}}",
+          "description": "开始{{days}}天免费试用。随时取消。",
+          "cta": "开始免费试用"
+        },
+        "countryLocked": {
+          "title": "{{feature}}即将登陆{{country}}",
+          "description": "加入等待名单，我们会在上线后通知您。",
+          "cta": "加入等待名单"
+        },
+        "roleLocked": {
+          "title": "您还没有访问权限",
+          "description": "请联系管理员为您的账户启用{{feature}}。",
+          "cta": "联系管理员"
+        }
+      },
+      "formal": {
+        "planLocked": {
+          "title": "访问{{feature}}需要升级",
+          "description": "您当前的计划不包含此功能。请升级以继续。",
+          "cta": "升级计划"
+        },
+        "addonLocked": {
+          "title": "{{feature}}附加功能未安装",
+          "description": "安装此附加功能以启用访问。可享{{days}}天试用。",
+          "cta": "安装附加功能"
+        },
+        "countryLocked": {
+          "title": "{{feature}}在{{country}}不可用",
+          "description": "此功能目前在您选择的国家/地区不提供。",
+          "cta": "了解更多"
+        },
+        "roleLocked": {
+          "title": "权限不足",
+          "description": "您的角色不允许访问。请联系管理员。",
+          "cta": "联系管理员"
+        }
+      }
+    },
+    "ab": {
+      "A": {
+        "planLocked": {
+          "title": "升级解锁{{feature}}",
+          "description": "获得更多用户、更高限制和{{feature}}访问权限。",
+          "cta": "升级"
+        },
+        "addonLocked": {
+          "title": "立即启用{{feature}}",
+          "description": "开始您的{{days}}天免费试用。",
+          "cta": "开始试用"
+        }
+      },
+      "B": {
+        "planLocked": {
+          "title": "{{feature}}在您当前计划中已锁定",
+          "description": "立即升级以无中断地继续使用。",
+          "cta": "立即升级"
+        },
+        "addonLocked": {
+          "title": "{{feature}}未启用",
+          "description": "安装此附加功能以继续。试用期：{{days}}天。",
+          "cta": "启用"
+        }
+      }
+    }
   }
 }

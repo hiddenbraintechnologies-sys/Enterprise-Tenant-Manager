@@ -1,0 +1,260 @@
+below are ready-to-paste i18n additions for:
+
+Feature name translations (Payroll, HRMS, WhatsApp, etc.)
+
+Tone variants (friendly vs formal)
+
+A/B variants (A = benefit-first, B = urgency/limit-first)
+
+I’m keeping it structured so your code can do:
+
+t("features.payroll")
+
+t("lockedFeature.tones.friendly.planLocked.title", { feature })
+
+t("lockedFeature.ab.A.addonLocked.description", { days })
+
+1) Feature name translations
+EN (en.json)
+{
+  "features": {
+    "payroll": "Payroll",
+    "hrms": "HRMS",
+    "attendance": "Attendance",
+    "leave": "Leave Management",
+    "timesheets": "Timesheets",
+    "whatsappAutomation": "WhatsApp Automation",
+    "smsAutomation": "SMS Automation",
+    "invoicing": "Invoicing",
+    "gst": "GST",
+    "analytics": "Advanced Analytics",
+    "projects": "Projects",
+    "softwareServices": "Software Services",
+    "consulting": "Consulting",
+    "marketplace": "Add-on Marketplace",
+    "multiBranch": "Multi-branch",
+    "apiAccess": "API Access",
+    "customerPortal": "Customer Portal"
+  }
+}
+
+HI (hi.json)
+{
+  "features": {
+    "payroll": "पेरोल",
+    "hrms": "एचआरएमएस",
+    "attendance": "उपस्थिति",
+    "leave": "छुट्टी प्रबंधन",
+    "timesheets": "टाइमशीट",
+    "whatsappAutomation": "व्हाट्सएप ऑटोमेशन",
+    "smsAutomation": "एसएमएस ऑटोमेशन",
+    "invoicing": "इनवॉइसिंग",
+    "gst": "जीएसटी",
+    "analytics": "एडवांस्ड एनालिटिक्स",
+    "projects": "प्रोजेक्ट्स",
+    "softwareServices": "सॉफ्टवेयर सर्विसेस",
+    "consulting": "कंसल्टिंग",
+    "marketplace": "ऐड-ऑन मार्केटप्लेस",
+    "multiBranch": "मल्टी-ब्रांच",
+    "apiAccess": "एपीआई एक्सेस",
+    "customerPortal": "कस्टमर पोर्टल"
+  }
+}
+
+MS (ms.json)
+{
+  "features": {
+    "payroll": "Payroll",
+    "hrms": "HRMS",
+    "attendance": "Kehadiran",
+    "leave": "Pengurusan Cuti",
+    "timesheets": "Timesheet",
+    "whatsappAutomation": "Automasi WhatsApp",
+    "smsAutomation": "Automasi SMS",
+    "invoicing": "Invois",
+    "gst": "Cukai (GST/SST)",
+    "analytics": "Analitik Lanjutan",
+    "projects": "Projek",
+    "softwareServices": "Perkhidmatan Perisian",
+    "consulting": "Perundingan",
+    "marketplace": "Pasaran Add-on",
+    "multiBranch": "Pelbagai Cawangan",
+    "apiAccess": "Akses API",
+    "customerPortal": "Portal Pelanggan"
+  }
+}
+
+TA (ta.json)
+{
+  "features": {
+    "payroll": "சம்பள கணக்கு (Payroll)",
+    "hrms": "மனிதவள மேலாண்மை (HRMS)",
+    "attendance": "வருகை பதிவு",
+    "leave": "விடுப்பு மேலாண்மை",
+    "timesheets": "டைம்ஷீட்ஸ்",
+    "whatsappAutomation": "WhatsApp தானியக்கம்",
+    "smsAutomation": "SMS தானியக்கம்",
+    "invoicing": "இன்வாய்சிங்",
+    "gst": "ஜிஎஸ்டி",
+    "analytics": "மேம்பட்ட பகுப்பாய்வு",
+    "projects": "திட்டங்கள்",
+    "softwareServices": "மென்பொருள் சேவைகள்",
+    "consulting": "ஆலோசனை சேவைகள்",
+    "marketplace": "ஆட்-ஆன் மார்க்கெட்ப்ளேஸ்",
+    "multiBranch": "பல கிளைகள்",
+    "apiAccess": "API அணுகல்",
+    "customerPortal": "வாடிக்கையாளர் போர்டல்"
+  }
+}
+
+
+✅ Usage:
+
+const featureName = t(`features.${featureKey}`);
+
+2) Tone variants (friendly vs formal)
+
+Add tone blocks under lockedFeature.tones.
+
+EN (en.json)
+{
+  "lockedFeature": {
+    "tones": {
+      "friendly": {
+        "planLocked": {
+          "title": "Want {{feature}}? You're almost there!",
+          "description": "Upgrade your plan to unlock this feature and keep going.",
+          "cta": "Upgrade now"
+        },
+        "addonLocked": {
+          "title": "Add {{feature}} in one click",
+          "description": "Start a {{days}}-day free trial. Cancel anytime before billing.",
+          "cta": "Start free trial"
+        },
+        "countryLocked": {
+          "title": "{{feature}} is coming soon to {{country}}",
+          "description": "Join the waitlist and we’ll notify you as soon as it’s live.",
+          "cta": "Join waitlist"
+        },
+        "roleLocked": {
+          "title": "You don’t have access yet",
+          "description": "Ask your admin to enable {{feature}} for your account.",
+          "cta": "Contact admin"
+        }
+      },
+      "formal": {
+        "planLocked": {
+          "title": "Upgrade required to access {{feature}}",
+          "description": "Your current plan does not include this feature. Please upgrade to proceed.",
+          "cta": "Upgrade plan"
+        },
+        "addonLocked": {
+          "title": "{{feature}} add-on is not installed",
+          "description": "Install this add-on to enable access. A {{days}}-day trial may be available.",
+          "cta": "Install add-on"
+        },
+        "countryLocked": {
+          "title": "{{feature}} is unavailable in {{country}}",
+          "description": "This feature is not currently offered in your selected country.",
+          "cta": "Learn more"
+        },
+        "roleLocked": {
+          "title": "Insufficient permissions",
+          "description": "Your role does not allow access. Please contact your administrator.",
+          "cta": "Contact administrator"
+        }
+      }
+    }
+  }
+}
+
+How to choose tone
+
+Default: friendly for India SMB
+
+Default: formal for Super Admin / enterprise screens
+
+In code:
+
+const tone = isAdminArea ? "formal" : "friendly";
+t(`lockedFeature.tones.${tone}.planLocked.title`, { feature });
+
+
+(You can also store tone in tenant branding settings later.)
+
+3) A/B copy variants for conversion testing
+
+Add under lockedFeature.ab.A and lockedFeature.ab.B.
+
+A = benefit-first (works better in India)
+
+B = limit/urgency-first (works when user hits a limit)
+
+EN (en.json)
+{
+  "lockedFeature": {
+    "ab": {
+      "A": {
+        "planLocked": {
+          "title": "Unlock {{feature}} with an upgrade",
+          "description": "Get more users, higher limits, and access to {{feature}}.",
+          "cta": "Upgrade"
+        },
+        "addonLocked": {
+          "title": "Enable {{feature}} instantly",
+          "description": "Start your {{days}}-day free trial and activate in seconds.",
+          "cta": "Start trial"
+        }
+      },
+      "B": {
+        "planLocked": {
+          "title": "{{feature}} is locked on your current plan",
+          "description": "Upgrade now to continue without interruptions.",
+          "cta": "Upgrade now"
+        },
+        "addonLocked": {
+          "title": "{{feature}} is not enabled",
+          "description": "Install this add-on to proceed. Trial: {{days}} days.",
+          "cta": "Enable"
+        }
+      }
+    }
+  }
+}
+
+How to pick A/B variant (simple, stable)
+
+Assign per tenant once, store in localStorage or tenant setting:
+
+app:ab:lockedFeature = "A" | "B"
+
+In code:
+
+const ab = getOrCreateAbVariant("lockedFeature"); // returns "A" or "B"
+t(`lockedFeature.ab.${ab}.planLocked.title`, { feature });
+
+
+✅ Best practice:
+
+Use A by default
+
+Switch to B only for “limit reached” moments
+
+Implementation Notes (quick + practical)
+Recommended resolution order in code
+
+Feature name: features.*
+
+Copy layer:
+
+If A/B enabled → use lockedFeature.ab.*
+
+Else use lockedFeature.tones.*
+
+Else fallback to base lockedFeature.*
+
+Example helper
+function lockedCopyKey({ tone, ab, reason, field }) {
+  if (ab) return `lockedFeature.ab.${ab}.${reason}.${field}`;
+  return `lockedFeature.tones.${tone}.${reason}.${field}`;
+}
