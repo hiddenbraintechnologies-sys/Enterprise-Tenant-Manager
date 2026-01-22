@@ -1,0 +1,126 @@
+here are micro-benefits (very short value labels) for each feature, in EN + HI + MS + TA, ready to paste.
+
+These are ideal for:
+
+Buttons
+
+Badges
+
+Tooltips
+
+Feature cards
+
+Locked screens (“Why should I care?” in 1 glance)
+
+1️⃣ English — client/src/i18n/locales/en.json
+{
+  "featureMicro": {
+    "payroll": "Payslips, statutory compliance",
+    "hrms": "Attendance, leave, employees",
+    "attendance": "Daily punch-in/out",
+    "leave": "Leave requests & approvals",
+    "timesheets": "Billable time tracking",
+    "whatsappAutomation": "Auto reminders & alerts",
+    "smsAutomation": "Payment & system alerts",
+    "analytics": "Business insights",
+    "invoicing": "Invoices & payments",
+    "projects": "Tasks & delivery tracking",
+    "customerPortal": "Self-service access",
+    "softwareServices": "Projects & billing",
+    "consulting": "Engagements & time tracking",
+    "marketplace": "Extend with add-ons",
+    "multiBranch": "Multiple locations",
+    "apiAccess": "System integrations"
+  }
+}
+
+2️⃣ Hindi — client/src/i18n/locales/hi.json
+{
+  "featureMicro": {
+    "payroll": "पेस्लिप, कानूनी अनुपालन",
+    "hrms": "उपस्थिति, छुट्टी, कर्मचारी",
+    "attendance": "दैनिक इन-आउट",
+    "leave": "छुट्टी अनुरोध और अनुमोदन",
+    "timesheets": "बिलेबल समय ट्रैकिंग",
+    "whatsappAutomation": "ऑटो रिमाइंडर और अलर्ट",
+    "smsAutomation": "पेमेंट और सिस्टम अलर्ट",
+    "analytics": "बिज़नेस इनसाइट्स",
+    "invoicing": "इनवॉइस और पेमेंट",
+    "projects": "टास्क और डिलीवरी ट्रैकिंग",
+    "customerPortal": "सेल्फ-सर्विस एक्सेस",
+    "softwareServices": "प्रोजेक्ट्स और बिलिंग",
+    "consulting": "एंगेजमेंट और टाइम ट्रैकिंग",
+    "marketplace": "ऐड-ऑन से विस्तार",
+    "multiBranch": "एक से अधिक लोकेशन",
+    "apiAccess": "सिस्टम इंटीग्रेशन"
+  }
+}
+
+3️⃣ Malay — client/src/i18n/locales/ms.json
+{
+  "featureMicro": {
+    "payroll": "Slip gaji & pematuhan",
+    "hrms": "Kehadiran, cuti, pekerja",
+    "attendance": "Rekod masuk/keluar harian",
+    "leave": "Permohonan & kelulusan cuti",
+    "timesheets": "Jejak masa boleh bil",
+    "whatsappAutomation": "Peringatan automatik",
+    "smsAutomation": "Notifikasi pembayaran",
+    "analytics": "Wawasan perniagaan",
+    "invoicing": "Invois & pembayaran",
+    "projects": "Jejak tugasan & penghantaran",
+    "customerPortal": "Akses layan diri",
+    "softwareServices": "Projek & pengebilan",
+    "consulting": "Penglibatan & masa",
+    "marketplace": "Tambah ciri melalui add-on",
+    "multiBranch": "Berbilang lokasi",
+    "apiAccess": "Integrasi sistem"
+  }
+}
+
+4️⃣ Tamil — client/src/i18n/locales/ta.json
+{
+  "featureMicro": {
+    "payroll": "Payslip, சட்ட இணக்கம்",
+    "hrms": "வருகை, விடுப்பு, பணியாளர்கள்",
+    "attendance": "தினசரி வருகை பதிவு",
+    "leave": "விடுப்பு கோரிக்கை & அனுமதி",
+    "timesheets": "பிலாக்க கூடிய நேர பதிவு",
+    "whatsappAutomation": "தானியங்கி நினைவூட்டல்",
+    "smsAutomation": "கட்டண அறிவிப்புகள்",
+    "analytics": "வணிக பார்வைகள்",
+    "invoicing": "இன்வாய்ஸ் & கட்டணம்",
+    "projects": "பணி & டெலிவரி கண்காணிப்பு",
+    "customerPortal": "சுய சேவை அணுகல்",
+    "softwareServices": "திட்டங்கள் & பில்லிங்",
+    "consulting": "எங்கேஜ்மென்ட் & நேர பதிவு",
+    "marketplace": "ஆட்-ஆன் மூலம் விரிவாக்கம்",
+    "multiBranch": "பல இடங்கள்",
+    "apiAccess": "சிஸ்டம் இணைப்புகள்"
+  }
+}
+
+✅ How to use (best practice)
+Feature card
+<h3>{t(`features.${key}`)}</h3>
+<p className="text-muted">{t(`featureMicro.${key}`)}</p>
+
+Locked modal (stacked value)
+<strong>{t(`features.${key}`)}</strong>
+<span>{t(`featureMicro.${key}`)}</span>
+
+Marketplace tile
+
+Title → features.*
+
+Subtitle → featureMicro.*
+
+Description → featureBenefits.*
+
+Why this is powerful (strategy note)
+
+India & MY users scan, not read
+
+Micro-benefits answer “Why should I care?” in <1 second
+
+Combined with your A/B + tone logic, this maximizes conversion without pressure

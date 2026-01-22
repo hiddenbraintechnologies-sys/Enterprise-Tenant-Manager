@@ -610,6 +610,24 @@
     "timesheets": "Log billable time and track team productivity accurately.",
     "customerPortal": "Let customers view invoices and pay online from a secure portal."
   },
+  "featureMicro": {
+    "payroll": "Payslips, statutory compliance",
+    "hrms": "Attendance, leave, employees",
+    "attendance": "Daily punch-in/out",
+    "leave": "Leave requests & approvals",
+    "timesheets": "Billable time tracking",
+    "whatsappAutomation": "Auto reminders & alerts",
+    "smsAutomation": "Payment & system alerts",
+    "analytics": "Business insights",
+    "invoicing": "Invoices & payments",
+    "projects": "Tasks & delivery tracking",
+    "customerPortal": "Self-service access",
+    "softwareServices": "Projects & billing",
+    "consulting": "Engagements & time tracking",
+    "marketplace": "Extend with add-ons",
+    "multiBranch": "Multiple locations",
+    "apiAccess": "System integrations"
+  },
   "lockedFeature": {
     "title": "This feature is not on your current plan",
     "body": "Upgrade to Basic or Pro to use Software Services.",

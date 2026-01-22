@@ -583,6 +583,24 @@
     "timesheets": "Rekod masa boleh bil dan pantau produktiviti pasukan dengan tepat.",
     "customerPortal": "Benarkan pelanggan melihat invois dan membuat pembayaran online melalui portal selamat."
   },
+  "featureMicro": {
+    "payroll": "Slip gaji & pematuhan",
+    "hrms": "Kehadiran, cuti, pekerja",
+    "attendance": "Rekod masuk/keluar harian",
+    "leave": "Permohonan & kelulusan cuti",
+    "timesheets": "Jejak masa boleh bil",
+    "whatsappAutomation": "Peringatan automatik",
+    "smsAutomation": "Notifikasi pembayaran",
+    "analytics": "Wawasan perniagaan",
+    "invoicing": "Invois & pembayaran",
+    "projects": "Jejak tugasan & penghantaran",
+    "customerPortal": "Akses layan diri",
+    "softwareServices": "Projek & pengebilan",
+    "consulting": "Penglibatan & masa",
+    "marketplace": "Tambah ciri melalui add-on",
+    "multiBranch": "Berbilang lokasi",
+    "apiAccess": "Integrasi sistem"
+  },
   "lockedFeature": {
     "title": "Ciri ini tiada dalam pelan semasa anda",
     "body": "Naik taraf ke Basic atau Pro untuk menggunakan Software Services.",
