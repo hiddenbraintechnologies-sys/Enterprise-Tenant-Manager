@@ -23,6 +23,19 @@ The platform uses a flexible billing system with multi-interval pricing (monthly
 ### User Experience & Notifications
 The Booking Dialog features enhanced alerts for missing customer/service data with quick action buttons and informative dropdown placeholders. A customizable Notification Center includes a NotificationBell for in-app alerts and a Preferences UI allowing users to configure notification types, severity, channels (In-App, Email, WhatsApp, SMS), and quiet hours.
 
+### Internationalization (i18n)
+The platform supports 8 languages with react-i18next:
+- **English (en)**: Default language
+- **Hindi (hi)**: For India market
+- **Telugu (te)**: For India market
+- **Tamil (ta)**: For India and Malaysia markets
+- **Kannada (kn)**: For India market
+- **Malayalam (ml)**: For India market
+- **Malay (ms)**: For Malaysia market (Bahasa Malaysia)
+- **Chinese Simplified (zh)**: For Malaysia market (中文简体)
+
+Language detection order: localStorage -> browser navigator. Fallback chain: Any unsupported language -> English. Translation files are located at `client/src/i18n/locales/`. The LanguageSelector component allows users to switch languages dynamically.
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
 - **PostgreSQL**: Primary database
