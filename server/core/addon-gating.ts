@@ -1,8 +1,16 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "../db";
-import { tenantPayrollAddon, tenantAddons, addons, addonPricing, tenants, tenantSubscriptions } from "@shared/schema";
+import { tenantPayrollAddon, tenantAddons, addons, addonPricing, tenants, tenantSubscriptions, globalPricingPlans } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { resolveTenantId } from "../lib/resolveTenantId";
+
+const COUNTRY_CODE_MAP: Record<string, string> = {
+  india: "IN",
+  malaysia: "MY",
+  uk: "UK",
+  uae: "AE",
+  us: "US",
+};
 
 export interface AddonAccess {
   payroll: boolean;
@@ -96,7 +104,7 @@ export async function canUseAddon(params: CanUseAddonParams): Promise<CanUseAddo
     if (!tenantCountryCode || !tenantPlanTier || !tenantBusinessType) {
       const [tenant] = await db
         .select({
-          countryCode: tenants.countryCode,
+          country: tenants.country,
           businessType: tenants.businessType,
         })
         .from(tenants)
@@ -104,14 +112,15 @@ export async function canUseAddon(params: CanUseAddonParams): Promise<CanUseAddo
         .limit(1);
 
       if (tenant) {
-        tenantCountryCode = tenantCountryCode || tenant.countryCode || "IN";
+        tenantCountryCode = tenantCountryCode || COUNTRY_CODE_MAP[tenant.country || "india"] || "IN";
         tenantBusinessType = tenantBusinessType || tenant.businessType || "general";
       }
 
       if (!tenantPlanTier) {
         const [subscription] = await db
-          .select({ planTier: tenantSubscriptions.planTier })
+          .select({ tier: globalPricingPlans.tier })
           .from(tenantSubscriptions)
+          .leftJoin(globalPricingPlans, eq(tenantSubscriptions.planId, globalPricingPlans.id))
           .where(
             and(
               eq(tenantSubscriptions.tenantId, tenantId),
@@ -120,7 +129,7 @@ export async function canUseAddon(params: CanUseAddonParams): Promise<CanUseAddo
           )
           .limit(1);
 
-        tenantPlanTier = subscription?.planTier || "free";
+        tenantPlanTier = subscription?.tier || "free";
       }
     }
 
@@ -353,7 +362,7 @@ export async function canPurchaseAddon(params: Omit<CanUseAddonParams, "userRole
     if (!tenantCountryCode || !tenantPlanTier || !tenantBusinessType) {
       const [tenant] = await db
         .select({
-          countryCode: tenants.countryCode,
+          country: tenants.country,
           businessType: tenants.businessType,
         })
         .from(tenants)
@@ -361,14 +370,15 @@ export async function canPurchaseAddon(params: Omit<CanUseAddonParams, "userRole
         .limit(1);
 
       if (tenant) {
-        tenantCountryCode = tenantCountryCode || tenant.countryCode || "IN";
+        tenantCountryCode = tenantCountryCode || COUNTRY_CODE_MAP[tenant.country || "india"] || "IN";
         tenantBusinessType = tenantBusinessType || tenant.businessType || "general";
       }
 
       if (!tenantPlanTier) {
         const [subscription] = await db
-          .select({ planTier: tenantSubscriptions.planTier })
+          .select({ tier: globalPricingPlans.tier })
           .from(tenantSubscriptions)
+          .leftJoin(globalPricingPlans, eq(tenantSubscriptions.planId, globalPricingPlans.id))
           .where(
             and(
               eq(tenantSubscriptions.tenantId, tenantId),
@@ -377,7 +387,7 @@ export async function canPurchaseAddon(params: Omit<CanUseAddonParams, "userRole
           )
           .limit(1);
 
-        tenantPlanTier = subscription?.planTier || "free";
+        tenantPlanTier = subscription?.tier || "free";
       }
     }
 

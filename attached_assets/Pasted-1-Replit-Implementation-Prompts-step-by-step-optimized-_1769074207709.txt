@@ -1,0 +1,327 @@
+1) Replit Implementation Prompts (step-by-step, optimized)
+Prompt 1 — Add-on Permission Engine (backend core)
+
+Paste into Replit:
+
+Implement a centralized Add-on Permission Engine used by BOTH API guards and UI context response.
+
+Context:
+We have multi-tenant SaaS with plan tiers (Free/Basic/Pro), country rollouts, Marketplace Add-ons (HRMS, Payroll, WhatsApp, Analytics, etc.). Tenants can install add-ons only after payment success. Super Admin controls which add-ons are available by country and business type.
+
+Requirements:
+1) Create server/marketplace/permission-engine.ts exporting:
+   - resolveAddonAccess(ctx): returns allowed/blocked + reason
+   - getTenantAddonState(tenantId, addonCode)
+   - listEligibleAddons(tenantId, countryCode, businessType, planTier)
+   - enforceAddonAccess(addonCode) Express middleware (returns 403 with code ADDON_NOT_ENABLED/PLAN_TOO_LOW/COUNTRY_BLOCKED/NOT_INSTALLED)
+
+2) Inputs available in request:
+   - req.context.tenantId
+   - req.context.countryCode
+   - req.context.businessType
+   - req.context.planTier
+   - req.context.role
+
+3) Access Logic (in order):
+   A) Addon exists and status=ACTIVE
+   B) Country is allowed AND pricing row active
+   C) Business type is allowed (if addon has allowedBusinessTypes)
+   D) Plan tier >= addon.requiredPlanTier
+   E) Tenant has install status ACTIVE or TRIAL (if addon is "paid") OR addon.isFreeAddon=true
+   F) Role allowed (Tenant Admin/Manager can install; Staff can use if enabled)
+
+4) Return structure:
+   {
+     allowed: boolean,
+     reason?: "NOT_INSTALLED" | "PLAN_TOO_LOW" | "COUNTRY_BLOCKED" | "BUSINESS_BLOCKED" | "ADDON_DISABLED" | "ROLE_BLOCKED" | "PAYMENT_PENDING",
+     status?: "TRIAL" | "ACTIVE" | "PENDING_PAYMENT" | "CANCELLED",
+     trialEndsAt?: string
+   }
+
+5) Integrate:
+   - Update /api/context response to include:
+     addons: { [addonCode]: { allowed, status, trialEndsAt } }
+     eligibleAddons: minimal cards (code, name, pricingModel, displayPrice, trialDays)
+   - Ensure landing/public routes do NOT require this.
+
+Deliverables:
+- New file: server/marketplace/permission-engine.ts
+- Updated /api/context route to include addons access map
+- Middleware + unit tests for the engine and guard behavior
+
+Prompt 2 — Marketplace schema + seed (HRMS & Payroll appear)
+
+Paste into Replit:
+
+Implement Marketplace Add-ons in DB + seed HRMS and Payroll add-ons so they appear in marketplace.
+
+Requirements:
+1) Add Prisma models (or Drizzle equivalent if used) for:
+   - Addon (code, name, description, category, status, billingModel, trialDays, requiredPlanTier, allowedCountries, allowedBusinessTypes)
+   - AddonPrice (addonId, countryCode, currencyCode, basePrice/unitPrice, unitName, minQty/maxQty, isActive)
+   - TenantAddonInstall (tenantId, addonId, status, quantity, trialEndsAt, effectiveFrom, razorpaySubscriptionId, pricing snapshot fields)
+
+2) Seed:
+   A) HRMS add-on:
+      - billingModel=PER_EMPLOYEE, trialDays=7, requiredPlanTier=BASIC
+      - allowedCountries: IN, MY, GB, SG (as you prefer)
+      - AddonPrice:
+         IN: INR unitPrice=4900 (₹49/employee/mo)
+         MY: MYR unitPrice=1000 (RM10/employee/mo)
+   B) Payroll add-on:
+      - billingModel=PER_EMPLOYEE, trialDays=7, requiredPlanTier=PRO
+      - allowedCountries: MY, IN (start with MY enabled, UK disabled)
+      - AddonPrice:
+         MY: MYR unitPrice=2000 (RM20/employee/mo) isActive=true
+         IN: INR unitPrice=9900 (₹99/employee/mo) isActive=false (until enabled)
+   Ensure these show in /api/marketplace/addons for eligible tenants.
+
+3) API:
+   - GET /api/marketplace/addons (tenant-scoped): returns list filtered by permission engine eligibility + country availability.
+   - GET /api/marketplace/addons/installed: returns installs for tenant with status.
+   - POST /api/marketplace/addons/:code/checkout: creates pending install + returns payment/subscription init payload (Razorpay integration stub for now).
+   - POST /api/marketplace/addons/:code/cancel: sets CANCELLED at cycle_end (store effectiveTo).
+
+4) Tests:
+   - HRMS/Payroll appear for MY tenants
+   - Payroll hidden/blocked for UK tenants
+   - Free plan cannot see add-ons requiring BASIC/PRO
+
+Deliverables:
+- Schema/migrations
+- Seed data for HRMS/Payroll
+- Marketplace list endpoints returning correct data
+
+Prompt 3 — Marketplace UI + Wireframes implementation
+
+Paste into Replit:
+
+Build Marketplace UI pages (tenant side) + Super Admin Add-on Manager.
+
+Tenant UI:
+1) Route: /dashboard/marketplace
+2) Tabs:
+   - Browse Add-ons
+   - Installed
+3) Browse cards show:
+   - Name, description, category tag, trial badge, price format, compatibility badge
+   - CTA:
+     - Start trial / Pay & enable / Manage (if installed)
+4) Checkout modal:
+   - Shows plan bundle discount (if any)
+   - Shows total today
+   - Confirm + calls checkout endpoint
+5) Use addon access map from /api/context to hide/show/lock features in sidebar and pages.
+
+Super Admin UI:
+1) Route: /super-admin/marketplace/addons
+2) Table view + create/edit modal:
+   - code, name, status, billingModel, requiredPlanTier, trialDays
+   - allowedCountries, allowedBusinessTypes
+3) Pricing editor per country:
+   - currencyCode, unitPrice/basePrice, isActive toggle
+4) Rollout toggles:
+   - Enable payroll for MY, disable for UK etc.
+5) Audit log entry on any change.
+
+Deliverables:
+- tenant page + components
+- super admin manager page
+- i18n strings integrated for EN/HI/MS/TA
+
+Prompt 4 — Razorpay mapping + webhook spec + stubs
+
+Paste into Replit:
+
+Prepare Razorpay subscription mapping for add-ons with per-employee quantity.
+
+Requirements:
+1) Data mapping:
+   - Each tenant add-on install maps to a Razorpay subscription (separate from base plan subscription)
+   - For PER_EMPLOYEE add-ons:
+     - Razorpay Plan amount = unitPrice
+     - Subscription quantity = employeeCount
+   - Trial:
+     - Use trialDays from addon, store trialEndsAt
+2) Implement stubs:
+   - server/payments/razorpay/addon-subscriptions.ts with methods:
+     - createAddonSubscription({ tenantId, addonCode, quantity, countryCode })
+     - cancelAddonSubscription({ subscriptionId, atCycleEnd:true })
+     - updateAddonQuantity({ subscriptionId, quantity, scheduleChangeAt: "now"|"cycle_end" })
+3) Webhooks (spec + handler skeleton):
+   - payment.captured / subscription.activated -> mark install ACTIVE
+   - subscription.charged -> keep ACTIVE, write invoice record
+   - subscription.cancelled -> mark CANCELLED
+   - payment.failed -> mark PAYMENT_PENDING or SUSPENDED
+4) Ensure webhook verifies signature and is idempotent.
+
+Deliverables:
+- Razorpay mapping doc in docs/RAZORPAY_ADDONS.md
+- Webhook route /api/webhooks/razorpay with signature verification
+- Unit tests for webhook idempotency behavior
+
+2) Add-on Permission Engine — exact schema fields + API contracts
+Addon table fields you must have
+
+code (unique): "hrms", "payroll"
+
+status: ACTIVE|ARCHIVED
+
+billingModel: MONTHLY_FLAT|PER_EMPLOYEE|PER_UNIT|ONE_TIME
+
+trialDays
+
+requiredPlanTier: FREE|BASIC|PRO (use enum/string)
+
+allowedCountries: ["IN","MY","GB","SG"]
+
+allowedBusinessTypes: ["pg_hostel","consulting","software_services"] or empty = all
+
+Core endpoints (minimal but complete)
+Tenant-facing
+
+GET /api/marketplace/addons
+
+returns eligible add-ons only (permission engine filters)
+
+GET /api/marketplace/addons/installed
+
+POST /api/marketplace/addons/:code/checkout
+
+POST /api/marketplace/addons/:code/cancel
+
+Optional: POST /api/marketplace/addons/:code/update-quantity
+
+Super Admin
+
+GET /api/super-admin/marketplace/addons
+
+POST /api/super-admin/marketplace/addons
+
+PATCH /api/super-admin/marketplace/addons/:id
+
+PATCH /api/super-admin/marketplace/addons/:id/prices
+
+PATCH /api/super-admin/marketplace/addons/:id/availability
+
+Standard “blocked” response format
+
+Return 403 with:
+
+{ "message": "Payroll is not enabled", "code": "ADDON_NOT_ENABLED", "reason": "COUNTRY_BLOCKED" }
+
+
+Reasons:
+
+COUNTRY_BLOCKED
+
+PLAN_TOO_LOW
+
+NOT_INSTALLED
+
+PAYMENT_PENDING
+
+BUSINESS_BLOCKED
+
+ROLE_BLOCKED
+
+3) Marketplace UI wireframes (Tenant + Super Admin)
+Tenant: /dashboard/marketplace
+Top
+[ Add-on Marketplace ]
+Install extra features anytime. Pay only for what you use.
+
+[ Browse Add-ons ] [ Installed ]
+
+Browse grid
+| HRMS                          | Payroll                         |
+| Tag: People                   | Tag: People                      |
+| 7-day free trial              | 7-day free trial                 |
+| RM10 / employee / month       | RM20 / employee / month          |
+| [ Start Trial ] [ Learn More] | [ Start Trial ] [ Learn More ]   |
+
+Installed tab
+| HRMS  | Status: ACTIVE | Qty: 18 employees | Next bill: 15 Feb |
+| [Manage]  [Cancel at month-end]                               |
+
+Checkout modal (important)
+Confirm add-on: Payroll
+Price: RM20 x 18 employees = RM360 / month
+Trial: 7 days (starts after trial ends)
+
+Bundle discount: -RM36
+Total today: RM0
+Next charge: RM324 on 28 Jan
+
+[ Confirm & Start Trial ]
+
+Super Admin: /super-admin/marketplace/addons
+Table
+Code     Name     Status   Billing     Trial   Req Plan   Countries
+hrms     HRMS     ACTIVE   PER_EMP     7 days  BASIC      IN,MY,GB,SG
+payroll  Payroll  ACTIVE   PER_EMP     7 days  PRO        MY,IN
+
+Edit drawer
+
+Allowed Countries (multi-select)
+
+Allowed Business Types (multi-select)
+
+Required plan tier
+
+Trial days
+
+Pricing grid per country:
+
+currency
+
+unit price
+
+active toggle
+
+minQty/maxQty
+
+4) Sales pitch + upsell scripts (India + Malaysia)
+A) Inside dashboard upsell (short, high conversion)
+Payroll locked (MY)
+
+EN:
+“Run Payroll in minutes — EPF, SOCSO, PCB and payslips included. Start a 7-day free trial.”
+
+MS:
+“Jalankan Payroll dalam beberapa minit — siap EPF, SOCSO, PCB & slip gaji. Cuba percuma 7 hari.”
+
+TA:
+“Payroll-ஐ நிமிடங்களில் இயக்குங்கள் — EPF, SOCSO, PCB & payslip உடன். 7 நாள் இலவச டிரயல்.”
+
+B) WhatsApp upsell (IN)
+
+EN:
+“Automate payment reminders and updates on WhatsApp. Reduce follow-ups. Add WhatsApp Automation.”
+
+HI:
+“WhatsApp पर ऑटो रिमाइंडर भेजें और फॉलो-अप कम करें। WhatsApp Automation जोड़ें।”
+
+C) Sales call script (India — SMB friendly)
+
+Goal: sell Basic ₹99 then upsell HRMS/Payroll later
+
+“You can start Free today — just to try the dashboard.”
+
+“Basic ₹99 is best for real usage: GST + more users + analytics.”
+
+“When your team grows, you can add HRMS/Payroll as add-ons. No need to jump to expensive plans.”
+
+Close:
+“Shall I help you start with Basic ₹99 now?”
+
+D) Sales call script (Malaysia — compliance angle)
+
+“You can run HRMS first — attendance and staff records.”
+
+“Then add Payroll when ready — EPF/SOCSO/PCB + payslips.”
+
+“Trial is 7 days, and cancellation is month-end only, so no risk.”
+
+Close:
+“Want me to activate Payroll trial for your company today?”
