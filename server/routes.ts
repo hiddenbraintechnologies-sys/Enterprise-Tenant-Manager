@@ -351,12 +351,10 @@ export async function registerRoutes(
   };
 
   // Module-protected middleware stack (includes tenant context resolution + subscription gating)
-  // Uses hybrid auth for services routes (software_services, consulting) to support both session and JWT auth
+  // Uses hybrid auth for ALL modules to support both session-based dashboard and JWT API access
   const moduleProtectedMiddleware = (businessType: "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting") => {
-    // Use hybrid auth for services routes that may be accessed via session-based dashboard
-    const authMiddleware = (businessType === "software_services" || businessType === "consulting")
-      ? authenticateHybrid({ required: true })
-      : authenticateJWT({ required: true });
+    // Use hybrid auth for all modules - supports both session-based dashboard access and JWT API access
+    const authMiddleware = authenticateHybrid({ required: true });
       
     return [
       authMiddleware,
