@@ -102,7 +102,7 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "later",
   },
   tourism: {
-    label: "Tourism / Travel Agency",
+    label: "Tours & Travels Business",
     category: "travel",
     modules: ["bookings", "vendors", "billing"],
     phase: "later",
