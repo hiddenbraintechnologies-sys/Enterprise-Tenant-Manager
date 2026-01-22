@@ -4,19 +4,19 @@
 
 export const BUSINESS_TYPE_REGISTRY = {
   pg_hostel: {
-    label: "PG / Hostel",
+    label: "PG / Hostel Business",
     category: "hospitality",
     modules: ["tenants", "rooms", "bookings", "payments", "invoicing"],
     phase: "phase1",
   },
   pg: {
-    label: "PG / Hostel / Co-living",
+    label: "PG / Hostel Business",
     category: "hospitality",
     modules: ["tenants", "rooms", "bookings", "payments", "invoicing"],
     phase: "phase1",
   },
   consulting: {
-    label: "Consulting / Professional Services",
+    label: "Consulting & Professional Services",
     category: "professional",
     modules: ["projects", "timesheets", "invoices", "analytics"],
     phase: "phase1",
@@ -40,14 +40,14 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "later",
   },
   clinic_healthcare: {
-    label: "Clinic / Healthcare",
+    label: "Healthcare / Clinic Business",
     category: "healthcare",
     modules: ["appointments", "patients", "billing"],
     restrictions: { currencyLocked: true, timezoneLocked: true },
     phase: "phase2",
   },
   clinic: {
-    label: "Clinic / Healthcare",
+    label: "Healthcare / Clinic Business",
     category: "healthcare",
     modules: ["appointments", "patients", "billing"],
     restrictions: { currencyLocked: true, timezoneLocked: true },
@@ -60,13 +60,13 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "later",
   },
   salon_spa: {
-    label: "Salon / Spa",
+    label: "Salon & Spa Business",
     category: "services",
     modules: ["appointments", "staff", "billing"],
     phase: "later",
   },
   salon: {
-    label: "Salon / Beauty",
+    label: "Salon & Spa Business",
     category: "services",
     modules: ["appointments", "staff", "billing"],
     phase: "later",
@@ -114,19 +114,19 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "later",
   },
   real_estate: {
-    label: "Real Estate Agency",
+    label: "Real Estate Business",
     category: "property",
     modules: ["properties", "leads", "commissions"],
     phase: "later",
   },
   coworking: {
-    label: "Coworking Space",
+    label: "Coworking Space Business",
     category: "hospitality",
     modules: ["memberships", "bookings", "invoicing"],
     phase: "later",
   },
   service: {
-    label: "General Service Business",
+    label: "Service Business",
     category: "services",
     modules: ["customers", "bookings", "invoicing"],
     phase: "later",
