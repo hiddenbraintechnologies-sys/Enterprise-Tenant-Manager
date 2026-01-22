@@ -1230,13 +1230,19 @@ export async function registerRoutes(
         return res.status(401).json({ message: "User not found" });
       }
 
+      // Resolve tenant information for the user (isAuthenticated doesn't populate req.context)
+      const tenantInfo = await resolveTenantFromUser(dbUser.id);
+      const features = tenantInfo.tenant 
+        ? await featureService.getTenantFeatures(tenantInfo.tenant.id)
+        : [];
+
       const tokens = await jwtAuthService.exchangeSessionForTokens(dbUser, {
         userAgent: req.headers["user-agent"],
         ipAddress: req.ip || undefined,
       });
 
       auditService.logAsync({
-        tenantId: req.context?.tenant?.id,
+        tenantId: tenantInfo.tenant?.id,
         userId: dbUser.id,
         action: "login",
         resource: "auth",
@@ -1256,10 +1262,10 @@ export async function registerRoutes(
           firstName: dbUser.firstName,
           lastName: dbUser.lastName,
         },
-        tenant: req.context?.tenant || null,
-        role: req.context?.role?.name || null,
-        permissions: req.context?.permissions || [],
-        features: req.context?.features || [],
+        tenant: tenantInfo.tenant,
+        role: tenantInfo.role?.name || null,
+        permissions: tenantInfo.permissions,
+        features,
       });
     } catch (error) {
       console.error("Token exchange error:", error);
