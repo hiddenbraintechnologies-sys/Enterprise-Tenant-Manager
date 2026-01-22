@@ -10662,6 +10662,70 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // PLAN CONVERSION ANALYTICS ROUTES
+  // ============================================
+
+  const planConversionEventSchema = z.object({
+    event: z.enum([
+      "plan_upgrade_banner_shown",
+      "locked_feature_clicked",
+      "plan_upgrade_clicked",
+      "plan_upgraded_success",
+      "plan_comparison_viewed",
+      "upgrade_nudge_dismissed"
+    ]),
+    fromPlan: z.string().optional(),
+    toPlan: z.string().optional(),
+    triggerReason: z.string().optional(),
+    featureKey: z.string().optional(),
+    limitKey: z.string().optional(),
+    country: z.string().optional(),
+    metadata: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+    timestamp: z.string().optional(),
+  });
+
+  app.post("/api/analytics/plan-conversion", authenticateHybrid(), async (req, res) => {
+    try {
+      const tenantId = (req as any).context?.tenant?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      
+      const parsed = planConversionEventSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid event data" });
+      }
+
+      const { event, fromPlan, toPlan, triggerReason, featureKey, country, metadata } = parsed.data;
+      
+      console.log(`[Plan Analytics] Event: ${event}, From: ${fromPlan}, To: ${toPlan}, Tenant: ${tenantId}, User: ${userId}, Trigger: ${triggerReason || featureKey || 'N/A'}, Country: ${country}`);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Plan conversion analytics error:", error);
+      res.status(500).json({ message: "Failed to track event" });
+    }
+  });
+
+  app.get("/api/admin/analytics/plan-conversion/overview", 
+    authenticateJWT,
+    requireRole("super_admin", "platform_admin"),
+    async (req: Request, res: Response) => {
+      try {
+        res.json({
+          totalUpgrades: 0,
+          freeToBasic: 0,
+          basicToPro: 0,
+          conversionRate: 0,
+          topTriggers: [],
+          byCountry: {}
+        });
+      } catch (error) {
+        console.error("Plan conversion overview error:", error);
+        res.status(500).json({ message: "Failed to fetch analytics" });
+      }
+    }
+  );
+
+  // ============================================
   // NOTIFICATION PREFERENCES ROUTES
   // ============================================
 

@@ -1,0 +1,201 @@
+PART A — Plan Conversion UX (Design + Copy)
+
+(What users see, feel, and understand)
+
+🎯 Goal
+
+Convert:
+
+Free → Basic
+
+Basic → Pro
+
+without confusion, pressure, or distrust.
+
+1️⃣ Free → Basic (₹99) UX
+Trigger moments
+
+Show upgrade nudges only when:
+
+User hits a limit (users / records / projects)
+
+Clicks a locked feature (GST, Analytics, Software Services)
+
+Has been active for 3–5 days
+
+UX Pattern
+
+Inline banner + modal (not blocking)
+
+Banner Copy (EN)
+
+🔓 You’ve reached the Free plan limit
+Upgrade to Basic (₹99/month) to unlock GST, Analytics, and 3 users.
+
+Banner Copy (HI)
+
+🔓 आपने Free प्लान की सीमा पूरी कर ली है
+Basic (₹99/महीना) पर अपग्रेड करें और GST, Analytics, 3 users पाएं।
+
+CTA
+
+Upgrade to Basic
+
+Secondary: “Compare plans”
+
+2️⃣ Basic → Pro (₹199) UX
+Trigger moments
+
+User opens WhatsApp automation
+
+Tries unlimited records
+
+Has >5 active users / heavy usage
+
+Payroll / HRMS intent appears
+
+UX Pattern
+
+Feature-context modal (value-first)
+
+Modal Title
+
+Ready to scale your business?
+
+Body (EN)
+
+Pro plan gives you:
+
+Unlimited records & users
+
+WhatsApp automation
+
+Priority support
+
+Advanced reports
+
+All for ₹199/month
+
+Body (HI)
+
+Pro प्लान के साथ पाएं:
+
+Unlimited records और users
+
+WhatsApp automation
+
+Priority support
+
+Advanced reports
+
+सिर्फ ₹199/महीना
+
+CTA
+
+Upgrade to Pro
+
+Secondary: “See full comparison”
+
+3️⃣ Feature Comparison (Critical)
+
+Use plain language, not tech terms.
+
+Feature	Free	Basic ₹99	Pro ₹199
+Users	1	3	Unlimited
+Records	50	500	Unlimited
+GST	❌	✅	✅
+Software Services	❌	❌	✅
+WhatsApp	❌	❌	✅
+Payroll / HRMS	❌	Add-on	Add-on
+PART B — Exact Replit Implementation Prompts
+
+(Copy–paste, step by step)
+
+🔹 PROMPT 1 — Plan Conversion Banner (Global)
+Implement a reusable PlanUpgradeBanner component.
+
+Requirements:
+- Show only when tenant is on Free or Basic plan
+- Trigger when:
+  - API returns LIMIT_EXCEEDED
+  - User clicks locked feature
+- Accept props:
+  - currentPlan
+  - requiredPlan
+  - reason (string)
+- Show EN + HI copy
+- CTA navigates to /packages
+- Dismissible per tenant (localStorage + backend flag)
+
+Add unit tests for:
+- Free → Basic
+- Basic → Pro
+
+🔹 PROMPT 2 — Locked Feature Modal (1-Click Action)
+Implement LockedFeatureModal.
+
+Behavior:
+- Appears when user clicks a feature not allowed by plan
+- Explains:
+  - Why feature is locked
+  - Which plan unlocks it
+- Actions:
+  - Upgrade Plan
+  - Start Trial (if add-on)
+  - Cancel
+
+Rules:
+- Free users → push Basic
+- Basic users → push Pro
+- Do NOT show pricing clutter
+
+Support EN + HI translations.
+
+🔹 PROMPT 3 — Contextual Upgrade Hooks
+Add contextual upgrade triggers:
+
+Examples:
+- When employeeCount >= planLimit.users → suggest Pro
+- When invoiceCount >= planLimit.records → suggest upgrade
+- When user opens WhatsApp / Payroll → show Pro modal
+
+Implementation:
+- Hook: useUpgradeIntent()
+- Inputs: tenantUsage, planLimits
+- Output: upgradeReason or null
+
+🔹 PROMPT 4 — Plan Comparison Page Enhancement
+Enhance /packages page:
+
+- Highlight recommended plan (Basic for India)
+- Add "Why upgrade?" sections per plan
+- Add EN + HI copy
+- Show monthly price clearly (₹99 / ₹199)
+- No add-ons shown here (keep simple)
+
+Ensure Free users see clear upgrade path.
+
+🔹 PROMPT 5 — Analytics (So you KNOW it works)
+Track plan conversion events:
+
+Events:
+- plan_upgrade_banner_shown
+- locked_feature_clicked
+- plan_upgrade_clicked
+- plan_upgraded_success
+
+Dimensions:
+- from_plan
+- to_plan
+- trigger_reason
+- country
+
+Expose metrics in Super Admin dashboard.
+
+What This Gives You
+
+✅ Higher Free → Paid conversion
+✅ No aggressive upselling
+✅ Clear value communication (India-friendly)
+✅ Foundation for add-ons & bundles later
+✅ Clean UX that builds trust

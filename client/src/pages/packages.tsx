@@ -33,6 +33,7 @@ import {
 } from "@shared/billing/feature-catalog";
 import { DowngradeConfirmModal } from "@/components/downgrade-confirm-modal";
 import { UpgradeConfirmModal } from "@/components/upgrade-confirm-modal";
+import { PlanComparisonTable, WhyUpgradeSection } from "@/components/plan-comparison-table";
 import { LanguageSelector } from "@/components/language-selector";
 import { useTranslation } from "react-i18next";
 import { getGainedFeatures, getIncreasedLimits, getLostFeatures, getReducedLimits } from "@shared/billing/language-helpers";
@@ -983,6 +984,21 @@ export default function PackagesPage() {
         <div className="mt-12 text-center text-sm text-muted-foreground">
           <p>{t(`allPrices_${plansData?.currencyCode || (countryCode === "MY" ? "MYR" : countryCode === "UK" || countryCode === "GB" ? "GBP" : "INR")}`)}</p>
           <p className="mt-1">{t("upgradeDowngradeAnytime")}</p>
+        </div>
+
+        {/* Why Upgrade Sections */}
+        <div className="mt-16 grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <WhyUpgradeSection tier="basic" lang={lang as Lang} />
+          <WhyUpgradeSection tier="pro" lang={lang as Lang} />
+        </div>
+
+        {/* Feature Comparison Table */}
+        <div className="mt-16 max-w-5xl mx-auto">
+          <PlanComparisonTable 
+            lang={lang as Lang} 
+            currentTier={subscriptionData?.plan?.tier}
+            highlightTier="basic"
+          />
         </div>
       </main>
 
