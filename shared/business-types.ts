@@ -28,7 +28,7 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "phase1",
   },
   legal: {
-    label: "Legal & Compliance",
+    label: "Legal Business Services",
     category: "professional",
     modules: ["cases", "clients", "documents", "billing"],
     phase: "later",
