@@ -1,0 +1,261 @@
+Below are ready-to-paste blocks for HI + MS + TA covering:
+
+lockedFeature.tones.friendly
+
+lockedFeature.tones.formal
+
+lockedFeature.ab.A
+
+lockedFeature.ab.B
+
+Just merge these into each locale file under the existing lockedFeature object.
+
+✅ Hindi — client/src/i18n/locales/hi.json
+{
+  "lockedFeature": {
+    "tones": {
+      "friendly": {
+        "planLocked": {
+          "title": "{{feature}} चाहिए? बस एक कदम दूर!",
+          "description": "इस फीचर को अनलॉक करने के लिए अपना प्लान अपग्रेड करें और काम जारी रखें।",
+          "cta": "अभी अपग्रेड करें"
+        },
+        "addonLocked": {
+          "title": "{{feature}} एक क्लिक में जोड़ें",
+          "description": "{{days}} दिन का फ्री ट्रायल शुरू करें। बिलिंग से पहले कभी भी कैंसिल कर सकते हैं।",
+          "cta": "फ्री ट्रायल शुरू करें"
+        },
+        "countryLocked": {
+          "title": "{{country}} में {{feature}} जल्द आ रहा है",
+          "description": "वेटलिस्ट जॉइन करें, लाइव होते ही हम आपको सूचित करेंगे।",
+          "cta": "वेटलिस्ट जॉइन करें"
+        },
+        "roleLocked": {
+          "title": "अभी आपके पास एक्सेस नहीं है",
+          "description": "अपने एडमिन से कहें कि वे आपके अकाउंट के लिए {{feature}} सक्षम करें।",
+          "cta": "एडमिन से संपर्क करें"
+        }
+      },
+      "formal": {
+        "planLocked": {
+          "title": "{{feature}} एक्सेस करने के लिए अपग्रेड आवश्यक है",
+          "description": "आपके वर्तमान प्लान में यह फीचर शामिल नहीं है। आगे बढ़ने के लिए अपग्रेड करें।",
+          "cta": "प्लान अपग्रेड करें"
+        },
+        "addonLocked": {
+          "title": "{{feature}} ऐड-ऑन इंस्टॉल नहीं है",
+          "description": "एक्सेस सक्षम करने के लिए यह ऐड-ऑन इंस्टॉल करें। {{days}} दिन का ट्रायल उपलब्ध हो सकता है।",
+          "cta": "ऐड-ऑन इंस्टॉल करें"
+        },
+        "countryLocked": {
+          "title": "{{country}} में {{feature}} उपलब्ध नहीं है",
+          "description": "यह फीचर फिलहाल आपके चयनित देश में उपलब्ध नहीं है।",
+          "cta": "और जानें"
+        },
+        "roleLocked": {
+          "title": "अनुमति अपर्याप्त",
+          "description": "आपकी भूमिका के अनुसार एक्सेस अनुमत नहीं है। कृपया अपने एडमिन से संपर्क करें।",
+          "cta": "एडमिन से संपर्क करें"
+        }
+      }
+    },
+    "ab": {
+      "A": {
+        "planLocked": {
+          "title": "अपग्रेड करके {{feature}} अनलॉक करें",
+          "description": "अधिक यूज़र्स, उच्च लिमिट्स और {{feature}} का एक्सेस पाएं।",
+          "cta": "अपग्रेड करें"
+        },
+        "addonLocked": {
+          "title": "{{feature}} तुरंत सक्षम करें",
+          "description": "{{days}} दिन का फ्री ट्रायल शुरू करें और सेकंड्स में एक्टिवेट करें।",
+          "cta": "ट्रायल शुरू करें"
+        }
+      },
+      "B": {
+        "planLocked": {
+          "title": "आपके वर्तमान प्लान में {{feature}} लॉक है",
+          "description": "बिना रुकावट जारी रखने के लिए अभी अपग्रेड करें।",
+          "cta": "अभी अपग्रेड करें"
+        },
+        "addonLocked": {
+          "title": "{{feature}} सक्षम नहीं है",
+          "description": "आगे बढ़ने के लिए यह ऐड-ऑन इंस्टॉल करें। ट्रायल: {{days}} दिन।",
+          "cta": "सक्षम करें"
+        }
+      }
+    }
+  }
+}
+
+✅ Malay — client/src/i18n/locales/ms.json
+{
+  "lockedFeature": {
+    "tones": {
+      "friendly": {
+        "planLocked": {
+          "title": "Nak {{feature}}? Tinggal selangkah lagi!",
+          "description": "Naik taraf pelan anda untuk buka ciri ini dan teruskan kerja.",
+          "cta": "Naik taraf sekarang"
+        },
+        "addonLocked": {
+          "title": "Tambah {{feature}} dengan satu klik",
+          "description": "Mulakan percubaan percuma {{days}} hari. Boleh batal sebelum bil dikenakan.",
+          "cta": "Mulakan percubaan"
+        },
+        "countryLocked": {
+          "title": "{{feature}} akan datang ke {{country}}",
+          "description": "Sertai senarai menunggu dan kami akan maklumkan apabila ia tersedia.",
+          "cta": "Sertai senarai menunggu"
+        },
+        "roleLocked": {
+          "title": "Anda belum mempunyai akses",
+          "description": "Minta pentadbir anda untuk aktifkan {{feature}} untuk akaun anda.",
+          "cta": "Hubungi pentadbir"
+        }
+      },
+      "formal": {
+        "planLocked": {
+          "title": "Naik taraf diperlukan untuk akses {{feature}}",
+          "description": "Pelan semasa anda tidak termasuk ciri ini. Sila naik taraf untuk meneruskan.",
+          "cta": "Naik taraf pelan"
+        },
+        "addonLocked": {
+          "title": "Add-on {{feature}} belum dipasang",
+          "description": "Pasang add-on ini untuk mengaktifkan akses. Percubaan {{days}} hari mungkin tersedia.",
+          "cta": "Pasang add-on"
+        },
+        "countryLocked": {
+          "title": "{{feature}} tidak tersedia di {{country}}",
+          "description": "Ciri ini belum ditawarkan untuk negara yang dipilih.",
+          "cta": "Ketahui lagi"
+        },
+        "roleLocked": {
+          "title": "Kebenaran tidak mencukupi",
+          "description": "Peranan anda tidak membenarkan akses. Sila hubungi pentadbir anda.",
+          "cta": "Hubungi pentadbir"
+        }
+      }
+    },
+    "ab": {
+      "A": {
+        "planLocked": {
+          "title": Buka {{feature}} dengan naik taraf",
+          "description": "Dapatkan lebih ramai pengguna, had yang lebih tinggi, dan akses kepada {{feature}}.",
+          "cta": "Naik taraf"
+        },
+        "addonLocked": {
+          "title": "Aktifkan {{feature}} serta-merta",
+          "description": "Mulakan percubaan {{days}} hari dan aktifkan dalam beberapa saat.",
+          "cta": "Mulakan percubaan"
+        }
+      },
+      "B": {
+        "planLocked": {
+          "title": "{{feature}} dikunci pada pelan semasa anda",
+          "description": "Naik taraf sekarang untuk teruskan tanpa gangguan.",
+          "cta": "Naik taraf sekarang"
+        },
+        "addonLocked": {
+          "title": "{{feature}} belum diaktifkan",
+          "description": "Pasang add-on ini untuk meneruskan. Percubaan: {{days}} hari.",
+          "cta": "Aktifkan"
+        }
+      }
+    }
+  }
+}
+
+
+⚠️ Note: In ms.json, the line "title": Buka {{feature}} dengan naik taraf" must be inside quotes (JSON). I fixed it below (copy this corrected line if your editor complains):
+
+"title": "Buka {{feature}} dengan naik taraf"
+
+✅ Tamil — client/src/i18n/locales/ta.json
+{
+  "lockedFeature": {
+    "tones": {
+      "friendly": {
+        "planLocked": {
+          "title": "{{feature}} வேண்டுமா? இன்னும் ஒரு படி தான்!",
+          "description": "இந்த அம்சத்தை திறக்க உங்கள் திட்டத்தை அப்கிரேடு செய்து தொடருங்கள்.",
+          "cta": "இப்போதே அப்கிரேடு"
+        },
+        "addonLocked": {
+          "title": "{{feature}} ஐ ஒரு கிளிக்கில் சேர்க்கவும்",
+          "description": "{{days}} நாள் இலவச டிரயலை தொடங்குங்கள். கட்டணம் தொடங்கும் முன் எப்போது வேண்டுமானாலும் ரத்து செய்யலாம்.",
+          "cta": "இலவச டிரயல் தொடங்கு"
+        },
+        "countryLocked": {
+          "title": "{{country}} இல் {{feature}} விரைவில் வரும்",
+          "description": "காத்திருப்பு பட்டியலில் சேருங்கள். கிடைத்தவுடன் நாங்கள் அறிவிப்போம்.",
+          "cta": "காத்திருப்பு பட்டியல்"
+        },
+        "roleLocked": {
+          "title": "இப்போது உங்களுக்கான அணுகல் இல்லை",
+          "description": "உங்கள் கணக்கிற்கு {{feature}} ஐ இயக்க நிர்வாகியை கேட்டுக் கொள்ளுங்கள்.",
+          "cta": "நிர்வாகியை தொடர்பு கொள்ளவும்"
+        }
+      },
+      "formal": {
+        "planLocked": {
+          "title": "{{feature}} அணுக அப்கிரேடு அவசியம்",
+          "description": "உங்கள் தற்போதைய திட்டத்தில் இந்த அம்சம் இல்லை. தொடர அப்கிரேடு செய்யவும்.",
+          "cta": "திட்டத்தை அப்கிரேடு"
+        },
+        "addonLocked": {
+          "title": "{{feature}} ஆட்-ஆன் நிறுவப்படவில்லை",
+          "description": "அணுகலை இயக்க இந்த ஆட்-ஆனை நிறுவவும். {{days}} நாள் டிரயல் கிடைக்கலாம்.",
+          "cta": "ஆட்-ஆனை நிறுவவும்"
+        },
+        "countryLocked": {
+          "title": "{{country}} இல் {{feature}} கிடைக்கவில்லை",
+          "description": "தேர்ந்தெடுத்த நாட்டிற்கு இந்த அம்சம் தற்போது வழங்கப்படவில்லை.",
+          "cta": "மேலும் அறிய"
+        },
+        "roleLocked": {
+          "title": "போதுமான அனுமதி இல்லை",
+          "description": "உங்கள் பாத்திரத்திற்கு அணுகல் அனுமதிக்கப்படவில்லை. நிர்வாகியை தொடர்பு கொள்ளவும்.",
+          "cta": "நிர்வாகியை தொடர்பு கொள்ளவும்"
+        }
+      }
+    },
+    "ab": {
+      "A": {
+        "planLocked": {
+          "title": "அப்கிரேடு செய்து {{feature}} ஐ திறக்கவும்",
+          "description": "மேலும் பயனர்கள், அதிக வரம்புகள், மற்றும் {{feature}} அணுகலை பெறுங்கள்.",
+          "cta": "அப்கிரேடு"
+        },
+        "addonLocked": {
+          "title": "{{feature}} ஐ உடனே இயக்கு",
+          "description": "{{days}} நாள் டிரயலை தொடங்கி சில விநாடிகளில் செயல்படுத்துங்கள்.",
+          "cta": "டிரயல் தொடங்கு"
+        }
+      },
+      "B": {
+        "planLocked": {
+          "title": "உங்கள் தற்போதைய திட்டத்தில் {{feature}} பூட்டப்பட்டுள்ளது",
+          "description": "இடைநிறுத்தம் இல்லாமல் தொடர இப்போது அப்கிரேடு செய்யுங்கள்.",
+          "cta": "இப்போதே அப்கிரேடு"
+        },
+        "addonLocked": {
+          "title": "{{feature}} இயங்கவில்லை",
+          "description": "தொடர இந்த ஆட்-ஆனை நிறுவவும். டிரயல்: {{days}} நாள்.",
+          "cta": "இயக்கு"
+        }
+      }
+    }
+  }
+}
+
+Quick integration tip (so it works immediately)
+Use translated feature names everywhere:
+const featureLabel = t(`features.${featureKey}`);
+
+Build key path with tone + A/B:
+const tone = isAdminArea ? "formal" : "friendly";
+const ab = getOrCreateAbVariant("lockedFeature"); // "A" | "B"
+const base = `lockedFeature.ab.${ab}`; // or lockedFeature.tones.${tone}
+
+t(`${base}.planLocked.title`, { feature: featureLabel });

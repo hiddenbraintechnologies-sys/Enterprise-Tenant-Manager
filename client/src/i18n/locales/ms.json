@@ -580,45 +580,45 @@
     "tones": {
       "friendly": {
         "planLocked": {
-          "title": "Mahukan {{feature}}? Anda hampir sampai!",
-          "description": "Naik taraf pelan anda untuk membuka kunci ciri ini.",
+          "title": "Nak {{feature}}? Tinggal selangkah lagi!",
+          "description": "Naik taraf pelan anda untuk buka ciri ini dan teruskan kerja.",
           "cta": "Naik taraf sekarang"
         },
         "addonLocked": {
-          "title": "Tambah {{feature}} dalam satu klik",
-          "description": "Mulakan percubaan percuma {{days}} hari. Batal bila-bila masa.",
-          "cta": "Mulakan percubaan percuma"
+          "title": "Tambah {{feature}} dengan satu klik",
+          "description": "Mulakan percubaan percuma {{days}} hari. Boleh batal sebelum bil dikenakan.",
+          "cta": "Mulakan percubaan"
         },
         "countryLocked": {
           "title": "{{feature}} akan datang ke {{country}}",
-          "description": "Sertai senarai menunggu dan kami akan memberitahu anda.",
+          "description": "Sertai senarai menunggu dan kami akan maklumkan apabila ia tersedia.",
           "cta": "Sertai senarai menunggu"
         },
         "roleLocked": {
           "title": "Anda belum mempunyai akses",
-          "description": "Minta admin anda untuk membolehkan {{feature}} untuk akaun anda.",
-          "cta": "Hubungi admin"
+          "description": "Minta pentadbir anda untuk aktifkan {{feature}} untuk akaun anda.",
+          "cta": "Hubungi pentadbir"
         }
       },
       "formal": {
         "planLocked": {
-          "title": "Naik taraf diperlukan untuk mengakses {{feature}}",
-          "description": "Pelan semasa anda tidak termasuk ciri ini. Sila naik taraf.",
+          "title": "Naik taraf diperlukan untuk akses {{feature}}",
+          "description": "Pelan semasa anda tidak termasuk ciri ini. Sila naik taraf untuk meneruskan.",
           "cta": "Naik taraf pelan"
         },
         "addonLocked": {
-          "title": "{{feature}} add-on tidak dipasang",
-          "description": "Pasang add-on ini untuk membolehkan akses. Percubaan {{days}} hari tersedia.",
+          "title": "Add-on {{feature}} belum dipasang",
+          "description": "Pasang add-on ini untuk mengaktifkan akses. Percubaan {{days}} hari mungkin tersedia.",
           "cta": "Pasang add-on"
         },
         "countryLocked": {
           "title": "{{feature}} tidak tersedia di {{country}}",
-          "description": "Ciri ini tidak ditawarkan di negara anda pada masa ini.",
-          "cta": "Ketahui lebih lanjut"
+          "description": "Ciri ini belum ditawarkan untuk negara yang dipilih.",
+          "cta": "Ketahui lagi"
         },
         "roleLocked": {
           "title": "Kebenaran tidak mencukupi",
-          "description": "Peranan anda tidak membenarkan akses. Sila hubungi pentadbir.",
+          "description": "Peranan anda tidak membenarkan akses. Sila hubungi pentadbir anda.",
           "cta": "Hubungi pentadbir"
         }
       }
@@ -626,13 +626,13 @@
     "ab": {
       "A": {
         "planLocked": {
-          "title": "Buka kunci {{feature}} dengan naik taraf",
-          "description": "Dapatkan lebih ramai pengguna, had lebih tinggi, dan akses ke {{feature}}.",
+          "title": "Buka {{feature}} dengan naik taraf",
+          "description": "Dapatkan lebih ramai pengguna, had yang lebih tinggi, dan akses kepada {{feature}}.",
           "cta": "Naik taraf"
         },
         "addonLocked": {
-          "title": "Dayakan {{feature}} dengan segera",
-          "description": "Mulakan percubaan percuma {{days}} hari anda.",
+          "title": "Aktifkan {{feature}} serta-merta",
+          "description": "Mulakan percubaan {{days}} hari dan aktifkan dalam beberapa saat.",
           "cta": "Mulakan percubaan"
         }
       },
@@ -643,9 +643,9 @@
           "cta": "Naik taraf sekarang"
         },
         "addonLocked": {
-          "title": "{{feature}} tidak didayakan",
-          "description": "Pasang add-on ini untuk teruskan. Percubaan: {{days}} hari.",
-          "cta": "Dayakan"
+          "title": "{{feature}} belum diaktifkan",
+          "description": "Pasang add-on ini untuk meneruskan. Percubaan: {{days}} hari.",
+          "cta": "Aktifkan"
         }
       }
     }
