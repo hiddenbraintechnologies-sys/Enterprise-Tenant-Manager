@@ -1,0 +1,97 @@
+Yes — do it like this: Country selection drives the allowed language list, and the header shows a Language dropdown that changes based on the selected country.
+
+What the UX should be
+Global landing /
+
+Header shows:
+
+Country selector (IN / MY / UK / AE / SG…)
+
+Language selector (options depend on country)
+
+On first visit:
+
+Ask for Country
+
+Then auto-pick default language for that country (but user can change)
+
+Country pages like /in, /my
+
+Keep the same header selectors.
+
+If someone opens /my, set country = MY automatically, then show MY languages.
+
+Country → Language mapping (recommended)
+
+Use a single mapping object:
+
+India (IN): en-IN, hi-IN (later add ta-IN, te-IN, etc.)
+
+Malaysia (MY): en-MY, ms-MY, zh-Hans-MY, ta-MY
+
+UK (UK): en-GB (optional: cy-GB later)
+
+UAE (AE): en-AE, ar-AE
+
+Singapore (SG): en-SG, zh-Hans-SG, ms-SG, ta-SG (optional based on your target)
+
+Also define defaults:
+
+IN → en-IN (or hi-IN if India-first Hindi)
+
+MY → en-MY
+
+AE → en-AE
+
+UK → en-GB
+
+SG → en-SG
+
+Logic rules (important)
+
+When country changes
+
+If current language is not allowed in that country → automatically switch to that country’s default language.
+
+Persist selection
+
+localStorage: selectedCountry, selectedLanguage
+
+Cookie too (if you already use it), so backend can read later.
+
+Routing
+
+Country routes (/in, /my) should set the country but not force language (unless language becomes invalid).
+
+Replit prompt (paste this)
+Implement country-specific language selection in the landing pages.
+
+Requirements:
+1) Add a Language selector in the landing header (next to Country selector).
+2) Language options must depend on selected country using a single source of truth mapping object.
+   Example mapping:
+   IN: [en-IN, hi-IN]
+   MY: [en-MY, ms-MY, zh-Hans-MY, ta-MY]
+   UK: [en-GB]
+   AE: [en-AE, ar-AE]
+   SG: [en-SG] (optionally add zh-Hans-SG/ms-SG/ta-SG)
+3) Add default language per country:
+   IN->en-IN, MY->en-MY, UK->en-GB, AE->en-AE, SG->en-SG
+4) Behavior:
+   - When country changes: if current language is not allowed, auto-switch to default language for that country.
+   - Persist both selections in localStorage and cookie (same approach as existing country persistence).
+   - On first visit to global landing (/), open Country selector modal; after choosing country, auto-set default language.
+5) Country routes (/in, /my, /uk, /uae, /sg) must set the country automatically on load while keeping the language if valid.
+6) Ensure i18n resolver uses selectedLanguage.
+7) Add tests:
+   - Switching country updates available languages.
+   - Invalid language auto-falls back to country default.
+   - Selections persist across reload.
+
+Deliver:
+- Updated landing layout header with Country + Language selectors
+- Mapping + persistence + tests
+- No changes to auth flows or dashboard routes
+
+
+If you want, I can also give you the exact label strings for the selector UI (English + local language labels), e.g. Bahasa Melayu, 中文(简体), தமிழ், etc.

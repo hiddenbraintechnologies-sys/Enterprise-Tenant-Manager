@@ -3,11 +3,21 @@ import { Building2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import {
   CountrySelectorModal,
   CountrySwitch,
   getStoredCountry,
+  setStoredCountry,
+  getCountryFromPath,
+  type CountryCode,
 } from "./country-selector";
+import { LandingLanguageSelector } from "./language-selector";
+import {
+  getDefaultLanguageForCountry,
+  isLanguageValidForCountry,
+  setStoredLanguage,
+} from "@/lib/country-language-config";
 
 interface LandingLayoutProps {
   children: React.ReactNode;
@@ -17,6 +27,24 @@ interface LandingLayoutProps {
 export function LandingLayout({ children, showCountryPrompt = false }: LandingLayoutProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [location] = useLocation();
+  const { i18n } = useTranslation();
+  
+  const pathCountry = getCountryFromPath(location);
+  const storedCountry = getStoredCountry();
+  const currentCountry: CountryCode | null = pathCountry !== "GLOBAL" ? pathCountry : storedCountry;
+
+  useEffect(() => {
+    if (pathCountry !== "GLOBAL" && pathCountry !== storedCountry) {
+      setStoredCountry(pathCountry);
+      
+      const currentLang = i18n.language;
+      if (!isLanguageValidForCountry(currentLang, pathCountry)) {
+        const defaultLang = getDefaultLanguageForCountry(pathCountry);
+        i18n.changeLanguage(defaultLang);
+        setStoredLanguage(defaultLang);
+      }
+    }
+  }, [pathCountry, storedCountry, i18n]);
 
   useEffect(() => {
     if (showCountryPrompt && !getStoredCountry()) {
@@ -26,6 +54,15 @@ export function LandingLayout({ children, showCountryPrompt = false }: LandingLa
       return () => clearTimeout(timer);
     }
   }, [showCountryPrompt]);
+
+  const handleCountrySelect = (newCountry: CountryCode) => {
+    const currentLang = i18n.language;
+    if (!isLanguageValidForCountry(currentLang, newCountry)) {
+      const defaultLang = getDefaultLanguageForCountry(newCountry);
+      i18n.changeLanguage(defaultLang);
+      setStoredLanguage(defaultLang);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,6 +81,7 @@ export function LandingLayout({ children, showCountryPrompt = false }: LandingLa
               pathname={location}
               onOpenSelector={() => setSelectorOpen(true)}
             />
+            <LandingLanguageSelector countryCode={currentCountry} />
             <ThemeToggle />
             <Button variant="ghost" asChild className="hidden sm:inline-flex" data-testid="button-signin">
               <a href="/login">Sign In</a>
@@ -79,6 +117,7 @@ export function LandingLayout({ children, showCountryPrompt = false }: LandingLa
       <CountrySelectorModal
         open={selectorOpen}
         onOpenChange={setSelectorOpen}
+        onSelect={handleCountrySelect}
       />
     </div>
   );
