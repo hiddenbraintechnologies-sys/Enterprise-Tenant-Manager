@@ -24,6 +24,9 @@ import CoworkingDashboard from "@/pages/coworking-dashboard";
 import CoworkingSpaces from "@/pages/coworking/spaces";
 import ServiceDashboard from "@/pages/service-dashboard";
 import RealEstateDashboard from "@/pages/real-estate-dashboard";
+import RealEstateProperties from "@/pages/real-estate/properties";
+import RealEstateListings from "@/pages/real-estate/listings";
+import RealEstateLeads from "@/pages/real-estate/leads";
 import TourismDashboard from "@/pages/tourism-dashboard";
 import EducationDashboard from "@/pages/education-dashboard";
 import LogisticsDashboard from "@/pages/logistics-dashboard";
@@ -155,6 +158,21 @@ function AuthenticatedRoutes() {
       <Route path="/dashboard/real-estate">
         <DashboardGuard allowedBusinessType="real_estate">
           <RealEstateDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/properties">
+        <DashboardGuard allowedBusinessType="real_estate">
+          <RealEstateProperties />
+        </DashboardGuard>
+      </Route>
+      <Route path="/listings">
+        <DashboardGuard allowedBusinessType="real_estate">
+          <RealEstateListings />
+        </DashboardGuard>
+      </Route>
+      <Route path="/leads">
+        <DashboardGuard allowedBusinessType="real_estate">
+          <RealEstateLeads />
         </DashboardGuard>
       </Route>
       <Route path="/dashboard/tourism">

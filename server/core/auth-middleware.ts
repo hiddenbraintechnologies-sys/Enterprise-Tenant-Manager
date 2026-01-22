@@ -505,6 +505,13 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
       return next();
     }
 
+    // Check if context is already populated (by tenant context middleware in index.ts)
+    // This handles session-based auth where the earlier middleware already resolved the user/tenant
+    if (req.context?.user && req.context?.tenant) {
+      console.log(`[auth-hybrid] Context already populated for userId=${req.context.user.id}, tenantId=${req.context.tenant.id}`);
+      return next();
+    }
+    
     // No Authorization header - check for session-based authentication
     if (req.isAuthenticated && req.isAuthenticated() && req.user) {
       console.log(`[auth-hybrid] Session auth detected for ${req.method} ${req.path}`);
@@ -512,9 +519,9 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
       // Session user data from Replit Auth
       const sessionUser = req.user as any;
       
-      // If context is already populated (by other middleware), proceed
+      // If context user is already populated (by other middleware), proceed
       if (req.context?.user) {
-        console.log(`[auth-hybrid] Context already populated for userId=${req.context.user.id}`);
+        console.log(`[auth-hybrid] Context user already populated for userId=${req.context.user.id}`);
         return next();
       }
       
@@ -575,7 +582,10 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
 
     // No authentication found
     if (options.required) {
-      console.log(`[auth-hybrid] No auth found for ${req.method} ${req.path}`);
+      const hasSession = !!(req.isAuthenticated && req.isAuthenticated());
+      const hasUser = !!req.user;
+      const hasContext = !!req.context?.user;
+      console.log(`[auth-hybrid] No auth found for ${req.method} ${req.path} - hasSession=${hasSession}, hasUser=${hasUser}, hasContext=${hasContext}`);
       return res.status(401).json({ 
         message: "Authentication required",
         code: "UNAUTHORIZED"
