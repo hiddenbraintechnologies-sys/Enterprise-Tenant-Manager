@@ -84,7 +84,7 @@ export const BUSINESS_TYPE_REGISTRY = {
     phase: "later",
   },
   logistics: {
-    label: "Logistics & Fleet",
+    label: "Logistics Business Services",
     category: "logistics",
     modules: ["vehicles", "trips", "expenses"],
     phase: "later",
