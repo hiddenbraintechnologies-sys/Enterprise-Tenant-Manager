@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import {
@@ -40,7 +41,10 @@ import { usePayrollAddon } from "@/hooks/use-payroll-addon";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { LockedFeatureModal } from "@/components/gating/locked-feature";
+import { useFeatureGate, isDismissed, setDismissed } from "@/hooks/use-feature-gate";
 import type { BusinessType } from "@/contexts/tenant-context";
+import type { GateReason } from "@/hooks/use-feature-gate";
 
 interface NavItem {
   title: string;
@@ -188,14 +192,33 @@ const hrmsItems: NavItem[] = [
 
 const MODULE_GATED_BUSINESS_TYPES: BusinessType[] = ["software_services", "consulting", "furniture_manufacturing"];
 
+interface LockedModalState {
+  open: boolean;
+  featureKey: string;
+  featureDisplayName: string;
+  reason: GateReason;
+  requiredPlanTier?: "basic" | "pro" | "enterprise";
+  addonCode?: string;
+  trialDays?: number;
+  countryCode?: string;
+}
+
 export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
   const { t } = useTranslation();
-  const { user, logout, isLoggingOut, businessType: authBusinessType } = useAuth();
+  const { user, logout, isLoggingOut, businessType: authBusinessType, tenant } = useAuth();
   const { canAccessModule, getModuleAccessInfo, isFreePlan } = useModuleAccess();
   const { hasPayrollAccess, isPayrollTrialing, countryCode, isLoading: isPayrollLoading } = usePayrollAddon();
 
+  const [lockedModal, setLockedModal] = useState<LockedModalState>({
+    open: false,
+    featureKey: "",
+    featureDisplayName: "",
+    reason: "PLAN_TOO_LOW",
+  });
+
   const effectiveBusinessType = (businessType || authBusinessType || "service") as BusinessType;
+  const tenantId = tenant?.id || "";
   
   const payrollEnabled = hasPayrollAccess();
   const hrmsModuleEnabled = canAccessModule("hrms") || canAccessModule("payroll");
@@ -209,6 +232,56 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const hasModuleAccess = !isModuleGated || canAccessModule(effectiveBusinessType);
   const moduleAccessInfo = getModuleAccessInfo(effectiveBusinessType);
   const shouldHideModules = isModuleGated && isFreePlan() && !hasModuleAccess;
+
+  const payrollGate = useFeatureGate("payroll", "payroll");
+  const moduleGate = useFeatureGate(effectiveBusinessType);
+
+  const openLockedModal = (featureKey: string, featureDisplayName: string, reason: GateReason, opts?: { addonCode?: string; trialDays?: number; requiredPlanTier?: "basic" | "pro" | "enterprise"; countryCode?: string }) => {
+    if (tenantId && isDismissed(tenantId, featureKey)) {
+      return;
+    }
+    setLockedModal({
+      open: true,
+      featureKey,
+      featureDisplayName,
+      reason,
+      ...opts,
+    });
+  };
+
+  const handlePayrollLockedClick = () => {
+    if (payrollGate.allowed) return;
+    openLockedModal(
+      "payroll",
+      payrollGate.featureDisplayName || "Payroll",
+      payrollGate.reason || "NOT_INSTALLED",
+      {
+        addonCode: payrollGate.addonCode,
+        trialDays: payrollGate.trialDays,
+        requiredPlanTier: payrollGate.requiredPlanTier,
+        countryCode: payrollGate.countryCode,
+      }
+    );
+  };
+
+  const handleModuleLockedClick = () => {
+    if (moduleGate.allowed) return;
+    openLockedModal(
+      effectiveBusinessType,
+      moduleGate.featureDisplayName || effectiveBusinessType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      moduleGate.reason || "PLAN_TOO_LOW",
+      {
+        requiredPlanTier: moduleGate.requiredPlanTier || "basic",
+        countryCode: moduleGate.countryCode,
+      }
+    );
+  };
+
+  const handleDismiss = () => {
+    if (tenantId) {
+      setDismissed(tenantId, lockedModal.featureKey);
+    }
+  };
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -272,13 +345,17 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                   <SidebarMenuItem>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-not-allowed">
+                        <div 
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-pointer hover-elevate"
+                          onClick={handleModuleLockedClick}
+                          data-testid="div-module-locked"
+                        >
                           <Lock className="h-4 w-4" />
-                          <span>{t("lockedFeature.title")}</span>
+                          <span>{t("lockedFeature.plan.title", { feature: effectiveBusinessType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) })}</span>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>{t("lockedFeature.sidebarTooltip")}</p>
+                        <p>{t("lockedFeature.plan.body")}</p>
                       </TooltipContent>
                     </Tooltip>
                   </SidebarMenuItem>
@@ -337,7 +414,8 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div 
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-not-allowed"
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-pointer hover-elevate"
+                            onClick={handlePayrollLockedClick}
                             data-testid="div-payroll-locked"
                           >
                             <Lock className="h-4 w-4" />
@@ -422,6 +500,19 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           </Button>
         </div>
       </SidebarFooter>
+
+      <LockedFeatureModal
+        open={lockedModal.open}
+        onOpenChange={(open) => setLockedModal(prev => ({ ...prev, open }))}
+        featureKey={lockedModal.featureKey}
+        featureDisplayName={lockedModal.featureDisplayName}
+        reason={lockedModal.reason}
+        requiredPlanTier={lockedModal.requiredPlanTier}
+        addonCode={lockedModal.addonCode}
+        trialDays={lockedModal.trialDays}
+        countryCode={lockedModal.countryCode}
+        onDismiss={handleDismiss}
+      />
     </Sidebar>
   );
 }

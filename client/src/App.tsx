@@ -117,6 +117,7 @@ import Pricing from "@/pages/pricing";
 import Packages from "@/pages/packages";
 import Checkout from "@/pages/checkout";
 import BillingAddons from "@/pages/billing-addons";
+import { GatedPage } from "@/components/gating/gated-page";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -336,7 +337,11 @@ function AuthenticatedRoutes() {
         </ModuleGuard>
       </Route>
       <Route path="/invoices" component={Invoices} />
-      <Route path="/analytics" component={Analytics} />
+      <Route path="/analytics">
+        <GatedPage featureKey="analytics" addonCode="advanced_analytics" mode="modal">
+          <Analytics />
+        </GatedPage>
+      </Route>
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/ai-permissions" component={AiPermissions} />
       <Route path="/settings" component={Settings} />
@@ -369,35 +374,37 @@ function AuthenticatedRoutes() {
       </Route>
       <Route path="/hr/payroll">
         <ModuleGuard moduleId="hrms">
-          <HrPayroll />
+          <GatedPage featureKey="payroll" addonCode="payroll">
+            <HrPayroll />
+          </GatedPage>
         </ModuleGuard>
       </Route>
       <Route path="/hr/pay-runs">
         <ModuleGuard moduleId="hrms">
-          <FeatureGuard featureId="payroll">
+          <GatedPage featureKey="payroll" addonCode="payroll">
             <HrPayRuns />
-          </FeatureGuard>
+          </GatedPage>
         </ModuleGuard>
       </Route>
       <Route path="/hr/projects">
         <ModuleGuard moduleId="hrms">
-          <FeatureGuard featureId="hrms_it_extensions">
+          <GatedPage featureKey="hrms_it_extensions">
             <HrProjects />
-          </FeatureGuard>
+          </GatedPage>
         </ModuleGuard>
       </Route>
       <Route path="/hr/timesheets">
         <ModuleGuard moduleId="hrms">
-          <FeatureGuard featureId="hrms_it_extensions">
+          <GatedPage featureKey="hrms_it_extensions">
             <HrTimesheets />
-          </FeatureGuard>
+          </GatedPage>
         </ModuleGuard>
       </Route>
       <Route path="/hr/allocations">
         <ModuleGuard moduleId="hrms">
-          <FeatureGuard featureId="hrms_it_extensions">
+          <GatedPage featureKey="hrms_it_extensions">
             <HrAllocations />
-          </FeatureGuard>
+          </GatedPage>
         </ModuleGuard>
       </Route>
       <Route path="/hr/billing">
@@ -430,7 +437,11 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/invoice-templates" component={InvoiceTemplates} />
         <Route path="/super-admin/tax" component={TaxManagement} />
         <Route path="/super-admin/exchange-rates" component={AdminExchangeRates} />
-        <Route path="/super-admin/whatsapp" component={AdminWhatsApp} />
+        <Route path="/super-admin/whatsapp">
+          <GatedPage featureKey="whatsapp_automation" addonCode="whatsapp_automation" mode="modal">
+            <AdminWhatsApp />
+          </GatedPage>
+        </Route>
         <Route path="/super-admin/audit-logs" component={AdminAuditLogs} />
         <Route path="/super-admin/compliance" component={AdminCompliance} />
         <Route path="/super-admin/sso" component={AdminSso} />
@@ -469,7 +480,11 @@ function PlatformAdminRoutes() {
       <Route path="/admin/addons" component={AdminAddons} />
       <Route path="/admin/invoice-templates" component={InvoiceTemplates} />
       <Route path="/admin/tax" component={TaxManagement} />
-      <Route path="/admin/whatsapp" component={AdminWhatsApp} />
+      <Route path="/admin/whatsapp">
+        <GatedPage featureKey="whatsapp_automation" addonCode="whatsapp_automation" mode="modal">
+          <AdminWhatsApp />
+        </GatedPage>
+      </Route>
       <Route path="/admin/audit-logs" component={AdminAuditLogs} />
       <Route path="/admin/compliance" component={AdminCompliance} />
       <Route path="/admin/sso" component={AdminSso} />

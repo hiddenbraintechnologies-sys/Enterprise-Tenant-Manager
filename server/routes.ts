@@ -10733,6 +10733,36 @@ export async function registerRoutes(
     }
   );
 
+  // Feature Discovery Event Tracking
+  const featureEventSchema = z.object({
+    featureKey: z.string(),
+    eventType: z.enum(["gate_shown", "gate_dismissed", "cta_clicked", "trial_started", "upgrade_completed"]),
+    reason: z.string().optional(),
+    metadata: z.record(z.unknown()).optional(),
+    timestamp: z.string().optional(),
+  });
+
+  app.post("/api/analytics/feature-event", authenticateHybrid(), async (req, res) => {
+    try {
+      const tenantId = (req as any).context?.tenant?.id;
+      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      
+      const parsed = featureEventSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid event data" });
+      }
+
+      const { featureKey, eventType, reason, metadata } = parsed.data;
+      
+      console.log(`[Feature Discovery] Event: ${eventType}, Feature: ${featureKey}, Reason: ${reason || 'N/A'}, Tenant: ${tenantId}, User: ${userId}`);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Feature event analytics error:", error);
+      res.status(500).json({ message: "Failed to track event" });
+    }
+  });
+
   // ============================================
   // NOTIFICATION PREFERENCES ROUTES
   // ============================================

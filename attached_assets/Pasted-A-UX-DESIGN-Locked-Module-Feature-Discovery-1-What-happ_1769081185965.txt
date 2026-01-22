@@ -1,0 +1,277 @@
+A) UX DESIGN — Locked Module Feature Discovery
+1) What happens when user clicks a locked menu item?
+✅ Instead of:
+
+403 error
+
+blank page
+
+toast “Not allowed”
+
+You show:
+
+A Locked Feature Page (or modal) with:
+
+What they clicked
+
+Why it’s locked (plan vs add-on vs country)
+
+One-click action:
+
+Upgrade plan
+
+Start add-on trial
+
+Contact admin (if not tenant admin)
+
+2) Three lock reasons (must be clearly explained)
+Lock Type 1 — Plan too low
+
+Example: Free user clicks “Software Services”
+
+Show:
+
+“Upgrade to Basic/Pro”
+
+Lock Type 2 — Add-on not installed
+
+Example: Pro user clicks “Payroll” but hasn’t installed payroll add-on
+
+Show:
+
+“Start 7-day trial”
+
+“Install add-on”
+
+Lock Type 3 — Country not available
+
+Example: UK user clicks payroll which is MY-only
+
+Show:
+
+“Coming soon in your country”
+
+Optional waitlist
+
+B) COPY (EN + HI + MS + TA)
+1) Locked (Plan)
+
+EN
+
+Title: Upgrade to unlock {{feature}}
+
+Body: Your current plan doesn’t include this feature. Upgrade now to continue.
+
+CTA: Upgrade plan
+
+HI
+
+Title: {{feature}} अनलॉक करने के लिए अपग्रेड करें
+
+Body: आपके वर्तमान प्लान में यह फीचर शामिल नहीं है। जारी रखने के लिए अपग्रेड करें।
+
+CTA: अपग्रेड करें
+
+MS
+
+Title: Naik taraf untuk buka {{feature}}
+
+Body: Pelan semasa anda tidak termasuk ciri ini. Naik taraf untuk teruskan.
+
+CTA: Naik taraf
+
+TA
+
+Title: {{feature}} பயன்படுத்த அப்கிரேடு செய்யுங்கள்
+
+Body: உங்கள் தற்போதைய திட்டத்தில் இந்த அம்சம் இல்லை. தொடர அப்கிரேடு செய்யுங்கள்.
+
+CTA: அப்கிரேடு
+
+2) Locked (Add-on)
+
+EN
+
+Title: Add {{feature}} to your account
+
+Body: Install this add-on anytime. Start a {{days}}-day free trial.
+
+CTA: Start trial
+
+HI
+
+Title: अपने अकाउंट में {{feature}} जोड़ें
+
+Body: यह ऐड-ऑन कभी भी जोड़ सकते हैं। {{days}} दिन का फ्री ट्रायल शुरू करें।
+
+CTA: ट्रायल शुरू करें
+
+MS
+
+Title: Tambah {{feature}} ke akaun anda
+
+Body: Pasang add-on bila-bila masa. Mulakan percubaan percuma {{days}} hari.
+
+CTA: Mula percubaan
+
+TA
+
+Title: {{feature}} ஐ உங்கள் கணக்கில் சேர்க்கவும்
+
+Body: இந்த ஆட்-ஆனைக் காலம் எதிலும் நிறுவலாம். {{days}} நாள் இலவச டிரயலை தொடங்குங்கள்.
+
+CTA: டிரயல் தொடங்கு
+
+3) Locked (Country)
+
+EN
+
+Title: Not available in {{country}} yet
+
+Body: We’re launching this soon. Join the waitlist to get early access.
+
+CTA: Join waitlist
+
+(Translate similarly if you want — optional for now.)
+
+C) REPLIT PROMPTS (exact implementation steps)
+✅ PROMPT 1 — Create LockedFeaturePage + LockedFeatureModal
+Create a reusable LockedFeature UX for gated modules.
+
+Requirements:
+1) Create component:
+   - client/src/components/gating/locked-feature.tsx
+   Exports:
+   - LockedFeaturePage
+   - LockedFeatureModal (optional)
+
+2) Props:
+   - featureKey (string)
+   - reason: "PLAN_TOO_LOW" | "NOT_INSTALLED" | "COUNTRY_BLOCKED" | "ROLE_BLOCKED"
+   - requiredPlanTier?: "BASIC" | "PRO"
+   - addonCode?: string
+   - trialDays?: number
+   - countryCode?: string
+
+3) UI:
+   - Title + subtitle based on reason
+   - Primary CTA:
+     - PLAN_TOO_LOW -> "Upgrade plan" navigates /packages
+     - NOT_INSTALLED -> "Start trial" calls POST /api/marketplace/addons/:code/checkout with trial=true
+     - COUNTRY_BLOCKED -> "Join waitlist" opens ComingSoon modal or /<country>/coming-soon
+     - ROLE_BLOCKED -> "Contact admin" opens mailto or internal request
+
+4) i18n:
+   Add keys for EN/HI/MS/TA in marketplace/locked section.
+
+5) Add unit tests for rendering by reason.
+
+✅ PROMPT 2 — Hook: useFeatureGate() (single source of truth)
+Implement a gating hook that centralizes access checks and returns UX metadata.
+
+1) Create:
+   client/src/hooks/useFeatureGate.ts
+
+2) Input:
+   - featureKey (e.g. "payroll", "hrms", "software_services")
+   - addonCode optional (for marketplace add-ons)
+
+3) It should read /api/context addonAccessMap + planTier + countryCode and return:
+   {
+     allowed: boolean,
+     reason?: ...,
+     requiredPlanTier?: ...,
+     addonCode?: ...,
+     trialDays?: number
+   }
+
+4) Use this hook in:
+   - Sidebar navigation click handlers
+   - Gated pages (Payroll, HRMS Advanced, WhatsApp Automation, etc.)
+
+5) Add tests:
+   - Free -> blocked with PLAN_TOO_LOW for software_services
+   - Pro -> payroll blocked with NOT_INSTALLED if not installed
+   - UK -> payroll blocked with COUNTRY_BLOCKED
+
+✅ PROMPT 3 — Intercept Sidebar clicks (no more dead links)
+Update sidebar navigation so clicking locked items never routes to 404 or blank pages.
+
+Behavior:
+- If feature allowed -> navigate normally
+- If blocked -> open LockedFeatureModal with context
+
+Files:
+- client/src/components/app-sidebar.tsx (or where sidebar menu is generated)
+
+Add:
+- onClick wrapper for menu items that calls useFeatureGate(featureKey)
+- if blocked -> open modal
+- ensure keyboard accessibility
+
+Also keep current "hide vs lock" logic:
+- Free tier can hide some modules
+- But for important upsell modules (Payroll/WhatsApp), show locked state instead of hiding.
+
+✅ PROMPT 4 — Gated pages fallback (direct URL access)
+Ensure direct URL access to a gated page shows LockedFeaturePage instead of 403/404.
+
+Example:
+- /dashboard/payroll when not allowed:
+  show LockedFeaturePage with correct reason and CTA.
+
+Implement in each gated page:
+- call useFeatureGate("payroll")
+- if !allowed -> return <LockedFeaturePage .../>
+
+Do for:
+- payroll
+- whatsapp automation
+- advanced analytics
+- software services invoices/projects (if gated)
+
+✅ PROMPT 5 — Track conversion events (feature discovery funnel)
+Track feature discovery events for optimization.
+
+Events:
+- locked_feature_viewed
+- locked_feature_cta_clicked
+- addon_trial_started
+- plan_upgrade_clicked
+
+Include:
+- featureKey
+- reason
+- planTier
+- countryCode
+- businessType
+
+Expose a simple funnel chart in Super Admin revenue dashboard.
+
+D) Anti-spam Rules (so users don’t get annoyed)
+
+Implement these rules:
+
+✅ Show locked modal max 1 time per feature per day (per tenant)
+✅ If user dismisses, don’t show again for 24 hours
+✅ Never show upsell while:
+
+payment flows
+
+onboarding steps
+
+signout
+
+Store in:
+
+localStorage: gate:dismissed:${tenantId}:${featureKey} with timestamp
+
+E) Where this integrates in your current project
+
+Most likely files:
+
+client/src/components/app-sidebar.tsx (menu click interception)
+
+client/src/pages/* for gated routes
+
+client/src/hooks/useModuleAccess.ts (already exists) → keep it, but route gating through useFeatureGate for consistency

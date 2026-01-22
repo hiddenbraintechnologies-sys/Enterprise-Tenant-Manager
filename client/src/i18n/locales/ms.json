@@ -475,5 +475,48 @@
       "taxNote": "Cukai mungkin dikenakan mengikut tetapan negara anda.",
       "consent": "Dengan meneruskan, anda bersetuju untuk dicaj mengikut add-on yang dipilih."
     }
+  },
+  "lockedFeature": {
+    "plan": {
+      "title": "Naik taraf untuk buka {{feature}}",
+      "body": "Pelan semasa anda tidak termasuk ciri ini. Naik taraf untuk teruskan.",
+      "cta": "Naik taraf"
+    },
+    "addon": {
+      "title": "Tambah {{feature}} ke akaun anda",
+      "body": "Pasang add-on bila-bila masa. Mulakan percubaan percuma {{days}} hari.",
+      "cta": "Mula percubaan"
+    },
+    "country": {
+      "title": "Belum tersedia di {{country}}",
+      "body": "Akan dilancarkan tidak lama lagi. Sertai senarai menunggu untuk akses awal.",
+      "cta": "Sertai senarai menunggu"
+    },
+    "role": {
+      "title": "Kebenaran diperlukan",
+      "body": "Anda tidak mempunyai kebenaran untuk mengakses ciri ini. Hubungi pentadbir anda untuk akses.",
+      "cta": "Hubungi pentadbir"
+    },
+    "cancelAnytime": "Batal bila-bila masa. Jaminan wang dikembalikan 14 hari.",
+    "upgradeButton": "Naik taraf",
+    "trialIncluded": "Percubaan percuma {{days}} hari termasuk",
+    "noCreditCard": "Tiada kad kredit diperlukan. Batal bila-bila masa.",
+    "whatYouGet": "Apa yang anda dapat dengan naik taraf:",
+    "whatYouGetShort": "Apa yang anda dapat:",
+    "startingTrial": "Memulakan percubaan...",
+    "trialStarted": "Percubaan dimulakan",
+    "trialStartedDesc": "Percubaan {{days}} hari untuk {{feature}} dimulakan",
+    "maybeLater": "Mungkin nanti",
+    "cancel": "Batal",
+    "benefits": {
+      "unlimitedCustomers": "Pelanggan tanpa had",
+      "invoicingGst": "Invois & GST",
+      "smsNotifications": "Notifikasi SMS",
+      "basicAnalytics": "Analitik asas",
+      "whatsappAutomation": "Automasi WhatsApp",
+      "advancedAnalytics": "Analitik lanjutan",
+      "customRoles": "Peranan tersuai",
+      "prioritySupport": "Sokongan keutamaan"
+    }
   }
 }

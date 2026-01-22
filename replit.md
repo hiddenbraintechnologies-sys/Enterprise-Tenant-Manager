@@ -102,7 +102,36 @@ The platform includes a comprehensive revenue analytics dashboard for Super Admi
   - `GET /api/admin/analytics/marketplace/by-country` - Revenue breakdown by country
   - `GET /api/admin/analytics/marketplace/funnel` - Conversion funnel data
 
+### Locked Module Feature Discovery System
+The platform implements a comprehensive feature gating system for soft-upsell strategy:
+- **useFeatureGate hook** (`client/src/hooks/use-feature-gate.ts`): Centralized access checks for features based on plan tier, addon status, country restrictions, and roles
+- **Gate Reasons**: PLAN_TOO_LOW, NOT_INSTALLED, COUNTRY_BLOCKED, ROLE_BLOCKED with localized UI for each
+- **LockedFeaturePage/Modal** (`client/src/components/gating/locked-feature.tsx`): Beautiful locked feature pages and modals with trial CTAs
+- **GatedPage wrapper** (`client/src/components/gating/gated-page.tsx`): Wrapper component for protecting routes with automatic gating
+- **Anti-spam rules**: 24-hour dismissal persistence per tenant/feature in localStorage
+- **Conversion tracking**: `POST /api/analytics/feature-event` (authenticateHybrid) tracks gate_shown, cta_clicked, trial_started, upgrade_completed events
+- **Multi-language support**: Full i18n for EN, HI, MS, TA in `lockedFeature` namespace
+- **Sidebar interception**: Uses centralized useFeatureGate hook for payroll/module items; clicking locked items shows modal
+
+**Gated Routes (App.tsx):**
+- `/hr/payroll` - payroll addon (page mode)
+- `/hr/pay-runs` - payroll addon (page mode)
+- `/hr/projects` - hrms_it_extensions feature (page mode)
+- `/hr/timesheets` - hrms_it_extensions feature (page mode)
+- `/hr/allocations` - hrms_it_extensions feature (page mode)
+- `/analytics` - advanced_analytics addon (modal mode)
+- `/admin/whatsapp` - whatsapp_automation addon (modal mode)
+- `/super-admin/whatsapp` - whatsapp_automation addon (modal mode)
+
+**Note:** Other add-ons (Document Management, Multi-Branch, API Access, GST Filing) are capability add-ons that enhance existing features rather than providing dedicated pages; they don't require route-level gating.
+
 ### Recent Changes (January 2026)
+- Implemented Locked Module Feature Discovery system with i18n support (EN/HI/MS/TA)
+- Added feature event tracking API endpoint for conversion funnel analytics
+- Created useFeatureGate hook for centralized access checks
+- Built LockedFeaturePage and LockedFeatureModal components with localized content
+- Updated sidebar to intercept clicks on locked items and show modal
+- Added anti-spam rules with 24-hour dismissal persistence
 - Built Super Admin Marketplace Revenue Dashboard UI with metrics, tables, and funnel visualization
 - Created marketplace revenue analytics API endpoints with RBAC protection
 - Extended Razorpay service with full subscription management capabilities

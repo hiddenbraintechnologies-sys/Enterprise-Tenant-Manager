@@ -444,5 +444,48 @@
       "taxNote": "Taxes may apply based on your country settings.",
       "consent": "By continuing, you agree to be billed according to the selected add-on."
     }
+  },
+  "lockedFeature": {
+    "plan": {
+      "title": "Upgrade to unlock {{feature}}",
+      "body": "Your current plan doesn't include this feature. Upgrade now to continue.",
+      "cta": "Upgrade plan"
+    },
+    "addon": {
+      "title": "Add {{feature}} to your account",
+      "body": "Install this add-on anytime. Start a {{days}}-day free trial.",
+      "cta": "Start trial"
+    },
+    "country": {
+      "title": "Not available in {{country}} yet",
+      "body": "We're launching this soon. Join the waitlist to get early access.",
+      "cta": "Join waitlist"
+    },
+    "role": {
+      "title": "Permission required",
+      "body": "You don't have permission to access this feature. Contact your administrator for access.",
+      "cta": "Contact admin"
+    },
+    "cancelAnytime": "Cancel anytime. 14-day money-back guarantee.",
+    "upgradeButton": "Upgrade",
+    "trialIncluded": "{{days}}-day free trial included",
+    "noCreditCard": "No credit card required. Cancel anytime.",
+    "whatYouGet": "What you'll get with upgrade:",
+    "whatYouGetShort": "What you'll get:",
+    "startingTrial": "Starting trial...",
+    "trialStarted": "Trial started",
+    "trialStartedDesc": "{{days}}-day trial started for {{feature}}",
+    "maybeLater": "Maybe later",
+    "cancel": "Cancel",
+    "benefits": {
+      "unlimitedCustomers": "Unlimited customers",
+      "invoicingGst": "Invoicing & GST",
+      "smsNotifications": "SMS notifications",
+      "basicAnalytics": "Basic analytics",
+      "whatsappAutomation": "WhatsApp automation",
+      "advancedAnalytics": "Advanced analytics",
+      "customRoles": "Custom roles",
+      "prioritySupport": "Priority support"
+    }
   }
 }
