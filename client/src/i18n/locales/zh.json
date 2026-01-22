@@ -703,6 +703,10 @@
     "customerPortal": "客户门户"
   },
   "lockedFeature": {
+    "title": "此功能不在您当前的计划中",
+    "body": "升级到Basic或Pro以使用软件服务。",
+    "upgradeButton": "升级计划",
+    "sidebarTooltip": "升级以访问软件服务",
     "tones": {
       "friendly": {
         "planLocked": {

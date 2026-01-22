@@ -600,6 +600,10 @@
     "customerPortal": "Customer Portal"
   },
   "lockedFeature": {
+    "title": "This feature is not on your current plan",
+    "body": "Upgrade to Basic or Pro to use Software Services.",
+    "upgradeButton": "Upgrade plan",
+    "sidebarTooltip": "Upgrade for Software Services access",
     "tones": {
       "friendly": {
         "planLocked": {

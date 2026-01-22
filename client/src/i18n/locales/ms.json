@@ -573,6 +573,10 @@
     "customerPortal": "Portal Pelanggan"
   },
   "lockedFeature": {
+    "title": "Ciri ini tiada dalam pelan semasa anda",
+    "body": "Naik taraf ke Basic atau Pro untuk menggunakan Software Services.",
+    "upgradeButton": "Naik taraf pelan",
+    "sidebarTooltip": "Naik taraf untuk akses Software Services",
     "tones": {
       "friendly": {
         "planLocked": {

@@ -540,6 +540,10 @@
     "customerPortal": "வாடிக்கையாளர் போர்டல்"
   },
   "lockedFeature": {
+    "title": "இந்த அம்சம் உங்கள் தற்போதைய திட்டத்தில் இல்லை",
+    "body": "Software Services பயன்படுத்த Basic அல்லது Pro க்கு மேம்படுத்துங்கள்.",
+    "upgradeButton": "திட்டத்தை மேம்படுத்துங்கள்",
+    "sidebarTooltip": "Software Services அணுகலுக்கு மேம்படுத்துங்கள்",
     "tones": {
       "friendly": {
         "planLocked": {

@@ -345,6 +345,10 @@
     "customerPortal": "कस्टमर पोर्टल"
   },
   "lockedFeature": {
+    "title": "यह फीचर आपके वर्तमान प्लान में नहीं है",
+    "body": "Software Services उपयोग करने के लिए Basic या Pro में अपग्रेड करें।",
+    "upgradeButton": "प्लान अपग्रेड करें",
+    "sidebarTooltip": "Software Services एक्सेस के लिए अपग्रेड करें",
     "tones": {
       "friendly": {
         "planLocked": {
