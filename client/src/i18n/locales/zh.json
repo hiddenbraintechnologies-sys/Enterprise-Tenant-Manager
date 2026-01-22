@@ -640,5 +640,47 @@
     "seeMore": "查看更多",
     "seeLess": "收起",
     "loadMore": "加载更多"
+  },
+  "landing": {
+    "malaysia": {
+      "heroTitle": "企业管理软件",
+      "heroTitleHighlight": "马来西亚企业专用",
+      "heroDescription": "在一个地方管理项目、发票、SST合规和付款。",
+      "heroSubtext": "免费开始，按需升级。",
+      "trustText": "受到马来西亚各地软件公司、顾问和服务企业的信赖。",
+      "getStartedFree": "免费开始",
+      "viewPricing": "查看价格",
+      "builtForTitle": "为马来西亚企业打造",
+      "featuresTitle": "您需要的一切",
+      "securityTitle": "企业级安全",
+      "pricingTitle": "简单透明的定价",
+      "pricingSubtitle": "免费开始，随业务增长升级，无隐藏费用。",
+      "businessTypes": {
+        "software": "软件服务与IT公司",
+        "consulting": "咨询公司",
+        "professional": "专业服务",
+        "healthcare": "医疗保健机构",
+        "coworking": "联合办公空间",
+        "accommodation": "住宿提供商",
+        "general": "综合服务企业"
+      },
+      "features": {
+        "projects": "项目与工时表",
+        "invoices": "发票与付款跟踪",
+        "sst": "SST就绪计费",
+        "whatsapp": "WhatsApp自动化（专业版）",
+        "security": "安全管理控制",
+        "dashboard": "简洁统一仪表板"
+      }
+    },
+    "global": {
+      "heroTitle": "企业管理平台",
+      "heroTitleHighlight": "助力成长团队",
+      "heroDescription": "运营、发票、付款和合规——一个仪表板搞定。",
+      "getStartedFree": "免费开始",
+      "launchingText": "即将推出针对各国的定价和合规方案。",
+      "builtForTitle": "为多元化企业打造",
+      "featuresTitle": "经营企业所需的一切"
+    }
   }
 }

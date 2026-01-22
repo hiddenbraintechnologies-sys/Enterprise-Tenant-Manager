@@ -488,5 +488,96 @@
       "customRoles": "Custom roles",
       "prioritySupport": "Priority support"
     }
+  },
+  "landing": {
+    "india": {
+      "heroTitle": "Simple business software",
+      "heroTitleHighlight": "for Indian SMBs",
+      "heroDescription": "Manage projects, invoices, GST compliance, and payments — all in one place.",
+      "heroSubtext": "Start free. Upgrade only when you grow.",
+      "trustText": "Trusted by software companies, consultants, and service businesses across India.",
+      "getStartedFree": "Get Started Free",
+      "viewPricing": "View Pricing",
+      "builtForTitle": "Built for real Indian businesses",
+      "featuresTitle": "Everything you need",
+      "securityTitle": "Enterprise-grade security",
+      "onboardingTitle": "Get started in minutes",
+      "pricingTitle": "Simple, transparent pricing",
+      "pricingSubtitle": "Start free. Upgrade as you grow. No hidden fees.",
+      "businessTypes": {
+        "software": "Software Services & IT Companies",
+        "consulting": "Consulting Firms",
+        "furniture": "Furniture Manufacturing & Sales",
+        "healthcare": "Clinics & Small Healthcare Practices",
+        "coworking": "Co-working Spaces",
+        "pgs": "PGs & Hostels",
+        "general": "General Service Businesses"
+      },
+      "features": {
+        "projects": "Projects & timesheets",
+        "invoices": "Invoices & payment tracking",
+        "gst": "GST-ready billing",
+        "whatsapp": "WhatsApp automation (Pro)",
+        "security": "Secure admin controls",
+        "dashboard": "One simple dashboard"
+      },
+      "security": {
+        "login": "Secure login",
+        "roles": "Role-based access",
+        "twoFa": "Admin 2FA",
+        "session": "Session control",
+        "audit": "Audit logs"
+      },
+      "onboarding": {
+        "step1Title": "Sign up",
+        "step1Desc": "Create your free account",
+        "step2Title": "Choose your business type",
+        "step2Desc": "Tell us about your business",
+        "step3Title": "Start using the dashboard",
+        "step3Desc": "Get productive immediately",
+        "step4Title": "Upgrade only when needed",
+        "step4Desc": "Grow at your own pace"
+      }
+    },
+    "malaysia": {
+      "heroTitle": "Business management software",
+      "heroTitleHighlight": "for Malaysian businesses",
+      "heroDescription": "Manage projects, invoices, SST compliance, and payments — all in one place.",
+      "heroSubtext": "Start free. Upgrade only when you grow.",
+      "trustText": "Trusted by software companies, consultants, and service businesses across Malaysia.",
+      "getStartedFree": "Get Started Free",
+      "viewPricing": "View Pricing",
+      "builtForTitle": "Built for Malaysian businesses",
+      "featuresTitle": "Everything you need",
+      "securityTitle": "Enterprise-grade security",
+      "pricingTitle": "Simple, transparent pricing",
+      "pricingSubtitle": "Start free. Upgrade as you grow. No hidden fees.",
+      "businessTypes": {
+        "software": "Software Services & IT Companies",
+        "consulting": "Consulting Firms",
+        "professional": "Professional Services",
+        "healthcare": "Healthcare Practices",
+        "coworking": "Co-working Spaces",
+        "accommodation": "Accommodation Providers",
+        "general": "General Service Businesses"
+      },
+      "features": {
+        "projects": "Projects & timesheets",
+        "invoices": "Invoices & payment tracking",
+        "sst": "SST-ready billing",
+        "whatsapp": "WhatsApp automation (Pro)",
+        "security": "Secure admin controls",
+        "dashboard": "One simple dashboard"
+      }
+    },
+    "global": {
+      "heroTitle": "Business management platform",
+      "heroTitleHighlight": "for growing teams",
+      "heroDescription": "One dashboard for operations, invoicing, payments, and compliance.",
+      "getStartedFree": "Start Free",
+      "launchingText": "Launching country-specific pricing & compliance packs.",
+      "builtForTitle": "Built for diverse businesses",
+      "featuresTitle": "Everything you need to run your business"
+    }
   }
 }

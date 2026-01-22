@@ -519,5 +519,38 @@
       "customRoles": "Peranan tersuai",
       "prioritySupport": "Sokongan keutamaan"
     }
+  },
+  "landing": {
+    "malaysia": {
+      "heroTitle": "Perisian pengurusan perniagaan",
+      "heroTitleHighlight": "untuk perniagaan Malaysia",
+      "heroDescription": "Urus projek, invois, pematuhan SST, dan pembayaran — semuanya di satu tempat.",
+      "heroSubtext": "Mulakan secara percuma. Naik taraf apabila perlu.",
+      "trustText": "Dipercayai oleh syarikat perisian, perunding, dan perniagaan perkhidmatan di seluruh Malaysia.",
+      "getStartedFree": "Mulakan Percuma",
+      "viewPricing": "Lihat Harga",
+      "builtForTitle": "Dibina untuk perniagaan Malaysia",
+      "featuresTitle": "Semua yang anda perlukan",
+      "securityTitle": "Keselamatan gred perusahaan",
+      "pricingTitle": "Harga yang mudah dan telus",
+      "pricingSubtitle": "Mulakan percuma. Naik taraf apabila berkembang. Tiada yuran tersembunyi.",
+      "businessTypes": {
+        "software": "Perkhidmatan Perisian & Syarikat IT",
+        "consulting": "Firma Perundingan",
+        "professional": "Perkhidmatan Profesional",
+        "healthcare": "Amalan Penjagaan Kesihatan",
+        "coworking": "Ruang Kerja Bersama",
+        "accommodation": "Penyedia Penginapan",
+        "general": "Perniagaan Perkhidmatan Am"
+      },
+      "features": {
+        "projects": "Projek & jadual masa",
+        "invoices": "Invois & penjejakan pembayaran",
+        "sst": "Bil sedia SST",
+        "whatsapp": "Automasi WhatsApp (Pro)",
+        "security": "Kawalan admin selamat",
+        "dashboard": "Satu papan pemuka ringkas"
+      }
+    }
   }
 }
