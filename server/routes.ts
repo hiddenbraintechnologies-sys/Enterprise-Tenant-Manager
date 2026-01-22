@@ -104,6 +104,7 @@ import adminBillingPromosRoutes from "./routes/admin/promos";
 import adminCountriesRoutes from "./routes/admin/countries";
 import adminPayrollAnalyticsRoutes from "./routes/admin/payroll-analytics";
 import adminAddonsRoutes from "./routes/admin/addons";
+import adminMarketplaceRevenueRoutes from "./routes/admin/marketplace-revenue";
 import publicRoutes from "./routes/public";
 import catalogRoutes from "./routes/catalog";
 import promoRoutes from "./routes/billing/promos";
@@ -2525,6 +2526,9 @@ export async function registerRoutes(
   
   // Admin add-ons management routes (RBAC protected)
   app.use('/api/admin/addons', adminAddonsRoutes);
+  
+  // Marketplace Revenue Analytics (RBAC protected)
+  app.use('/api/admin/analytics/marketplace', adminMarketplaceRevenueRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {

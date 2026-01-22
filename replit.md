@@ -89,13 +89,29 @@ The platform integrates Razorpay for subscription-based billing of marketplace a
 - **Trial Support**: Trials create Razorpay subscriptions with delayed start_at, auto-converting to paid when trial ends
 - **Idempotent Webhooks**: Create missing tenantAddons rows using notes data when subscription events arrive
 
+### Marketplace Revenue Analytics Dashboard
+The platform includes a comprehensive revenue analytics dashboard for Super Admins at `/super-admin/marketplace-analytics`:
+- **Overview Metrics**: Total active subscriptions, MTD/YTD revenue by currency, avg add-ons per tenant, trial conversion rate
+- **Revenue by Add-on**: Table showing active tenant counts per add-on with category badges
+- **Revenue by Country**: Country-level breakdown of tenants and add-on installations
+- **Conversion Funnel**: Visual funnel showing add-on views → trials started → paid active → cancelled
+- **Tenant Drill-down**: API endpoint `/api/admin/analytics/marketplace/tenant/:tenantId` for detailed tenant analysis
+- **API Endpoints** (RBAC protected):
+  - `GET /api/admin/analytics/marketplace/overview` - Top-level metrics
+  - `GET /api/admin/analytics/marketplace/by-addon` - Revenue breakdown by add-on
+  - `GET /api/admin/analytics/marketplace/by-country` - Revenue breakdown by country
+  - `GET /api/admin/analytics/marketplace/funnel` - Conversion funnel data
+
 ### Recent Changes (January 2026)
+- Built Super Admin Marketplace Revenue Dashboard UI with metrics, tables, and funnel visualization
+- Created marketplace revenue analytics API endpoints with RBAC protection
 - Extended Razorpay service with full subscription management capabilities
 - Created marketplace add-on billing routes with free/trial/paid subscription flows
 - Updated webhooks to handle both payroll and marketplace add-on subscription events
 - Implemented idempotent webhook handlers that create missing tenantAddons rows
-- Added Phase 1 Marketplace with 11 add-ons and multi-currency pricing
+- Added Phase 1 Marketplace with 15 add-ons (HRMS, Payroll, WhatsApp, Analytics, etc.) with multi-currency pricing
 - Implemented SQL-level country filtering for add-ons using jsonb operators
+- Added `requiredPlanTier` and `allowedRoles` fields to addons schema for Add-on Permission Engine
 - Enhanced booking dialog with helpful alerts for missing customers/services
 - Fixed session-to-JWT exchange for Replit Auth users
 - Updated Super Admin deletion system with accurate counts across 11 tables

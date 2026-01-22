@@ -6024,6 +6024,12 @@ export const addons = pgTable("addons", {
   averageRating: decimal("average_rating", { precision: 3, scale: 2 }).default("0"),
   reviewCount: integer("review_count").default(0),
   
+  // Plan tier requirement (free, basic, pro) - minimum plan required to purchase
+  requiredPlanTier: varchar("required_plan_tier", { length: 20 }).default("free"),
+  
+  // Allowed user roles for this add-on (empty means all roles)
+  allowedRoles: jsonb("allowed_roles").default([]),
+  
   // Metadata
   metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow(),

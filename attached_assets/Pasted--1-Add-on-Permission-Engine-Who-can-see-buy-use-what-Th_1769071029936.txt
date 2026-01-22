@@ -1,0 +1,273 @@
+🔐 1) Add-on Permission Engine (Who can see / buy / use what)
+
+This is the brain of the Marketplace.
+
+A. Permission Layers (in order)
+1️⃣ Platform (Super Admin)
+
+Controls:
+
+Add-on exists or not
+
+Country availability
+
+Business-type availability
+
+Trial allowed or not
+
+Pricing + billing model
+
+👉 Stored in Addon master table
+
+2️⃣ Country Rollout
+
+Controls:
+
+Is add-on enabled in a country?
+
+Compliance readiness
+
+Example:
+
+Add-on	IN	MY	UK
+HRMS	✅	✅	✅
+Payroll	✅	✅	❌
+
+👉 Stored in AddonPrice.countryCode + isActive
+
+3️⃣ Plan Compatibility
+
+Controls:
+
+Minimum plan required to purchase
+
+Example:
+
+Add-on	Free	Basic	Pro
+HRMS	❌	✅	✅
+Payroll	❌	❌	✅
+
+👉 Derived from requiredPlanTier (store this on Addon)
+
+4️⃣ Tenant Installation State
+
+Controls:
+
+Trial / Active / Cancelled
+
+Feature usable or not
+
+👉 Stored in TenantAddonInstall.status
+
+B. Runtime Permission Resolver (VERY IMPORTANT)
+
+Create a single backend helper:
+
+canUseAddon({
+  tenantId,
+  addonCode,
+  userRole,
+  countryCode,
+  planTier
+})
+
+
+Logic:
+
+Add-on exists AND status = ACTIVE
+
+Country allowed
+
+Business type allowed
+
+Plan tier ≥ required
+
+TenantAddonInstall exists and status = ACTIVE or TRIAL
+
+UserRole allowed (Admin / Staff / etc.)
+
+Return:
+
+{
+  allowed: boolean,
+  reason?: "NOT_INSTALLED" | "PLAN_TOO_LOW" | "COUNTRY_BLOCKED"
+}
+
+
+👉 All feature gates (UI + API) must use this
+This avoids feature leakage.
+
+💰 2) Pricing Strategy – India vs Malaysia (Realistic & Sellable)
+🇮🇳 India (Price-sensitive, volume-driven)
+Add-on	Pricing	Notes
+HRMS	₹49 / employee / month	Sweet spot
+Payroll	₹99 / employee / month	Compliance value
+WhatsApp Automation	₹799 / month	High margin
+Advanced Analytics	₹399 / month	Owner-focused
+Extra Users (5)	₹199 / month	Easy upsell
+
+👉 Goal: Low entry, upsell later
+
+🇲🇾 Malaysia (Higher ARPU, compliance-driven)
+Add-on	Pricing	Notes
+HRMS	RM10 / employee / month	Market standard
+Payroll (EPF/SOCSO/PCB)	RM20 / employee / month	High compliance value
+WhatsApp Automation	RM39 / month	Competitive
+Analytics	RM19 / month	Good adoption
+
+👉 Goal: Compliance + stability
+
+Bundle Discount (Very Important)
+
+Example:
+
+Pro Plan + Payroll
+
+India: 10% off Payroll
+
+Malaysia: RM5/employee off
+
+Store this in BundleDiscountRule.
+
+📊 3) Marketplace Revenue Dashboard (Super Admin)
+
+This is what makes you investor-ready.
+
+A. Dashboard Sections
+1️⃣ Top Metrics (Cards)
+
+Total Add-on Revenue (MTD / YTD)
+
+Active Add-on Subscriptions
+
+Avg Add-on Revenue per Tenant
+
+Trial → Paid Conversion %
+
+2️⃣ Revenue by Add-on (Table / Bar Chart)
+Add-on	Active Tenants	MRR	Country
+Payroll	38	₹1,12,400	IN
+HRMS	71	₹86,200	MY
+3️⃣ Revenue by Country
+
+Stacked bar:
+
+India
+
+Malaysia
+
+UK
+
+Split by:
+
+Plans
+
+Add-ons
+
+4️⃣ Add-on Funnel
+
+Example:
+
+Viewed → Trial Started → Paid → Cancelled
+
+
+Helps you tune UX & pricing.
+
+5️⃣ Tenant Drill-down
+
+Click tenant → see:
+
+Base plan
+
+Installed add-ons
+
+Monthly spend
+
+Lifetime value
+
+🎯 4) Upsell UX Inside Tenant Dashboard (Where Money Is Made)
+
+This is crucial — most SaaS fail here.
+
+A. Contextual Upsells (Best converting)
+1️⃣ Feature-Locked Screen
+
+Example: Payroll menu click (not installed)
+
+Show:
+
+🔒 Payroll is not enabled
+Run salary, EPF, SOCSO & payslips automatically
+Start 7-day free trial
+
+Button:
+
+Start Trial / Add Payroll
+
+2️⃣ Usage-Triggered Nudges
+
+Example:
+
+HRMS employee limit reached
+
+Toast:
+
+You’ve reached 25 employees
+Add HRMS to manage unlimited employees
+Upgrade now
+
+3️⃣ Dashboard Cards
+
+On main dashboard:
+
+“Automate Payroll”
+
+“Send WhatsApp Alerts”
+
+“View Advanced Reports”
+
+Each card:
+
+Shows benefit
+
+Price
+
+CTA
+
+B. Non-Intrusive Rules
+
+Never show upsell more than once per session
+
+Dismissible for 7 days
+
+Don’t upsell during critical actions (billing, logout)
+
+C. Copy Example (EN + quick hint)
+
+EN
+
+Automate Payroll in minutes
+Compliant with EPF, SOCSO & PCB
+Start 7-day free trial
+
+HI
+
+कुछ ही मिनटों में पेरोल ऑटोमेट करें
+EPF और टैक्स नियमों के अनुरूप
+
+MS
+
+Automasi gaji dengan pematuhan EPF & SOCSO
+
+🧩 How This All Fits Together (Big Picture)
+PLAN (Base)
+   ↓
+MARKETPLACE (Add-ons)
+   ↓
+PERMISSION ENGINE
+   ↓
+BILLING (Razorpay)
+   ↓
+REVENUE DASHBOARD
+   ↓
+UPSSELL UX

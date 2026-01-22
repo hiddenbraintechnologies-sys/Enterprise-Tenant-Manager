@@ -74,6 +74,7 @@ import SuperAdminCountries from "@/pages/super-admin/countries";
 import SuperAdminPayrollAnalytics from "@/pages/super-admin/payroll-analytics";
 import SuperAdminCountryRollout from "@/pages/super-admin/country-rollout";
 import AdminAddons from "@/pages/super-admin/admin-addons";
+import MarketplaceAnalytics from "@/pages/super-admin/marketplace-analytics";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import TenantUsers from "@/pages/admin/tenant-users";
@@ -420,6 +421,7 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/countries" component={SuperAdminCountries} />
         <Route path="/super-admin/regions/rollout" component={SuperAdminCountryRollout} />
         <Route path="/super-admin/payroll-analytics" component={SuperAdminPayrollAnalytics} />
+        <Route path="/super-admin/marketplace-analytics" component={MarketplaceAnalytics} />
         <Route path="/super-admin/addons" component={AdminAddons} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
         <Route path="/super-admin/security/sessions" component={AdminSecuritySessions} />

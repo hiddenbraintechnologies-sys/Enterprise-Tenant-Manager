@@ -13,6 +13,8 @@ interface AddonSeedData {
   tags: string[];
   featured: boolean;
   featuredOrder?: number;
+  requiredPlanTier: "free" | "basic" | "pro";
+  allowedRoles?: string[];
   pricing: {
     name: string;
     pricingType: "free" | "one_time" | "monthly" | "yearly" | "usage_based";
@@ -23,7 +25,7 @@ interface AddonSeedData {
 }
 
 const PHASE1_ADDONS: AddonSeedData[] = [
-  // HRMS Add-ons - Per Employee Pricing
+  // HRMS Add-ons - Per Employee Pricing (Basic plan required)
   {
     slug: "hrms-india",
     name: "HRMS (India)",
@@ -44,6 +46,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["hrms", "hr", "employees", "attendance", "leave", "india"],
     featured: true,
     featuredOrder: 0,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Per Employee",
@@ -76,6 +79,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["hrms", "hr", "employees", "attendance", "leave", "malaysia"],
     featured: true,
     featuredOrder: 0,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Per Employee",
@@ -108,6 +112,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["hrms", "hr", "employees", "attendance", "leave", "uk"],
     featured: true,
     featuredOrder: 0,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Per Employee",
@@ -139,6 +144,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     supportedBusinessTypes: [],
     tags: ["hrms", "hr", "employees", "attendance", "leave", "global"],
     featured: false,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Per Employee",
@@ -154,7 +160,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
-  // Payroll Add-ons
+  // Payroll Add-ons (Pro plan required - high compliance value)
   {
     slug: "payroll-india",
     name: "Payroll (India)",
@@ -174,12 +180,13 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["payroll", "compliance", "india", "epf", "esi", "tds"],
     featured: true,
     featuredOrder: 1,
+    requiredPlanTier: "pro",
     pricing: [
       {
         name: "Per Employee",
         pricingType: "monthly",
         prices: [
-          { currency: "INR", price: 49, unit: "per employee" },
+          { currency: "INR", price: 99, unit: "per employee" },
         ],
         trialDays: 14,
         features: ["EPF/ESI calculations", "Salary slips", "Bank files", "TDS reports"],
@@ -205,12 +212,13 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["payroll", "compliance", "malaysia", "epf", "socso", "eis"],
     featured: true,
     featuredOrder: 2,
+    requiredPlanTier: "pro",
     pricing: [
       {
         name: "Per Employee",
         pricingType: "monthly",
         prices: [
-          { currency: "MYR", price: 15, unit: "per employee" },
+          { currency: "MYR", price: 20, unit: "per employee" },
         ],
         trialDays: 14,
         features: ["EPF/SOCSO/EIS", "PCB calculations", "EA Forms", "Bank files"],
@@ -236,6 +244,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["payroll", "compliance", "uk", "paye", "nic", "pension"],
     featured: true,
     featuredOrder: 3,
+    requiredPlanTier: "pro",
     pricing: [
       {
         name: "Per Employee",
@@ -248,6 +257,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
+  // WhatsApp Automation (Basic plan - high margin)
   {
     slug: "whatsapp-automation",
     name: "WhatsApp Automation",
@@ -267,6 +277,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["whatsapp", "automation", "notifications", "messaging"],
     featured: true,
     featuredOrder: 4,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Standard",
@@ -282,6 +293,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
+  // Advanced Analytics (Basic plan - owner focused)
   {
     slug: "advanced-analytics",
     name: "Advanced Analytics",
@@ -302,20 +314,22 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["analytics", "reports", "dashboards", "insights"],
     featured: true,
     featuredOrder: 5,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Standard",
         pricingType: "monthly",
         prices: [
-          { currency: "INR", price: 499 },
-          { currency: "MYR", price: 25 },
-          { currency: "GBP", price: 10 },
-          { currency: "USD", price: 12 },
+          { currency: "INR", price: 399 },
+          { currency: "MYR", price: 19 },
+          { currency: "GBP", price: 8 },
+          { currency: "USD", price: 10 },
         ],
         features: ["Custom dashboards", "Revenue forecasting", "Export reports", "Scheduled delivery"],
       },
     ],
   },
+  // Extra Users (Free plan - easy upsell)
   {
     slug: "extra-users",
     name: "Extra Users",
@@ -332,6 +346,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     supportedBusinessTypes: [],
     tags: ["users", "team", "seats", "expansion"],
     featured: false,
+    requiredPlanTier: "free",
     pricing: [
       {
         name: "5 Users Pack",
@@ -346,6 +361,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
+  // Extra Storage (Free plan)
   {
     slug: "extra-storage",
     name: "Extra Storage",
@@ -362,6 +378,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     supportedBusinessTypes: [],
     tags: ["storage", "files", "documents", "cloud"],
     featured: false,
+    requiredPlanTier: "free",
     pricing: [
       {
         name: "10GB Pack",
@@ -376,6 +393,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
+  // GST Filing (Basic plan - India only)
   {
     slug: "gst-filing-india",
     name: "GST Filing Pack",
@@ -395,6 +413,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     tags: ["gst", "tax", "compliance", "india", "filing"],
     featured: true,
     featuredOrder: 6,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Standard",
@@ -406,6 +425,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
+  // Document Management (Basic plan)
   {
     slug: "document-management",
     name: "Document Management",
@@ -425,6 +445,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     supportedBusinessTypes: ["legal", "healthcare", "service"],
     tags: ["documents", "files", "storage", "organization"],
     featured: false,
+    requiredPlanTier: "basic",
     pricing: [
       {
         name: "Standard",
@@ -439,6 +460,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
+  // Multi-Branch (Pro plan)
   {
     slug: "multi-branch",
     name: "Multi-Branch Support",
@@ -457,6 +479,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     supportedBusinessTypes: [],
     tags: ["branches", "locations", "multi-location", "expansion"],
     featured: false,
+    requiredPlanTier: "pro",
     pricing: [
       {
         name: "Per Branch",
@@ -471,6 +494,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
       },
     ],
   },
+  // API Access (Pro plan)
   {
     slug: "api-access",
     name: "API Access",
@@ -489,6 +513,7 @@ const PHASE1_ADDONS: AddonSeedData[] = [
     supportedBusinessTypes: [],
     tags: ["api", "integration", "developers", "automation"],
     featured: false,
+    requiredPlanTier: "pro",
     pricing: [
       {
         name: "Developer",
@@ -526,6 +551,8 @@ export async function seedMarketplaceAddons(): Promise<void> {
             tags: addonData.tags,
             featured: addonData.featured,
             featuredOrder: addonData.featuredOrder,
+            requiredPlanTier: addonData.requiredPlanTier,
+            allowedRoles: addonData.allowedRoles || [],
             status: "published",
             developerName: "MyBizStream",
             updatedAt: new Date(),
@@ -547,6 +574,8 @@ export async function seedMarketplaceAddons(): Promise<void> {
             tags: addonData.tags,
             featured: addonData.featured,
             featuredOrder: addonData.featuredOrder,
+            requiredPlanTier: addonData.requiredPlanTier,
+            allowedRoles: addonData.allowedRoles || [],
             status: "published",
             developerName: "MyBizStream",
             publishedAt: new Date(),

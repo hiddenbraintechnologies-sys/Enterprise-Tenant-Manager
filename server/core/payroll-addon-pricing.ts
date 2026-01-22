@@ -114,6 +114,33 @@ export const INDIA_BUNDLE_DISCOUNTS = [
   },
 ];
 
+export const MALAYSIA_BUNDLE_DISCOUNTS = [
+  {
+    name: "Pro + Payroll Bundle (Malaysia)",
+    description: "RM5/employee off Payroll with Pro plan",
+    planCode: "malaysia_pro",
+    addonCode: "payroll",
+    tierName: null,
+    discountType: "fixed",
+    discountAmount: "5",
+    currencyCode: "MYR",
+    countryCode: "MY",
+    appliesTo: "addon",
+  },
+  {
+    name: "Basic + HRMS Bundle (Malaysia)",
+    description: "RM2/employee off HRMS with Basic plan",
+    planCode: "malaysia_basic",
+    addonCode: "hrms-malaysia",
+    tierName: null,
+    discountType: "fixed",
+    discountAmount: "2",
+    currencyCode: "MYR",
+    countryCode: "MY",
+    appliesTo: "addon",
+  },
+];
+
 async function seedCountryPayrollTiers(
   tiers: Record<string, { tierName: string; minEmployees: number; maxEmployees: number; monthlyPrice: string; yearlyPrice: string; currencyCode: string; countryCode: string }>,
   countryName: string
@@ -225,6 +252,53 @@ export async function seedBundleDiscounts(): Promise<void> {
           planCode: discountConfig.planCode,
           addonCode: discountConfig.addonCode,
           addonTierId,
+          discountType: discountConfig.discountType,
+          discountAmount: discountConfig.discountAmount,
+          currencyCode: discountConfig.currencyCode,
+          countryCode: discountConfig.countryCode,
+          appliesTo: discountConfig.appliesTo,
+          isActive: true,
+        });
+        console.log(`[payroll-addon] Created discount: ${discountConfig.name}`);
+      }
+    } catch (error) {
+      console.error(`[payroll-addon] Error seeding discount ${discountConfig.name}:`, error);
+    }
+  }
+
+  console.log("[payroll-addon] India bundle discounts seeded successfully");
+
+  console.log("[payroll-addon] Seeding Malaysia bundle discounts...");
+
+  for (const discountConfig of MALAYSIA_BUNDLE_DISCOUNTS) {
+    try {
+      const existing = await db
+        .select()
+        .from(bundleDiscounts)
+        .where(
+          and(
+            eq(bundleDiscounts.name, discountConfig.name),
+            eq(bundleDiscounts.countryCode, discountConfig.countryCode)
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db
+          .update(bundleDiscounts)
+          .set({
+            discountType: discountConfig.discountType,
+            discountAmount: discountConfig.discountAmount,
+            updatedAt: new Date(),
+          })
+          .where(eq(bundleDiscounts.id, existing[0].id));
+        console.log(`[payroll-addon] Updated discount: ${discountConfig.name}`);
+      } else {
+        await db.insert(bundleDiscounts).values({
+          name: discountConfig.name,
+          description: discountConfig.description,
+          planCode: discountConfig.planCode,
+          addonCode: discountConfig.addonCode,
           discountType: discountConfig.discountType,
           discountAmount: discountConfig.discountAmount,
           currencyCode: discountConfig.currencyCode,

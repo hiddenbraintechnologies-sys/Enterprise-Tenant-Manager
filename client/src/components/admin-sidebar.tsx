@@ -104,6 +104,12 @@ const superAdminMenuItems: MenuItem[] = [
     icon: Globe,
     permission: Permissions.MANAGE_COUNTRIES_REGIONS,
   },
+  {
+    title: "Marketplace Analytics",
+    url: "/super-admin/marketplace-analytics",
+    icon: BarChart3,
+    superAdminOnly: true,
+  },
 ];
 
 const platformAdminMenuItems: MenuItem[] = [

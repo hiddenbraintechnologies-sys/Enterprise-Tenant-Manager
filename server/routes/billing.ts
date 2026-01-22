@@ -21,6 +21,7 @@ import { CYCLE_MONTHS, calculateSavings } from "@shared/billing/types";
 import payrollAddonRoutes from "./billing/payroll-addon";
 import razorpayWebhookRoutes from "./billing/razorpay-webhooks";
 import marketplaceAddonRoutes from "./billing/marketplace-addon";
+import addonPermissionsRoutes from "./billing/addon-permissions";
 import { countryRolloutService } from "../services/country-rollout";
 import { getAddonAccess } from "../core/addon-gating";
 
@@ -29,6 +30,7 @@ const router = Router();
 router.use("/payroll-addon", payrollAddonRoutes);
 router.use("/webhooks/razorpay", razorpayWebhookRoutes);
 router.use("/marketplace-addon", marketplaceAddonRoutes);
+router.use("/addon-permissions", addonPermissionsRoutes);
 
 const optionalAuth = authenticateJWT({ required: false });
 const requiredAuth = authenticateJWT({ required: true });
@@ -985,7 +987,6 @@ router.post("/checkout/mock-verify", requiredAuth, async (req: Request, res: Res
                 subscriptionStatus: "active",
                 currentPeriodStart: now,
                 currentPeriodEnd: periodEnd,
-                razorpayPaymentId: `mock_${Date.now()}`,
                 updatedAt: now,
               })
               .where(eq(tenantPayrollAddon.tenantId, tenantId));
