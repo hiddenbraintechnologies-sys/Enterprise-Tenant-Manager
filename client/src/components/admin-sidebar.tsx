@@ -344,7 +344,7 @@ export function AdminSidebar() {
             <SidebarMenu>
               {visibleItems.map((item) => {
                 const isActive = location === item.url || 
-                  (item.url !== "/admin" && item.url !== "/super-admin" && location.startsWith(item.url));
+                  (item.url !== "/admin" && item.url !== "/super-admin" && location.startsWith(item.url + "/"));
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild data-active={isActive}>
