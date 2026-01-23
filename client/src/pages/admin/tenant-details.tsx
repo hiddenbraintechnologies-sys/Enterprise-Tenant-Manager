@@ -105,6 +105,7 @@ function TenantDetailsContent() {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
+  const [deleteMode, setDeleteMode] = useState<"soft" | "wipe">("soft");
   const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
 
   const { data: tenant, isLoading, error } = useQuery<TenantDetails>({
@@ -300,15 +301,7 @@ function TenantDetailsContent() {
               data-testid="button-delete"
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => setWipeDialogOpen(true)}
-              data-testid="button-wipe"
-            >
-              <Eraser className="h-4 w-4 mr-2" />
-              Wipe Data
+              Delete Tenant
             </Button>
           </div>
         )}
@@ -501,19 +494,62 @@ function TenantDetailsContent() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) {
+          setDeleteMode("soft");
+          setDeleteReason("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Delete Tenant</DialogTitle>
             <DialogDescription>
-              You are about to delete <strong>{tenant.name}</strong>. This will permanently disable the tenant.
+              Choose how to delete <strong>{tenant.name}</strong>.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-              <AlertCircle className="h-4 w-4 inline mr-2" />
-              This will permanently disable the tenant. Data will be retained for audit purposes.
+            <div className="space-y-3">
+              <Label>Deletion Type</Label>
+              <div 
+                className={`p-4 border rounded-md cursor-pointer transition-colors ${deleteMode === "soft" ? "border-primary bg-primary/5" : "border-border hover-elevate"}`}
+                onClick={() => setDeleteMode("soft")}
+                data-testid="option-soft-delete"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center ${deleteMode === "soft" ? "border-primary" : "border-muted-foreground"}`}>
+                    {deleteMode === "soft" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <p className="font-medium">Soft Delete (Recommended)</p>
+                    <p className="text-sm text-muted-foreground">Disable tenant access. All data is retained for audit and can be restored if needed.</p>
+                  </div>
+                </div>
+              </div>
+              <div 
+                className={`p-4 border rounded-md cursor-pointer transition-colors ${deleteMode === "wipe" ? "border-destructive bg-destructive/5" : "border-border hover-elevate"}`}
+                onClick={() => setDeleteMode("wipe")}
+                data-testid="option-wipe-delete"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center ${deleteMode === "wipe" ? "border-destructive" : "border-muted-foreground"}`}>
+                    {deleteMode === "wipe" && <div className="w-2 h-2 rounded-full bg-destructive" />}
+                  </div>
+                  <div>
+                    <p className="font-medium text-destructive">Wipe All Data</p>
+                    <p className="text-sm text-muted-foreground">Permanently delete all tenant data including users, bookings, invoices, and settings. This cannot be undone.</p>
+                  </div>
+                </div>
+              </div>
             </div>
+            
+            {deleteMode === "wipe" && (
+              <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <AlertCircle className="h-4 w-4 inline mr-2" />
+                <strong>Warning:</strong> This will permanently delete all data for this tenant. This action cannot be undone.
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="delete-reason">Reason for deletion</Label>
               <Textarea
@@ -532,11 +568,18 @@ function TenantDetailsContent() {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deleteTenantMutation.mutate(deleteReason)}
+              onClick={() => {
+                if (deleteMode === "wipe") {
+                  setDeleteDialogOpen(false);
+                  setWipeDialogOpen(true);
+                } else {
+                  deleteTenantMutation.mutate(deleteReason);
+                }
+              }}
               disabled={!deleteReason.trim() || deleteTenantMutation.isPending}
               data-testid="button-confirm-delete"
             >
-              {deleteTenantMutation.isPending ? "Deleting..." : "Delete Tenant"}
+              {deleteTenantMutation.isPending ? "Deleting..." : deleteMode === "wipe" ? "Continue to Wipe" : "Delete Tenant"}
             </Button>
           </DialogFooter>
         </DialogContent>
