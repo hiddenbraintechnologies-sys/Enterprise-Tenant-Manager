@@ -1,0 +1,1058 @@
+A) API client (shared)
+✅ client/src/lib/api/superAdminMarketplace.ts
+export type AddonBillingModel = "FLAT_MONTHLY" | "PER_EMPLOYEE" | "PER_UNIT";
+export type AddonStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+export type AddonDto = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  category: string;
+  billingModel: AddonBillingModel;
+  status: AddonStatus;
+  iconKey?: string | null;
+  screenshotKey?: string | null;
+  updatedAt: string;
+};
+
+export type CountryDto = {
+  countryCode: string; // "IN", "MY"
+  countryName: string; // "India"
+  currencyCode: string; // "INR"
+};
+
+export type AddonCountryConfigDto = {
+  id: string;
+  addonId: string;
+  countryCode: string;
+  isActive: boolean;
+  currencyCode: string;
+  trialDays: number;
+  complianceNote?: string | null;
+  updatedAt: string;
+};
+
+export type AddonPricingTierDto = {
+  id: string;
+  addonId: string;
+  countryCode: string;
+  currencyCode: string;
+  minUnits: number;
+  maxUnits: number | null;
+  pricePerUnit: number;
+  minimumPrice: number;
+  yearlyDiscountPct?: number | null;
+};
+
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    credentials: "include",
+  });
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!res.ok) {
+    const msg = data?.error || data?.message || `Request failed: ${res.status}`;
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
+export const superAdminMarketplaceApi = {
+  // Catalog
+  listAddons: () => api<{ addons: AddonDto[] }>("/api/super-admin/marketplace/addons"),
+  createAddon: (payload: Partial<AddonDto>) =>
+    api<{ addon: AddonDto }>("/api/super-admin/marketplace/addons", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateAddon: (addonId: string, payload: Partial<AddonDto>) =>
+    api<{ addon: AddonDto }>(`/api/super-admin/marketplace/addons/${addonId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  setAddonStatus: (addonId: string, status: AddonStatus) =>
+    api<{ addon: AddonDto }>(`/api/super-admin/marketplace/addons/${addonId}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
+
+  // Rollouts (country x addon)
+  listCountries: () => api<{ countries: CountryDto[] }>("/api/super-admin/marketplace/countries"),
+  listAddonCountryConfigs: () =>
+    api<{ configs: AddonCountryConfigDto[] }>("/api/super-admin/marketplace/addon-country-configs"),
+  upsertAddonCountryConfig: (payload: {
+    addonId: string;
+    countryCode: string;
+    isActive: boolean;
+    currencyCode: string;
+    trialDays: number;
+    complianceNote?: string | null;
+  }) =>
+    api<{ config: AddonCountryConfigDto }>("/api/super-admin/marketplace/addon-country-configs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  // Pricing tiers
+  listPricingTiers: (addonId: string) =>
+    api<{ tiers: AddonPricingTierDto[] }>(`/api/super-admin/marketplace/addons/${addonId}/pricing-tiers`),
+  upsertPricingTier: (addonId: string, payload: Partial<AddonPricingTierDto>) =>
+    api<{ tier: AddonPricingTierDto }>(`/api/super-admin/marketplace/addons/${addonId}/pricing-tiers`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deletePricingTier: (addonId: string, tierId: string) =>
+    api<{ ok: true }>(`/api/super-admin/marketplace/addons/${addonId}/pricing-tiers/${tierId}`, {
+      method: "DELETE",
+    }),
+};
+
+B) Icon + screenshot mapping (optional but useful)
+✅ client/src/lib/marketplace/icon-map.tsx
+import { BadgeDollarSign, Users, MessageSquareText, Boxes, ShieldCheck } from "lucide-react";
+import type { ReactNode } from "react";
+
+export function getAddonIcon(iconKey?: string | null): ReactNode {
+  switch ((iconKey || "").toLowerCase()) {
+    case "payroll":
+      return <BadgeDollarSign className="h-5 w-5" />;
+    case "hrms":
+      return <Users className="h-5 w-5" />;
+    case "whatsapp":
+    case "whatsapp_automation":
+      return <MessageSquareText className="h-5 w-5" />;
+    case "compliance":
+      return <ShieldCheck className="h-5 w-5" />;
+    default:
+      return <Boxes className="h-5 w-5" />;
+  }
+}
+
+// If you want screenshot previews later:
+export function getAddonScreenshotUrl(screenshotKey?: string | null): string | null {
+  if (!screenshotKey) return null;
+  // Put files in /public/marketplace/...
+  return `/marketplace/${screenshotKey}.png`;
+}
+
+C) Add-on Editor Modal (Create/Edit/Publish)
+✅ client/src/components/super-admin/marketplace/addon-editor-modal.tsx
+import { useEffect, useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { AddonBillingModel, AddonDto } from "@/lib/api/superAdminMarketplace";
+
+type Props = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  mode: "create" | "edit";
+  initial?: AddonDto | null;
+  onSave: (payload: Partial<AddonDto>) => Promise<void>;
+};
+
+const BILLING_MODELS: { value: AddonBillingModel; label: string }[] = [
+  { value: "FLAT_MONTHLY", label: "Flat monthly" },
+  { value: "PER_EMPLOYEE", label: "Per employee" },
+  { value: "PER_UNIT", label: "Per unit" },
+];
+
+export function AddonEditorModal({ open, onOpenChange, mode, initial, onSave }: Props) {
+  const [saving, setSaving] = useState(false);
+
+  const defaults = useMemo(
+    () => ({
+      code: initial?.code ?? "",
+      name: initial?.name ?? "",
+      category: initial?.category ?? "hr",
+      billingModel: (initial?.billingModel ?? "FLAT_MONTHLY") as AddonBillingModel,
+      description: initial?.description ?? "",
+      iconKey: initial?.iconKey ?? "",
+      screenshotKey: initial?.screenshotKey ?? "",
+    }),
+    [initial]
+  );
+
+  const [code, setCode] = useState(defaults.code);
+  const [name, setName] = useState(defaults.name);
+  const [category, setCategory] = useState(defaults.category);
+  const [billingModel, setBillingModel] = useState<AddonBillingModel>(defaults.billingModel);
+  const [description, setDescription] = useState(defaults.description);
+  const [iconKey, setIconKey] = useState(defaults.iconKey);
+  const [screenshotKey, setScreenshotKey] = useState(defaults.screenshotKey);
+
+  useEffect(() => {
+    setCode(defaults.code);
+    setName(defaults.name);
+    setCategory(defaults.category);
+    setBillingModel(defaults.billingModel);
+    setDescription(defaults.description);
+    setIconKey(defaults.iconKey);
+    setScreenshotKey(defaults.screenshotKey);
+  }, [defaults, open]);
+
+  const canSave = code.trim().length >= 2 && name.trim().length >= 2;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      await onSave({
+        code: code.trim().toLowerCase().replace(/\s+/g, "_"),
+        name: name.trim(),
+        category: category.trim() || "general",
+        billingModel,
+        description: description?.trim() || null,
+        iconKey: iconKey?.trim() || null,
+        screenshotKey: screenshotKey?.trim() || null,
+      });
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[680px]">
+        <DialogHeader>
+          <DialogTitle>{mode === "create" ? "Create Add-on" : "Edit Add-on"}</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Code</Label>
+              <Input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="payroll"
+                disabled={mode === "edit"} // code should be stable once created
+              />
+              <p className="text-xs text-muted-foreground">Used as unique identifier (e.g., payroll, hrms).</p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Payroll" />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Category</Label>
+              <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="hr" />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Billing model</Label>
+              <Select value={billingModel} onValueChange={(v) => setBillingModel(v as AddonBillingModel)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BILLING_MODELS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Icon key (optional)</Label>
+              <Input value={iconKey} onChange={(e) => setIconKey(e.target.value)} placeholder="payroll" />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Screenshot key (optional)</Label>
+              <Input value={screenshotKey} onChange={(e) => setScreenshotKey(e.target.value)} placeholder="payroll_01" />
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Description (optional)</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Run salaries, payslips, statutory deductions and bank files."
+              rows={4}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={!canSave || saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+D) Pricing Tier Editor (Payroll per-employee tiers)
+✅ client/src/components/super-admin/marketplace/pricing-tier-editor.tsx
+import { useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { AddonPricingTierDto } from "@/lib/api/superAdminMarketplace";
+
+type Props = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  addonName: string;
+  addonId: string;
+  countryCode: string;
+  currencyCode: string;
+  initial?: AddonPricingTierDto | null;
+  onSave: (payload: Partial<AddonPricingTierDto>) => Promise<void>;
+};
+
+export function PricingTierEditor({
+  open,
+  onOpenChange,
+  addonName,
+  countryCode,
+  currencyCode,
+  initial,
+  onSave,
+}: Props) {
+  const defaults = useMemo(
+    () => ({
+      minUnits: initial?.minUnits ?? 1,
+      maxUnits: initial?.maxUnits ?? null,
+      pricePerUnit: initial?.pricePerUnit ?? 0,
+      minimumPrice: initial?.minimumPrice ?? 0,
+      yearlyDiscountPct: initial?.yearlyDiscountPct ?? null,
+    }),
+    [initial]
+  );
+
+  const [minUnits, setMinUnits] = useState<number>(defaults.minUnits);
+  const [maxUnits, setMaxUnits] = useState<number | null>(defaults.maxUnits);
+  const [pricePerUnit, setPricePerUnit] = useState<number>(defaults.pricePerUnit);
+  const [minimumPrice, setMinimumPrice] = useState<number>(defaults.minimumPrice);
+  const [yearlyDiscountPct, setYearlyDiscountPct] = useState<number | null>(defaults.yearlyDiscountPct);
+  const [saving, setSaving] = useState(false);
+
+  const canSave = minUnits >= 1 && (maxUnits === null || maxUnits >= minUnits) && pricePerUnit >= 0 && minimumPrice >= 0;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      await onSave({
+        id: initial?.id,
+        countryCode,
+        currencyCode,
+        minUnits,
+        maxUnits,
+        pricePerUnit,
+        minimumPrice,
+        yearlyDiscountPct,
+      });
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function parseNum(v: string): number {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[720px]">
+        <DialogHeader>
+          <DialogTitle>
+            {initial ? "Edit Pricing Tier" : "Add Pricing Tier"} — {addonName} ({countryCode})
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Min units (employees)</Label>
+              <Input value={minUnits} onChange={(e) => setMinUnits(parseNum(e.target.value))} />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Max units (optional)</Label>
+              <Input
+                value={maxUnits ?? ""}
+                onChange={(e) => setMaxUnits(e.target.value === "" ? null : parseNum(e.target.value))}
+                placeholder="Leave empty for no limit"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Price per unit (smallest currency unit)</Label>
+              <Input value={pricePerUnit} onChange={(e) => setPricePerUnit(parseNum(e.target.value))} />
+              <p className="text-xs text-muted-foreground">
+                Example: INR ₹49 = 4900 if you store paise. If your system stores full units, enter 49.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Minimum monthly price</Label>
+              <Input value={minimumPrice} onChange={(e) => setMinimumPrice(parseNum(e.target.value))} />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Yearly discount % (optional)</Label>
+              <Input
+                value={yearlyDiscountPct ?? ""}
+                onChange={(e) => setYearlyDiscountPct(e.target.value === "" ? null : parseNum(e.target.value))}
+                placeholder="e.g. 15"
+              />
+            </div>
+
+            <div className="rounded-lg border p-3 text-sm bg-muted/30">
+              <div className="font-medium mb-1">Rule preview</div>
+              <div>
+                Applies when units are between <b>{minUnits}</b> and <b>{maxUnits ?? "∞"}</b>
+              </div>
+              <div>
+                Monthly = max(<b>units × {pricePerUnit}</b>, <b>{minimumPrice}</b>) in {currencyCode}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={!canSave || saving}>
+            {saving ? "Saving..." : "Save tier"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+E) Rollout Matrix (Zoho-like Country × Add-on grid)
+✅ client/src/components/super-admin/marketplace/rollout-matrix.tsx
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { AddonCountryConfigDto, AddonDto, CountryDto } from "@/lib/api/superAdminMarketplace";
+import { PricingTierEditor } from "./pricing-tier-editor";
+
+type Props = {
+  addons: AddonDto[];
+  countries: CountryDto[];
+  configs: AddonCountryConfigDto[];
+  onUpsertConfig: (payload: {
+    addonId: string;
+    countryCode: string;
+    isActive: boolean;
+    currencyCode: string;
+    trialDays: number;
+    complianceNote?: string | null;
+  }) => Promise<void>;
+  onOpenPricing: (addon: AddonDto) => void;
+};
+
+function key(addonId: string, countryCode: string) {
+  return `${addonId}:${countryCode}`;
+}
+
+export function RolloutMatrix({ addons, countries, configs, onUpsertConfig, onOpenPricing }: Props) {
+  const configMap = useMemo(() => {
+    const map = new Map<string, AddonCountryConfigDto>();
+    for (const c of configs) map.set(key(c.addonId, c.countryCode), c);
+    return map;
+  }, [configs]);
+
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  async function toggle(addon: AddonDto, c: CountryDto, next: boolean) {
+    const k = key(addon.id, c.countryCode);
+    const existing = configMap.get(k);
+
+    setBusyKey(k);
+    try {
+      await onUpsertConfig({
+        addonId: addon.id,
+        countryCode: c.countryCode,
+        isActive: next,
+        currencyCode: existing?.currencyCode ?? c.currencyCode,
+        trialDays: existing?.trialDays ?? 0,
+        complianceNote: existing?.complianceNote ?? null,
+      });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function updateTrial(addon: AddonDto, c: CountryDto, trialDays: number) {
+    const k = key(addon.id, c.countryCode);
+    const existing = configMap.get(k);
+
+    setBusyKey(k);
+    try {
+      await onUpsertConfig({
+        addonId: addon.id,
+        countryCode: c.countryCode,
+        isActive: existing?.isActive ?? false,
+        currencyCode: existing?.currencyCode ?? c.currencyCode,
+        trialDays,
+        complianceNote: existing?.complianceNote ?? null,
+      });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border bg-background">
+      <div className="p-4 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold">Add-on Rollout Matrix</div>
+          <div className="text-sm text-muted-foreground">Toggle add-ons per country + set trial days.</div>
+        </div>
+        <Badge variant="outline">{addons.length} add-ons</Badge>
+      </div>
+
+      <div className="overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-background border-b">
+            <tr>
+              <th className="text-left p-3 min-w-[260px]">Add-on</th>
+              {countries.map((c) => (
+                <th key={c.countryCode} className="text-left p-3 min-w-[240px]">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{c.countryName}</span>
+                    <Badge variant="secondary">{c.countryCode}</Badge>
+                    <Badge variant="outline">{c.currencyCode}</Badge>
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {addons.map((a) => (
+              <tr key={a.id} className="border-b">
+                <td className="p-3 align-top">
+                  <div className="font-medium">{a.name}</div>
+                  <div className="text-xs text-muted-foreground">{a.code} • {a.billingModel}</div>
+                  <div className="mt-2 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => onOpenPricing(a)}>
+                      Pricing tiers
+                    </Button>
+                    <Badge variant={a.status === "PUBLISHED" ? "default" : "secondary"}>{a.status}</Badge>
+                  </div>
+                </td>
+
+                {countries.map((c) => {
+                  const k = key(a.id, c.countryCode);
+                  const conf = configMap.get(k);
+                  const isActive = conf?.isActive ?? false;
+                  const trialDays = conf?.trialDays ?? 0;
+
+                  return (
+                    <td key={c.countryCode} className="p-3 align-top">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={isActive}
+                            onCheckedChange={(v) => void toggle(a, c, v)}
+                            disabled={busyKey === k}
+                          />
+                          {isActive ? <Badge>Live</Badge> : <Badge variant="outline">Soon</Badge>}
+                        </div>
+
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-muted-foreground cursor-help">?</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Country rollout controls visibility + purchase eligibility.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+
+                      <div className="mt-3 grid gap-2">
+                        <div className="grid grid-cols-2 gap-2 items-end">
+                          <div className="grid gap-1">
+                            <div className="text-xs text-muted-foreground">Trial (days)</div>
+                            <Input
+                              value={trialDays}
+                              onChange={(e) => {
+                                const v = Number(e.target.value || 0);
+                                if (Number.isFinite(v)) void updateTrial(a, c, Math.max(0, v));
+                              }}
+                              disabled={busyKey === k}
+                            />
+                          </div>
+
+                          <div className="grid gap-1">
+                            <div className="text-xs text-muted-foreground">Currency</div>
+                            <div className="rounded-md border px-3 py-2 text-xs bg-muted/30">
+                              {conf?.currencyCode ?? c.currencyCode}
+                            </div>
+                          </div>
+                        </div>
+
+                        {a.status !== "PUBLISHED" && (
+                          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                            This add-on is not published yet. Tenants won’t see it even if rollout is Live.
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+F) Super Admin Catalog Page (controls you asked for)
+✅ client/src/pages/super-admin/marketplace/catalog.tsx
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, Plus } from "lucide-react";
+import { AddonEditorModal } from "@/components/super-admin/marketplace/addon-editor-modal";
+import { getAddonIcon } from "@/lib/marketplace/icon-map";
+import { superAdminMarketplaceApi, type AddonDto, type AddonStatus } from "@/lib/api/superAdminMarketplace";
+
+export default function SuperAdminMarketplaceCatalogPage() {
+  const qc = useQueryClient();
+  const [q, setQ] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
+  const [selected, setSelected] = useState<AddonDto | null>(null);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["sa-marketplace-addons"],
+    queryFn: () => superAdminMarketplaceApi.listAddons(),
+  });
+
+  const addons = data?.addons ?? [];
+
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return addons;
+    return addons.filter((a) => {
+      return (
+        a.name.toLowerCase().includes(t) ||
+        a.code.toLowerCase().includes(t) ||
+        a.category.toLowerCase().includes(t) ||
+        a.status.toLowerCase().includes(t)
+      );
+    });
+  }, [addons, q]);
+
+  const saveAddon = useMutation({
+    mutationFn: async (payload: Partial<AddonDto>) => {
+      if (editorMode === "create") return superAdminMarketplaceApi.createAddon(payload);
+      if (!selected) throw new Error("No add-on selected");
+      return superAdminMarketplaceApi.updateAddon(selected.id, payload);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["sa-marketplace-addons"] });
+    },
+  });
+
+  const setStatus = useMutation({
+    mutationFn: async ({ addonId, status }: { addonId: string; status: AddonStatus }) =>
+      superAdminMarketplaceApi.setAddonStatus(addonId, status),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["sa-marketplace-addons"] });
+    },
+  });
+
+  function openCreate() {
+    setSelected(null);
+    setEditorMode("create");
+    setEditorOpen(true);
+  }
+
+  function openEdit(addon: AddonDto) {
+    setSelected(addon);
+    setEditorMode("edit");
+    setEditorOpen(true);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Marketplace Catalog</h1>
+          <p className="text-sm text-muted-foreground">
+            Create add-ons, publish them, archive old ones. Rollout by country happens in the matrix page.
+          </p>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create add-on
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, code, category..." className="max-w-md" />
+        <Badge variant="outline">{filtered.length} shown</Badge>
+      </div>
+
+      {error ? (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-base">Failed to load add-ons</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">{String((error as Error).message || error)}</CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-3">
+        {isLoading ? (
+          <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading...</CardContent></Card>
+        ) : (
+          filtered.map((a) => (
+            <Card key={a.id}>
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg border flex items-center justify-center bg-muted/20">
+                    {getAddonIcon(a.iconKey)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">{a.name}</div>
+                      <Badge variant={a.status === "PUBLISHED" ? "default" : a.status === "DRAFT" ? "secondary" : "outline"}>
+                        {a.status}
+                      </Badge>
+                      <Badge variant="outline">{a.billingModel}</Badge>
+                      <Badge variant="outline">{a.category}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{a.code}</div>
+                    {a.description ? <div className="text-sm text-muted-foreground mt-1 line-clamp-2">{a.description}</div> : null}
+                  </div>
+                </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => openEdit(a)}>Edit</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setStatus.mutate({ addonId: a.id, status: "PUBLISHED" })}>
+                      Publish
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setStatus.mutate({ addonId: a.id, status: "DRAFT" })}>
+                      Move to Draft
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive" onClick={() => setStatus.mutate({ addonId: a.id, status: "ARCHIVED" })}>
+                      Archive
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <AddonEditorModal
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        mode={editorMode}
+        initial={selected}
+        onSave={async (payload) => {
+          await saveAddon.mutateAsync(payload);
+        }}
+      />
+    </div>
+  );
+}
+
+G) Super Admin Rollout Matrix Page (Zoho grid + pricing modal launcher)
+✅ client/src/pages/super-admin/marketplace/rollouts.tsx
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { superAdminMarketplaceApi, type AddonDto } from "@/lib/api/superAdminMarketplace";
+import { RolloutMatrix } from "@/components/super-admin/marketplace/rollout-matrix";
+import { PricingTierEditor } from "@/components/super-admin/marketplace/pricing-tier-editor";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Trash2, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+export default function SuperAdminMarketplaceRolloutsPage() {
+  const qc = useQueryClient();
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricingAddon, setPricingAddon] = useState<AddonDto | null>(null);
+  const [pricingCountry, setPricingCountry] = useState<{ countryCode: string; currencyCode: string } | null>(null);
+  const [editingTier, setEditingTier] = useState<any>(null); // tier dto
+
+  const addonsQ = useQuery({ queryKey: ["sa-marketplace-addons"], queryFn: () => superAdminMarketplaceApi.listAddons() });
+  const countriesQ = useQuery({ queryKey: ["sa-marketplace-countries"], queryFn: () => superAdminMarketplaceApi.listCountries() });
+  const configsQ = useQuery({
+    queryKey: ["sa-marketplace-addon-country-configs"],
+    queryFn: () => superAdminMarketplaceApi.listAddonCountryConfigs(),
+  });
+
+  const upsertCfg = useMutation({
+    mutationFn: (payload: Parameters<typeof superAdminMarketplaceApi.upsertAddonCountryConfig>[0]) =>
+      superAdminMarketplaceApi.upsertAddonCountryConfig(payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["sa-marketplace-addon-country-configs"] });
+    },
+  });
+
+  const tiersQ = useQuery({
+    queryKey: ["sa-marketplace-tiers", pricingAddon?.id],
+    queryFn: () => superAdminMarketplaceApi.listPricingTiers(pricingAddon!.id),
+    enabled: !!pricingAddon?.id,
+  });
+
+  const upsertTier = useMutation({
+    mutationFn: (payload: any) => superAdminMarketplaceApi.upsertPricingTier(pricingAddon!.id, payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["sa-marketplace-tiers", pricingAddon?.id] });
+    },
+  });
+
+  const deleteTier = useMutation({
+    mutationFn: ({ tierId }: { tierId: string }) => superAdminMarketplaceApi.deletePricingTier(pricingAddon!.id, tierId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["sa-marketplace-tiers", pricingAddon?.id] });
+    },
+  });
+
+  const addons = addonsQ.data?.addons ?? [];
+  const countries = countriesQ.data?.countries ?? [];
+  const configs = configsQ.data?.configs ?? [];
+  const tiers = tiersQ.data?.tiers ?? [];
+
+  const groupedTiers = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const t of tiers) {
+      const k = `${t.countryCode}:${t.currencyCode}`;
+      const arr = map.get(k) ?? [];
+      arr.push(t);
+      map.set(k, arr);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => a.minUnits - b.minUnits);
+    }
+    return map;
+  }, [tiers]);
+
+  function openPricing(addon: AddonDto) {
+    setPricingAddon(addon);
+    setPricingOpen(true);
+    setPricingCountry(null);
+    setEditingTier(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Marketplace Rollouts</h1>
+        <p className="text-sm text-muted-foreground">
+          Control which add-ons are Live per country, configure trials, and manage pricing tiers.
+        </p>
+      </div>
+
+      <RolloutMatrix
+        addons={addons}
+        countries={countries}
+        configs={configs}
+        onUpsertConfig={async (payload) => {
+          await upsertCfg.mutateAsync(payload);
+        }}
+        onOpenPricing={(addon) => openPricing(addon)}
+      />
+
+      {/* Pricing drawer-ish modal (simple table + add/edit modal) */}
+      {pricingAddon ? (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold">Pricing tiers — {pricingAddon.name}</div>
+                <div className="text-sm text-muted-foreground">
+                  Add tiers per country. Used for per-employee/per-unit pricing.
+                </div>
+              </div>
+              <Button variant="outline" onClick={() => setPricingAddon(null)}>
+                Close
+              </Button>
+            </div>
+
+            {tiersQ.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading tiers...</div>
+            ) : (
+              <div className="space-y-4">
+                {countries.map((c) => {
+                  const k = `${c.countryCode}:${c.currencyCode}`;
+                  const list = groupedTiers.get(k) ?? [];
+                  return (
+                    <div key={k} className="rounded-xl border">
+                      <div className="p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium">{c.countryName}</div>
+                          <Badge variant="secondary">{c.countryCode}</Badge>
+                          <Badge variant="outline">{c.currencyCode}</Badge>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setPricingCountry({ countryCode: c.countryCode, currencyCode: c.currencyCode });
+                            setEditingTier(null);
+                            setPricingOpen(true);
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add tier
+                        </Button>
+                      </div>
+
+                      <div className="overflow-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-t border-b bg-muted/20">
+                            <tr>
+                              <th className="text-left p-2">Min</th>
+                              <th className="text-left p-2">Max</th>
+                              <th className="text-left p-2">Price/unit</th>
+                              <th className="text-left p-2">Minimum</th>
+                              <th className="text-left p-2">Yearly %</th>
+                              <th className="text-right p-2">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {list.length === 0 ? (
+                              <tr>
+                                <td className="p-3 text-muted-foreground" colSpan={6}>
+                                  No tiers yet
+                                </td>
+                              </tr>
+                            ) : (
+                              list.map((t) => (
+                                <tr key={t.id} className="border-b">
+                                  <td className="p-2">{t.minUnits}</td>
+                                  <td className="p-2">{t.maxUnits ?? "∞"}</td>
+                                  <td className="p-2">{t.pricePerUnit}</td>
+                                  <td className="p-2">{t.minimumPrice}</td>
+                                  <td className="p-2">{t.yearlyDiscountPct ?? "-"}</td>
+                                  <td className="p-2 text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setPricingCountry({ countryCode: c.countryCode, currencyCode: c.currencyCode });
+                                        setEditingTier(t);
+                                        setPricingOpen(true);
+                                      }}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="ml-2 text-destructive"
+                                      onClick={() => deleteTier.mutate({ tierId: t.id })}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {pricingAddon && pricingCountry ? (
+        <PricingTierEditor
+          open={pricingOpen}
+          onOpenChange={(v) => setPricingOpen(v)}
+          addonName={pricingAddon.name}
+          addonId={pricingAddon.id}
+          countryCode={pricingCountry.countryCode}
+          currencyCode={pricingCountry.currencyCode}
+          initial={editingTier}
+          onSave={async (payload) => {
+            await upsertTier.mutateAsync(payload);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+H) Route wiring (add to Super Admin routes)
+
+You likely have a super-admin router file. Add these routes wherever you define super admin pages.
+
+✅ Example: client/src/routes/super-admin-routes.tsx (or similar)
+
+Add:
+
+import SuperAdminMarketplaceCatalogPage from "@/pages/super-admin/marketplace/catalog";
+import SuperAdminMarketplaceRolloutsPage from "@/pages/super-admin/marketplace/rollouts";
+
+// inside your <Routes>:
+<Route path="/super-admin/marketplace/catalog" element={<SuperAdminMarketplaceCatalogPage />} />
+<Route path="/super-admin/marketplace/rollouts" element={<SuperAdminMarketplaceRolloutsPage />} />
+
+
+Also add menu items in sidebar:
+
+Marketplace Catalog
+
+Marketplace Rollouts
+(keep your existing Marketplace Analytics)
+
+What this gives you (exactly what you asked)
+
+✅ Super admin can add/edit add-ons
+✅ Super admin can publish/unpublish/archive
+✅ Super admin can enable/disable add-ons per country (Live/Soon)
+✅ Super admin can set trial days per country
+✅ Super admin can manage pricing tiers (Payroll/HRMS missing → now covered)

@@ -409,6 +409,35 @@ const countryConfigSchema = z.object({
   featuredOrder: z.number().int().min(0).optional(),
 });
 
+// ==================== COUNTRY APIS ====================
+
+const SUPPORTED_COUNTRIES = [
+  { countryCode: "IN", countryName: "India", currencyCode: "INR" },
+  { countryCode: "MY", countryName: "Malaysia", currencyCode: "MYR" },
+  { countryCode: "UK", countryName: "United Kingdom", currencyCode: "GBP" },
+  { countryCode: "AE", countryName: "United Arab Emirates", currencyCode: "AED" },
+  { countryCode: "SG", countryName: "Singapore", currencyCode: "SGD" },
+  { countryCode: "US", countryName: "United States", currencyCode: "USD" },
+];
+
+router.get("/countries", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  res.json({ countries: SUPPORTED_COUNTRIES });
+});
+
+router.get("/country-configs", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const configs = await db
+      .select()
+      .from(addonCountryConfig)
+      .orderBy(addonCountryConfig.addonId, addonCountryConfig.countryCode);
+    
+    res.json({ configs });
+  } catch (error) {
+    console.error("[marketplace-management] Error fetching country configs:", error);
+    res.status(500).json({ error: "Failed to fetch country configs" });
+  }
+});
+
 router.get("/addons/:addonId/countries", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;

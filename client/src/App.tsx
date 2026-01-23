@@ -79,6 +79,8 @@ import SuperAdminCountryRollout from "@/pages/super-admin/country-rollout";
 import AdminAddons from "@/pages/super-admin/admin-addons";
 import MarketplaceAnalytics from "@/pages/super-admin/marketplace-analytics";
 import MarketplaceManagement from "@/pages/super-admin/marketplace-management";
+import MarketplaceCatalog from "@/pages/super-admin/marketplace/catalog";
+import MarketplaceRollouts from "@/pages/super-admin/marketplace/rollouts";
 import PlatformAdminDashboard from "@/pages/platform-admin-dashboard";
 import AdminTenants from "@/pages/admin/tenants";
 import TenantUsers from "@/pages/admin/tenant-users";
@@ -453,6 +455,8 @@ function SuperAdminRoutes() {
         <Route path="/super-admin/payroll-analytics" component={SuperAdminPayrollAnalytics} />
         <Route path="/super-admin/marketplace-analytics" component={MarketplaceAnalytics} />
         <Route path="/super-admin/marketplace-management" component={MarketplaceManagement} />
+        <Route path="/super-admin/marketplace/catalog" component={MarketplaceCatalog} />
+        <Route path="/super-admin/marketplace/rollouts" component={MarketplaceRollouts} />
         <Route path="/super-admin/addons" component={AdminAddons} />
         <Route path="/super-admin/subscriptions" component={SubscriptionManagement} />
         <Route path="/super-admin/security/sessions" component={AdminSecuritySessions} />
