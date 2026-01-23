@@ -439,6 +439,22 @@ export default function Marketplace() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
+  
+  // Read tab from URL query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = urlParams.get("tab") === "installed" ? "installed" : "browse";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  
+  // Sync tab state when URL changes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam === "installed") {
+      setActiveTab("installed");
+    } else if (!tabParam) {
+      setActiveTab("browse");
+    }
+  }, [location]);
   const [selectedAddon, setSelectedAddon] = useState<Addon | null>(null);
   const [selectedPricingId, setSelectedPricingId] = useState<string>("");
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
@@ -749,7 +765,7 @@ export default function Marketplace() {
 
   return (
     <DashboardLayout title="Add-on Marketplace" breadcrumbs={[{ label: "Marketplace" }]}>
-      <Tabs defaultValue="browse" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="browse" data-testid="tab-browse">
             Browse Add-ons
