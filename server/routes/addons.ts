@@ -67,16 +67,11 @@ router.get("/marketplace", async (req: Request, res: Response) => {
       conditions.push(eq(addons.featured, true));
     }
 
-    // Country filtering at SQL level: show add-ons where:
-    // 1. supportedCountries is null/empty (global add-ons) OR
-    // 2. supportedCountries contains the requested country
+    // Country filtering at SQL level: show ONLY add-ons available in the specified country
+    // Global add-ons (null/empty supportedCountries) are excluded - only country-specific add-ons show
     if (country) {
       conditions.push(
-        or(
-          sql`${addons.supportedCountries} IS NULL`,
-          sql`${addons.supportedCountries} = '[]'::jsonb`,
-          sql`${addons.supportedCountries} @> ${JSON.stringify([country])}::jsonb`
-        )!
+        sql`${addons.supportedCountries} @> ${JSON.stringify([country])}::jsonb`
       );
     }
 
@@ -150,38 +145,14 @@ router.get("/marketplace", async (req: Request, res: Response) => {
       })
     );
 
-    // When a country is specified, filter out global add-ons if a country-specific version exists
-    // This ensures tenants see country-specific add-ons (e.g., HRMS India) instead of global ones
-    let filteredAddons = addonsWithPricing;
-    if (country) {
-      // Group add-ons by their base category/type (extract from slug, e.g., "hrms-india" -> "hrms")
-      const countrySpecificSlugs = new Set<string>();
-      
-      // First, identify all country-specific add-on base names
-      for (const addon of addonsWithPricing) {
-        if (!addon.isGlobal) {
-          // Extract base slug by removing country suffix (e.g., "hrms-india" -> "hrms", "payroll-uk" -> "payroll")
-          const baseSlug = addon.slug.replace(/-(?:india|malaysia|uk|uae|singapore|global)$/i, '');
-          countrySpecificSlugs.add(baseSlug);
-        }
-      }
-      
-      // Filter out global add-ons that have country-specific versions
-      filteredAddons = addonsWithPricing.filter(addon => {
-        if (!addon.isGlobal) return true; // Keep all country-specific add-ons
-        
-        // For global add-ons, check if a country-specific version exists
-        const baseSlug = addon.slug.replace(/-global$/i, '');
-        return !countrySpecificSlugs.has(baseSlug);
-      });
-    }
+    // No additional filtering needed - SQL already filters to country-specific add-ons only
 
     res.json({ 
-      addons: filteredAddons, 
-      total: filteredAddons.length,
+      addons: addonsWithPricing, 
+      total: addonsWithPricing.length,
       page: Math.floor(Number(offset) / Number(limit)) + 1,
       pageSize: Number(limit),
-      hasMore: Number(offset) + filteredAddons.length < totalCount,
+      hasMore: Number(offset) + addonsWithPricing.length < totalCount,
     });
   } catch (error) {
     console.error("Error fetching marketplace:", error);
