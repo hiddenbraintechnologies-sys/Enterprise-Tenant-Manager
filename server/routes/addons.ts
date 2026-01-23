@@ -213,7 +213,7 @@ router.get("/marketplace/:slug", async (req: Request, res: Response) => {
 // ============================================
 
 // Get tenant's installed add-ons
-router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
+router.get("/tenant/:tenantId/addons", requireAuth(), requireTenant(), enforceTenantContext, async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
     console.log("[tenant-addons] Fetching installed add-ons for tenant:", tenantId);
@@ -273,7 +273,7 @@ router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenant
 });
 
 // Install an add-on with dependency checks and rollback
-router.post("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons", requireAuth(), requireTenant(), enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
     const { addonId, pricingId, config = {} } = req.body;
@@ -300,7 +300,7 @@ router.post("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenan
 });
 
 // Check dependencies before install
-router.post("/tenant/:tenantId/addons/check-dependencies", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons/check-dependencies", requireAuth(), requireTenant(), enforceTenantContext, async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
     const { addonId, versionId } = req.body;
@@ -314,7 +314,7 @@ router.post("/tenant/:tenantId/addons/check-dependencies", requireAuth, requireT
 });
 
 // Update add-on configuration
-router.patch("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.patch("/tenant/:tenantId/addons/:addonId", requireAuth(), requireTenant(), enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const { config, autoUpdate, status } = req.body;
@@ -342,7 +342,7 @@ router.patch("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, en
 });
 
 // Upgrade add-on to new version with dependency checks and rollback
-router.post("/tenant/:tenantId/addons/:addonId/upgrade", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons/:addonId/upgrade", requireAuth(), requireTenant(), enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const { targetVersionId } = req.body;
@@ -369,7 +369,7 @@ router.post("/tenant/:tenantId/addons/:addonId/upgrade", requireAuth, requireTen
 });
 
 // Disable add-on (keeps installation but deactivates)
-router.post("/tenant/:tenantId/addons/:addonId/disable", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons/:addonId/disable", requireAuth(), requireTenant(), enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const userId = (req as any).user?.id || "system";
@@ -394,7 +394,7 @@ router.post("/tenant/:tenantId/addons/:addonId/disable", requireAuth, requireTen
 });
 
 // Enable a disabled add-on
-router.post("/tenant/:tenantId/addons/:addonId/enable", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons/:addonId/enable", requireAuth(), requireTenant(), enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const userId = (req as any).user?.id || "system";
@@ -419,7 +419,7 @@ router.post("/tenant/:tenantId/addons/:addonId/enable", requireAuth, requireTena
 });
 
 // Uninstall add-on with dependency checks and rollback
-router.delete("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
+router.delete("/tenant/:tenantId/addons/:addonId", requireAuth(), requireTenant(), enforceTenantContext, requireRole("admin", "super_admin"), async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const userId = (req as any).user?.id || "system";
@@ -445,7 +445,7 @@ router.delete("/tenant/:tenantId/addons/:addonId", requireAuth, requireTenant, e
 });
 
 // Get installation history
-router.get("/tenant/:tenantId/addons/history", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
+router.get("/tenant/:tenantId/addons/history", requireAuth(), requireTenant(), enforceTenantContext, async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
     const { addonId } = req.query;
@@ -463,7 +463,7 @@ router.get("/tenant/:tenantId/addons/history", requireAuth, requireTenant, enfor
 // ============================================
 
 // Submit review
-router.post("/tenant/:tenantId/addons/:addonId/reviews", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
+router.post("/tenant/:tenantId/addons/:addonId/reviews", requireAuth(), requireTenant(), enforceTenantContext, async (req: Request, res: Response) => {
   try {
     const { tenantId, addonId } = req.params;
     const { rating, title, body } = req.body;

@@ -404,8 +404,8 @@ export async function registerRoutes(
   // Register Branding/Theming routes
   app.use('/api/branding', authenticateHybrid({ required: true }), enforceTenantBoundary(), brandingRoutes);
 
-  // Register Add-on Marketplace routes
-  app.use('/api/addons', addonRoutes);
+  // Register Add-on Marketplace routes (with optional auth to populate context for authenticated routes)
+  app.use('/api/addons', authenticateHybrid({ required: false }), addonRoutes);
 
   // Subscription & Pricing routes
   app.use('/api/subscriptions', subscriptionRoutes);
