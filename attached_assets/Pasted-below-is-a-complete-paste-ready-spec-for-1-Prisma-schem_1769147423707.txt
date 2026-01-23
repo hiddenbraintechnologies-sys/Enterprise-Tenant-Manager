@@ -1,0 +1,465 @@
+below is a complete, paste-ready spec for (1) Prisma schema + (2) Revenue dashboard + (3) Razorpay mapping + (4) i18n copy (EN + HI + MS + TA), aligned to your “Plans primary, add-ons multiplier” strategy.
+
+1) Prisma Schema (Marketplace + Country Rollout + Pricing Tiers)
+✅ Create/Update these files
+
+prisma/schema.prisma (add models)
+
+server/core/marketplace/addon-catalog.ts (constants)
+
+server/core/marketplace/pricing.ts (tier resolve)
+
+server/routes/marketplace.ts (tenant marketplace APIs)
+
+server/routes/super-admin-marketplace.ts (super admin controls)
+
+✅ Prisma Models (paste into prisma/schema.prisma)
+enum AddonBillingModel {
+  FLAT_MONTHLY
+  PER_EMPLOYEE
+  PER_UNIT
+}
+
+enum AddonStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TenantAddonStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+model Addon {
+  id            String      @id @default(cuid())
+  code          String      @unique // "payroll", "hrms"
+  name          String
+  description   String?
+  category      String      // "hr", "automation", etc.
+  billingModel  AddonBillingModel
+  status        AddonStatus @default(DRAFT)
+
+  // UI metadata
+  iconKey       String?     // "payroll", "hrms"
+  screenshotKey String?     // "payroll_01"
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  countryConfigs AddonCountryConfig[]
+  planEligibility AddonPlanEligibility[]
+  pricingTiers    AddonPricingTier[]
+}
+
+model AddonCountryConfig {
+  id          String   @id @default(cuid())
+  addonId     String
+  countryCode String   // "IN", "MY", "GB"
+  isActive    Boolean  @default(false) // rollout toggle
+  currencyCode String  // "INR", "MYR"
+  trialDays   Int      @default(0)     // e.g., Payroll 7 days
+  complianceNote String?
+
+  addon       Addon    @relation(fields: [addonId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([addonId, countryCode])
+  @@index([countryCode, isActive])
+}
+
+model AddonPlanEligibility {
+  id        String @id @default(cuid())
+  addonId   String
+  planTier  String // "free" | "basic" | "pro"
+  canPurchase Boolean @default(true)
+  canTrial    Boolean @default(false)
+
+  addon     Addon  @relation(fields: [addonId], references: [id])
+
+  @@unique([addonId, planTier])
+}
+
+model AddonPricingTier {
+  id           String @id @default(cuid())
+  addonId      String
+  countryCode  String
+  currencyCode String
+
+  // pricing rule: employeeCount between min..max => pricePerUnit + minimum
+  minUnits     Int
+  maxUnits     Int?    // null = no upper limit
+  pricePerUnit Int     // store smallest unit (paise/sen) if you use decimals
+  minimumPrice Int     // minimum monthly charge in smallest unit
+
+  // optional yearly pricing
+  yearlyDiscountPct Int? // e.g. 15
+
+  addon        Addon  @relation(fields: [addonId], references: [id])
+
+  @@index([addonId, countryCode])
+}
+
+model TenantAddonSubscription {
+  id            String @id @default(cuid())
+  tenantId      String
+  addonCode     String     // "payroll"
+  countryCode   String
+  currencyCode  String
+
+  status        TenantAddonStatus @default(TRIALING)
+  trialEndsAt   DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  // billing inputs
+  units         Int      @default(0) // employees
+  monthlyAmount Int      @default(0) // computed final amount
+
+  // Razorpay mapping
+  provider      String   @default("razorpay")
+  providerPlanId        String?
+  providerSubscriptionId String?
+  providerCustomerId    String?
+
+  canceledAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, addonCode])
+  @@unique([tenantId, addonCode]) // one active record per addon per tenant
+}
+
+model MarketplaceEvent {
+  id        String   @id @default(cuid())
+  source    String   // "razorpay"
+  eventType String   // "subscription.activated"
+  eventId   String   @unique
+  payload   Json
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model MarketplaceAuditLog {
+  id         String   @id @default(cuid())
+  actorUserId String
+  action     String   // "ADDON_PUBLISH", "ADDON_ROLLOUT_TOGGLE", "PRICING_UPDATE"
+  targetType String   // "addon", "addonCountryConfig", "pricingTier"
+  targetId   String
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+}
+
+✅ Seed: Add HRMS + Payroll into marketplace
+
+Create: server/db/seeds/seed-addons.ts
+
+Insert Addon records for hrms, payroll
+
+Insert AddonCountryConfig for IN, MY (isActive true/false)
+
+Insert AddonPlanEligibility (Free cannot purchase; Basic trial; Pro purchase)
+
+Insert AddonPricingTier using your IN/MY tier tables
+
+2) Marketplace Revenue Dashboard (Super Admin Analytics)
+✅ What to show (KPIs + tables + conversion funnel)
+Top KPIs (cards)
+
+Active Add-on Subscriptions
+
+MTD Add-on Revenue
+
+YTD Add-on Revenue
+
+Avg Add-ons / Tenant
+
+Trial → Paid Conversion %
+
+Payroll Attach Rate (% Pro tenants with Payroll)
+
+Tables
+
+Revenue by Add-on
+
+Add-on | Category | Active Tenants | MTD Revenue | YTD Revenue | Trial→Paid %
+
+Revenue by Country
+
+Country | Tenants | Active Add-ons | MTD Revenue | Top Add-on
+
+Conversion Funnel
+
+Viewed Marketplace → Started Trial → Activated Paid → Retained 30 days
+
+✅ API Endpoints
+
+Create: server/routes/super-admin-marketplace-analytics.ts
+
+GET /api/super-admin/marketplace/analytics/overview?from=YYYY-MM-DD&to=YYYY-MM-DD
+
+GET /api/super-admin/marketplace/analytics/by-addon
+
+GET /api/super-admin/marketplace/analytics/by-country
+
+GET /api/super-admin/marketplace/analytics/funnel
+
+✅ How to compute revenue (simple + accurate)
+
+Use TenantAddonSubscription.monthlyAmount + active periods.
+If you store invoices later, replace this with invoice aggregation.
+
+Pseudo SQL idea (inside storage layer):
+
+MTD: subscriptions where status=ACTIVE and period overlaps current month.
+
+YTD: same but year range.
+
+Trials: status=TRIALING, trialEndsAt not null.
+
+3) Razorpay Add-on Subscription Mapping (per-employee tiers + trial + bundle discounts)
+✅ Recommended approach (clean & scalable)
+
+One Razorpay Plan per country + addon + billing cycle + pricing tier
+
+Create Razorpay Subscription with:
+
+plan_id = providerPlanId
+
+quantity = employees (units)
+
+trial_end if trial is enabled
+
+Bundle discount:
+
+Option A (simplest): create a “bundle” plan_id (discounted) for Pro+Payroll
+
+Option B: apply coupon/offer if you already use Razorpay offers (optional)
+
+✅ Internal → Razorpay Mapping Table
+Internal concept	Stored in DB	Razorpay object
+Add-on enablement	AddonCountryConfig.isActive	N/A
+Pricing tier	AddonPricingTier	Razorpay plan amount
+Subscription	TenantAddonSubscription	subscription_id
+Units (employees)	TenantAddonSubscription.units	subscription.quantity
+Trial	trialEndsAt	trial_end
+Status	TenantAddonStatus	subscription status events
+✅ Webhooks you must support
+
+Create: server/routes/webhooks/razorpay.ts
+
+Handle these (minimum):
+
+subscription.activated
+
+subscription.charged
+
+subscription.completed
+
+subscription.halted
+
+subscription.cancelled
+
+payment.failed
+
+✅ Webhook processing rules
+
+Verify signature: x-razorpay-signature
+
+Insert into MarketplaceEvent (idempotent by eventId)
+
+Worker processes events → updates TenantAddonSubscription
+
+Status mapping example:
+
+activated → ACTIVE
+
+charged → ACTIVE + update period dates
+
+halted/payment.failed → PAST_DUE
+
+cancelled → CANCELED
+
+completed → EXPIRED
+
+✅ “Start Trial” flow
+
+POST /api/marketplace/addons/payroll/trial
+
+validate:
+
+country rollout active
+
+plan eligibility allows trial
+
+not already trialed (optional)
+
+create TenantAddonSubscription with:
+
+status=TRIALING
+
+trialEndsAt = now + 7 days
+
+no Razorpay subscription yet OR create with trial_end (your call)
+
+Best practice: create subscription immediately with trial_end so conversion is automatic.
+
+4) i18n Keys (EN + HI + MS + TA) — Marketplace + Add-ons + Micro-benefits
+✅ Add these keys in:
+
+client/src/i18n/locales/en.json
+
+client/src/i18n/locales/hi.json
+
+client/src/i18n/locales/ms.json
+
+client/src/i18n/locales/ta.json
+
+✅ Core Marketplace Labels
+{
+  "marketplaceTitle": "Add-on Marketplace",
+  "marketplaceSubtitle": "Add extra modules when you need them. Keep your base plan simple.",
+  "browseAddons": "Browse Add-ons",
+  "installedAddons": "Installed",
+  "noAddonsInstalledTitle": "No add-ons installed",
+  "noAddonsInstalledDesc": "Browse the marketplace to find add-ons for your business.",
+  "addonLive": "Live",
+  "addonSoon": "Soon",
+  "addonStartTrial": "Start trial",
+  "addonBuyNow": "Buy now",
+  "addonManage": "Manage",
+  "addonCancel": "Cancel",
+  "addonRequiresUpgradeTitle": "Available on Pro plan",
+  "addonRequiresUpgradeDesc": "Upgrade your plan to unlock this add-on.",
+  "upgradePlan": "Upgrade plan"
+}
+
+✅ Add-on Names
+{
+  "addon.payroll.name": "Payroll",
+  "addon.payroll.desc": "Run salaries, payslips, statutory deductions and bank files.",
+
+  "addon.hrms.name": "HRMS",
+  "addon.hrms.desc": "Employees, attendance, timesheets and leave management.",
+
+  "addon.whatsapp.name": "WhatsApp Automation",
+  "addon.whatsapp.desc": "Send reminders and updates automatically on WhatsApp."
+}
+
+✅ Micro-benefits (country-specific)
+{
+  "addon.payroll.micro.IN.1": "Generate payslips in seconds",
+  "addon.payroll.micro.IN.2": "PF/ESI/PT ready reports",
+  "addon.payroll.micro.IN.3": "Bank transfer file export",
+
+  "addon.payroll.micro.MY.1": "EPF/SOCSO/EIS compliant",
+  "addon.payroll.micro.MY.2": "PCB calculations supported",
+  "addon.payroll.micro.MY.3": "EA form export ready"
+}
+
+✅ Usage-based micro-benefits (dynamic)
+{
+  "addon.payroll.usage.high": "You're managing a growing team — payroll saves hours every month.",
+  "addon.hrms.usage.high": "Attendance + timesheets keep your team accountable as you scale."
+}
+
+✅ Translations (HI + MS + TA) for the most visible keys
+HI (Hindi)
+{
+  "marketplaceTitle": "ऐड-ऑन मार्केटप्लेस",
+  "marketplaceSubtitle": "ज़रूरत के हिसाब से मॉड्यूल जोड़ें। बेस प्लान सरल रखें।",
+  "browseAddons": "ऐड-ऑन देखें",
+  "installedAddons": "इंस्टॉल किए गए",
+  "noAddonsInstalledTitle": "कोई ऐड-ऑन इंस्टॉल नहीं है",
+  "noAddonsInstalledDesc": "अपने बिज़नेस के लिए ऐड-ऑन चुनने हेतु मार्केटप्लेस देखें।",
+  "addonLive": "लाइव",
+  "addonSoon": "जल्द",
+  "addonStartTrial": "ट्रायल शुरू करें",
+  "addonBuyNow": "अभी खरीदें",
+  "addonManage": "मैनेज करें",
+  "addonCancel": "कैंसल करें",
+  "addonRequiresUpgradeTitle": "Pro प्लान में उपलब्ध",
+  "addonRequiresUpgradeDesc": "इस ऐड-ऑन को अनलॉक करने के लिए प्लान अपग्रेड करें।",
+  "upgradePlan": "प्लान अपग्रेड करें",
+
+  "addon.payroll.name": "पेरोल",
+  "addon.payroll.desc": "सैलरी, पेस्लिप, कटौती और बैंक फाइल तैयार करें।",
+  "addon.hrms.name": "HRMS",
+  "addon.hrms.desc": "कर्मचारी, उपस्थिति, टाइमशीट और लीव मैनेजमेंट।"
+}
+
+MS (Malay)
+{
+  "marketplaceTitle": "Marketplace Add-on",
+  "marketplaceSubtitle": "Tambah modul bila diperlukan. Kekalkan pelan asas ringkas.",
+  "browseAddons": "Semak Add-on",
+  "installedAddons": "Dipasanɡ",
+  "noAddonsInstalledTitle": "Tiada add-on dipasang",
+  "noAddonsInstalledDesc": "Semak marketplace untuk cari add-on untuk perniagaan anda.",
+  "addonLive": "Live",
+  "addonSoon": "Soon",
+  "addonStartTrial": "Mulakan percubaan",
+  "addonBuyNow": "Beli sekarang",
+  "addonManage": "Urus",
+  "addonCancel": "Batal",
+  "addonRequiresUpgradeTitle": "Tersedia pada pelan Pro",
+  "addonRequiresUpgradeDesc": "Naik taraf pelan untuk buka add-on ini.",
+  "upgradePlan": "Naik taraf pelan",
+
+  "addon.payroll.name": "Payroll",
+  "addon.payroll.desc": "Urus gaji, slip gaji, potongan statutori dan fail bank.",
+  "addon.hrms.name": "HRMS",
+  "addon.hrms.desc": "Pekerja, kehadiran, timesheet dan cuti."
+}
+
+TA (Tamil)
+{
+  "marketplaceTitle": "ஆட்-ஆன் மார்க்கெட்பிளேஸ்",
+  "marketplaceSubtitle": "தேவைப்படும் போது கூடுதல் மாட்யூல்களை சேர்க்கவும். அடிப்படை திட்டத்தை எளிமையாக வைத்திருக்கவும்.",
+  "browseAddons": "ஆட்-ஆன்களை பார்வையிடுங்கள்",
+  "installedAddons": "நிறுவப்பட்டவை",
+  "noAddonsInstalledTitle": "ஆட்-ஆன்கள் எதுவும் நிறுவப்படவில்லை",
+  "noAddonsInstalledDesc": "உங்கள் வணிகத்திற்கு ஏற்ற ஆட்-ஆன்களை மார்க்கெட்பிளேஸில் இருந்து தேர்வு செய்யுங்கள்.",
+  "addonLive": "லைவ்",
+  "addonSoon": "விரைவில்",
+  "addonStartTrial": "ட்ரயல் தொடங்கு",
+  "addonBuyNow": "இப்போது வாங்கு",
+  "addonManage": "மேலாண்மை",
+  "addonCancel": "ரத்து",
+  "addonRequiresUpgradeTitle": "Pro திட்டத்தில் கிடைக்கும்",
+  "addonRequiresUpgradeDesc": "இந்த ஆட்-ஆனை திறக்க திட்டத்தை மேம்படுத்துங்கள்.",
+  "upgradePlan": "திட்டத்தை மேம்படுத்து",
+
+  "addon.payroll.name": "பேரோல்",
+  "addon.payroll.desc": "சம்பளம், பேஸ்லிப், கழிப்புகள் மற்றும் வங்கி கோப்புகளை நிர்வகிக்கவும்.",
+  "addon.hrms.name": "HRMS",
+  "addon.hrms.desc": "ஊழியர்கள், வருகை, டைம்ஷீட் மற்றும் விடுப்பு மேலாண்மை."
+}
+
+🔐 Marketplace Controls — who can add/publish/activate?
+Super Admin must have:
+
+Manage catalog (create/edit add-ons)
+
+Publish add-ons
+
+Toggle per-country rollout (IN/MY/UK)
+
+Update pricing tiers
+
+View analytics
+
+That means your Super Admin UI needs 2 pages:
+
+Marketplace Catalog (Add-ons list + create/edit + publish)
+
+Rollout Matrix (country x addon toggles + pricing)
+
+Right now you have analytics only — you need these two control screens.

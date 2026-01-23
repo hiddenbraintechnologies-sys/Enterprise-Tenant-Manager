@@ -60,6 +60,21 @@ Country-specific pricing with perEmployeeMonthlyPrice and minimumMonthlyCharge p
 - MARKETPLACE_MANAGE_PRICING, MARKETPLACE_MANAGE_ELIGIBILITY
 - MARKETPLACE_VIEW_ANALYTICS, MARKETPLACE_VIEW_AUDIT_LOGS
 
+**Marketplace Revenue Analytics (Jan 2026):**
+- API Endpoints: `/api/super-admin/marketplace/analytics/overview`, `/by-addon`, `/by-country`, `/funnel`
+- KPIs: Active subscriptions, MTD/YTD revenue, trial-to-paid conversion, payroll attach rate
+
+**Razorpay Add-on Subscription Integration:**
+- Webhook endpoint: `/api/webhooks/razorpay-marketplace`
+- Events: subscription.activated, subscription.charged, subscription.halted, subscription.cancelled, subscription.completed, payment.failed
+- Idempotent processing via MarketplaceEvent table
+- Trial flow: `/api/marketplace/addons/trial` with country/plan eligibility validation
+
+**Marketplace i18n (Jan 2026):**
+- Added marketplace translations to EN, HI, MS, TA locales
+- Includes: add-on names, descriptions, micro-benefits, analytics labels
+- Country-specific micro-benefits for Payroll (IN: PF/ESI/PT, MY: EPF/SOCSO/EIS)
+
 ### Technical Implementation
 The **Frontend** uses React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, following a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adopting a RESTful API design with Zod for validation. **Database** operations use PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) adheres to Clean Architecture, BLoC for state management, Dio for HTTP, and Hive for offline caching, fully supporting multi-tenancy. Deployment is global on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore) with multi-region support and disaster recovery.
 

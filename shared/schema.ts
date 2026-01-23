@@ -6134,6 +6134,10 @@ export const tenantAddons = pgTable("tenant_addons", {
   versionId: varchar("version_id").notNull().references(() => addonVersions.id, { onDelete: "restrict" }),
   pricingId: varchar("pricing_id").references(() => addonPricing.id),
   
+  // Country/Currency context
+  countryCode: varchar("country_code", { length: 3 }),
+  currencyCode: varchar("currency_code", { length: 3 }),
+  
   // Status
   status: addonInstallStatusEnum("status").default("pending"),
   
@@ -6151,6 +6155,16 @@ export const tenantAddons = pgTable("tenant_addons", {
   // Trial
   trialEndsAt: timestamp("trial_ends_at"),
   
+  // Billing inputs (for per-employee pricing)
+  units: integer("units").default(0),
+  monthlyAmount: integer("monthly_amount").default(0),
+  
+  // Payment provider mapping (Razorpay)
+  provider: varchar("provider", { length: 50 }).default("razorpay"),
+  providerPlanId: varchar("provider_plan_id"),
+  providerSubscriptionId: varchar("provider_subscription_id"),
+  providerCustomerId: varchar("provider_customer_id"),
+  
   // Usage tracking
   usageThisPeriod: jsonb("usage_this_period").default({}),
   
@@ -6164,11 +6178,29 @@ export const tenantAddons = pgTable("tenant_addons", {
   updatedAt: timestamp("updated_at").defaultNow(),
   lastActiveAt: timestamp("last_active_at"),
   uninstalledAt: timestamp("uninstalled_at"),
+  canceledAt: timestamp("canceled_at"),
 }, (table) => [
   index("idx_tenant_addons_tenant").on(table.tenantId),
   index("idx_tenant_addons_addon").on(table.addonId),
   index("idx_tenant_addons_status").on(table.status),
   uniqueIndex("idx_tenant_addons_unique").on(table.tenantId, table.addonId),
+]);
+
+// Marketplace webhook events (for idempotent processing)
+export const marketplaceEvents = pgTable("marketplace_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  source: varchar("source", { length: 50 }).notNull(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  eventId: varchar("event_id", { length: 255 }).notNull().unique(),
+  payload: jsonb("payload").notNull(),
+  processed: boolean("processed").default(false),
+  processedAt: timestamp("processed_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_marketplace_events_source").on(table.source),
+  index("idx_marketplace_events_type").on(table.eventType),
+  index("idx_marketplace_events_processed").on(table.processed),
 ]);
 
 // Installation history / audit
@@ -6527,6 +6559,7 @@ export const insertTenantAddonSchema = createInsertSchema(tenantAddons).omit({
   updatedAt: true,
   lastActiveAt: true,
   uninstalledAt: true,
+  canceledAt: true,
 });
 
 export const insertAddonReviewSchema = createInsertSchema(addonReviews).omit({
@@ -6554,6 +6587,14 @@ export type InsertAddonPricing = z.infer<typeof insertAddonPricingSchema>;
 
 export type TenantAddon = typeof tenantAddons.$inferSelect;
 export type InsertTenantAddon = z.infer<typeof insertTenantAddonSchema>;
+
+export type MarketplaceEvent = typeof marketplaceEvents.$inferSelect;
+export const insertMarketplaceEventSchema = createInsertSchema(marketplaceEvents).omit({
+  id: true,
+  createdAt: true,
+  processedAt: true,
+});
+export type InsertMarketplaceEvent = z.infer<typeof insertMarketplaceEventSchema>;
 
 export type AddonInstallHistory = typeof addonInstallHistory.$inferSelect;
 

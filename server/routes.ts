@@ -107,6 +107,9 @@ import adminPayrollAnalyticsRoutes from "./routes/admin/payroll-analytics";
 import adminAddonsRoutes from "./routes/admin/addons";
 import adminMarketplaceRevenueRoutes from "./routes/admin/marketplace-revenue";
 import superAdminMarketplaceManagementRoutes from "./routes/super-admin/marketplace-management";
+import superAdminMarketplaceAnalyticsRoutes from "./routes/super-admin/marketplace-analytics";
+import razorpayMarketplaceWebhookRoutes from "./routes/webhooks/razorpay-marketplace";
+import tenantAddonsRoutes from "./routes/marketplace/tenant-addons";
 import publicRoutes from "./routes/public";
 import catalogRoutes from "./routes/catalog";
 import promoRoutes from "./routes/billing/promos";
@@ -2538,6 +2541,15 @@ export async function registerRoutes(
   
   // Super Admin Marketplace Management (catalog, country rollout, eligibility, audit logs)
   app.use('/api/super-admin/marketplace', superAdminMarketplaceManagementRoutes);
+  
+  // Super Admin Marketplace Analytics (revenue dashboard, funnel, by-addon, by-country)
+  app.use('/api/super-admin/marketplace/analytics', superAdminMarketplaceAnalyticsRoutes);
+  
+  // Tenant Marketplace APIs (trials, installed addons, cancellation)
+  app.use('/api/marketplace/addons', tenantAddonsRoutes);
+  
+  // Razorpay Marketplace Webhooks (add-on subscriptions)
+  app.use('/api/webhooks/razorpay-marketplace', razorpayMarketplaceWebhookRoutes);
 
   app.get("/api/platform-admin/me", authenticateJWT(), requirePlatformAdmin(), async (req, res) => {
     try {

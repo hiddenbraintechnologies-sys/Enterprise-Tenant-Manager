@@ -229,6 +229,50 @@
       "planBundleDiscount": "बंडल डिस्काउंट",
       "taxNote": "आपके देश के अनुसार टैक्स लागू हो सकता है।",
       "consent": "जारी रखते ही चुने गए ऐड-ऑन के अनुसार बिलिंग लागू होगी।"
+    },
+    "addon": {
+      "payroll": {
+        "name": "पेरोल",
+        "desc": "सैलरी, पेस्लिप, वैधानिक कटौती और बैंक फाइलें चलाएं।",
+        "micro": {
+          "IN": {
+            "1": "पेस्लिप सेकंडों में बनाएं",
+            "2": "PF/ESI/PT रेडी रिपोर्ट",
+            "3": "बैंक ट्रांसफर फाइल एक्सपोर्ट"
+          },
+          "MY": {
+            "1": "EPF/SOCSO/EIS अनुपालन",
+            "2": "PCB गणना समर्थित",
+            "3": "EA फॉर्म एक्सपोर्ट रेडी"
+          }
+        },
+        "usage": {
+          "high": "आप बढ़ती टीम को मैनेज कर रहे हैं — पेरोल हर महीने घंटों बचाता है।"
+        }
+      },
+      "hrms": {
+        "name": "HRMS",
+        "desc": "कर्मचारी, उपस्थिति, टाइमशीट और छुट्टी प्रबंधन।",
+        "usage": {
+          "high": "उपस्थिति + टाइमशीट टीम को जवाबदेह रखते हैं।"
+        }
+      },
+      "whatsapp": {
+        "name": "WhatsApp ऑटोमेशन",
+        "desc": "WhatsApp पर स्वचालित रिमाइंडर और अपडेट भेजें।"
+      }
+    },
+    "analytics": {
+      "title": "मार्केटप्लेस एनालिटिक्स",
+      "activeSubscriptions": "सक्रिय सब्सक्रिप्शन",
+      "mtdRevenue": "MTD राजस्व",
+      "ytdRevenue": "YTD राजस्व",
+      "avgAddonsPerTenant": "औसत ऐड-ऑन/टेनेंट",
+      "trialToPaidConversion": "ट्रायल → पेड",
+      "payrollAttachRate": "पेरोल अटैच रेट",
+      "byAddon": "ऐड-ऑन द्वारा राजस्व",
+      "byCountry": "देश द्वारा राजस्व",
+      "conversionFunnel": "कन्वर्शन फ़नल"
     }
   },
   "lockedFeature": {
@@ -499,6 +543,49 @@
           "cta": "सक्षम करें"
         }
       }
+    }
+  },
+  "marketplace": {
+    "title": "ऐड-ऑन मार्केटप्लेस",
+    "subtitle": "ज़रूरत के हिसाब से मॉड्यूल जोड़ें। बेस प्लान सरल रखें।",
+    "browseAddons": "ऐड-ऑन देखें",
+    "installedAddons": "इंस्टॉल किए गए",
+    "noAddonsInstalledTitle": "कोई ऐड-ऑन इंस्टॉल नहीं है",
+    "noAddonsInstalledDesc": "अपने बिज़नेस के लिए ऐड-ऑन चुनने हेतु मार्केटप्लेस देखें।",
+    "addonLive": "लाइव",
+    "addonSoon": "जल्द",
+    "addonStartTrial": "ट्रायल शुरू करें",
+    "addonBuyNow": "अभी खरीदें",
+    "addonManage": "मैनेज करें",
+    "addonCancel": "कैंसल करें",
+    "addonRequiresUpgradeTitle": "Pro प्लान में उपलब्ध",
+    "addonRequiresUpgradeDesc": "इस ऐड-ऑन को अनलॉक करने के लिए प्लान अपग्रेड करें।",
+    "upgradePlan": "प्लान अपग्रेड करें",
+    "addon": {
+      "payroll": {
+        "name": "पेरोल",
+        "desc": "सैलरी, पेस्लिप, कटौती और बैंक फाइल तैयार करें।"
+      },
+      "hrms": {
+        "name": "HRMS",
+        "desc": "कर्मचारी, उपस्थिति, टाइमशीट और लीव मैनेजमेंट।"
+      },
+      "whatsapp": {
+        "name": "WhatsApp ऑटोमेशन",
+        "desc": "WhatsApp पर रिमाइंडर और अपडेट स्वचालित रूप से भेजें।"
+      }
+    },
+    "analytics": {
+      "title": "मार्केटप्लेस एनालिटिक्स",
+      "activeSubscriptions": "सक्रिय सदस्यताएं",
+      "mtdRevenue": "MTD राजस्व",
+      "ytdRevenue": "YTD राजस्व",
+      "avgAddonsPerTenant": "औसत ऐड-ऑन/टेनेंट",
+      "trialToPaidConversion": "ट्रायल → भुगतान",
+      "payrollAttachRate": "पेरोल अटैच दर",
+      "byAddon": "ऐड-ऑन द्वारा राजस्व",
+      "byCountry": "देश द्वारा राजस्व",
+      "conversionFunnel": "कन्वर्ज़न फ़नल"
     }
   }
 }

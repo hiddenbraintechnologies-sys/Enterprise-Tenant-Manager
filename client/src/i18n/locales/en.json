@@ -755,5 +755,66 @@
         }
       }
     }
+  },
+  "marketplace": {
+    "title": "Add-on Marketplace",
+    "subtitle": "Add extra modules when you need them. Keep your base plan simple.",
+    "browseAddons": "Browse Add-ons",
+    "installedAddons": "Installed",
+    "noAddonsInstalledTitle": "No add-ons installed",
+    "noAddonsInstalledDesc": "Browse the marketplace to find add-ons for your business.",
+    "addonLive": "Live",
+    "addonSoon": "Soon",
+    "addonStartTrial": "Start trial",
+    "addonBuyNow": "Buy now",
+    "addonManage": "Manage",
+    "addonCancel": "Cancel",
+    "addonRequiresUpgradeTitle": "Available on Pro plan",
+    "addonRequiresUpgradeDesc": "Upgrade your plan to unlock this add-on.",
+    "upgradePlan": "Upgrade plan",
+    "addon": {
+      "payroll": {
+        "name": "Payroll",
+        "desc": "Run salaries, payslips, statutory deductions and bank files.",
+        "micro": {
+          "IN": {
+            "1": "Generate payslips in seconds",
+            "2": "PF/ESI/PT ready reports",
+            "3": "Bank transfer file export"
+          },
+          "MY": {
+            "1": "EPF/SOCSO/EIS compliant",
+            "2": "PCB calculations supported",
+            "3": "EA form export ready"
+          }
+        },
+        "usage": {
+          "high": "You're managing a growing team — payroll saves hours every month."
+        }
+      },
+      "hrms": {
+        "name": "HRMS",
+        "desc": "Employees, attendance, timesheets and leave management.",
+        "usage": {
+          "high": "Attendance + timesheets keep your team accountable as you scale."
+        }
+      },
+      "whatsapp": {
+        "name": "WhatsApp Automation",
+        "desc": "Send reminders and updates automatically on WhatsApp."
+      }
+    },
+    "analytics": {
+      "title": "Marketplace Analytics",
+      "activeSubscriptions": "Active Subscriptions",
+      "mtdRevenue": "MTD Revenue",
+      "ytdRevenue": "YTD Revenue",
+      "avgAddonsPerTenant": "Avg Add-ons/Tenant",
+      "trialToPaidConversion": "Trial → Paid",
+      "payrollAttachRate": "Payroll Attach Rate",
+      "byAddon": "Revenue by Add-on",
+      "byCountry": "Revenue by Country",
+      "conversionFunnel": "Conversion Funnel"
+    }
   }
 }

@@ -728,5 +728,55 @@
         }
       }
     }
+  },
+  "marketplace": {
+    "title": "Marketplace Add-on",
+    "subtitle": "Tambah modul bila diperlukan. Kekalkan pelan asas ringkas.",
+    "browseAddons": "Semak Add-on",
+    "installedAddons": "Dipasang",
+    "noAddonsInstalledTitle": "Tiada add-on dipasang",
+    "noAddonsInstalledDesc": "Semak marketplace untuk cari add-on untuk perniagaan anda.",
+    "addonLive": "Live",
+    "addonSoon": "Akan datang",
+    "addonStartTrial": "Mulakan percubaan",
+    "addonBuyNow": "Beli sekarang",
+    "addonManage": "Urus",
+    "addonCancel": "Batal",
+    "addonRequiresUpgradeTitle": "Tersedia pada pelan Pro",
+    "addonRequiresUpgradeDesc": "Naik taraf pelan untuk buka add-on ini.",
+    "upgradePlan": "Naik taraf pelan",
+    "addon": {
+      "payroll": {
+        "name": "Payroll",
+        "desc": "Urus gaji, slip gaji, potongan statutori dan fail bank.",
+        "micro": {
+          "MY": {
+            "1": "EPF/SOCSO/EIS patuh",
+            "2": "Pengiraan PCB disokong",
+            "3": "Eksport borang EA sedia"
+          }
+        }
+      },
+      "hrms": {
+        "name": "HRMS",
+        "desc": "Pekerja, kehadiran, timesheet dan cuti."
+      },
+      "whatsapp": {
+        "name": "WhatsApp Automation",
+        "desc": "Hantar peringatan dan kemas kini secara automatik melalui WhatsApp."
+      }
+    },
+    "analytics": {
+      "title": "Analitik Marketplace",
+      "activeSubscriptions": "Langganan Aktif",
+      "mtdRevenue": "Hasil MTD",
+      "ytdRevenue": "Hasil YTD",
+      "avgAddonsPerTenant": "Purata Add-on/Penyewa",
+      "trialToPaidConversion": "Percubaan → Berbayar",
+      "payrollAttachRate": "Kadar Lampiran Payroll",
+      "byAddon": "Hasil mengikut Add-on",
+      "byCountry": "Hasil mengikut Negara",
+      "conversionFunnel": "Funnel Penukaran"
+    }
   }
 }
