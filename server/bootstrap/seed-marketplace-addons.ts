@@ -717,45 +717,45 @@ async function seedAddonPlanEligibility() {
   console.log("[marketplace-addons] Seeding addon plan eligibility...");
   
   const eligibilityRules = [
-    { slug: "hrms-india", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "hrms-india", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true },
-    { slug: "hrms-india", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "hrms-india", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "hrms-india", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "hrms-india", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "hrms-india", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "hrms-india", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
     
-    { slug: "hrms-malaysia", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "hrms-malaysia", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true },
-    { slug: "hrms-malaysia", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "hrms-malaysia", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
     
-    { slug: "payroll-india", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "payroll-india", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true },
-    { slug: "payroll-india", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "payroll-india", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "payroll-india", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "payroll-india", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "payroll-india", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "payroll-india", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
     
-    { slug: "payroll-malaysia", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "payroll-malaysia", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true },
-    { slug: "payroll-malaysia", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "payroll-malaysia", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
     
-    { slug: "whatsapp-automation", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "whatsapp-automation", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true },
-    { slug: "whatsapp-automation", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "whatsapp-automation", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
     
-    { slug: "whatsapp-automation", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "whatsapp-automation", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true },
-    { slug: "whatsapp-automation", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "whatsapp-automation", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
     
-    { slug: "advanced-analytics", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "advanced-analytics", countryCode: "IN", planTier: "basic", canPurchase: false, trialEnabled: false },
-    { slug: "advanced-analytics", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "advanced-analytics", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "basic", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
     
-    { slug: "advanced-analytics", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
-    { slug: "advanced-analytics", countryCode: "MY", planTier: "basic", canPurchase: false, trialEnabled: false },
-    { slug: "advanced-analytics", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
-    { slug: "advanced-analytics", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "basic", canPurchase: false, trialEnabled: true, trialDays: 14 },
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true, trialDays: 14 },
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true, trialDays: 14 },
   ];
   
   for (const rule of eligibilityRules) {
@@ -778,7 +778,7 @@ async function seedAddonPlanEligibility() {
         planTier: rule.planTier,
         canPurchase: rule.canPurchase,
         trialEnabled: rule.trialEnabled,
-        trialDays: 7,
+        trialDays: rule.trialDays || 14,
       };
       
       if (existing) {
