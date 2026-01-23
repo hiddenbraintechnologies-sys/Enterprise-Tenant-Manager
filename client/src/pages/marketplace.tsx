@@ -445,6 +445,7 @@ export default function Marketplace() {
 
   // Handle return from checkout (Razorpay or manual navigation)
   const [justReturned, setJustReturned] = useState(false);
+  const [pendingAddonId, setPendingAddonId] = useState<string | null>(null);
   
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -453,14 +454,27 @@ export default function Marketplace() {
                                params.has("razorpay_payment_id");
     
     // Check if there's a pending purchase from localStorage
-    const pendingPurchase = localStorage.getItem("marketplace_pending_purchase");
-    const isPendingReturn = pendingPurchase && Date.now() - parseInt(pendingPurchase) < 600000; // 10 min window
+    const pendingData = localStorage.getItem("marketplace_pending_purchase");
+    let isPendingReturn = false;
+    let storedAddonId: string | null = null;
+    
+    if (pendingData) {
+      try {
+        const parsed = JSON.parse(pendingData);
+        isPendingReturn = Date.now() - parsed.timestamp < 600000; // 10 min window
+        storedAddonId = parsed.addonId || null;
+      } catch {
+        // Legacy format: just timestamp
+        isPendingReturn = Date.now() - parseInt(pendingData) < 600000;
+      }
+    }
     
     if (purchaseStatus === "success" || hasRazorpayParams || isPendingReturn) {
       // Clear URL params and localStorage
       window.history.replaceState({}, "", "/marketplace");
       localStorage.removeItem("marketplace_pending_purchase");
       setJustReturned(true);
+      if (storedAddonId) setPendingAddonId(storedAddonId);
       
       // Refetch installed addons
       queryClient.invalidateQueries({ queryKey: ["/api/addons/tenant", tenantId, "addons"] });
@@ -482,6 +496,7 @@ export default function Marketplace() {
       const timeoutId = setTimeout(() => {
         clearInterval(pollInterval);
         setJustReturned(false);
+        setPendingAddonId(null);
       }, 30000);
       
       return () => {
@@ -530,6 +545,23 @@ export default function Marketplace() {
 
   const installedAddonIds = new Set(installedData?.installedAddons?.map((i) => i.addon.id) || []);
 
+  // Detect when pending addon becomes active and show success toast
+  useEffect(() => {
+    if (pendingAddonId && installedAddonIds.has(pendingAddonId)) {
+      const installedAddon = installedData?.installedAddons?.find(
+        (i) => i.addon.id === pendingAddonId
+      );
+      toast({
+        title: "Add-on activated!",
+        description: installedAddon?.addon?.name 
+          ? `${installedAddon.addon.name} is now ready to use.`
+          : "Your add-on is now ready to use.",
+      });
+      setPendingAddonId(null);
+      setJustReturned(false);
+    }
+  }, [installedAddonIds, pendingAddonId, installedData, toast]);
+
   const handleCloseInstallDialog = () => {
     setInstallDialogOpen(false);
     setSelectedAddon(null);
@@ -576,8 +608,11 @@ export default function Marketplace() {
       
       // Handle different response statuses
       if (data.status === "CHECKOUT_REQUIRED" && data.checkoutUrl) {
-        // Store pending purchase timestamp to detect return
-        localStorage.setItem("marketplace_pending_purchase", Date.now().toString());
+        // Store pending purchase with addon ID to detect return and activation
+        localStorage.setItem("marketplace_pending_purchase", JSON.stringify({
+          timestamp: Date.now(),
+          addonId: selectedAddon?.id || data.addonId
+        }));
         
         // Redirect to checkout
         toast({ title: "Redirecting to payment..." });
@@ -617,8 +652,11 @@ export default function Marketplace() {
       
       // Fallback for legacy responses or free add-ons
       if (data.requiresPayment && data.razorpay?.shortUrl) {
-        // Store pending purchase timestamp to detect return
-        localStorage.setItem("marketplace_pending_purchase", Date.now().toString());
+        // Store pending purchase with addon ID to detect return and activation
+        localStorage.setItem("marketplace_pending_purchase", JSON.stringify({
+          timestamp: Date.now(),
+          addonId: selectedAddon?.id || data.addonId
+        }));
         
         toast({ title: "Redirecting to payment..." });
         handleCloseInstallDialog();
