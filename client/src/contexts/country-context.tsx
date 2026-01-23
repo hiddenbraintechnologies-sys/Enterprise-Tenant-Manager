@@ -208,6 +208,60 @@ export function CountryProvider({ children }: { children: ReactNode }) {
     return FALLBACK_COUNTRIES[0];
   });
 
+  // Auto-detect country from IP geolocation when no saved preference exists
+  const [geoDetectionDone, setGeoDetectionDone] = useState(false);
+  
+  useEffect(() => {
+    // Only detect if no saved preference and not already detected
+    if (geoDetectionDone) return;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      setGeoDetectionDone(true);
+      return;
+    }
+    
+    // Use free IP geolocation API to detect country
+    const detectCountry = async () => {
+      try {
+        const response = await fetch("https://ipapi.co/json/", { 
+          signal: AbortSignal.timeout(3000) // 3 second timeout
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const countryCode = data.country_code;
+          
+          // Map detected country to supported country codes
+          const countryMapping: Record<string, string> = {
+            "IN": "IN",
+            "MY": "MY",
+            "GB": "UK",
+            "UK": "UK",
+            "AE": "AE",
+            "SG": "SG",
+            "US": "IN", // Default US visitors to India for now
+          };
+          
+          const mappedCode = countryMapping[countryCode];
+          if (mappedCode) {
+            const found = supportedCountries.find(c => c.code === mappedCode) || 
+                         FALLBACK_COUNTRIES.find(c => c.code === mappedCode);
+            if (found) {
+              console.log(`[GeoDetect] Detected country: ${countryCode} -> ${mappedCode}`);
+              setCountryState(found);
+              localStorage.setItem(STORAGE_KEY, mappedCode);
+            }
+          }
+        }
+      } catch (error) {
+        console.log("[GeoDetect] Could not detect country, using default");
+      } finally {
+        setGeoDetectionDone(true);
+      }
+    };
+    
+    detectCountry();
+  }, [supportedCountries, geoDetectionDone]);
+
   // Sync country with tenant's country or supportedCountries when data loads
   useEffect(() => {
     if (supportedCountries.length > 0) {
