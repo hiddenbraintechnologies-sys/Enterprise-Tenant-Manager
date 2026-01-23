@@ -208,6 +208,12 @@ app.use((req, res, next) => {
     
     // Skip async work for unauthenticated requests
     const user = req.user as any;
+    
+    // Debug logging for auth troubleshooting
+    if (req.path.includes('/marketplace') && req.method === 'POST') {
+      console.log(`[tenant-context] ${req.method} ${req.path} - hasUser=${!!user}, claims=${JSON.stringify(user?.claims || {})}, isAuth=${req.isAuthenticated?.()}`);
+    }
+    
     if (!user?.claims?.sub) {
       return next();
     }
