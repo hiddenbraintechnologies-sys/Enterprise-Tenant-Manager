@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { addons, addonVersions, addonPricing } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { addons, addonVersions, addonPricing, addonCountryConfig, addonPlanEligibility } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 interface AddonSeedData {
   slug: string;
@@ -649,4 +649,149 @@ export async function seedMarketplaceAddons(): Promise<void> {
   }
 
   console.log("[marketplace-addons] Phase 1 add-ons seeded successfully");
+  
+  await seedAddonCountryConfigs();
+  await seedAddonPlanEligibility();
+}
+
+async function seedAddonCountryConfigs() {
+  console.log("[marketplace-addons] Seeding addon country configs...");
+  
+  const countryConfigs = [
+    { slug: "hrms-india", countryCode: "IN", currency: "INR", monthlyPrice: "49", isActive: true, status: "active" },
+    { slug: "hrms-malaysia", countryCode: "MY", currency: "MYR", monthlyPrice: "10", isActive: true, status: "active" },
+    { slug: "hrms-uk", countryCode: "UK", currency: "GBP", monthlyPrice: "2", isActive: true, status: "active" },
+    { slug: "payroll-india", countryCode: "IN", currency: "INR", monthlyPrice: "99", isActive: true, status: "active" },
+    { slug: "payroll-malaysia", countryCode: "MY", currency: "MYR", monthlyPrice: "20", isActive: true, status: "active" },
+    { slug: "payroll-uk", countryCode: "UK", currency: "GBP", monthlyPrice: "5", isActive: true, status: "active" },
+    { slug: "whatsapp-automation", countryCode: "IN", currency: "INR", monthlyPrice: "299", isActive: true, status: "active" },
+    { slug: "whatsapp-automation", countryCode: "MY", currency: "MYR", monthlyPrice: "50", isActive: true, status: "active" },
+    { slug: "whatsapp-automation", countryCode: "UK", currency: "GBP", monthlyPrice: "15", isActive: false, status: "coming_soon" },
+    { slug: "advanced-analytics", countryCode: "IN", currency: "INR", monthlyPrice: "199", isActive: true, status: "active" },
+    { slug: "advanced-analytics", countryCode: "MY", currency: "MYR", monthlyPrice: "35", isActive: true, status: "active" },
+    { slug: "advanced-analytics", countryCode: "UK", currency: "GBP", monthlyPrice: "10", isActive: true, status: "active" },
+  ];
+  
+  for (const config of countryConfigs) {
+    try {
+      const [addon] = await db.select().from(addons).where(eq(addons.slug, config.slug)).limit(1);
+      if (!addon) continue;
+      
+      const [existing] = await db.select()
+        .from(addonCountryConfig)
+        .where(and(
+          eq(addonCountryConfig.addonId, addon.id),
+          eq(addonCountryConfig.countryCode, config.countryCode)
+        ))
+        .limit(1);
+      
+      const configValues = {
+        addonId: addon.id,
+        countryCode: config.countryCode,
+        currencyCode: config.currency,
+        monthlyPrice: config.monthlyPrice,
+        isActive: config.isActive,
+        status: config.status,
+        trialDays: 7,
+        trialEnabled: true,
+      };
+      
+      if (existing) {
+        await db.update(addonCountryConfig)
+          .set({ ...configValues, updatedAt: new Date() })
+          .where(eq(addonCountryConfig.id, existing.id));
+      } else {
+        await db.insert(addonCountryConfig).values(configValues);
+      }
+      
+      console.log(`[marketplace-addons] Configured ${config.slug} for ${config.countryCode}`);
+    } catch (error) {
+      console.error(`[marketplace-addons] Error seeding config for ${config.slug}/${config.countryCode}:`, error);
+    }
+  }
+  
+  console.log("[marketplace-addons] Country configs seeded successfully");
+}
+
+async function seedAddonPlanEligibility() {
+  console.log("[marketplace-addons] Seeding addon plan eligibility...");
+  
+  const eligibilityRules = [
+    { slug: "hrms-india", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "hrms-india", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true },
+    { slug: "hrms-india", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "hrms-india", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true },
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "hrms-malaysia", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    
+    { slug: "payroll-india", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "payroll-india", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true },
+    { slug: "payroll-india", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "payroll-india", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true },
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "payroll-malaysia", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "basic", canPurchase: true, trialEnabled: true },
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "whatsapp-automation", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "basic", canPurchase: true, trialEnabled: true },
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "whatsapp-automation", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "basic", canPurchase: false, trialEnabled: false },
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "advanced-analytics", countryCode: "IN", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+    
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "free", canPurchase: false, trialEnabled: false },
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "basic", canPurchase: false, trialEnabled: false },
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "pro", canPurchase: true, trialEnabled: true },
+    { slug: "advanced-analytics", countryCode: "MY", planTier: "enterprise", canPurchase: true, trialEnabled: true },
+  ];
+  
+  for (const rule of eligibilityRules) {
+    try {
+      const [addon] = await db.select().from(addons).where(eq(addons.slug, rule.slug)).limit(1);
+      if (!addon) continue;
+      
+      const [existing] = await db.select()
+        .from(addonPlanEligibility)
+        .where(and(
+          eq(addonPlanEligibility.addonId, addon.id),
+          eq(addonPlanEligibility.countryCode, rule.countryCode),
+          eq(addonPlanEligibility.planTier, rule.planTier)
+        ))
+        .limit(1);
+      
+      const ruleValues = {
+        addonId: addon.id,
+        countryCode: rule.countryCode,
+        planTier: rule.planTier,
+        canPurchase: rule.canPurchase,
+        trialEnabled: rule.trialEnabled,
+        trialDays: 7,
+      };
+      
+      if (existing) {
+        await db.update(addonPlanEligibility)
+          .set({ ...ruleValues, updatedAt: new Date() })
+          .where(eq(addonPlanEligibility.id, existing.id));
+      } else {
+        await db.insert(addonPlanEligibility).values(ruleValues);
+      }
+    } catch (error) {
+      console.error(`[marketplace-addons] Error seeding eligibility for ${rule.slug}/${rule.countryCode}/${rule.planTier}:`, error);
+    }
+  }
+  
+  console.log("[marketplace-addons] Plan eligibility rules seeded successfully");
 }

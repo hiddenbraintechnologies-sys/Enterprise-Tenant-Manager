@@ -14,6 +14,29 @@ MyBizStream is built as a multi-tenant SaaS platform with robust authentication 
 ### Add-on Marketplace
 The platform features an Add-on Marketplace with country-specific filtering and multi-currency pricing. Add-ons are compatible with specific countries or globally available, with pricing tiers across multiple currencies. A comprehensive feature gating system (useFeatureGate hook) enables soft-upselling by controlling access to modules and features based on plan tier, add-on status, country, and user roles. Locked feature pages/modals with trial CTAs are used to guide users. A Super Admin Marketplace Revenue Analytics Dashboard provides insights into subscriptions, revenue, and conversion funnels.
 
+### Super Admin Marketplace Management (Added Jan 2026)
+A complete management console for Super Admins to control the marketplace:
+
+**Database Tables:**
+- `addonPlanEligibility`: Per-plan tier eligibility rules (canPurchase, trialEnabled, maxQuantity)
+- `addonCountryConfig`: Per-addon country activation, pricing (monthly/yearly), trial config
+- `addonAuditLog`: Audit trail for all marketplace admin actions
+
+**API Endpoints** (`/api/super-admin/marketplace/`):
+- Catalog CRUD: GET/POST/PATCH addons, POST publish/archive/restore
+- Country Rollout: GET/PUT/DELETE addons/:addonId/countries/:countryCode
+- Eligibility: GET/PUT addons/:addonId/eligibility/:countryCode
+- Audit Logs: GET audit-logs with filtering/pagination
+- Summary: GET summary for dashboard stats
+
+**UI Page** (`/super-admin/marketplace-management`):
+- Catalog Tab: Create/edit/publish/archive add-ons
+- Country Rollout Tab: Configure per-country activation and pricing
+- Eligibility Tab: Set plan tier purchase/trial rules
+- Audit Logs Tab: View all admin actions with filters
+
+**Seeded Add-ons**: HRMS (IN/MY/UK), Payroll (IN/MY/UK), WhatsApp Automation, Advanced Analytics with country configs and eligibility rules.
+
 ### Technical Implementation
 The **Frontend** uses React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, following a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adopting a RESTful API design with Zod for validation. **Database** operations use PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) adheres to Clean Architecture, BLoC for state management, Dio for HTTP, and Hive for offline caching, fully supporting multi-tenancy. Deployment is global on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore) with multi-region support and disaster recovery.
 

@@ -6316,6 +6316,126 @@ export const tenantPayrollAddon = pgTable("tenant_payroll_addon", {
   index("idx_tenant_payroll_addon_status").on(table.subscriptionStatus),
 ]);
 
+// ==================== ADDON PLAN ELIGIBILITY ====================
+// Controls which plan tiers can purchase which add-ons per country
+
+export const addonPlanEligibility = pgTable("addon_plan_eligibility", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "cascade" }),
+  countryCode: varchar("country_code", { length: 5 }).notNull(),
+  planTier: varchar("plan_tier", { length: 50 }).notNull(),
+  
+  canPurchase: boolean("can_purchase").default(true).notNull(),
+  trialEnabled: boolean("trial_enabled").default(true).notNull(),
+  trialDays: integer("trial_days").default(7),
+  
+  requiresBundle: boolean("requires_bundle").default(false),
+  bundleDiscount: decimal("bundle_discount", { precision: 5, scale: 2 }).default("0"),
+  
+  maxQuantity: integer("max_quantity"),
+  requiresApproval: boolean("requires_approval").default(false),
+  
+  internalNotes: text("internal_notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_addon_plan_eligibility_unique").on(table.addonId, table.countryCode, table.planTier),
+  index("idx_addon_plan_eligibility_addon").on(table.addonId),
+  index("idx_addon_plan_eligibility_country").on(table.countryCode),
+  index("idx_addon_plan_eligibility_plan").on(table.planTier),
+]);
+
+// ==================== ADDON COUNTRY CONFIG ====================
+// Per-addon country-specific configuration and pricing
+
+export const addonCountryConfig = pgTable("addon_country_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "cascade" }),
+  countryCode: varchar("country_code", { length: 5 }).notNull(),
+  
+  isActive: boolean("is_active").default(false).notNull(),
+  status: varchar("status", { length: 20 }).default("coming_soon"),
+  launchDate: timestamp("launch_date"),
+  
+  currencyCode: varchar("currency_code", { length: 3 }).notNull(),
+  monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }),
+  yearlyPrice: decimal("yearly_price", { precision: 10, scale: 2 }),
+  perEmployeePrice: decimal("per_employee_price", { precision: 10, scale: 2 }),
+  perUnitPrice: decimal("per_unit_price", { precision: 10, scale: 2 }),
+  
+  trialDays: integer("trial_days").default(7),
+  trialEnabled: boolean("trial_enabled").default(true),
+  
+  complianceNotes: text("compliance_notes"),
+  disclaimerText: text("disclaimer_text"),
+  termsUrl: text("terms_url"),
+  
+  comingSoonMessage: text("coming_soon_message"),
+  featuredOrder: integer("featured_order").default(0),
+  
+  razorpayMonthlyPlanId: varchar("razorpay_monthly_plan_id", { length: 100 }),
+  razorpayYearlyPlanId: varchar("razorpay_yearly_plan_id", { length: 100 }),
+  
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_addon_country_config_unique").on(table.addonId, table.countryCode),
+  index("idx_addon_country_config_addon").on(table.addonId),
+  index("idx_addon_country_config_country").on(table.countryCode),
+  index("idx_addon_country_config_status").on(table.status),
+]);
+
+// ==================== ADDON AUDIT LOG ====================
+// Marketplace-specific audit trail for Super Admin actions
+
+export const addonAuditLogActionEnum = pgEnum("addon_audit_log_action", [
+  "addon_created",
+  "addon_updated",
+  "addon_published",
+  "addon_archived",
+  "addon_restored",
+  "country_activated",
+  "country_deactivated",
+  "country_price_updated",
+  "eligibility_updated",
+  "trial_config_updated",
+  "subscription_created",
+  "subscription_cancelled",
+  "subscription_renewed",
+]);
+
+export const addonAuditLog = pgTable("addon_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  actorUserId: varchar("actor_user_id").notNull(),
+  actorEmail: text("actor_email"),
+  actorRole: varchar("actor_role", { length: 50 }),
+  
+  action: addonAuditLogActionEnum("action").notNull(),
+  
+  addonId: varchar("addon_id").references(() => addons.id, { onDelete: "set null" }),
+  addonSlug: varchar("addon_slug", { length: 100 }),
+  countryCode: varchar("country_code", { length: 5 }),
+  tenantId: varchar("tenant_id"),
+  
+  previousValue: jsonb("previous_value"),
+  newValue: jsonb("new_value"),
+  metadata: jsonb("metadata").default({}),
+  
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_addon_audit_log_actor").on(table.actorUserId),
+  index("idx_addon_audit_log_addon").on(table.addonId),
+  index("idx_addon_audit_log_action").on(table.action),
+  index("idx_addon_audit_log_country").on(table.countryCode),
+  index("idx_addon_audit_log_created").on(table.createdAt),
+]);
+
 // Insert schemas for payroll addon
 export const insertPayrollAddonTierSchema = createInsertSchema(payrollAddonTiers).omit({
   id: true,
@@ -6344,6 +6464,35 @@ export type InsertBundleDiscount = z.infer<typeof insertBundleDiscountSchema>;
 
 export type TenantPayrollAddon = typeof tenantPayrollAddon.$inferSelect;
 export type InsertTenantPayrollAddon = z.infer<typeof insertTenantPayrollAddonSchema>;
+
+// Insert schemas for addon plan eligibility
+export const insertAddonPlanEligibilitySchema = createInsertSchema(addonPlanEligibility).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type AddonPlanEligibility = typeof addonPlanEligibility.$inferSelect;
+export type InsertAddonPlanEligibility = z.infer<typeof insertAddonPlanEligibilitySchema>;
+
+// Insert schemas for addon country config
+export const insertAddonCountryConfigSchema = createInsertSchema(addonCountryConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type AddonCountryConfig = typeof addonCountryConfig.$inferSelect;
+export type InsertAddonCountryConfig = z.infer<typeof insertAddonCountryConfigSchema>;
+
+// Insert schemas for addon audit log
+export const insertAddonAuditLogSchema = createInsertSchema(addonAuditLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type AddonAuditLog = typeof addonAuditLog.$inferSelect;
+export type InsertAddonAuditLog = z.infer<typeof insertAddonAuditLogSchema>;
 
 // Insert schemas
 export const insertAddonSchema = createInsertSchema(addons).omit({

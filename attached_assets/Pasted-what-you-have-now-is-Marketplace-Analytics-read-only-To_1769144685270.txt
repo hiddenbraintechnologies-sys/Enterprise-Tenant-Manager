@@ -1,0 +1,211 @@
+what you have now is Marketplace Analytics (read-only). To “control” the marketplace you need a separate Super Admin console with RBAC + rollout switches.
+
+Below is the clean model that works well for your SaaS:
+
+✅ Who should have access (Roles)
+1) Super Admin (Platform Owner)
+
+Full control
+
+Create / edit add-ons (HRMS, Payroll, WhatsApp, etc.)
+
+Set pricing per country (INR/MYR/GBP)
+
+Activate / deactivate add-ons globally
+
+Enable/disable add-ons per country (MY only, UK later, etc.)
+
+Enable/disable add-ons per plan tier (ex: Basic can buy Payroll, Free cannot)
+
+Approve/reject add-ons for launch rollout
+
+See analytics + revenue
+
+2) Platform Admin (Internal Staff)
+
+Limited control (optional)
+
+Can view analytics + manage catalog content
+
+Cannot publish/activate without Super Admin approval
+(use permission like MARKETPLACE_PUBLISH)
+
+3) Tenant Admin (Customer)
+
+No catalog control
+
+Can browse add-ons
+
+Can start trial / purchase / cancel (depending on permissions)
+
+Can assign add-ons to their tenant (install/uninstall)
+
+4) Regular Users
+
+No marketplace access unless you allow “request add-on”
+
+✅ What controls Super Admin should have (missing today)
+
+You need Marketplace Management page (not analytics).
+
+Super Admin → Marketplace (New Menu)
+
+Tabs:
+
+Add-on Catalog
+
+Country Rollout
+
+Pricing & Discounts
+
+Eligibility Rules
+
+Audit Logs
+
+Analytics (your current page)
+
+✅ Controls you should add (Minimum required)
+A) Add-on Catalog Controls
+
+For each add-on (HRMS/Payroll/etc.) Super Admin can:
+
+✅ Create new add-on
+
+✅ Edit name/description/features
+
+✅ Upload icon
+
+✅ Set billing type (monthly / per employee / per unit)
+
+✅ Set trial days (Payroll 7 days etc.)
+
+✅ Set status: Draft / Published / Archived
+
+B) Country Activation Controls
+
+For each country:
+
+Enable add-on ✅ / disable ❌
+
+Set country-specific compliance text (MY payroll wording)
+
+Set country pricing (MYR vs INR vs GBP)
+
+Control “Coming soon” badge
+
+C) Plan Eligibility Controls
+
+Example rules:
+
+Free plan: cannot buy Payroll
+
+Basic+: can buy Payroll trial
+
+Pro: bundle discount
+
+✅ Why HRMS & Payroll are missing in Marketplace
+
+Usually one of these is happening:
+
+Add-ons not seeded in DB (no records)
+
+Add-ons exist but status = draft/archived
+
+Country rollout disabled for IN/MY
+
+Eligibility rules block them for current plan
+
+So Super Admin needs a page to publish + activate them.
+
+✅ What to build now (Prisma + API + UI structure)
+✅ Prisma tables you need (core)
+
+AddonCatalog
+
+AddonCountryConfig
+
+AddonPlanEligibility
+
+TenantAddonSubscription
+
+AddonAuditLog
+
+This will unlock the controls.
+
+✅ UI you should add (files)
+
+Create a new admin section:
+
+Frontend
+
+client/src/pages/super-admin/marketplace/index.tsx
+
+client/src/pages/super-admin/marketplace/catalog.tsx
+
+client/src/pages/super-admin/marketplace/countries.tsx
+
+client/src/pages/super-admin/marketplace/pricing.tsx
+
+client/src/pages/super-admin/marketplace/eligibility.tsx
+
+Backend
+
+server/routes/marketplace-admin.ts
+(or inside existing super admin routes)
+
+✅ Master Replit Prompt (copy-paste)
+Build “Super Admin → Marketplace Management” (not analytics).
+
+Goal:
+Super Admin can create/publish/activate marketplace add-ons (HRMS, Payroll, WhatsApp etc.),
+control rollout per country (IN/MY/UK), set pricing per country, and set plan eligibility rules.
+
+1) Prisma
+Add tables:
+- AddonCatalog(id, code, name, description, category, icon, billingType, trialDays, status[draft|published|archived], createdAt, updatedAt)
+- AddonCountryConfig(id, addonId, countryCode, isActive, currencyCode, monthlyPrice, perEmployeePrice, notes, updatedAt)
+- AddonPlanEligibility(id, addonId, countryCode, planTier, canPurchase, trialEnabled)
+- TenantAddonSubscription(id, tenantId, addonId, countryCode, status[trial|active|cancelled], startedAt, trialEndsAt, razorpaySubscriptionId)
+- AddonAuditLog(id, actorUserId, action, addonId, countryCode, payloadJson, createdAt)
+
+2) APIs (Super Admin only; enforce RBAC permission MARKETPLACE_MANAGE)
+- GET /api/super-admin/marketplace/addons
+- POST /api/super-admin/marketplace/addons
+- PATCH /api/super-admin/marketplace/addons/:addonId
+- POST /api/super-admin/marketplace/addons/:addonId/publish
+- POST /api/super-admin/marketplace/addons/:addonId/archive
+
+Country rollout:
+- GET /api/super-admin/marketplace/addons/:addonId/countries
+- PATCH /api/super-admin/marketplace/addons/:addonId/countries/:countryCode (toggle isActive + set price/currency)
+
+Eligibility:
+- GET /api/super-admin/marketplace/addons/:addonId/eligibility?countryCode=IN
+- PUT /api/super-admin/marketplace/addons/:addonId/eligibility (planTier rules)
+
+Public marketplace listing (tenant):
+- GET /api/marketplace/addons (returns only published + active for tenant country + eligible for their plan)
+
+3) UI (Super Admin)
+Create page: /super-admin/marketplace with tabs:
+- Catalog (create/edit/publish/archive)
+- Country Rollout (matrix: add-on x country with Live/Soon toggle + pricing inputs)
+- Eligibility (matrix: add-on x planTier with canPurchase + trial toggle)
+- Audit Logs
+Keep existing Marketplace Analytics page as read-only.
+
+4) Seed
+Seed HRMS + Payroll + WhatsApp as AddonCatalog records (status=draft)
+Seed India + Malaysia country configs with default prices
+Ensure they do not appear to tenants until Super Admin publishes + activates per country.
+
+5) UX
+- Add “Publish” and “Deactivate for MY/IN/UK” buttons
+- Show badges: Draft / Published / Archived
+- Confirm dialogs for publish/archive
+- Add toast success/error
+
+Quick answer to your main question
+
+✅ Super Admin should control everything (add-ons + activation + pricing + eligibility).
+Tenant admins should only buy/install.
