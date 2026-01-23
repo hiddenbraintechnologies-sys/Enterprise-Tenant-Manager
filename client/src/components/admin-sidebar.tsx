@@ -35,11 +35,13 @@ import {
   Calculator,
   FileEdit,
   Globe,
+  Globe2,
   Headphones,
   ClipboardList,
   ArrowRightLeft,
   Wrench,
   ShieldCheck,
+  Store,
 } from "lucide-react";
 import {
   Permissions,
@@ -103,6 +105,18 @@ const superAdminMenuItems: MenuItem[] = [
     url: "/super-admin/regions",
     icon: Globe,
     permission: Permissions.MANAGE_COUNTRIES_REGIONS,
+  },
+  {
+    title: "Marketplace Catalog",
+    url: "/super-admin/marketplace/catalog",
+    icon: Store,
+    superAdminOnly: true,
+  },
+  {
+    title: "Country Rollouts",
+    url: "/super-admin/marketplace/rollouts",
+    icon: Globe2,
+    superAdminOnly: true,
   },
   {
     title: "Marketplace Analytics",
