@@ -18,54 +18,82 @@
 import { Router } from "express";
 import { requireMinimumRole, auditService } from "../../core";
 import EmployeeService from "../../services/hrms/employeeService";
+import { ZodError } from "zod";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  auditService.logFromRequest("view_employees", req, "employees");
-  const employees = await EmployeeService.listEmployees(tenantId, req.query);
-  res.json(employees);
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const employees = await EmployeeService.listEmployees(tenantId, req.query);
+    res.json(employees);
+  } catch (error) {
+    console.error("[employees] GET / error:", error);
+    res.status(500).json({ error: "Failed to fetch employees" });
+  }
 });
 
 router.get("/:id", async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const employee = await EmployeeService.getEmployee(tenantId, req.params.id);
-  if (!employee) {
-    return res.status(404).json({ error: "Employee not found" });
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const employee = await EmployeeService.getEmployee(tenantId, req.params.id);
+    if (!employee) {
+      return res.status(404).json({ error: "Employee not found" });
+    }
+    res.json(employee);
+  } catch (error) {
+    console.error("[employees] GET /:id error:", error);
+    res.status(500).json({ error: "Failed to fetch employee" });
   }
-  res.json(employee);
 });
 
 router.post("/", async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  auditService.logFromRequest("add_employee", req, "employees");
-  const employee = await EmployeeService.addEmployee(tenantId, req.body);
-  res.status(201).json(employee);
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const employee = await EmployeeService.addEmployee(tenantId, req.body);
+    res.status(201).json(employee);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({ error: "Validation failed", details: error.errors });
+    }
+    console.error("[employees] POST / error:", error);
+    res.status(500).json({ error: "Failed to create employee" });
+  }
 });
 
 router.put("/:id", async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  auditService.logFromRequest("update_employee", req, "employees");
-  const employee = await EmployeeService.updateEmployee(tenantId, req.params.id, req.body);
-  res.json(employee);
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const employee = await EmployeeService.updateEmployee(tenantId, req.params.id, req.body);
+    res.json(employee);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({ error: "Validation failed", details: error.errors });
+    }
+    console.error("[employees] PUT /:id error:", error);
+    res.status(500).json({ error: "Failed to update employee" });
+  }
 });
 
 router.delete("/:id", requireMinimumRole("admin"), async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  auditService.logFromRequest("delete_employee", req, "employees");
-  await EmployeeService.deleteEmployee(tenantId, req.params.id);
-  res.json({ success: true });
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    await EmployeeService.deleteEmployee(tenantId, req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[employees] DELETE /:id error:", error);
+    res.status(500).json({ error: "Failed to delete employee" });
+  }
 });
 
 export default router;
