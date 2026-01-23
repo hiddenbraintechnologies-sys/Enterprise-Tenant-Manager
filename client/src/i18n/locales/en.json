@@ -626,7 +626,57 @@
     "consulting": "Engagements & time tracking",
     "marketplace": "Extend with add-ons",
     "multiBranch": "Multiple locations",
-    "apiAccess": "System integrations"
+    "apiAccess": "System integrations",
+    "gst": "Tax invoicing"
+  },
+  "featureMicroByCountry": {
+    "IN": {
+      "payroll": "Payslips, TDS-ready (add-on)",
+      "gst": "GST invoices & HSN/SAC",
+      "whatsappAutomation": "Auto payment reminders on WhatsApp"
+    },
+    "MY": {
+      "payroll": "Payslips, EPF/SOCSO/PCB-ready",
+      "gst": "SST-ready invoicing",
+      "whatsappAutomation": "Auto reminders via WhatsApp"
+    },
+    "UK": {
+      "payroll": "Coming soon (UK compliance)",
+      "gst": "VAT-ready invoicing",
+      "whatsappAutomation": "Customer updates via WhatsApp"
+    },
+    "AE": {
+      "payroll": "Payslips, WPS-ready",
+      "gst": "VAT-ready invoicing (UAE)",
+      "whatsappAutomation": "Auto reminders via WhatsApp"
+    },
+    "SG": {
+      "payroll": "Payslips, CPF-ready",
+      "gst": "GST invoicing (Singapore)",
+      "whatsappAutomation": "Auto reminders via WhatsApp"
+    }
+  },
+  "featureMicroByUsage": {
+    "payroll": {
+      "low": "Start payroll when you're ready",
+      "mid": "Save hours every month on salary processing",
+      "high": "You're growing—automate payroll now"
+    },
+    "hrms": {
+      "low": "Keep employee records organized",
+      "mid": "Track attendance and leave easily",
+      "high": "Manage teams at scale with HRMS"
+    },
+    "whatsappAutomation": {
+      "low": "Send updates without manual follow-ups",
+      "mid": "Reduce follow-ups with auto reminders",
+      "high": "Recover payments faster with WhatsApp automation"
+    },
+    "analytics": {
+      "low": "Understand your business at a glance",
+      "mid": "Spot trends with weekly insights",
+      "high": "Optimize revenue with advanced reports"
+    }
   },
   "lockedFeature": {
     "title": "This feature is not on your current plan",

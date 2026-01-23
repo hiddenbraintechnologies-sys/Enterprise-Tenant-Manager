@@ -599,7 +599,57 @@
     "consulting": "Penglibatan & masa",
     "marketplace": "Tambah ciri melalui add-on",
     "multiBranch": "Berbilang lokasi",
-    "apiAccess": "Integrasi sistem"
+    "apiAccess": "Integrasi sistem",
+    "gst": "Invois cukai"
+  },
+  "featureMicroByCountry": {
+    "IN": {
+      "payroll": "Slip gaji, sedia TDS (add-on)",
+      "gst": "Invois GST & HSN/SAC",
+      "whatsappAutomation": "Peringatan bayaran automatik WhatsApp"
+    },
+    "MY": {
+      "payroll": "Slip gaji, sedia EPF/SOCSO/PCB",
+      "gst": "Invois sedia SST",
+      "whatsappAutomation": "Peringatan automatik WhatsApp"
+    },
+    "UK": {
+      "payroll": "Akan datang (pematuhan UK)",
+      "gst": "Invois sedia VAT",
+      "whatsappAutomation": "Kemas kini pelanggan WhatsApp"
+    },
+    "AE": {
+      "payroll": "Slip gaji, sedia WPS",
+      "gst": "Invois sedia VAT (UAE)",
+      "whatsappAutomation": "Peringatan automatik WhatsApp"
+    },
+    "SG": {
+      "payroll": "Slip gaji, sedia CPF",
+      "gst": "Invois GST (Singapura)",
+      "whatsappAutomation": "Peringatan automatik WhatsApp"
+    }
+  },
+  "featureMicroByUsage": {
+    "payroll": {
+      "low": "Mulakan payroll bila anda bersedia",
+      "mid": "Jimat masa setiap bulan untuk proses gaji",
+      "high": "Perniagaan berkembang—automasi payroll sekarang"
+    },
+    "hrms": {
+      "low": "Susun rekod pekerja dengan kemas",
+      "mid": "Jejak kehadiran dan cuti dengan mudah",
+      "high": "Urus pasukan pada skala besar"
+    },
+    "whatsappAutomation": {
+      "low": "Hantar kemas kini tanpa follow-up manual",
+      "mid": "Kurangkan follow-up dengan peringatan automatik",
+      "high": "Kutip bayaran lebih cepat dengan automasi WhatsApp"
+    },
+    "analytics": {
+      "low": "Fahami perniagaan sepintas lalu",
+      "mid": "Kesan trend dengan insight mingguan",
+      "high": "Optimumkan hasil dengan laporan lanjutan"
+    }
   },
   "lockedFeature": {
     "title": "Ciri ini tiada dalam pelan semasa anda",
