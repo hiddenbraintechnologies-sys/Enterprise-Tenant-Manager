@@ -1,0 +1,408 @@
+here’s a clean, implementation-ready package for all three:
+
+Feature-specific icons + screenshot mapping
+
+Country-specific micro-benefits (MY vs IN vs UK)
+
+Usage-based micro-benefits (low/medium/high intent)
+
+I’ll keep it aligned with your current stack (React + shadcn/ui + lucide-react + i18n).
+
+1) Feature Icons + Screenshot Mapping
+A) Icons mapping (TypeScript)
+
+Create:
+
+client/src/config/feature-assets.ts
+
+import {
+  Users,
+  Wallet,
+  MessageCircle,
+  BarChart3,
+  FileText,
+  ClipboardList,
+  Clock,
+  Building2,
+  PlugZap,
+  ShieldCheck,
+} from "lucide-react";
+
+export type FeatureKey =
+  | "payroll"
+  | "hrms"
+  | "attendance"
+  | "leave"
+  | "timesheets"
+  | "whatsappAutomation"
+  | "smsAutomation"
+  | "analytics"
+  | "invoicing"
+  | "projects"
+  | "customerPortal"
+  | "softwareServices"
+  | "consulting"
+  | "marketplace"
+  | "multiBranch"
+  | "apiAccess";
+
+export const FEATURE_ICONS: Record<FeatureKey, any> = {
+  payroll: Wallet,
+  hrms: Users,
+  attendance: ClipboardList,
+  leave: ClipboardList,
+  timesheets: Clock,
+  whatsappAutomation: MessageCircle,
+  smsAutomation: MessageCircle,
+  analytics: BarChart3,
+  invoicing: FileText,
+  projects: ClipboardList,
+  customerPortal: Building2,
+  softwareServices: PlugZap,
+  consulting: ShieldCheck,
+  marketplace: PlugZap,
+  multiBranch: Building2,
+  apiAccess: PlugZap,
+};
+
+B) Screenshot mapping (static assets)
+
+Put PNG/WebP files here:
+
+client/src/assets/features/payroll.png
+
+client/src/assets/features/hrms.png
+
+etc.
+
+Then add:
+
+export const FEATURE_SCREENSHOTS: Partial<Record<FeatureKey, string>> = {
+  payroll: "/src/assets/features/payroll.png",
+  hrms: "/src/assets/features/hrms.png",
+  whatsappAutomation: "/src/assets/features/whatsapp.png",
+  analytics: "/src/assets/features/analytics.png",
+  invoicing: "/src/assets/features/invoicing.png",
+  projects: "/src/assets/features/projects.png",
+};
+
+
+✅ Use in UI:
+
+import { FEATURE_ICONS, FEATURE_SCREENSHOTS } from "@/config/feature-assets";
+
+const Icon = FEATURE_ICONS[featureKey];
+const screenshot = FEATURE_SCREENSHOTS[featureKey];
+
+2) Country-specific micro-benefits (MY vs IN vs UK)
+
+Add a new i18n namespace: featureMicroByCountry.
+
+Key pattern:
+
+featureMicroByCountry.<countryCode>.<featureKey>
+
+fallback to featureMicro.<featureKey>
+
+EN additions (paste to en.json)
+{
+  "featureMicroByCountry": {
+    "IN": {
+      "payroll": "Payslips, TDS-ready (add-on)",
+      "gst": "GST invoices & HSN/SAC",
+      "whatsappAutomation": "Auto payment reminders on WhatsApp"
+    },
+    "MY": {
+      "payroll": "Payslips, EPF/SOCSO/PCB-ready",
+      "gst": "SST-ready invoicing",
+      "whatsappAutomation": "Auto reminders via WhatsApp"
+    },
+    "GB": {
+      "payroll": "Coming soon (UK compliance)",
+      "gst": "VAT-ready invoicing",
+      "whatsappAutomation": "Customer updates via WhatsApp"
+    }
+  }
+}
+
+MS additions (ms.json)
+{
+  "featureMicroByCountry": {
+    "IN": {
+      "payroll": "Slip gaji, sedia TDS (add-on)",
+      "gst": "Invois GST & HSN/SAC",
+      "whatsappAutomation": "Peringatan bayaran automatik WhatsApp"
+    },
+    "MY": {
+      "payroll": "Slip gaji, sedia EPF/SOCSO/PCB",
+      "gst": "Invois sedia SST",
+      "whatsappAutomation": "Peringatan automatik WhatsApp"
+    },
+    "GB": {
+      "payroll": "Akan datang (pematuhan UK)",
+      "gst": "Invois sedia VAT",
+      "whatsappAutomation": "Kemas kini pelanggan WhatsApp"
+    }
+  }
+}
+
+HI additions (hi.json)
+{
+  "featureMicroByCountry": {
+    "IN": {
+      "payroll": "पेस्लिप, TDS के लिए तैयार (ऐड-ऑन)",
+      "gst": "GST इनवॉइस + HSN/SAC",
+      "whatsappAutomation": "WhatsApp पर ऑटो पेमेंट रिमाइंडर"
+    },
+    "MY": {
+      "payroll": "पेस्लिप, EPF/SOCSO/PCB के लिए तैयार",
+      "gst": "SST के लिए इनवॉइसिंग",
+      "whatsappAutomation": "WhatsApp ऑटो रिमाइंडर"
+    },
+    "GB": {
+      "payroll": "जल्द आ रहा है (UK कम्प्लायंस)",
+      "gst": "VAT के लिए इनवॉइसिंग",
+      "whatsappAutomation": "WhatsApp पर कस्टमर अपडेट"
+    }
+  }
+}
+
+TA additions (ta.json)
+{
+  "featureMicroByCountry": {
+    "IN": {
+      "payroll": "Payslip, TDS தயாராக (ஆட்-ஆன்)",
+      "gst": "GST இன்வாய்ஸ் + HSN/SAC",
+      "whatsappAutomation": "WhatsApp தானியங்கி கட்டண நினைவூட்டல்"
+    },
+    "MY": {
+      "payroll": "Payslip, EPF/SOCSO/PCB தயாராக",
+      "gst": "SST இன்வாய்சிங்",
+      "whatsappAutomation": "WhatsApp தானியங்கி நினைவூட்டல்"
+    },
+    "GB": {
+      "payroll": "விரைவில் (UK இணக்கம்)",
+      "gst": "VAT இன்வாய்சிங்",
+      "whatsappAutomation": "WhatsApp மூலம் வாடிக்கையாளர் அப்டேட்"
+    }
+  }
+}
+
+
+✅ Helper function (recommended):
+
+client/src/lib/feature-copy.ts
+
+import i18n from "@/i18n";
+
+export function tFeatureMicro(featureKey: string, countryCode?: string) {
+  if (countryCode) {
+    const k = `featureMicroByCountry.${countryCode}.${featureKey}`;
+    if (i18n.exists(k)) return i18n.t(k);
+  }
+  return i18n.t(`featureMicro.${featureKey}`);
+}
+
+3) Usage-based micro-benefits (low/medium/high intent)
+
+Use cases:
+
+Payroll: based on employee count
+
+WhatsApp: based on unpaid invoices / reminders
+
+HRMS: based on attendance usage
+
+Analytics: based on invoice volume
+
+Key pattern:
+
+featureMicroByUsage.<featureKey>.<level>
+Where level = low | mid | high
+
+EN (en.json)
+{
+  "featureMicroByUsage": {
+    "payroll": {
+      "low": "Start payroll when you’re ready",
+      "mid": "Save hours every month on salary processing",
+      "high": "You’re growing—automate payroll now"
+    },
+    "hrms": {
+      "low": "Keep employee records organized",
+      "mid": "Track attendance and leave easily",
+      "high": "Manage teams at scale with HRMS"
+    },
+    "whatsappAutomation": {
+      "low": "Send updates without manual follow-ups",
+      "mid": "Reduce follow-ups with auto reminders",
+      "high": "Recover payments faster with WhatsApp automation"
+    },
+    "analytics": {
+      "low": "Understand your business at a glance",
+      "mid": "Spot trends with weekly insights",
+      "high": "Optimize revenue with advanced reports"
+    }
+  }
+}
+
+HI (hi.json)
+{
+  "featureMicroByUsage": {
+    "payroll": {
+      "low": "जब चाहें तब पेरोल शुरू करें",
+      "mid": "हर महीने सैलरी प्रोसेसिंग में समय बचाएं",
+      "high": "टीम बढ़ रही है—अब पेरोल ऑटोमेट करें"
+    },
+    "hrms": {
+      "low": "कर्मचारी रिकॉर्ड व्यवस्थित रखें",
+      "mid": "उपस्थिति और छुट्टी आसानी से ट्रैक करें",
+      "high": "बड़े स्तर पर टीम मैनेज करें"
+    },
+    "whatsappAutomation": {
+      "low": "मैनुअल फॉलो-अप के बिना अपडेट भेजें",
+      "mid": "ऑटो रिमाइंडर से फॉलो-अप कम करें",
+      "high": "WhatsApp ऑटोमेशन से तेजी से पेमेंट पाएं"
+    },
+    "analytics": {
+      "low": "एक नजर में बिज़नेस समझें",
+      "mid": "साप्ताहिक इनसाइट्स से ट्रेंड्स पकड़ें",
+      "high": "एडवांस्ड रिपोर्ट्स से रेवेन्यू बढ़ाएं"
+    }
+  }
+}
+
+MS (ms.json)
+{
+  "featureMicroByUsage": {
+    "payroll": {
+      "low": "Mulakan payroll bila anda bersedia",
+      "mid": "Jimat masa setiap bulan untuk proses gaji",
+      "high": "Perniagaan berkembang—automasi payroll sekarang"
+    },
+    "hrms": {
+      "low": "Susun rekod pekerja dengan kemas",
+      "mid": "Jejak kehadiran dan cuti dengan mudah",
+      "high": "Urus pasukan pada skala besar"
+    },
+    "whatsappAutomation": {
+      "low": "Hantar kemas kini tanpa follow-up manual",
+      "mid": "Kurangkan follow-up dengan peringatan automatik",
+      "high": "Kutip bayaran lebih cepat dengan automasi WhatsApp"
+    },
+    "analytics": {
+      "low": "Fahami perniagaan sepintas lalu",
+      "mid": "Kesan trend dengan insight mingguan",
+      "high": "Optimumkan hasil dengan laporan lanjutan"
+    }
+  }
+}
+
+TA (ta.json)
+{
+  "featureMicroByUsage": {
+    "payroll": {
+      "low": "நீங்கள் தயாரான போது Payroll தொடங்கலாம்",
+      "mid": "மாதந்தோறும் சம்பள செயலாக்க நேரத்தை சேமிக்கவும்",
+      "high": "குழு வளர்கிறது—Payroll-ஐ இப்போது தானியக்கமாக்குங்கள்"
+    },
+    "hrms": {
+      "low": "பணியாளர் பதிவுகளை ஒழுங்காக வைத்திருங்கள்",
+      "mid": "வருகை மற்றும் விடுப்பை எளிதாக கண்காணிக்கவும்",
+      "high": "பெரிய அளவில் குழுவை நிர்வகிக்கவும்"
+    },
+    "whatsappAutomation": {
+      "low": "கைமுறை follow-up இன்றி அப்டேட் அனுப்புங்கள்",
+      "mid": "தானியங்கி நினைவூட்டலால் follow-up குறையச் செய்யுங்கள்",
+      "high": "WhatsApp தானியக்கத்தால் கட்டணத்தை விரைவில் பெறுங்கள்"
+    },
+    "analytics": {
+      "low": "ஒரு பார்வையில் வணிகத்தை புரிந்துகொள்ளுங்கள்",
+      "mid": "வாராந்திர insight மூலம் போக்குகளை கண்டறியுங்கள்",
+      "high": "மேம்பட்ட அறிக்கைகளால் வருமானத்தை மேம்படுத்துங்கள்"
+    }
+  }
+}
+
+
+✅ Resolver helper:
+
+client/src/lib/feature-copy.ts
+
+import i18n from "@/i18n";
+
+type UsageLevel = "low" | "mid" | "high";
+
+export function tFeatureMicroSmart(opts: {
+  featureKey: string;
+  countryCode?: string;
+  usageLevel?: UsageLevel;
+}) {
+  const { featureKey, countryCode, usageLevel } = opts;
+
+  if (usageLevel) {
+    const u = `featureMicroByUsage.${featureKey}.${usageLevel}`;
+    if (i18n.exists(u)) return i18n.t(u);
+  }
+
+  if (countryCode) {
+    const c = `featureMicroByCountry.${countryCode}.${featureKey}`;
+    if (i18n.exists(c)) return i18n.t(c);
+  }
+
+  return i18n.t(`featureMicro.${featureKey}`);
+}
+
+How to compute usageLevel (simple rules)
+
+Example thresholds (tune later):
+
+Payroll:
+
+low: employees <= 5
+
+mid: 6–20
+
+high: > 20
+
+WhatsApp:
+
+low: unpaidInvoices < 5
+
+mid: 5–25
+
+high: > 25
+
+HRMS:
+
+low: employees <= 5
+
+mid: attendance entries present
+
+high: employees > 25
+
+Replit Prompt to implement this end-to-end (copy/paste)
+Implement feature asset + smart copy resolver:
+
+1) Create client/src/config/feature-assets.ts:
+   - FEATURE_ICONS mapping using lucide-react icons
+   - FEATURE_SCREENSHOTS mapping using /src/assets/features/*.png
+
+2) Add i18n keys:
+   - featureMicroByCountry (IN/MY/GB for payroll/gst/whatsappAutomation)
+   - featureMicroByUsage (payroll/hrms/whatsappAutomation/analytics low/mid/high)
+
+3) Create client/src/lib/feature-copy.ts:
+   - tFeatureMicro(featureKey, countryCode)
+   - tFeatureMicroSmart({featureKey, countryCode, usageLevel})
+
+4) Update Marketplace cards + LockedFeaturePage to show:
+   - icon (FEATURE_ICONS)
+   - screenshot (if present)
+   - subtitle = tFeatureMicroSmart(...)
+   - description = featureBenefits.*
+
+5) Add tests for:
+   - country-specific override wins over base
+   - usage override wins over country
+   - fallback works when missing keys
