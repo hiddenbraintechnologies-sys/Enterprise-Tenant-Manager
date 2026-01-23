@@ -218,21 +218,54 @@ router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenant
     const { tenantId } = req.params;
     console.log("[tenant-addons] Fetching installed add-ons for tenant:", tenantId);
 
-    const installed = await db
-      .select({
-        installation: tenantAddons,
-        addon: addons,
-        version: addonVersions,
-        pricing: addonPricing,
-      })
+    // Simplified query - just get tenant_addons first
+    const installations = await db
+      .select()
       .from(tenantAddons)
-      .innerJoin(addons, eq(tenantAddons.addonId, addons.id))
-      .leftJoin(addonVersions, eq(tenantAddons.versionId, addonVersions.id))
-      .leftJoin(addonPricing, eq(tenantAddons.pricingId, addonPricing.id))
       .where(eq(tenantAddons.tenantId, tenantId));
 
-    console.log("[tenant-addons] Found installed add-ons:", installed.length);
-    res.json({ installedAddons: installed });
+    console.log("[tenant-addons] Found installations:", installations.length);
+
+    // For each installation, get the addon details
+    const installed = await Promise.all(
+      installations.map(async (installation) => {
+        const [addon] = await db
+          .select()
+          .from(addons)
+          .where(eq(addons.id, installation.addonId))
+          .limit(1);
+
+        let version = null;
+        if (installation.versionId) {
+          const [v] = await db
+            .select()
+            .from(addonVersions)
+            .where(eq(addonVersions.id, installation.versionId))
+            .limit(1);
+          version = v || null;
+        }
+
+        let pricing = null;
+        if (installation.pricingId) {
+          const [p] = await db
+            .select()
+            .from(addonPricing)
+            .where(eq(addonPricing.id, installation.pricingId))
+            .limit(1);
+          pricing = p || null;
+        }
+
+        return {
+          installation,
+          addon: addon || null,
+          version,
+          pricing,
+        };
+      })
+    );
+
+    console.log("[tenant-addons] Returning add-ons:", installed.length);
+    res.json({ installedAddons: installed.filter(i => i.addon !== null) });
   } catch (error) {
     console.error("Error fetching tenant add-ons:", error);
     res.status(500).json({ error: "Failed to fetch installed add-ons" });
