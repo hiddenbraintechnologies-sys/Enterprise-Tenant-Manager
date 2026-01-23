@@ -142,11 +142,13 @@ export default function CheckoutPage() {
     onSuccess: (data) => {
       setPaymentStatus("success");
       localStorage.setItem("subscriptionStatus", "active");
+      localStorage.setItem("paymentSuccessRedirect", data.redirectUrl || "/dashboard/service");
       localStorage.removeItem("pendingPaymentId");
       localStorage.removeItem("pendingPlanCode");
       toast({ title: t("paymentSuccess"), description: t("subscriptionNowActive") });
       setTimeout(() => {
-        setLocation(data.redirectUrl || "/dashboard");
+        localStorage.removeItem("paymentSuccessRedirect");
+        setLocation(data.redirectUrl || "/dashboard/service");
       }, 2000);
     },
     onError: (error: Error) => {
@@ -173,11 +175,13 @@ export default function CheckoutPage() {
     onSuccess: (data) => {
       setPaymentStatus("success");
       localStorage.setItem("subscriptionStatus", "active");
+      localStorage.setItem("paymentSuccessRedirect", data.redirectUrl || "/dashboard/service");
       localStorage.removeItem("pendingPaymentId");
       localStorage.removeItem("pendingPlanCode");
       toast({ title: t("paymentSuccess"), description: t("subscriptionNowActive") });
       setTimeout(() => {
-        setLocation(data.redirectUrl || "/dashboard");
+        localStorage.removeItem("paymentSuccessRedirect");
+        setLocation(data.redirectUrl || "/dashboard/service");
       }, 2000);
     },
     onError: (error: Error) => {

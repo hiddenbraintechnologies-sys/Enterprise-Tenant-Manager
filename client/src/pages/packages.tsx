@@ -195,6 +195,9 @@ export default function PackagesPage() {
   const [selectedCycle, setSelectedCycle] = useState<BillingCycleKey>("monthly");
   const { tenant, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
+  
+  // Check for pending payment success redirect immediately
+  const hasPendingRedirect = typeof window !== "undefined" && localStorage.getItem("paymentSuccessRedirect");
 
   const tenantId = tenant?.id || localStorage.getItem("tenantId");
   const { t: tBilling, i18n } = useTranslation();
@@ -267,6 +270,16 @@ export default function PackagesPage() {
     },
     retry: 2,
   });
+
+  // Check for pending payment success redirect (prevents flash when coming from checkout)
+  useEffect(() => {
+    const pendingRedirect = localStorage.getItem("paymentSuccessRedirect");
+    if (pendingRedirect) {
+      // Immediately redirect to the stored URL without showing packages page
+      setLocation(pendingRedirect);
+      return;
+    }
+  }, [setLocation]);
 
   // Redirect to dashboard if already has active subscription
   // Only redirect after subscription query has succeeded and we have valid data
@@ -582,6 +595,18 @@ export default function PackagesPage() {
             <p className="text-muted-foreground">{t("justAMoment")}</p>
           </div>
         </main>
+      </div>
+    );
+  }
+
+  // If there's a pending redirect from payment success, don't render the packages page
+  if (hasPendingRedirect) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Redirecting to dashboard...</p>
+        </div>
       </div>
     );
   }
