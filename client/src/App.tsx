@@ -103,6 +103,7 @@ import AdminSecurity from "@/pages/admin/security";
 import AdminSecuritySessions from "@/pages/admin/security-sessions";
 import ResellerDashboard from "@/pages/reseller-dashboard";
 import Marketplace from "@/pages/marketplace";
+import MyAddonsPage from "@/pages/my-addons";
 import AiPermissions from "@/pages/ai-permissions";
 import AdminLogin from "@/pages/admin-login";
 import AdminForgotPassword from "@/pages/admin-forgot-password";
@@ -346,6 +347,7 @@ function AuthenticatedRoutes() {
         </GatedPage>
       </Route>
       <Route path="/marketplace" component={Marketplace} />
+      <Route path="/my-addons" component={MyAddonsPage} />
       <Route path="/ai-permissions" component={AiPermissions} />
       <Route path="/settings" component={Settings} />
       <Route path="/pricing" component={Pricing} />
