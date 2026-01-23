@@ -34,6 +34,9 @@ export function getSession() {
     !!process.env.REPLIT ||
     process.env.NODE_ENV !== "production";
 
+  // Debug: Log session configuration
+  console.log(`[session-config] isReplitPreview=${isReplitPreview}, NODE_ENV=${process.env.NODE_ENV}, sameSite=${isReplitPreview ? "none" : "lax"}`);
+
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
@@ -140,8 +143,14 @@ export async function setupAuth(app: Express) {
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
+  
+  // Debug logging for session auth
+  const isAuth = req.isAuthenticated?.();
+  const hasExpiresAt = !!user?.expires_at;
+  console.log(`[replit-auth] isAuthenticated check: isAuth=${isAuth}, hasUser=${!!user}, hasExpiresAt=${hasExpiresAt}, path=${req.path}`);
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  if (!req.isAuthenticated() || !user?.expires_at) {
+    console.log(`[replit-auth] Auth failed: isAuthenticated=${req.isAuthenticated?.()}, expires_at=${user?.expires_at}`);
     return res.status(401).json({ message: "Unauthorized" });
   }
 

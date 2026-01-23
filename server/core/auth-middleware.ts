@@ -513,11 +513,18 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
     }
     
     // No Authorization header - check for session-based authentication
-    if (req.isAuthenticated && req.isAuthenticated() && req.user) {
-      console.log(`[auth-hybrid] Session auth detected for ${req.method} ${req.path}`);
-      
+    const isAuthenticated = req.isAuthenticated && req.isAuthenticated();
+    console.log(`[auth-hybrid] Session check for ${req.method} ${req.path}: isAuthenticated=${isAuthenticated}, hasReqUser=${!!req.user}, hasContext=${!!req.context?.user}`);
+    
+    if (isAuthenticated && req.user) {
       // Session user data from Replit Auth
       const sessionUser = req.user as any;
+      console.log(`[auth-hybrid] Session user data:`, JSON.stringify({
+        hasEmail: !!sessionUser.email,
+        hasClaimsEmail: !!sessionUser.claims?.email,
+        hasSub: !!sessionUser.claims?.sub,
+        keys: Object.keys(sessionUser || {})
+      }));
       
       // If context user is already populated (by other middleware), proceed
       if (req.context?.user) {
@@ -525,10 +532,20 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
         return next();
       }
       
-      // Try to find the user in our database by email
+      // Try to find the user in our database by email or sub (Replit user ID)
       const userEmail = sessionUser.email || sessionUser.claims?.email;
-      if (userEmail) {
-        const [dbUser] = await db.select().from(users).where(eq(users.email, userEmail));
+      const userSub = sessionUser.claims?.sub;
+      console.log(`[auth-hybrid] Looking up user by email=${userEmail}, sub=${userSub}`);
+      if (userEmail || userSub) {
+        // Try email first, then fall back to sub (id)
+        let dbUser = null;
+        if (userEmail) {
+          [dbUser] = await db.select().from(users).where(eq(users.email, userEmail));
+        }
+        if (!dbUser && userSub) {
+          [dbUser] = await db.select().from(users).where(eq(users.id, userSub));
+        }
+        console.log(`[auth-hybrid] DB user lookup result: found=${!!dbUser}, userId=${dbUser?.id}`);
         
         if (dbUser) {
           // Find user's default tenant
