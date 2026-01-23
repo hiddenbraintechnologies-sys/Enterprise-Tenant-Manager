@@ -184,12 +184,12 @@ const systemItems: NavItem[] = [
 ];
 
 const hrmsItems: NavItem[] = [
-  { title: "Employees", url: "/hrms/employees", icon: Users },
-  { title: "Attendance", url: "/hrms/attendance", icon: Clock },
-  { title: "Payroll", url: "/hrms/payroll", icon: Wallet },
-  { title: "Payslips", url: "/hrms/payslips", icon: FileText },
-  { title: "Leave", url: "/hrms/leave", icon: Calendar },
-  { title: "Compliance", url: "/hrms/compliance", icon: BadgeCheck },
+  { title: "Dashboard", url: "/hr", icon: LayoutDashboard },
+  { title: "Employees", url: "/hr/employees", icon: Users },
+  { title: "Attendance", url: "/hr/attendance", icon: Clock },
+  { title: "Leave", url: "/hr/leaves", icon: Calendar },
+  { title: "Payroll", url: "/hr/payroll", icon: Wallet },
+  { title: "Pay Runs", url: "/hr/pay-runs", icon: FileText },
 ];
 
 const MODULE_GATED_BUSINESS_TYPES: BusinessType[] = ["software_services", "consulting", "furniture_manufacturing"];
