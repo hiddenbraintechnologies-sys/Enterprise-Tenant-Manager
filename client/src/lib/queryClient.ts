@@ -36,54 +36,70 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+let refreshPromise: Promise<boolean> | null = null;
+
 async function refreshAccessToken(): Promise<boolean> {
+  // If a refresh is already in progress, wait for it
+  if (refreshPromise) {
+    console.log("[queryClient] Token refresh already in progress, waiting...");
+    return refreshPromise;
+  }
+
   const refreshToken = localStorage.getItem("refreshToken");
   if (!refreshToken) {
     console.log("[queryClient] No refresh token available");
     return false;
   }
   
-  try {
-    const response = await fetch("/api/auth/token/refresh", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    
-    // Check content-type to avoid parsing HTML as JSON
-    const contentType = response.headers.get("content-type");
-    const isJson = contentType && contentType.includes("application/json");
-    
-    if (response.ok && isJson) {
-      const tokens = await response.json();
-      localStorage.setItem("accessToken", tokens.accessToken);
-      localStorage.setItem("refreshToken", tokens.refreshToken);
-      console.log("[queryClient] Token refreshed successfully");
-      return true;
-    }
-    
-    // If we got HTML instead of JSON, likely a redirect to login page
-    if (!isJson) {
-      console.warn("[queryClient] Token refresh returned non-JSON response, redirecting to login");
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      // Don't redirect here - let the calling code handle it
+  // Create a promise for the refresh operation
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch("/api/auth/token/refresh", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      
+      // Check content-type to avoid parsing HTML as JSON
+      const contentType = response.headers.get("content-type");
+      const isJson = contentType && contentType.includes("application/json");
+      
+      if (response.ok && isJson) {
+        const tokens = await response.json();
+        localStorage.setItem("accessToken", tokens.accessToken);
+        localStorage.setItem("refreshToken", tokens.refreshToken);
+        console.log("[queryClient] Token refreshed successfully");
+        return true;
+      }
+      
+      // If we got HTML instead of JSON, likely a redirect to login page
+      if (!isJson) {
+        console.warn("[queryClient] Token refresh returned non-JSON response, redirecting to login");
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        // Don't redirect here - let the calling code handle it
+        return false;
+      }
+      
+      // Only clear tokens if server explicitly rejected them
+      if (response.status === 401 || response.status === 403) {
+        console.log("[queryClient] Token refresh rejected, clearing tokens");
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+      }
       return false;
+    } catch (err) {
+      // Network error - don't clear tokens, might be temporary
+      console.warn("[queryClient] Token refresh network error:", err);
+      return false;
+    } finally {
+      // Clear the promise after a short delay to allow for retry scenarios
+      setTimeout(() => { refreshPromise = null; }, 100);
     }
-    
-    // Only clear tokens if server explicitly rejected them
-    if (response.status === 401 || response.status === 403) {
-      console.log("[queryClient] Token refresh rejected, clearing tokens");
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-    }
-    return false;
-  } catch (err) {
-    // Network error - don't clear tokens, might be temporary
-    console.warn("[queryClient] Token refresh network error:", err);
-    return false;
-  }
+  })();
+
+  return refreshPromise;
 }
 
 export async function apiRequest(
