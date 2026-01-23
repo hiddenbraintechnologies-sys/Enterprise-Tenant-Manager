@@ -51,11 +51,23 @@ export type AddonPricingTierDto = {
   isDefault?: boolean;
 };
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const adminToken = localStorage.getItem("mybizstream_admin_token");
+  const userToken = localStorage.getItem("accessToken");
+  const token = adminToken || userToken;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
       ...(init?.headers ?? {}),
     },
     credentials: "include",
