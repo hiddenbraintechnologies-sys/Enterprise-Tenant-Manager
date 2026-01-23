@@ -1,45 +1,36 @@
 /**
  * HRMS Module Routes - Human Resource Management System
  * 
- * This module provides comprehensive HR functionality for multi-tenant SaaS:
- * - Employee Management (CRUD, directory, departments)
- * - Attendance Tracking (check-in/out, bulk marking, holidays)
- * - Leave Management (applications, approvals, balances)
- * - Payroll Processing (salary structures, payroll runs)
- * - Projects & Timesheets (IT extensions, gated by feature flag)
+ * Architecture:
+ * - HR Foundation (Employee Directory): Accessible with Payroll OR HRMS add-on
+ * - HRMS Suite (Attendance/Leave/Timesheets): Requires HRMS add-on only
  * 
- * Security:
- * - All routes protected by tenantIsolationMiddleware
- * - RBAC via requireMinimumRole (manager for read, admin for sensitive ops)
- * - Full audit logging via auditService
- * 
- * API Base Path: /api/hr
+ * This ensures:
+ * - Plans remain primary revenue, add-ons are multipliers
+ * - Payroll add-on requires employee directory (HR Foundation)
+ * - Payroll add-on does NOT automatically enable full HRMS
  * 
  * Endpoints:
- * - GET  /api/hr/dashboard - HR Dashboard stats
- * - GET  /api/hr/employees - List employees
- * - POST /api/hr/employees - Create employee
- * - GET  /api/hr/employees/:id - Get employee
- * - PUT  /api/hr/employees/:id - Update employee
- * - DELETE /api/hr/employees/:id - Delete employee
- * - GET  /api/hr/departments - List departments
- * - POST /api/hr/departments - Create department
- * - GET  /api/hr/attendance - List attendance records
- * - POST /api/hr/attendance - Mark attendance
- * - POST /api/hr/attendance/:employeeId/checkin - Check in
- * - POST /api/hr/attendance/:employeeId/checkout - Check out
- * - GET  /api/hr/leaves - List leaves
- * - POST /api/hr/leaves - Apply leave
- * - PUT  /api/hr/leaves/:id - Update/approve leave
- * - GET  /api/hr/payroll - List payroll
- * - POST /api/hr/payroll - Run payroll
- * - GET  /api/hr/projects - List projects (IT extensions)
+ * - /api/hr/dashboard - HR Dashboard stats (requires employee access)
+ * - /api/hr/employees/* - Employee CRUD (requires Payroll OR HRMS)
+ * - /api/hr/departments - Department management (requires Payroll OR HRMS)
+ * - /api/hr/attendance/* - Attendance (requires HRMS add-on only)
+ * - /api/hr/leaves/* - Leave management (requires HRMS add-on only)
+ * - /api/hr/payroll/* - Payroll processing (requires Payroll add-on)
+ * - /api/hr/projects/* - Projects/Timesheets (requires HRMS + IT extensions)
  * 
  * @module server/routes/hrms
  */
 
 import { Router } from "express";
-import { tenantIsolationMiddleware, requireMinimumRole, auditService } from "../../core";
+import { 
+  tenantIsolationMiddleware, 
+  requireMinimumRole, 
+  auditService,
+  requireEmployeeAccess,
+  requireHrmsSuiteAccess,
+  requirePayrollAccess,
+} from "../../core";
 import EmployeeService from "../../services/hrms/employeeService";
 import employeesRouter from "./employees";
 import attendanceRouter from "./attendance";
@@ -53,49 +44,80 @@ const router = Router();
 router.use(tenantIsolationMiddleware());
 router.use(requireMinimumRole("manager"));
 
+// ============================================================================
+// HR FOUNDATION ROUTES (Payroll OR HRMS add-on)
+// ============================================================================
+
 // Dashboard endpoint - /api/hr/dashboard
-router.get("/dashboard", async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  auditService.logFromRequest("view_dashboard", req, "hr_dashboard");
-  const stats = await EmployeeService.getDashboardStats(tenantId);
-  res.json(stats);
+// Accessible with Payroll OR HRMS add-on
+router.get("/dashboard", requireEmployeeAccess(), async (req, res) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const stats = await EmployeeService.getDashboardStats(tenantId);
+    res.json(stats);
+  } catch (error) {
+    console.error("[hr/dashboard] Error:", error);
+    res.status(500).json({ error: "Failed to fetch dashboard stats" });
+  }
 });
 
 // Departments endpoints - /api/hr/departments
-router.get("/departments", async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  const departments = await EmployeeService.listDepartments(tenantId);
-  res.json(departments);
+// Accessible with Payroll OR HRMS add-on
+router.get("/departments", requireEmployeeAccess(), async (req, res) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const departments = await EmployeeService.listDepartments(tenantId);
+    res.json(departments);
+  } catch (error) {
+    console.error("[hr/departments] Error:", error);
+    res.status(500).json({ error: "Failed to fetch departments" });
+  }
 });
 
-router.post("/departments", requireMinimumRole("admin"), async (req, res) => {
-  const tenantId = req.context?.tenant?.id;
-  if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
-  
-  auditService.logFromRequest("add_department", req, "departments");
-  const department = await EmployeeService.addDepartment(tenantId, req.body);
-  res.status(201).json(department);
+router.post("/departments", requireEmployeeAccess(), requireMinimumRole("admin"), async (req, res) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const department = await EmployeeService.addDepartment(tenantId, req.body);
+    res.status(201).json(department);
+  } catch (error) {
+    console.error("[hr/departments] POST error:", error);
+    res.status(500).json({ error: "Failed to create department" });
+  }
 });
 
 // Employees: /api/hr/employees/*
-router.use("/employees", employeesRouter);
+// Accessible with Payroll OR HRMS add-on
+router.use("/employees", requireEmployeeAccess(), employeesRouter);
+
+// ============================================================================
+// HRMS SUITE ROUTES (HRMS add-on ONLY - Payroll does NOT grant access)
+// ============================================================================
 
 // Attendance: /api/hr/attendance/*
-router.use("/attendance", attendanceRouter);
+// HRMS add-on required
+router.use("/attendance", requireHrmsSuiteAccess(), attendanceRouter);
 
 // Leaves: /api/hr/leaves/*
-router.use("/leaves", leavesRouter);
-
-// Payroll: /api/hr/payroll/*
-router.use("/payroll", payrollRouter);
+// HRMS add-on required
+router.use("/leaves", requireHrmsSuiteAccess(), leavesRouter);
 
 // Projects (IT Extensions): /api/hr/projects/*
-// Gated by hrms_it_extensions feature flag
-router.use("/projects", projectsRouter);
+// HRMS add-on required + feature flag
+router.use("/projects", requireHrmsSuiteAccess(), projectsRouter);
+
+// ============================================================================
+// PAYROLL ROUTES (Payroll add-on required - HRMS alone does NOT grant access)
+// ============================================================================
+
+// Payroll: /api/hr/payroll/*
+// Requires Payroll add-on specifically (HRMS-only tenants cannot access)
+router.use("/payroll", requirePayrollAccess(), payrollRouter);
 
 export { FEATURE_FLAGS, requireFeature } from "./projects";
 export default router;

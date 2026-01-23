@@ -37,6 +37,34 @@ A complete management console for Super Admins to control the marketplace:
 
 **Seeded Add-ons**: HRMS (IN/MY/UK), Payroll (IN/MY/UK), WhatsApp Automation, Advanced Analytics with country configs and eligibility rules.
 
+### HR Foundation vs HRMS Suite Architecture (Jan 2026)
+
+**Key Principle**: Plans remain primary revenue, add-ons are multipliers.
+
+**HR Foundation (Employee Directory)**:
+- Accessible with: Payroll add-on OR HRMS add-on
+- Features: Employee directory, departments, payroll processing
+- API Routes: `/api/hr/employees/*`, `/api/hr/departments`, `/api/hr/dashboard`, `/api/hr/payroll/*`
+- Middleware: `requireEmployeeAccess()` checks for Payroll OR HRMS add-on
+
+**HRMS Suite (Full HR Management)**:
+- Accessible with: HRMS add-on ONLY (Payroll does NOT grant access)
+- Features: Attendance tracking, leave management, timesheets, approvals
+- API Routes: `/api/hr/attendance/*`, `/api/hr/leaves/*`, `/api/hr/projects/*`
+- Middleware: `requireHrmsSuiteAccess()` checks for HRMS add-on specifically
+
+**Implementation Files**:
+- Backend middleware: `server/core/hr-addon-gating.ts`
+- Route gating: `server/routes/hrms/index.ts`
+- Sidebar UI: `client/src/components/app-sidebar.tsx`
+  - `hrFoundationItems`: Dashboard, Employees, Payroll
+  - `hrmsSuiteItems`: Attendance, Leave, Pay Runs (locked for Payroll-only users)
+
+**Verification Test Scenarios**:
+1. **Free + Payroll only**: Should see HR Dashboard, Employees, Payroll. Attendance/Leave locked.
+2. **Free + HRMS only**: Should see full HRMS suite (Dashboard, Employees, Attendance, Leave, Payroll, Pay Runs).
+3. **Basic + Payroll + HRMS**: Full access to everything.
+
 **Payroll Per-Employee Tiered Pricing:**
 - TIER_1_5: 1-5 employees
 - TIER_6_20: 6-20 employees  

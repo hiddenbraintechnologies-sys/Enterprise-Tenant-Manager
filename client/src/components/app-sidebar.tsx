@@ -183,12 +183,19 @@ const systemItems: NavItem[] = [
   { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];
 
-const hrmsItems: NavItem[] = [
-  { title: "Dashboard", url: "/hr", icon: LayoutDashboard },
+// HR Core items (Payroll OR HRMS add-on) - Employee Directory
+const hrCoreItems: NavItem[] = [
+  { title: "HR Dashboard", url: "/hr", icon: LayoutDashboard },
   { title: "Employees", url: "/hr/employees", icon: Users },
+];
+
+// Payroll item (Payroll add-on ONLY - HRMS alone does NOT grant access)
+const payrollItem: NavItem = { title: "Payroll", url: "/hr/payroll", icon: Wallet };
+
+// HRMS Suite items (HRMS add-on ONLY)
+const hrmsSuiteItems: NavItem[] = [
   { title: "Attendance", url: "/hr/attendance", icon: Clock },
   { title: "Leave", url: "/hr/leaves", icon: Calendar },
-  { title: "Payroll", url: "/hr/payroll", icon: Wallet },
   { title: "Pay Runs", url: "/hr/pay-runs", icon: FileText },
 ];
 
@@ -228,25 +235,41 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
     enabled: Boolean(user && tenantId),
   });
   
-  const hasMarketplacePayroll = useMemo(() => {
-    if (!installedAddonsData?.installedAddons) return false;
-    return installedAddonsData.installedAddons.some(item => {
-      const slug = item.addon?.slug || "";
-      const isPayrollOrHrms = slug.startsWith("payroll") || slug.startsWith("hrms");
+  // Separate checks for Payroll vs HRMS add-ons
+  const { hasMarketplacePayroll, hasMarketplaceHrms } = useMemo(() => {
+    if (!installedAddonsData?.installedAddons) {
+      return { hasMarketplacePayroll: false, hasMarketplaceHrms: false };
+    }
+    
+    let payroll = false;
+    let hrms = false;
+    
+    for (const item of installedAddonsData.installedAddons) {
+      const slug = item.addon?.slug?.toLowerCase() || "";
       const isActive = item.installation.status === "active" && 
         (item.installation.subscriptionStatus === "active" || item.installation.subscriptionStatus === "trialing");
-      return isPayrollOrHrms && isActive;
-    });
+      
+      if (!isActive) continue;
+      
+      if (slug.startsWith("payroll")) {
+        payroll = true;
+      }
+      if (slug.startsWith("hrms")) {
+        hrms = true;
+      }
+    }
+    
+    return { hasMarketplacePayroll: payroll, hasMarketplaceHrms: hrms };
   }, [installedAddonsData]);
   
-  const payrollEnabled = hasPayrollAccess() || hasMarketplacePayroll;
-  const hrmsModuleEnabled = canAccessModule("hrms") || canAccessModule("payroll");
-  // Use tenant country from auth context as primary source
-  const tenantCountry = tenant?.country || countryCode || "IN";
-  const countrySupportsPayroll = tenantCountry === "MY" || tenantCountry === "IN";
-  // Show HRMS section if user has marketplace payroll/HRMS addon installed (regardless of other checks)
-  const showHrmsSection = Boolean(user && (hasMarketplacePayroll || (countrySupportsPayroll && (hrmsModuleEnabled || payrollEnabled))));
-  const hrmsReady = showHrmsSection;
+  // HR Foundation access: Payroll OR HRMS add-on
+  const hasEmployeeDirectoryAccess = hasPayrollAccess() || hasMarketplacePayroll || hasMarketplaceHrms;
+  
+  // HRMS Suite access: HRMS add-on ONLY (Payroll does NOT grant this)
+  const hasHrmsSuiteAccess = hasMarketplaceHrms;
+  
+  // Show HR section if tenant has any HR add-on (Payroll or HRMS)
+  const showHrSection = Boolean(user && hasEmployeeDirectoryAccess);
   const mainNavItems = NAV_ITEMS_BY_BUSINESS_TYPE[effectiveBusinessType] || NAV_ITEMS_BY_BUSINESS_TYPE.service;
   const dashboardRoute = DASHBOARD_ROUTES[effectiveBusinessType] || DASHBOARD_ROUTES.service;
   
@@ -412,10 +435,10 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {hrmsReady && (
-          <SidebarGroup data-testid="sidebar-group-hrms">
+        {showHrSection && (
+          <SidebarGroup data-testid="sidebar-group-hr">
             <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              HRMS / Payroll
+              {hasHrmsSuiteAccess ? "HRMS Suite" : "HR / Payroll"}
               {isPayrollTrialing() && (
                 <span 
                   className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 rounded"
@@ -427,8 +450,64 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {payrollEnabled ? (
-                  hrmsItems.map((item) => (
+                {/* HR Core items (Payroll OR HRMS) - Employee Directory */}
+                {hrCoreItems.map((item: NavItem) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === item.url || location.startsWith(item.url + "/")}
+                    >
+                      <Link
+                        href={item.url}
+                        data-testid={`link-hr-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+                
+                {/* Payroll item (Payroll add-on ONLY) */}
+                {hasMarketplacePayroll || hasPayrollAccess() ? (
+                  <SidebarMenuItem key={payrollItem.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === payrollItem.url || location.startsWith(payrollItem.url + "/")}
+                    >
+                      <Link
+                        href={payrollItem.url}
+                        data-testid="link-hr-payroll"
+                      >
+                        <payrollItem.icon className="h-4 w-4" />
+                        <span>{payrollItem.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : (
+                  /* Show locked Payroll for HRMS-only users */
+                  <SidebarMenuItem>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div 
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-pointer hover-elevate"
+                          onClick={() => openLockedModal("payroll", "Payroll", "NOT_INSTALLED", { addonCode: "payroll" })}
+                          data-testid="div-payroll-locked"
+                        >
+                          <Lock className="h-4 w-4" />
+                          <span>Payroll</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add the Payroll add-on for payroll processing</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </SidebarMenuItem>
+                )}
+                
+                {/* HRMS Suite items (HRMS add-on ONLY) */}
+                {hasHrmsSuiteAccess ? (
+                  hrmsSuiteItems.map((item: NavItem) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
                         asChild
@@ -445,36 +524,24 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                     </SidebarMenuItem>
                   ))
                 ) : (
-                  <>
-                    <SidebarMenuItem>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div 
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-pointer hover-elevate"
-                            onClick={handlePayrollLockedClick}
-                            data-testid="div-payroll-locked"
-                          >
-                            <Lock className="h-4 w-4" />
-                            <span>{t("addons.payroll.locked")}</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{t("addons.payroll.subscribeToAccess")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <Link
-                          href="/billing/addons"
-                          data-testid="link-subscribe-payroll"
+                  /* Show locked HRMS features for Payroll-only users */
+                  <SidebarMenuItem>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div 
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground bg-muted/50 rounded-md cursor-pointer hover-elevate"
+                          onClick={() => openLockedModal("hrms", "HRMS Suite", "NOT_INSTALLED", { addonCode: "hrms" })}
+                          data-testid="div-hrms-locked"
                         >
-                          <Wallet className="h-4 w-4" />
-                          <span>{t("addons.payroll.subscribe")}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </>
+                          <Lock className="h-4 w-4" />
+                          <span>Attendance & Leave</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Upgrade to HRMS add-on for attendance, leave, and timesheets</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </SidebarMenuItem>
                 )}
               </SidebarMenu>
             </SidebarGroupContent>

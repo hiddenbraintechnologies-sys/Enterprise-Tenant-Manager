@@ -1,5 +1,7 @@
 export * from "./context";
 export * from "./features";
+export { requireEmployeeAccess, requireHrmsSuiteAccess, requirePayrollAccess, checkHRAccess } from "./hr-addon-gating";
+export type { HRAccessResult } from "./hr-addon-gating";
 export { 
   PLATFORM_ROLES,
   PLATFORM_PERMISSIONS,
