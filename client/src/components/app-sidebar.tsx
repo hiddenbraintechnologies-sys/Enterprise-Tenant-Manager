@@ -375,15 +375,16 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
               )}
               <SidebarMenuItem>
                 <SidebarMenuButton
+                  asChild
                   isActive={location === "/marketplace" && window.location.search.includes("tab=installed")}
-                  onClick={() => {
-                    window.location.href = "/marketplace?tab=installed";
-                  }}
-                  data-testid="link-nav-my-add-ons"
-                  className="cursor-pointer"
                 >
-                  <Puzzle className="h-4 w-4" />
-                  <span>My Add-ons</span>
+                  <a 
+                    href="/marketplace?tab=installed"
+                    data-testid="link-nav-my-add-ons"
+                  >
+                    <Puzzle className="h-4 w-4" />
+                    <span>My Add-ons</span>
+                  </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
