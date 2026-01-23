@@ -216,6 +216,7 @@ router.get("/marketplace/:slug", async (req: Request, res: Response) => {
 router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenantContext, async (req: Request, res: Response) => {
   try {
     const { tenantId } = req.params;
+    console.log("[tenant-addons] Fetching installed add-ons for tenant:", tenantId);
 
     const installed = await db
       .select({
@@ -226,10 +227,11 @@ router.get("/tenant/:tenantId/addons", requireAuth, requireTenant, enforceTenant
       })
       .from(tenantAddons)
       .innerJoin(addons, eq(tenantAddons.addonId, addons.id))
-      .innerJoin(addonVersions, eq(tenantAddons.versionId, addonVersions.id))
+      .leftJoin(addonVersions, eq(tenantAddons.versionId, addonVersions.id))
       .leftJoin(addonPricing, eq(tenantAddons.pricingId, addonPricing.id))
       .where(eq(tenantAddons.tenantId, tenantId));
 
+    console.log("[tenant-addons] Found installed add-ons:", installed.length);
     res.json({ installedAddons: installed });
   } catch (error) {
     console.error("Error fetching tenant add-ons:", error);
