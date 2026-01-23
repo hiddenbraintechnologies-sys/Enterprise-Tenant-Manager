@@ -137,17 +137,6 @@ export function TenantWipeModal({ open, onOpenChange, tenantId, tenantName }: Te
   const isConfirmValid = confirmText.trim() === expectedConfirmText.trim() && reason.trim().length >= 10;
   const isProcessing = wipeMutation.isPending || Boolean(activeJobId && ["queued", "running"].includes(jobStatus?.status || ""));
 
-  // Debug log for validation state
-  console.log("[TenantWipeModal] Validation:", {
-    confirmText: confirmText.trim(),
-    expectedConfirmText: expectedConfirmText.trim(),
-    confirmMatch: confirmText.trim() === expectedConfirmText.trim(),
-    reasonLength: reason.trim().length,
-    isConfirmValid,
-    isProcessing,
-    summaryProtected: summary?.isProtected,
-  });
-
   const getJobStatusIcon = () => {
     if (!jobStatus) return <Clock className="h-5 w-5 text-muted-foreground" />;
     switch (jobStatus.status) {
@@ -241,10 +230,7 @@ export function TenantWipeModal({ open, onOpenChange, tenantId, tenantName }: Te
               <Input
                 id="confirm"
                 value={confirmText}
-                onChange={(e) => {
-                  console.log("[TenantWipeModal] Confirm input changed:", e.target.value);
-                  setConfirmText(e.target.value);
-                }}
+                onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="Type the confirmation text above..."
                 className={`font-mono ${isConfirmValid ? 'border-green-500' : confirmText.length > 0 ? 'border-yellow-500' : ''}`}
                 data-testid="input-wipe-confirm"

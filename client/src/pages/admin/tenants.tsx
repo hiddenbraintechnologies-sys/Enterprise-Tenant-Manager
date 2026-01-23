@@ -63,6 +63,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { TenantWipeModal } from "@/components/admin/tenant-wipe-modal";
+import { BulkWipeModal } from "@/components/admin/bulk-wipe-modal";
 
 interface Tenant {
   id: string;
@@ -175,6 +176,9 @@ function TenantsContent() {
   const [selectedTenantIds, setSelectedTenantIds] = useState<Set<string>>(new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [bulkDeleteReason, setBulkDeleteReason] = useState("");
+  const [bulkDeleteMode, setBulkDeleteMode] = useState<"soft" | "wipe">("soft");
+  const [bulkWipeDialogOpen, setBulkWipeDialogOpen] = useState(false);
+  const [bulkWipeProgress, setBulkWipeProgress] = useState<{current: number; total: number; currentTenant: string} | null>(null);
 
   // Add tenant dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -1011,6 +1015,7 @@ function TenantsContent() {
         setBulkDeleteDialogOpen(open);
         if (!open) {
           setBulkDeleteReason("");
+          setBulkDeleteMode("soft");
         }
       }}>
         <DialogContent className="sm:max-w-[500px]">
@@ -1018,16 +1023,53 @@ function TenantsContent() {
             <DialogTitle>Delete Selected Tenants</DialogTitle>
             <DialogDescription>
               You are about to delete <strong>{selectedTenantIds.size}</strong> tenant{selectedTenantIds.size !== 1 ? 's' : ''}. 
-              This will soft-delete and disable the selected tenants.
+              Choose how you want to proceed.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-              <AlertCircle className="h-4 w-4 inline mr-2" />
-              Selected tenants will be soft-deleted. Data is retained for audit purposes.
+            <div className="space-y-3">
+              <div 
+                className={`p-4 border rounded-md cursor-pointer transition-colors ${bulkDeleteMode === "soft" ? "border-primary bg-primary/5" : "border-border hover-elevate"}`}
+                onClick={() => setBulkDeleteMode("soft")}
+                data-testid="option-bulk-soft-delete"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center ${bulkDeleteMode === "soft" ? "border-primary" : "border-muted-foreground"}`}>
+                    {bulkDeleteMode === "soft" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <p className="font-medium">Soft Delete (Recommended)</p>
+                    <p className="text-sm text-muted-foreground">Mark tenants as deleted but keep data for audit. Can be restored later.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div 
+                className={`p-4 border rounded-md cursor-pointer transition-colors ${bulkDeleteMode === "wipe" ? "border-destructive bg-destructive/5" : "border-border hover-elevate"}`}
+                onClick={() => setBulkDeleteMode("wipe")}
+                data-testid="option-bulk-wipe-delete"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center ${bulkDeleteMode === "wipe" ? "border-destructive" : "border-muted-foreground"}`}>
+                    {bulkDeleteMode === "wipe" && <div className="w-2 h-2 rounded-full bg-destructive" />}
+                  </div>
+                  <div>
+                    <p className="font-medium text-destructive">Wipe All Data</p>
+                    <p className="text-sm text-muted-foreground">Permanently delete all data for {selectedTenantIds.size} tenant{selectedTenantIds.size !== 1 ? 's' : ''}. This cannot be undone.</p>
+                  </div>
+                </div>
+              </div>
             </div>
+            
+            {bulkDeleteMode === "wipe" && (
+              <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <AlertCircle className="h-4 w-4 inline mr-2" />
+                <strong>Warning:</strong> This will permanently delete all data for {selectedTenantIds.size} tenant{selectedTenantIds.size !== 1 ? 's' : ''}. Each tenant will be processed sequentially. This action cannot be undone.
+              </div>
+            )}
+            
             <div className="space-y-2">
-              <Label htmlFor="bulk-delete-reason">Reason for deletion</Label>
+              <Label htmlFor="bulk-delete-reason">Reason for deletion (min 10 characters)</Label>
               <Textarea
                 id="bulk-delete-reason"
                 placeholder="Enter the reason for deleting these tenants..."
@@ -1044,11 +1086,18 @@ function TenantsContent() {
             </Button>
             <Button
               variant="destructive"
-              onClick={confirmBulkDelete}
-              disabled={!bulkDeleteReason.trim() || bulkDeleteMutation.isPending}
+              onClick={() => {
+                if (bulkDeleteMode === "wipe") {
+                  setBulkDeleteDialogOpen(false);
+                  setBulkWipeDialogOpen(true);
+                } else {
+                  confirmBulkDelete();
+                }
+              }}
+              disabled={bulkDeleteReason.trim().length < 10 || bulkDeleteMutation.isPending}
               data-testid="button-confirm-bulk-delete"
             >
-              {bulkDeleteMutation.isPending ? "Deleting..." : `Delete ${selectedTenantIds.size} Tenant${selectedTenantIds.size !== 1 ? 's' : ''}`}
+              {bulkDeleteMutation.isPending ? "Deleting..." : bulkDeleteMode === "wipe" ? "Continue to Wipe" : `Delete ${selectedTenantIds.size} Tenant${selectedTenantIds.size !== 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1188,6 +1237,21 @@ function TenantsContent() {
           tenantName={deletingTenant.name}
         />
       )}
+
+      {/* Bulk Wipe Modal */}
+      <BulkWipeModal
+        open={bulkWipeDialogOpen}
+        onOpenChange={(open) => {
+          setBulkWipeDialogOpen(open);
+          if (!open) {
+            setSelectedTenantIds(new Set());
+            setBulkDeleteReason("");
+            setBulkDeleteMode("soft");
+          }
+        }}
+        tenants={tenants.filter(t => selectedTenantIds.has(t.id)).map(t => ({ id: t.id, name: t.name }))}
+        reason={bulkDeleteReason}
+      />
     </div>
   );
 }
