@@ -440,18 +440,16 @@ export default function Marketplace() {
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
   
-  // Read tab from URL query params
-  const urlParams = new URLSearchParams(window.location.search);
-  const initialTab = urlParams.get("tab") === "installed" ? "installed" : "browse";
-  const [activeTab, setActiveTab] = useState(initialTab);
+  // Tab state - default to browse, sync from URL on mount and location changes
+  const [activeTab, setActiveTab] = useState<string>("browse");
   
-  // Sync tab state when URL changes
+  // Sync tab state from URL on mount and when location changes
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
     if (tabParam === "installed") {
       setActiveTab("installed");
-    } else if (!tabParam) {
+    } else {
       setActiveTab("browse");
     }
   }, [location]);
