@@ -536,7 +536,14 @@ export default function Marketplace() {
     queryKey: ["/api/addons/tenant", tenantId, "addons"],
     queryFn: async () => {
       if (!tenantId) return { installedAddons: [] };
-      const res = await fetch(`/api/addons/tenant/${tenantId}/addons`, { credentials: "include" });
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`/api/addons/tenant/${tenantId}/addons`, { 
+        credentials: "include",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "X-Tenant-ID": tenantId,
+        },
+      });
       if (!res.ok) throw new Error("Failed to fetch installed addons");
       return res.json();
     },
