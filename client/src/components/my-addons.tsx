@@ -88,6 +88,25 @@ function getStatusBadge(status: string, subscriptionStatus: string, trialEndsAt:
   );
 }
 
+function getModuleLink(slug: string): string | null {
+  const moduleRoutes: Record<string, string> = {
+    "hrms": "/hr",
+    "hrms-india": "/hr",
+    "hrms-malaysia": "/hr",
+    "hrms-uk": "/hr",
+    "payroll": "/hr/payroll",
+    "payroll-india": "/hr/payroll",
+    "payroll-malaysia": "/hr/payroll",
+    "payroll-uk": "/hr/payroll",
+    "whatsapp-automation": "/settings",
+    "advanced-analytics": "/analytics",
+    "document-management": "/documents",
+    "multi-branch-support": "/settings",
+    "api-access": "/settings",
+  };
+  return moduleRoutes[slug] || null;
+}
+
 function getCategoryIcon(category: string) {
   const iconProps = { className: "h-5 w-5 text-muted-foreground" };
   
@@ -236,11 +255,20 @@ export function MyAddons() {
                       </div>
                     </div>
                   </div>
-                  <Link href="/marketplace?tab=installed">
-                    <Button variant="ghost" size="sm" data-testid={`button-manage-${addon.slug}`}>
-                      Manage
-                    </Button>
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    {getModuleLink(addon.slug) && (
+                      <Link href={getModuleLink(addon.slug)!}>
+                        <Button variant="default" size="sm" data-testid={`button-open-${addon.slug}`}>
+                          Open
+                        </Button>
+                      </Link>
+                    )}
+                    <Link href="/marketplace?tab=installed">
+                      <Button variant="ghost" size="sm" data-testid={`button-manage-${addon.slug}`}>
+                        Manage
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               );
             })}
