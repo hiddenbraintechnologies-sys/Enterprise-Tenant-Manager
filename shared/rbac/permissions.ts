@@ -84,6 +84,14 @@ export const Permissions = {
   SUBSCRIPTION_CHANGE: "SUBSCRIPTION_CHANGE",
   INVOICES_VIEW: "INVOICES_VIEW",
   PAYMENTS_VIEW: "PAYMENTS_VIEW",
+
+  // Marketplace management permissions (Super Admin only)
+  MARKETPLACE_VIEW_CATALOG: "MARKETPLACE_VIEW_CATALOG",
+  MARKETPLACE_MANAGE_CATALOG: "MARKETPLACE_MANAGE_CATALOG",
+  MARKETPLACE_MANAGE_PRICING: "MARKETPLACE_MANAGE_PRICING",
+  MARKETPLACE_MANAGE_ELIGIBILITY: "MARKETPLACE_MANAGE_ELIGIBILITY",
+  MARKETPLACE_VIEW_ANALYTICS: "MARKETPLACE_VIEW_ANALYTICS",
+  MARKETPLACE_VIEW_AUDIT_LOGS: "MARKETPLACE_VIEW_AUDIT_LOGS",
 } as const;
 
 export type Permission = (typeof Permissions)[keyof typeof Permissions];
@@ -124,6 +132,13 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
       Permissions.VIEW_PERFORMANCE,
       Permissions.VIEW_OPERATIONS,
       Permissions.VIEW_REPORTS,
+      // Marketplace management
+      Permissions.MARKETPLACE_VIEW_CATALOG,
+      Permissions.MARKETPLACE_MANAGE_CATALOG,
+      Permissions.MARKETPLACE_MANAGE_PRICING,
+      Permissions.MARKETPLACE_MANAGE_ELIGIBILITY,
+      Permissions.MARKETPLACE_VIEW_ANALYTICS,
+      Permissions.MARKETPLACE_VIEW_AUDIT_LOGS,
     ],
   },
 
@@ -250,6 +265,10 @@ export const SUPER_ADMIN_ONLY_PERMISSIONS: Permission[] = [
   Permissions.MANAGE_COUNTRIES_REGIONS,
   Permissions.VIEW_ALL_TENANTS,
   Permissions.OVERRIDE_TENANT_LOCK,
+  // Marketplace management permissions
+  Permissions.MARKETPLACE_MANAGE_CATALOG,
+  Permissions.MARKETPLACE_MANAGE_PRICING,
+  Permissions.MARKETPLACE_MANAGE_ELIGIBILITY,
 ];
 
 // ==================== HELPER FUNCTIONS ====================
@@ -386,6 +405,7 @@ export const SUPER_ADMIN_MENU_ITEMS: MenuItem[] = [
   { id: "dashboard", title: "Dashboard", url: "/super-admin", icon: "LayoutDashboard", superAdminOnly: true },
   { id: "tenants", title: "Tenants", url: "/super-admin/tenants", icon: "Building2", permission: Permissions.VIEW_ALL_TENANTS },
   { id: "admins", title: "Platform Admins", url: "/super-admin/admins", icon: "UserCog", permission: Permissions.MANAGE_PLATFORM_ADMINS },
+  { id: "marketplace", title: "Marketplace", url: "/super-admin/marketplace-management", icon: "Store", permission: Permissions.MARKETPLACE_VIEW_CATALOG },
   { id: "billing", title: "Billing", url: "/super-admin/billing", icon: "DollarSign", permission: Permissions.VIEW_INVOICES_PAYMENTS },
   { id: "audit-logs", title: "Audit Logs", url: "/super-admin/audit-logs", icon: "FileText", permission: Permissions.VIEW_SYSTEM_LOGS },
   { id: "settings", title: "System Settings", url: "/super-admin/settings", icon: "Cog", permission: Permissions.MANAGE_GLOBAL_CONFIG },
