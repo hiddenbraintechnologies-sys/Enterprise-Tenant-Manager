@@ -37,6 +37,29 @@ A complete management console for Super Admins to control the marketplace:
 
 **Seeded Add-ons**: HRMS (IN/MY/UK), Payroll (IN/MY/UK), WhatsApp Automation, Advanced Analytics with country configs and eligibility rules.
 
+**Payroll Per-Employee Tiered Pricing:**
+- TIER_1_5: 1-5 employees
+- TIER_6_20: 6-20 employees  
+- TIER_21_50: 21-50 employees
+- TIER_51_100: 51-100 employees
+Country-specific pricing with perEmployeeMonthlyPrice and minimumMonthlyCharge per tier.
+
+**Matrix UI Improvements (Jan 2026):**
+- Country Rollout Matrix: Clickable cells showing status icon + price, inline editing
+- Plan Eligibility Matrix: Zoho-style grid with 3-state toggle cycle (blocked → trial → enabled)
+- CountryConfigDialog supports both controlled and uncontrolled modes for flexible integration
+
+**Smart Upsell Engine** (`server/services/marketplace/upsell-engine.ts`):
+- Employee count tier upgrade nudges (80% usage = high priority, 95% = critical)
+- Bundle discount suggestions: HR Complete Bundle (HRMS + Payroll + WhatsApp), Analytics Bundle
+- Trial expiry reminders (requires trialEndsAt column in tenantAddons - TODO)
+- Feature unlock recommendations based on plan tier eligibility
+
+**Marketplace RBAC Permissions:**
+- MARKETPLACE_VIEW_CATALOG, MARKETPLACE_MANAGE_CATALOG
+- MARKETPLACE_MANAGE_PRICING, MARKETPLACE_MANAGE_ELIGIBILITY
+- MARKETPLACE_VIEW_ANALYTICS, MARKETPLACE_VIEW_AUDIT_LOGS
+
 ### Technical Implementation
 The **Frontend** uses React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, following a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adopting a RESTful API design with Zod for validation. **Database** operations use PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) adheres to Clean Architecture, BLoC for state management, Dio for HTTP, and Hive for offline caching, fully supporting multi-tenancy. Deployment is global on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore) with multi-region support and disaster recovery.
 
