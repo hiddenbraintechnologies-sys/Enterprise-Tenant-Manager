@@ -10566,10 +10566,11 @@ export async function registerRoutes(
 
   // ==================== IN-APP NOTIFICATIONS ====================
 
-  // Get notifications for current user
+  // Get notifications for current user (supports both regular users and platform admins)
   app.get("/api/notifications", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -10586,10 +10587,11 @@ export async function registerRoutes(
     }
   });
 
-  // Get unread notification count
+  // Get unread notification count (supports both regular users and platform admins)
   app.get("/api/notifications/unread-count", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -10602,10 +10604,11 @@ export async function registerRoutes(
     }
   });
 
-  // Mark single notification as read
+  // Mark single notification as read (supports both regular users and platform admins)
   app.post("/api/notifications/:id/read", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -10621,10 +10624,11 @@ export async function registerRoutes(
     }
   });
 
-  // Mark all notifications as read
+  // Mark all notifications as read (supports both regular users and platform admins)
   app.post("/api/notifications/mark-all-read", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -10637,10 +10641,11 @@ export async function registerRoutes(
     }
   });
 
-  // Delete notification
+  // Delete notification (supports both regular users and platform admins)
   app.delete("/api/notifications/:id", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -10653,10 +10658,11 @@ export async function registerRoutes(
     }
   });
 
-  // Create notification (internal/admin use)
+  // Create notification (internal/admin use - supports both regular users and platform admins)
   app.post("/api/notifications", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -10783,10 +10789,11 @@ export async function registerRoutes(
   // NOTIFICATION PREFERENCES ROUTES
   // ============================================
 
-  // Get notification preferences for current user
+  // Get notification preferences for current user (supports both regular users and platform admins)
   app.get("/api/notifications/preferences", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -10827,7 +10834,8 @@ export async function registerRoutes(
   
   app.put("/api/notifications/preferences", authenticateHybrid(), async (req, res) => {
     try {
-      const userId = (req as any).context?.user?.id || (req as any).user?.id;
+      // Support both regular users and platform admins
+      const userId = (req as any).context?.user?.id || (req as any).user?.id || (req as any).platformAdminContext?.platformAdmin?.id;
       const tenantId = (req as any).context?.tenant?.id;
       
       if (!userId) {
