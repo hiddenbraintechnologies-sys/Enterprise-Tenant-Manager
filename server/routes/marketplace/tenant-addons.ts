@@ -11,7 +11,7 @@ import {
   addonPricing,
 } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
-import { authenticateJWT } from "../../core/auth-middleware";
+import { authenticateHybrid } from "../../core/auth-middleware";
 import { isRazorpayConfigured, razorpayService, getRazorpayKeyId } from "../../services/razorpay";
 
 const router = Router();
@@ -21,7 +21,7 @@ const startTrialSchema = z.object({
   countryCode: z.string().length(2),
 });
 
-router.post("/trial", authenticateJWT({ required: true }), async (req: Request, res: Response) => {
+router.post("/trial", authenticateHybrid({ required: true }), async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -175,7 +175,7 @@ router.post("/trial", authenticateJWT({ required: true }), async (req: Request, 
   }
 });
 
-router.get("/installed", authenticateJWT({ required: true }), async (req: Request, res: Response) => {
+router.get("/installed", authenticateHybrid({ required: true }), async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -213,7 +213,7 @@ router.get("/installed", authenticateJWT({ required: true }), async (req: Reques
   }
 });
 
-router.post("/cancel", authenticateJWT({ required: true }), async (req: Request, res: Response) => {
+router.post("/cancel", authenticateHybrid({ required: true }), async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -263,7 +263,7 @@ const purchaseSchema = z.object({
   useTrial: z.boolean().default(false),
 });
 
-router.post("/:addonId/purchase", authenticateJWT({ required: true }), async (req: Request, res: Response) => {
+router.post("/:addonId/purchase", authenticateHybrid({ required: true }), async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
