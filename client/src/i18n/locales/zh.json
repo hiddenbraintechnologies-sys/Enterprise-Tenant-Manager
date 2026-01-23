@@ -702,6 +702,71 @@
     "apiAccess": "API访问",
     "customerPortal": "客户门户"
   },
+  "featureBenefits": {
+    "payroll": "处理合规的薪资，自动计算扣款，几分钟内生成工资单。",
+    "hrms": "在一个地方管理员工、考勤、请假和工时表。",
+    "whatsappAutomation": "通过WhatsApp向客户发送自动提醒和更新。",
+    "analytics": "通过高级报告查看收入、趋势和绩效洞察。",
+    "invoicing": "创建专业发票，跟踪付款，轻松管理税务。"
+  },
+  "featureMicro": {
+    "payroll": "工资单，法规合规",
+    "hrms": "考勤、请假、员工",
+    "attendance": "每日打卡签到/签退",
+    "leave": "请假申请和审批",
+    "timesheets": "可计费时间跟踪",
+    "whatsappAutomation": "自动提醒和通知",
+    "smsAutomation": "付款和系统通知",
+    "analytics": "业务洞察",
+    "invoicing": "发票和付款",
+    "projects": "任务和交付跟踪",
+    "customerPortal": "自助服务访问",
+    "gst": "税务发票"
+  },
+  "featureMicroByCountry": {
+    "IN": {
+      "payroll": "工资单，TDS就绪（附加功能）",
+      "gst": "GST发票和HSN/SAC",
+      "whatsappAutomation": "WhatsApp自动付款提醒"
+    },
+    "MY": {
+      "payroll": "工资单，EPF/SOCSO/PCB就绪",
+      "gst": "SST就绪发票",
+      "whatsappAutomation": "通过WhatsApp自动提醒"
+    },
+    "UK": {
+      "payroll": "即将推出（UK合规）",
+      "gst": "VAT就绪发票",
+      "whatsappAutomation": "通过WhatsApp发送客户更新"
+    },
+    "SG": {
+      "payroll": "工资单，CPF就绪",
+      "gst": "GST就绪发票",
+      "whatsappAutomation": "通过WhatsApp自动提醒"
+    }
+  },
+  "featureMicroByUsage": {
+    "payroll": {
+      "low": "准备好后开始使用薪资管理",
+      "mid": "每月节省数小时的工资处理时间",
+      "high": "您正在扩展——立即自动化薪资管理"
+    },
+    "hrms": {
+      "low": "整理员工记录",
+      "mid": "轻松跟踪考勤和请假",
+      "high": "使用HRMS大规模管理团队"
+    },
+    "whatsappAutomation": {
+      "low": "无需手动跟进即可发送更新",
+      "mid": "通过自动提醒减少跟进工作",
+      "high": "通过WhatsApp自动化更快收回付款"
+    },
+    "analytics": {
+      "low": "一目了然地了解您的业务",
+      "mid": "通过每周洞察发现趋势",
+      "high": "通过高级报告优化收入"
+    }
+  },
   "lockedFeature": {
     "title": "此功能不在您当前的计划中",
     "body": "升级到Basic或Pro以使用软件服务。",
