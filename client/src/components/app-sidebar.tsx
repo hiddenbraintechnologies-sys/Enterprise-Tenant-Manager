@@ -312,39 +312,23 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           <SidebarGroupContent>
             <SidebarMenu>
               {hasModuleAccess ? (
-                <>
-                  {mainNavItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={location === item.url || location.startsWith(item.url + "/")}
-                      >
-                        <Link 
-                          href={item.url} 
-                          data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                          data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                  <SidebarMenuItem>
+                mainNavItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild
-                      isActive={location === "/marketplace" && location.includes("tab=installed")}
+                      isActive={location === item.url || location.startsWith(item.url + "/")}
                     >
                       <Link 
-                        href="/marketplace?tab=installed" 
-                        data-testid="link-nav-my-add-ons"
+                        href={item.url} 
+                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                       >
-                        <Puzzle className="h-4 w-4" />
-                        <span>My Add-ons</span>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                </>
+                ))
               ) : shouldHideModules ? (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
@@ -389,6 +373,20 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                   </SidebarMenuItem>
                 </>
               )}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location.includes("/marketplace") && location.includes("tab=installed")}
+                >
+                  <Link 
+                    href="/marketplace?tab=installed" 
+                    data-testid="link-nav-my-add-ons"
+                  >
+                    <Puzzle className="h-4 w-4" />
+                    <span>My Add-ons</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
