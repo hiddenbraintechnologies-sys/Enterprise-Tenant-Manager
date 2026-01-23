@@ -570,38 +570,19 @@ export default function Marketplace() {
 
   const installMutation = useMutation({
     mutationFn: async ({ addonId, pricingId }: { addonId: string; pricingId?: string }) => {
-      // Create AbortController with 30s timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      // Use apiRequest which includes auth headers automatically
+      const response = await apiRequest("POST", `/api/marketplace/addons/${addonId}/purchase`, { 
+        pricingId, 
+        countryCode: tenantCountryCode,
+        returnUrl: `${window.location.origin}/marketplace?purchase=success&addon=${addonId}`,
+      });
       
-      try {
-        const response = await fetch(`/api/marketplace/addons/${addonId}/purchase`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ 
-            pricingId, 
-            countryCode: tenantCountryCode,
-            returnUrl: `${window.location.origin}/marketplace?purchase=success&addon=${addonId}`,
-          }),
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Request failed with status ${response.status}`);
-        }
-        
-        return response.json();
-      } catch (error: any) {
-        clearTimeout(timeoutId);
-        if (error.name === "AbortError") {
-          throw new Error("Payment session timed out. Please retry.");
-        }
-        throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Request failed with status ${response.status}`);
       }
+      
+      return response.json();
     },
     onSuccess: (data: any) => {
       console.log("[Marketplace] Install response:", data);
