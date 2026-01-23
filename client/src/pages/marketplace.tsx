@@ -535,6 +535,7 @@ export default function Marketplace() {
   const { data: installedData, isLoading: installedLoading } = useQuery<{ installedAddons: InstalledAddon[] }>({
     queryKey: ["/api/addons/tenant", tenantId, "addons"],
     queryFn: async () => {
+      console.log("[Marketplace] Fetching installed addons for tenant:", tenantId);
       if (!tenantId) return { installedAddons: [] };
       const token = localStorage.getItem("accessToken");
       const res = await fetch(`/api/addons/tenant/${tenantId}/addons`, { 
@@ -544,8 +545,13 @@ export default function Marketplace() {
           "X-Tenant-ID": tenantId,
         },
       });
-      if (!res.ok) throw new Error("Failed to fetch installed addons");
-      return res.json();
+      if (!res.ok) {
+        console.error("[Marketplace] Failed to fetch installed addons:", res.status, res.statusText);
+        throw new Error("Failed to fetch installed addons");
+      }
+      const data = await res.json();
+      console.log("[Marketplace] Installed addons response:", data);
+      return data;
     },
     enabled: !!tenantId,
   });
