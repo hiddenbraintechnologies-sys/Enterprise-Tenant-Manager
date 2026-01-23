@@ -1,0 +1,195 @@
+Title: Fix Marketplace Add-on install stuck on “Processing” + ensure add-on becomes Installed after payment (Payroll/HRMS MY)
+
+Prompt:
+
+We have a Marketplace Add-on install flow that is stuck on “Processing” and does not activate the add-on (Payroll/HRMS for Malaysia). User clicks Install Add-on → spinner keeps running, no checkout opens OR add-on never shows as installed.
+
+Goal
+
+Make Marketplace add-on purchase reliable end-to-end:
+
+Clicking Install Add-on must always either:
+
+open Razorpay Checkout / redirect to checkoutUrl, OR
+
+show a clear error with Retry (no infinite spinner)
+
+After payment success (webhook), add-on must become Installed and unlocked in the tenant dashboard.
+
+Add-ons must be visible in Marketplace as:
+
+Available → Installing (pending) → Installed/Active
+
+If payment pending, show “Pending payment” and allow resume
+
+A) Reproduce + Identify the failing step
+Add client-side debug logs
+
+In the install modal submit handler:
+
+log payload, response status, and response body
+
+log when opening checkout, when redirect happens
+
+In Network tab, confirm which endpoint is called and what it returns.
+
+B) Fix the “Processing forever” issue (Frontend)
+Files to inspect/update
+
+client/src/pages/marketplace.tsx OR client/src/pages/marketplace/index.tsx (where install is triggered)
+
+client/src/components/marketplace/install-addon-modal.tsx (or similarly named modal)
+
+client/src/lib/api.ts / client/src/lib/apiClient.ts / client/src/lib/queryClient.ts (ensure authenticated requests)
+
+Required fixes
+
+Ensure authenticated requests include session
+
+For app/dashboard APIs use credentials: "include" (cookies/session)
+
+Do NOT reuse the public rollouts fetch that uses credentials: "omit".
+
+No infinite spinner
+
+Add a finally { setLoading(false) }
+
+Add a 20–30s timeout (AbortController) and show:
+“Payment session timed out. Please retry.”
+
+If API returns checkoutUrl
+
+Immediately open:
+
+window.location.href = checkoutUrl (best)
+
+OR window.open(checkoutUrl, "_self")
+
+Close modal after redirect attempt.
+
+If API returns “trial activated” (no checkout)
+
+Update UI state to Installed and refetch GET /api/marketplace/installed.
+
+C) Fix Backend install endpoint (returns fast + correct)
+Files to inspect/update
+
+server/routes/marketplace.ts (or marketplace routes inside server/routes.ts)
+
+server/core/payments/razorpay.ts / server/core/payments/adapters/razorpay-adapter.ts
+
+DB schema for tenant add-ons (Prisma)
+
+Required behavior
+
+Create endpoint:
+POST /api/marketplace/addons/:addonKey/purchase
+
+It must:
+
+Validate tenant + addon eligibility (country MY, plan tier, etc.)
+
+Create or reuse a pending tenantAddon row (idempotent)
+
+Create Razorpay subscription/checkout session (idempotent via receipt/idempotencyKey)
+
+Return JSON quickly:
+
+Response shapes (must be consistent)
+
+If needs payment:
+
+{ "status": "CHECKOUT_REQUIRED", "checkoutUrl": "https://..." , "tenantAddonId": "..." }
+
+
+If trial activated without checkout:
+
+{ "status": "TRIAL_ACTIVE", "tenantAddonId": "...", "trialEndsAt": "..." }
+
+
+If already active:
+
+{ "status": "ALREADY_ACTIVE", "tenantAddonId": "..." }
+
+
+Also enforce timeouts on Razorpay calls (10–15s) and return:
+
+{ "error": "PAYMENT_PROVIDER_TIMEOUT" }
+
+
+(no hanging requests)
+
+D) Webhook must activate add-on (most common missing part)
+Files to inspect/update
+
+server/routes/webhooks/razorpay.ts (or wherever webhooks live)
+
+server/core/payments/webhook-handlers/*
+
+Must handle these events
+
+subscription.activated / payment.captured / invoice.paid (depending on your integration)
+
+On success:
+
+Update:
+
+tenant_addons.status = "ACTIVE"
+
+set activatedAt, currentPeriodEnd, razorpaySubscriptionId
+
+store lastPaymentAt
+
+On failure/cancel:
+
+tenant_addons.status = "PAST_DUE" or "CANCELLED"
+
+E) Marketplace “Installed” tab must reflect DB
+Required endpoints
+
+GET /api/marketplace/addons (catalog)
+
+GET /api/marketplace/installed (tenant’s add-ons + status)
+
+POST /api/marketplace/addons/:addonKey/purchase
+
+Frontend must refetch installed after:
+
+purchase response
+
+returning from checkout
+
+page refresh
+
+If checkout redirects away and comes back, support a return URL:
+/marketplace?purchase=success and auto-refetch.
+
+F) Ensure Payroll + HRMS appear in catalog (Malaysia)
+
+If Payroll/HRMS missing:
+
+Ensure the add-on catalog includes keys:
+
+payroll_my
+
+hrms_my
+
+Ensure rollout flags for MY allow these add-ons
+
+Ensure they are not filtered out by plan tier rules incorrectly
+
+G) Deliverables
+
+Fix stuck processing (no infinite spinner)
+
+Ensure checkout opens when required
+
+Ensure webhook activates add-on and Installed tab shows it
+
+Add clear UI states:
+
+Installing / Pending payment / Active / Failed (Retry)
+
+Provide exact files changed + brief summary
+
+Proceed to implement now.

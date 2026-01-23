@@ -58,6 +58,27 @@ function verifyWebhookSignature(
   );
 }
 
+// Helper function to find tenant addon by either providerSubscriptionId or subscriptionId
+async function findTenantAddonBySubscription(subscriptionId: string) {
+  // Try providerSubscriptionId first
+  let [tenantAddon] = await db
+    .select()
+    .from(tenantAddons)
+    .where(eq(tenantAddons.providerSubscriptionId, subscriptionId))
+    .limit(1);
+  
+  if (!tenantAddon) {
+    // Fallback to subscriptionId
+    [tenantAddon] = await db
+      .select()
+      .from(tenantAddons)
+      .where(eq(tenantAddons.subscriptionId, subscriptionId))
+      .limit(1);
+  }
+  
+  return tenantAddon;
+}
+
 async function processEvent(
   eventId: string,
   eventType: string,
@@ -74,11 +95,7 @@ async function processEvent(
 
     const subscriptionId = subscription.id;
 
-    const [tenantAddon] = await db
-      .select()
-      .from(tenantAddons)
-      .where(eq(tenantAddons.providerSubscriptionId, subscriptionId))
-      .limit(1);
+    const tenantAddon = await findTenantAddonBySubscription(subscriptionId);
 
     if (!tenantAddon) {
       console.warn(
@@ -180,11 +197,7 @@ async function processEvent(
     const subscriptionId = payment?.subscription_id;
     if (!subscriptionId) return;
 
-    const [tenantAddon] = await db
-      .select()
-      .from(tenantAddons)
-      .where(eq(tenantAddons.providerSubscriptionId, subscriptionId))
-      .limit(1);
+    const tenantAddon = await findTenantAddonBySubscription(subscriptionId);
 
     if (tenantAddon) {
       await db

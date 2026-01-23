@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -432,7 +432,7 @@ function normalizeCountryCode(country: string | undefined): string {
 
 export default function Marketplace() {
   const { tenant } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const tenantId = tenant?.id;
   const tenantCountryCode = normalizeCountryCode(tenant?.country);
   const tenantCurrency = tenant?.currency || COUNTRY_TO_CURRENCY[tenantCountryCode] || "INR";
@@ -442,6 +442,62 @@ export default function Marketplace() {
   const [selectedAddon, setSelectedAddon] = useState<Addon | null>(null);
   const [selectedPricingId, setSelectedPricingId] = useState<string>("");
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
+
+  // Handle return from checkout (Razorpay or manual navigation)
+  const [justReturned, setJustReturned] = useState(false);
+  
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const purchaseStatus = params.get("purchase");
+    const hasRazorpayParams = params.has("razorpay_subscription_id") || 
+                               params.has("razorpay_payment_id");
+    
+    // Check if there's a pending purchase from localStorage
+    const pendingPurchase = localStorage.getItem("marketplace_pending_purchase");
+    const isPendingReturn = pendingPurchase && Date.now() - parseInt(pendingPurchase) < 600000; // 10 min window
+    
+    if (purchaseStatus === "success" || hasRazorpayParams || isPendingReturn) {
+      // Clear URL params and localStorage
+      window.history.replaceState({}, "", "/marketplace");
+      localStorage.removeItem("marketplace_pending_purchase");
+      setJustReturned(true);
+      
+      // Refetch installed addons
+      queryClient.invalidateQueries({ queryKey: ["/api/addons/tenant", tenantId, "addons"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/marketplace/addons/installed"] });
+      
+      if (purchaseStatus === "success" || hasRazorpayParams) {
+        toast({
+          title: "Payment processing...",
+          description: "Your add-on is being activated. This may take a moment.",
+        });
+      }
+      
+      // Poll for activation status (webhooks may take a few seconds)
+      const pollInterval = setInterval(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/addons/tenant", tenantId, "addons"] });
+      }, 3000);
+      
+      // Store timeout ID for cleanup
+      const timeoutId = setTimeout(() => {
+        clearInterval(pollInterval);
+        setJustReturned(false);
+      }, 30000);
+      
+      return () => {
+        clearInterval(pollInterval);
+        clearTimeout(timeoutId);
+      };
+    } else if (purchaseStatus === "cancelled") {
+      window.history.replaceState({}, "", "/marketplace");
+      localStorage.removeItem("marketplace_pending_purchase");
+      toast({
+        title: "Payment cancelled",
+        description: "You can try again when ready.",
+        variant: "destructive",
+      });
+    }
+  }, [tenantId, toast]);
 
   // Fetch add-ons filtered by tenant's country and currency
   const { data: marketplaceData, isLoading: marketplaceLoading } = useQuery<{ addons: Addon[] }>({
@@ -482,15 +538,107 @@ export default function Marketplace() {
 
   const installMutation = useMutation({
     mutationFn: async ({ addonId, pricingId }: { addonId: string; pricingId?: string }) => {
-      return apiRequest("POST", `/api/addons/tenant/${tenantId}/addons`, { addonId, pricingId });
+      // Create AbortController with 30s timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
+      try {
+        const response = await fetch(`/api/marketplace/addons/${addonId}/purchase`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ 
+            pricingId, 
+            countryCode: tenantCountryCode,
+            returnUrl: `${window.location.origin}/marketplace?purchase=success&addon=${addonId}`,
+          }),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        }
+        
+        return response.json();
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === "AbortError") {
+          throw new Error("Payment session timed out. Please retry.");
+        }
+        throw error;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      console.log("[Marketplace] Install response:", data);
+      
+      // Handle different response statuses
+      if (data.status === "CHECKOUT_REQUIRED" && data.checkoutUrl) {
+        // Store pending purchase timestamp to detect return
+        localStorage.setItem("marketplace_pending_purchase", Date.now().toString());
+        
+        // Redirect to checkout
+        toast({ title: "Redirecting to payment..." });
+        handleCloseInstallDialog();
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      
+      if (data.status === "TRIAL_ACTIVE") {
+        queryClient.invalidateQueries({ queryKey: ["/api/addons/tenant", tenantId, "addons"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/marketplace/addons/installed"] });
+        toast({ 
+          title: "Trial started!", 
+          description: `Your trial ends on ${new Date(data.trialEndsAt).toLocaleDateString()}` 
+        });
+        handleCloseInstallDialog();
+        return;
+      }
+      
+      if (data.status === "ALREADY_ACTIVE") {
+        queryClient.invalidateQueries({ queryKey: ["/api/addons/tenant", tenantId, "addons"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/marketplace/addons/installed"] });
+        toast({ title: "Add-on already installed" });
+        handleCloseInstallDialog();
+        return;
+      }
+      
+      if (data.status === "PENDING_PAYMENT") {
+        toast({ 
+          title: "Payment pending", 
+          description: data.message || "Please contact support to complete payment.",
+          variant: "destructive" 
+        });
+        handleCloseInstallDialog();
+        return;
+      }
+      
+      // Fallback for legacy responses or free add-ons
+      if (data.requiresPayment && data.razorpay?.shortUrl) {
+        // Store pending purchase timestamp to detect return
+        localStorage.setItem("marketplace_pending_purchase", Date.now().toString());
+        
+        toast({ title: "Redirecting to payment..." });
+        handleCloseInstallDialog();
+        window.location.href = data.razorpay.shortUrl;
+        return;
+      }
+      
+      // Free addon or trial activated
       queryClient.invalidateQueries({ queryKey: ["/api/addons/tenant", tenantId, "addons"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/marketplace/addons/installed"] });
       toast({ title: "Add-on installed successfully" });
       handleCloseInstallDialog();
     },
     onError: (error: any) => {
-      toast({ title: "Installation failed", description: error.message, variant: "destructive" });
+      console.error("[Marketplace] Install error:", error);
+      toast({ 
+        title: "Installation failed", 
+        description: error.message || "Please try again", 
+        variant: "destructive" 
+      });
     },
   });
 
