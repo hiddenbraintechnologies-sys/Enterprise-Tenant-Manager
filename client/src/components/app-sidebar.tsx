@@ -178,7 +178,6 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
 
 const systemItems: NavItem[] = [
   { title: "Marketplace", url: "/marketplace", icon: Package, tourId: "sidebar-marketplace" },
-  { title: "My Add-ons", url: "/marketplace?tab=installed", icon: Puzzle },
   { title: "AI Permissions", url: "/ai-permissions", icon: Bot },
   { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];
@@ -313,23 +312,39 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           <SidebarGroupContent>
             <SidebarMenu>
               {hasModuleAccess ? (
-                mainNavItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
+                <>
+                  {mainNavItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url || location.startsWith(item.url + "/")}
+                      >
+                        <Link 
+                          href={item.url} 
+                          data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                          data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                  <SidebarMenuItem>
                     <SidebarMenuButton
                       asChild
-                      isActive={location === item.url || location.startsWith(item.url + "/")}
+                      isActive={location === "/marketplace" && location.includes("tab=installed")}
                     >
                       <Link 
-                        href={item.url} 
-                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                        data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        href="/marketplace?tab=installed" 
+                        data-testid="link-nav-my-add-ons"
                       >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <Puzzle className="h-4 w-4" />
+                        <span>My Add-ons</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                ))
+                </>
               ) : shouldHideModules ? (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
