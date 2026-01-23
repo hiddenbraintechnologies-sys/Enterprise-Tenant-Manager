@@ -241,9 +241,12 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   
   const payrollEnabled = hasPayrollAccess() || hasMarketplacePayroll;
   const hrmsModuleEnabled = canAccessModule("hrms") || canAccessModule("payroll");
-  const countrySupportsPayroll = countryCode === "MY" || countryCode === "IN";
-  const showHrmsSection = Boolean(user && countrySupportsPayroll && (hrmsModuleEnabled || payrollEnabled));
-  const hrmsReady = showHrmsSection && !isPayrollLoading;
+  // Use tenant country from auth context as primary source
+  const tenantCountry = tenant?.country || countryCode || "IN";
+  const countrySupportsPayroll = tenantCountry === "MY" || tenantCountry === "IN";
+  // Show HRMS section if user has marketplace payroll/HRMS addon installed (regardless of other checks)
+  const showHrmsSection = Boolean(user && (hasMarketplacePayroll || (countrySupportsPayroll && (hrmsModuleEnabled || payrollEnabled))));
+  const hrmsReady = showHrmsSection;
   const mainNavItems = NAV_ITEMS_BY_BUSINESS_TYPE[effectiveBusinessType] || NAV_ITEMS_BY_BUSINESS_TYPE.service;
   const dashboardRoute = DASHBOARD_ROUTES[effectiveBusinessType] || DASHBOARD_ROUTES.service;
   
