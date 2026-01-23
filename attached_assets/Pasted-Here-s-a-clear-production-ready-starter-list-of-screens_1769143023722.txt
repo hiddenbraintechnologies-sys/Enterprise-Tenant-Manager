@@ -1,0 +1,247 @@
+Here’s a clear, production-ready starter list of screenshots + short video clips, structured so your designer / video team / Replit video generator can work without confusion.
+
+This aligns with:
+
+Marketplace cards
+
+Locked feature screens
+
+Landing page explainer video
+
+In-app upsell modals
+
+📁 Standard Asset Folder Structure
+client/src/assets/features/
+├── payroll/
+├── hrms/
+├── whatsapp/
+├── invoicing/
+├── projects/
+├── analytics/
+├── customer-portal/
+└── marketplace/
+
+🎯 Feature-wise Screenshot & Video Checklist
+1️⃣ Payroll
+
+Folder: features/payroll/
+
+Screenshots
+
+payroll-overview.png
+→ Payroll dashboard (employee count, total payout)
+
+payroll-payslip.png
+→ Individual payslip view
+
+payroll-run.png
+→ “Run Payroll” confirmation screen
+
+payroll-compliance.png
+→ EPF/ESI/TDS indicators (country-specific)
+
+Short clip (optional, 5–7s)
+
+payroll-run.mp4
+→ Click “Run Payroll” → success animation
+
+2️⃣ HRMS
+
+Folder: features/hrms/
+
+Screenshots
+
+hrms-employees.png
+→ Employee directory
+
+hrms-attendance.png
+→ Attendance calendar / punch-in
+
+hrms-leave.png
+→ Leave request & approval
+
+hrms-profile.png
+→ Employee profile view
+
+Clip
+
+hrms-attendance.mp4
+→ Punch-in → attendance marked
+
+3️⃣ WhatsApp Automation
+
+Folder: features/whatsapp/
+
+Screenshots
+
+whatsapp-templates.png
+→ Message templates list
+
+whatsapp-reminder.png
+→ Payment reminder preview
+
+whatsapp-log.png
+→ Sent message history
+
+Clip
+
+whatsapp-send.mp4
+→ Invoice → “Send WhatsApp” → delivered tick
+
+4️⃣ Invoicing
+
+Folder: features/invoicing/
+
+Screenshots
+
+invoice-create.png
+→ Invoice creation form
+
+invoice-preview.png
+→ Branded invoice preview
+
+invoice-payment.png
+→ Payment received status
+
+invoice-tax.png
+→ GST / SST / VAT breakdown
+
+Clip
+
+invoice-create.mp4
+→ Create → Preview → Save
+
+5️⃣ Projects / Consulting / Software Services
+
+Folder: features/projects/
+
+Screenshots
+
+projects-list.png
+→ Project / Engagement list
+
+project-detail.png
+→ Tasks & milestones
+
+timesheet-log.png
+→ Log time modal
+
+timesheet-summary.png
+→ Billable hours summary
+
+Clip
+
+timesheet-log.mp4
+→ Select project → log hours → save
+
+6️⃣ Analytics
+
+Folder: features/analytics/
+
+Screenshots
+
+analytics-dashboard.png
+→ Revenue + trends
+
+analytics-payments.png
+→ Paid vs pending
+
+analytics-growth.png
+→ Monthly growth graph
+
+Clip
+
+analytics-drilldown.mp4
+→ Click chart → detailed view
+
+7️⃣ Customer Portal
+
+Folder: features/customer-portal/
+
+Screenshots
+
+portal-login.png
+→ Customer login
+
+portal-invoices.png
+→ Invoice list
+
+portal-pay.png
+→ Online payment screen
+
+Clip
+
+portal-pay.mp4
+→ Customer pays invoice
+
+8️⃣ Marketplace (Add-ons)
+
+Folder: features/marketplace/
+
+Screenshots
+
+marketplace-browse.png
+→ Add-on catalog
+
+marketplace-addon.png
+→ Payroll / HRMS add-on card
+
+marketplace-installed.png
+→ Installed tab
+
+marketplace-upsell.png
+→ Locked add-on CTA
+
+Clip
+
+marketplace-install.mp4
+→ Click add-on → install → success
+
+🎬 Landing Page Pitch Video (60–90 seconds)
+
+Recommended Flow
+
+Hero dashboard overview (5s)
+
+Invoicing → payment received (8s)
+
+WhatsApp reminder → delivered (6s)
+
+Projects + timesheets (8s)
+
+HRMS attendance (6s)
+
+Payroll run (8s)
+
+Analytics growth chart (6s)
+
+Marketplace add-ons (5s)
+
+Closing CTA screen (logo + tagline)
+
+🧠 Naming Rules (important)
+
+No country-specific labels in filenames
+
+Same assets reused globally
+
+Country logic handled in copy, not visuals
+
+🧩 How UI uses these assets (example)
+export const FEATURE_SCREENSHOTS = {
+  payroll: "/src/assets/features/payroll/payroll-overview.png",
+  hrms: "/src/assets/features/hrms/hrms-employees.png",
+  whatsappAutomation: "/src/assets/features/whatsapp/whatsapp-reminder.png",
+};
+
+🛠️ Replit Prompt (for asset wiring)
+Create feature asset system:
+
+1) Add screenshot folders under client/src/assets/features/*
+2) Map screenshots in FEATURE_SCREENSHOTS config
+3) Show screenshot preview in:
+   - Marketplace add-on cards
+   - Locked feature modals
+   - Feature detail pages
+4) Fallback to icon if screenshot missing
+5) Lazy-load images for performance
