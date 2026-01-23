@@ -736,9 +736,9 @@ export async function listEligibleAddons(params: {
   const allAddons = await db
     .select({
       id: addons.id,
-      code: addons.code,
+      slug: addons.slug,
       name: addons.name,
-      description: addons.description,
+      shortDescription: addons.shortDescription,
       category: addons.category,
       requiredPlanTier: addons.requiredPlanTier,
       supportedCountries: addons.supportedCountries,
@@ -794,10 +794,9 @@ export async function listEligibleAddons(params: {
     const [pricing] = await db
       .select({
         currency: addonPricing.currency,
-        monthlyPrice: addonPricing.monthlyPrice,
-        yearlyPrice: addonPricing.yearlyPrice,
-        pricingModel: addonPricing.pricingModel,
-        perUnitLabel: addonPricing.perUnitLabel,
+        price: addonPricing.price,
+        pricingType: addonPricing.pricingType,
+        billingPeriod: addonPricing.billingPeriod,
       })
       .from(addonPricing)
       .where(
@@ -810,9 +809,9 @@ export async function listEligibleAddons(params: {
 
     eligibleAddons.push({
       id: addon.id,
-      code: addon.code,
+      slug: addon.slug,
       name: addon.name,
-      description: addon.description,
+      description: addon.shortDescription,
       category: addon.category,
       requiredPlanTier: addon.requiredPlanTier,
       isInstalled,
@@ -834,7 +833,7 @@ export async function getTenantAddonState(params: {
   const [addon] = await db
     .select()
     .from(addons)
-    .where(eq(addons.code, addonCode))
+    .where(eq(addons.slug, addonCode))
     .limit(1);
 
   if (!addon) {
@@ -919,7 +918,7 @@ export async function buildAddonAccessMap(tenantId: string): Promise<Record<stri
   }> = {};
 
   const allAddons = await db
-    .select({ code: addons.code })
+    .select({ slug: addons.slug })
     .from(addons)
     .where(eq(addons.status, "published"));
 
@@ -933,18 +932,18 @@ export async function buildAddonAccessMap(tenantId: string): Promise<Record<stri
     .where(eq(tenantAddons.tenantId, tenantId));
 
   const addonDetails = await db
-    .select({ id: addons.id, code: addons.code })
+    .select({ id: addons.id, slug: addons.slug })
     .from(addons);
 
-  const addonIdToCode = new Map(addonDetails.map(a => [a.id, a.code]));
-  const installMap = new Map(installations.map(i => [addonIdToCode.get(i.addonId), i]));
+  const addonIdToSlug = new Map(addonDetails.map(a => [a.id, a.slug]));
+  const installMap = new Map(installations.map(i => [addonIdToSlug.get(i.addonId), i]));
 
   for (const addon of allAddons) {
-    const useResult = await canUseAddon({ tenantId, addonCode: addon.code });
-    const purchaseResult = await canPurchaseAddon({ tenantId, addonCode: addon.code });
-    const install = installMap.get(addon.code);
+    const useResult = await canUseAddon({ tenantId, addonCode: addon.slug });
+    const purchaseResult = await canPurchaseAddon({ tenantId, addonCode: addon.slug });
+    const install = installMap.get(addon.slug);
 
-    accessMap[addon.code] = {
+    accessMap[addon.slug] = {
       canUse: useResult.allowed,
       canPurchase: purchaseResult.allowed,
       reason: useResult.reason || purchaseResult.reason,
