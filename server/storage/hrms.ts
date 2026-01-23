@@ -416,7 +416,7 @@ class HrmsStorage {
     if (filters.year) {
       conditions.push(eq(hrPayroll.payrollYear, filters.year));
     }
-    if (filters.status) {
+    if (filters.status && filters.status !== "all") {
       conditions.push(eq(hrPayroll.status, filters.status as any));
     }
 
