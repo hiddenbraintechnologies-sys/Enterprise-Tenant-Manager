@@ -241,11 +241,21 @@ export function TenantWipeModal({ open, onOpenChange, tenantId, tenantName }: Te
               <Input
                 id="confirm"
                 value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                placeholder={expectedConfirmText}
-                className="font-mono"
+                onChange={(e) => {
+                  console.log("[TenantWipeModal] Confirm input changed:", e.target.value);
+                  setConfirmText(e.target.value);
+                }}
+                placeholder="Type the confirmation text above..."
+                className={`font-mono ${isConfirmValid ? 'border-green-500' : confirmText.length > 0 ? 'border-yellow-500' : ''}`}
                 data-testid="input-wipe-confirm"
               />
+              {confirmText.length > 0 && !isConfirmValid && (
+                <p className="text-xs text-muted-foreground">
+                  {confirmText.trim() === expectedConfirmText.trim() 
+                    ? "Confirmation matches! Ensure reason has at least 10 characters." 
+                    : `Current input: "${confirmText}"`}
+                </p>
+              )}
             </div>
           </div>
         )}
