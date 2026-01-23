@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation, Link } from "wouter";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Users,
@@ -221,7 +222,24 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const effectiveBusinessType = (businessType || authBusinessType || "service") as BusinessType;
   const tenantId = tenant?.id || "";
   
-  const payrollEnabled = hasPayrollAccess();
+  // Check for marketplace-installed payroll/HRMS add-ons
+  const { data: installedAddonsData } = useQuery<{ installedAddons: Array<{ addon: { slug: string } | null; installation: { status: string; subscriptionStatus: string } }> }>({
+    queryKey: ["/api/addons/tenant", tenantId, "addons"],
+    enabled: Boolean(user && tenantId),
+  });
+  
+  const hasMarketplacePayroll = useMemo(() => {
+    if (!installedAddonsData?.installedAddons) return false;
+    return installedAddonsData.installedAddons.some(item => {
+      const slug = item.addon?.slug || "";
+      const isPayrollOrHrms = slug.startsWith("payroll") || slug.startsWith("hrms");
+      const isActive = item.installation.status === "active" && 
+        (item.installation.subscriptionStatus === "active" || item.installation.subscriptionStatus === "trialing");
+      return isPayrollOrHrms && isActive;
+    });
+  }, [installedAddonsData]);
+  
+  const payrollEnabled = hasPayrollAccess() || hasMarketplacePayroll;
   const hrmsModuleEnabled = canAccessModule("hrms") || canAccessModule("payroll");
   const countrySupportsPayroll = countryCode === "MY" || countryCode === "IN";
   const showHrmsSection = Boolean(user && countrySupportsPayroll && (hrmsModuleEnabled || payrollEnabled));
