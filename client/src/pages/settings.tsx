@@ -1,5 +1,6 @@
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { NotificationPreferences } from "@/components/notification-preferences";
+import { MyAddons } from "@/components/my-addons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +153,9 @@ export default function Settings() {
             </p>
           </CardContent>
         </Card>
+
+        {/* My Add-ons */}
+        <MyAddons />
 
         {/* Appearance Settings */}
         <Card>

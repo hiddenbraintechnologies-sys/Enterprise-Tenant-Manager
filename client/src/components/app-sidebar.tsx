@@ -21,6 +21,7 @@ import {
   Clock,
   FileText,
   BadgeCheck,
+  Puzzle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -177,6 +178,7 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
 
 const systemItems: NavItem[] = [
   { title: "Marketplace", url: "/marketplace", icon: Package, tourId: "sidebar-marketplace" },
+  { title: "My Add-ons", url: "/marketplace?tab=installed", icon: Puzzle },
   { title: "AI Permissions", url: "/ai-permissions", icon: Bot },
   { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];

@@ -229,7 +229,7 @@ export async function canUseAddon(params: CanUseAddonParams): Promise<CanUseAddo
           name: addon.name,
           requiredPlanTier: requiredPlanTier,
           currentPlanTier: tenantPlanTier,
-          installStatus: installation.status,
+          installStatus: installation.status ?? undefined,
         },
       };
     }
@@ -671,7 +671,7 @@ export interface TenantAddonState {
 
 export interface EligibleAddon {
   id: string;
-  code: string;
+  slug: string;
   name: string;
   description: string | null;
   category: string;
@@ -680,11 +680,10 @@ export interface EligibleAddon {
   canPurchase: boolean;
   purchaseReason?: AddonDenialReason;
   pricing: {
-    currency: string;
-    monthlyPrice: string | null;
-    yearlyPrice: string | null;
-    pricingModel: string | null;
-    perUnitLabel: string | null;
+    currency: string | null;
+    price: string | null;
+    pricingType: string;
+    billingPeriod: string | null;
   } | null;
 }
 
@@ -855,7 +854,7 @@ export async function getTenantAddonState(params: {
   const canPurchaseResult = await canPurchaseAddon({ tenantId, addonCode });
 
   return {
-    addonCode: addon.code,
+    addonCode: addon.slug,
     addonName: addon.name,
     installed: !!installation,
     installStatus: installation?.status || null,
@@ -871,15 +870,15 @@ export async function getTenantAddonState(params: {
 export function enforceAddonAccess(addonCode: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = await resolveTenantId(req);
-      if (!tenantId) {
+      const resolved = await resolveTenantId(req);
+      if (!resolved.tenantId) {
         return res.status(401).json({
           error: "Unauthorized",
           message: "Tenant context required",
         });
       }
 
-      const result = await canUseAddon({ tenantId, addonCode });
+      const result = await canUseAddon({ tenantId: resolved.tenantId, addonCode });
 
       if (!result.allowed) {
         return res.status(403).json({
