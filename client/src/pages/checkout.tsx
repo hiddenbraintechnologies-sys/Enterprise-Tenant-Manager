@@ -18,7 +18,7 @@ import {
   AlertTriangle, Lock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { BILLING_STRINGS, t as tStr, getTierLabel, getPlanName } from "@shared/billing/i18n";
 import type { Lang } from "@shared/billing/i18n";
 
@@ -145,9 +145,12 @@ export default function CheckoutPage() {
       localStorage.setItem("subscriptionJustActivated", "true");
       localStorage.removeItem("pendingPaymentId");
       localStorage.removeItem("pendingPlanCode");
+      // Invalidate subscription query so fresh data is fetched
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
       toast({ title: t("paymentSuccess"), description: t("subscriptionNowActive") });
+      const redirectUrl = data.redirectUrl || "/dashboard/service";
       setTimeout(() => {
-        setLocation(data.redirectUrl || "/dashboard/service");
+        setLocation(redirectUrl);
       }, 2000);
     },
     onError: (error: Error) => {
@@ -177,9 +180,12 @@ export default function CheckoutPage() {
       localStorage.setItem("subscriptionJustActivated", "true");
       localStorage.removeItem("pendingPaymentId");
       localStorage.removeItem("pendingPlanCode");
+      // Invalidate subscription query so fresh data is fetched
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
       toast({ title: t("paymentSuccess"), description: t("subscriptionNowActive") });
+      const redirectUrl = data.redirectUrl || "/dashboard/service";
       setTimeout(() => {
-        setLocation(data.redirectUrl || "/dashboard/service");
+        setLocation(redirectUrl);
       }, 2000);
     },
     onError: (error: Error) => {
