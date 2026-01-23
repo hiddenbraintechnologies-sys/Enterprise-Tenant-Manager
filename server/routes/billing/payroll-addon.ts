@@ -20,8 +20,10 @@ import {
   tenantSubscriptions,
   globalPricingPlans,
   hrEmployees,
+  tenantAddons,
+  addons,
 } from "@shared/schema";
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, sql, count, like, or, inArray } from "drizzle-orm";
 import { requireMinimumRole, auditService } from "../../core";
 import {
   getTierForEmployeeCount,
@@ -107,6 +109,50 @@ router.get("/status", async (req, res) => {
       .limit(1);
 
     if (!addon) {
+      // Also check marketplace tenantAddons for payroll add-ons
+      const marketplacePayroll = await db
+        .select({
+          id: tenantAddons.id,
+          status: tenantAddons.status,
+          subscriptionStatus: tenantAddons.subscriptionStatus,
+          trialEndsAt: tenantAddons.trialEndsAt,
+          currentPeriodEnd: tenantAddons.currentPeriodEnd,
+          addonSlug: addons.slug,
+        })
+        .from(tenantAddons)
+        .innerJoin(addons, eq(tenantAddons.addonId, addons.id))
+        .where(
+          and(
+            eq(tenantAddons.tenantId, tenantId),
+            eq(tenantAddons.status, "active"),
+            like(addons.slug, "payroll%")
+          )
+        )
+        .limit(1);
+
+      if (marketplacePayroll.length > 0) {
+        const mpAddon = marketplacePayroll[0];
+        const isTrialing = mpAddon.subscriptionStatus === "trialing";
+        const trialActive = isTrialing && mpAddon.trialEndsAt && new Date(mpAddon.trialEndsAt) > new Date();
+        
+        return res.json({
+          addon: {
+            hasAccess: true,
+            subscriptionStatus: mpAddon.subscriptionStatus || "active",
+            tierId: null,
+            tierName: mpAddon.addonSlug,
+            currentPeriodEnd: mpAddon.currentPeriodEnd,
+            graceUntil: null,
+            employeeLimit: null,
+            isWithinGracePeriod: false,
+          },
+          enabled: true,
+          trialActive,
+          trialEndsAt: mpAddon.trialEndsAt,
+          subscriptionStatus: mpAddon.subscriptionStatus || "active",
+        });
+      }
+
       const subscription = await db
         .select({ 
           planId: tenantSubscriptions.planId,
@@ -121,6 +167,7 @@ router.get("/status", async (req, res) => {
       const trialEligible = isTrialEligible(planTier, false);
 
       return res.json({
+        addon: null,
         enabled: false,
         tierId: null,
         tierName: null,
