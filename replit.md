@@ -106,10 +106,42 @@ A complete management console for Super Admins to control the marketplace:
 - Trial expiry reminders (requires trialEndsAt column in tenantAddons - TODO)
 - Feature unlock recommendations based on plan tier eligibility
 
-**Marketplace RBAC Permissions:**
-- MARKETPLACE_VIEW_CATALOG, MARKETPLACE_MANAGE_CATALOG
-- MARKETPLACE_MANAGE_PRICING, MARKETPLACE_MANAGE_ELIGIBILITY
-- MARKETPLACE_VIEW_ANALYTICS, MARKETPLACE_VIEW_AUDIT_LOGS
+**Marketplace RBAC Permissions (Updated Jan 2026):**
+
+*Super Admin / Platform Admin Permissions:*
+- `MARKETPLACE_MANAGE_CATALOG`: Create/edit add-ons, tiers, pricing, limits, icons, categories
+- `MARKETPLACE_MANAGE_PRICING`: Update pricing tiers and country-specific pricing
+- `MARKETPLACE_MANAGE_ELIGIBILITY`: Set plan tier purchase/trial rules
+- `MARKETPLACE_PUBLISH`: Publish/unpublish add-ons, enable per-country rollout
+- `MARKETPLACE_VIEW_ANALYTICS`: View marketplace revenue dashboards, conversion funnels
+- `MARKETPLACE_VIEW_AUDIT_LOGS`: View audit trail of all admin actions
+- `MARKETPLACE_OVERRIDE`: Force-install/uninstall add-ons for tenant (support operations)
+
+*Tenant Permissions:*
+- `MARKETPLACE_BROWSE`: View marketplace list and details
+- `MARKETPLACE_PURCHASE`: Start trial / purchase add-on, manage subscriptions
+- `MARKETPLACE_MANAGE_BILLING`: View invoices, update payment method, cancel subscription
+
+**Marketplace RBAC Enforcement:**
+| Action | Required Permission |
+|--------|---------------------|
+| Create/edit add-on | MARKETPLACE_MANAGE_CATALOG |
+| Change pricing/tiers | MARKETPLACE_MANAGE_PRICING |
+| Publish add-on to country | MARKETPLACE_PUBLISH |
+| View analytics page | MARKETPLACE_VIEW_ANALYTICS |
+| Tenant installs add-on | MARKETPLACE_PURCHASE |
+| Force install/uninstall | MARKETPLACE_OVERRIDE |
+
+**Role Assignments:**
+- `PLATFORM_SUPER_ADMIN`: All marketplace permissions
+- `TENANT_ADMIN`: MARKETPLACE_BROWSE, MARKETPLACE_PURCHASE, MARKETPLACE_MANAGE_BILLING
+- `TENANT_STAFF`: MARKETPLACE_BROWSE only
+
+**API Enforcement Files:**
+- Super Admin routes: `server/routes/super-admin/marketplace-management.ts`
+- Analytics routes: `server/routes/super-admin/marketplace-analytics.ts`
+- Tenant routes: `server/routes/marketplace/tenant-addons.ts`
+- Guard middleware: `server/rbac/guards.ts` (requirePermission)
 
 **Marketplace Revenue Analytics (Jan 2026):**
 - API Endpoints: `/api/super-admin/marketplace/analytics/overview`, `/by-addon`, `/by-country`, `/funnel`

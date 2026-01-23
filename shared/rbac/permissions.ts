@@ -85,13 +85,20 @@ export const Permissions = {
   INVOICES_VIEW: "INVOICES_VIEW",
   PAYMENTS_VIEW: "PAYMENTS_VIEW",
 
-  // Marketplace management permissions (Super Admin only)
+  // Marketplace management permissions (Super Admin / Platform Admin)
   MARKETPLACE_VIEW_CATALOG: "MARKETPLACE_VIEW_CATALOG",
   MARKETPLACE_MANAGE_CATALOG: "MARKETPLACE_MANAGE_CATALOG",
   MARKETPLACE_MANAGE_PRICING: "MARKETPLACE_MANAGE_PRICING",
   MARKETPLACE_MANAGE_ELIGIBILITY: "MARKETPLACE_MANAGE_ELIGIBILITY",
   MARKETPLACE_VIEW_ANALYTICS: "MARKETPLACE_VIEW_ANALYTICS",
   MARKETPLACE_VIEW_AUDIT_LOGS: "MARKETPLACE_VIEW_AUDIT_LOGS",
+  MARKETPLACE_PUBLISH: "MARKETPLACE_PUBLISH", // Publish/unpublish add-ons, country rollout
+  MARKETPLACE_OVERRIDE: "MARKETPLACE_OVERRIDE", // Force install/uninstall for support
+
+  // Tenant marketplace permissions
+  MARKETPLACE_BROWSE: "MARKETPLACE_BROWSE", // View marketplace list and details
+  MARKETPLACE_PURCHASE: "MARKETPLACE_PURCHASE", // Start trial / purchase add-on
+  MARKETPLACE_MANAGE_BILLING: "MARKETPLACE_MANAGE_BILLING", // View invoices, update payment method
 } as const;
 
 export type Permission = (typeof Permissions)[keyof typeof Permissions];
@@ -132,13 +139,15 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
       Permissions.VIEW_PERFORMANCE,
       Permissions.VIEW_OPERATIONS,
       Permissions.VIEW_REPORTS,
-      // Marketplace management
+      // Full marketplace management
       Permissions.MARKETPLACE_VIEW_CATALOG,
       Permissions.MARKETPLACE_MANAGE_CATALOG,
       Permissions.MARKETPLACE_MANAGE_PRICING,
       Permissions.MARKETPLACE_MANAGE_ELIGIBILITY,
       Permissions.MARKETPLACE_VIEW_ANALYTICS,
       Permissions.MARKETPLACE_VIEW_AUDIT_LOGS,
+      Permissions.MARKETPLACE_PUBLISH,
+      Permissions.MARKETPLACE_OVERRIDE,
     ],
   },
 
@@ -211,6 +220,10 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
       Permissions.SUBSCRIPTION_CHANGE,
       Permissions.INVOICES_VIEW,
       Permissions.PAYMENTS_VIEW,
+      // Marketplace permissions for tenant admin
+      Permissions.MARKETPLACE_BROWSE,
+      Permissions.MARKETPLACE_PURCHASE,
+      Permissions.MARKETPLACE_MANAGE_BILLING,
     ],
   },
 
@@ -224,6 +237,8 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
       Permissions.VIEW_INVOICES,
       Permissions.SUBSCRIPTION_VIEW,
       Permissions.INVOICES_VIEW,
+      // Staff can browse marketplace but not purchase
+      Permissions.MARKETPLACE_BROWSE,
     ],
   },
 
@@ -265,10 +280,11 @@ export const SUPER_ADMIN_ONLY_PERMISSIONS: Permission[] = [
   Permissions.MANAGE_COUNTRIES_REGIONS,
   Permissions.VIEW_ALL_TENANTS,
   Permissions.OVERRIDE_TENANT_LOCK,
-  // Marketplace management permissions
+  // Marketplace management permissions (exclusive to super admin)
   Permissions.MARKETPLACE_MANAGE_CATALOG,
   Permissions.MARKETPLACE_MANAGE_PRICING,
   Permissions.MARKETPLACE_MANAGE_ELIGIBILITY,
+  Permissions.MARKETPLACE_OVERRIDE,
 ];
 
 // ==================== HELPER FUNCTIONS ====================

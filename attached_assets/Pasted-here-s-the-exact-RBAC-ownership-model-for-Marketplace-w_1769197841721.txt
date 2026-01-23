@@ -1,0 +1,111 @@
+here’s the exact RBAC + ownership model for Marketplace (who can create/publish/add-ons, who can purchase, who can view analytics), written so you can paste to Replit (and also use as your internal policy).
+
+✅ RBAC ownership model (simple + scalable)
+Roles (3 layers)
+
+Super Admin (Platform Owner)
+Controls global catalog + country rollout + pricing + publish/unpublish.
+
+Platform Admin (Internal staff you assign)
+Can manage catalog/rollout depending on permissions you grant.
+
+Tenant Admin (Customer admin)
+Can browse marketplace, start trials, purchase add-ons for their tenant.
+
+✅ Permissions list (recommended)
+Super Admin / Platform Admin permissions
+
+MARKETPLACE_MANAGE
+Create/edit add-ons, tiers, pricing, limits, screenshots/icons, copy, categories.
+
+MARKETPLACE_PUBLISH
+Publish/unpublish add-ons, enable per-country rollout, set “Coming soon”.
+
+MARKETPLACE_VIEW_ANALYTICS
+View marketplace revenue dashboards, conversion funnels, country metrics.
+
+MARKETPLACE_OVERRIDE (optional but powerful)
+Force-install/uninstall add-ons for a tenant (support/admin operations).
+
+ROLL_OUT_COUNTRY_FEATURES (if you separate rollouts from marketplace)
+Control which business types + modules are available per country.
+
+Tenant permissions
+
+MARKETPLACE_BROWSE
+View marketplace list and details.
+
+MARKETPLACE_PURCHASE
+Start trial / purchase add-on, manage subscriptions.
+
+MARKETPLACE_MANAGE_BILLING (optional)
+View invoices, update payment method, cancel add-on subscription.
+
+✅ Minimal tenant set: MARKETPLACE_BROWSE + MARKETPLACE_PURCHASE
+
+✅ Who can do what (clear table)
+Action	Who is allowed
+Create new add-on (Payroll/HRMS/etc.)	Super Admin + Platform Admin with MARKETPLACE_MANAGE
+Change pricing / tiers / limits	Super Admin + Platform Admin with MARKETPLACE_MANAGE
+Publish add-on to a country (MY/UK/IN)	Super Admin + Platform Admin with MARKETPLACE_PUBLISH
+Hide/disable add-on for a country	Super Admin + Platform Admin with MARKETPLACE_PUBLISH
+View Marketplace Analytics page	Anyone with MARKETPLACE_VIEW_ANALYTICS
+Tenant installs add-on	Tenant Admin with MARKETPLACE_PURCHASE
+Tenant cancels add-on	Tenant Admin with MARKETPLACE_PURCHASE
+Force install/uninstall for support	Super Admin with MARKETPLACE_OVERRIDE
+✅ Replit MASTER PROMPT to implement RBAC visibility + enforcement
+
+Paste this:
+
+Implement Marketplace RBAC + sidebar visibility + API enforcement.
+
+Permissions:
+- MARKETPLACE_MANAGE
+- MARKETPLACE_PUBLISH
+- MARKETPLACE_VIEW_ANALYTICS
+- MARKETPLACE_OVERRIDE (optional)
+Tenant:
+- MARKETPLACE_BROWSE
+- MARKETPLACE_PURCHASE
+
+Rules:
+1) Super Admin can access all marketplace admin pages.
+2) Platform Admin access depends on permissions.
+
+Super Admin sidebar items (client/src/components/admin-sidebar.tsx):
+- Marketplace Catalog (/super-admin/marketplace/catalog) requires MARKETPLACE_MANAGE
+- Country Rollouts (/super-admin/marketplace/rollouts) requires MARKETPLACE_PUBLISH
+- Marketplace Analytics (/super-admin/marketplace/analytics) requires MARKETPLACE_VIEW_ANALYTICS
+
+Backend enforcement:
+- All /api/super-admin/marketplace/* endpoints require SUPER_ADMIN or PLATFORM_ADMIN with matching permission.
+- Catalog endpoints (create/edit tiers/pricing) require MARKETPLACE_MANAGE
+- Publish/rollout endpoints require MARKETPLACE_PUBLISH
+- Analytics endpoints require MARKETPLACE_VIEW_ANALYTICS
+- Force install/uninstall requires MARKETPLACE_OVERRIDE
+
+Tenant endpoints:
+- GET /api/marketplace/addons requires MARKETPLACE_BROWSE
+- POST /api/marketplace/purchase requires MARKETPLACE_PURCHASE
+
+Add guard middleware enforcePermission(permissionKey) and apply across routes.
+
+Deliver:
+- Permission constants + DB seed for superadmin
+- UI gating: menu items hidden if permission missing
+- API: returns 403 {code:"INSUFFICIENT_PERMISSION"} when blocked
+- Test checklist: superadmin sees all, platform admin sees only allowed, tenant admin can purchase, tenant member cannot.
+
+✅ Why your Payroll install is failing (your screenshot 401)
+
+That “purchase 401” almost always means the Marketplace purchase API is protected but your frontend request is missing auth token or cookie.
+
+Tell Replit to check:
+
+purchase request includes credentials: "include" if cookie sessions
+
+OR Authorization: Bearer ... if JWT
+
+ensure tenant context header is present (if required)
+
+If you want, paste the endpoint name you see in Network (like /api/marketplace/purchase) and I’ll tell you the exact fix (cookie vs token path).
