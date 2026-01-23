@@ -134,8 +134,19 @@ export function TenantWipeModal({ open, onOpenChange, tenantId, tenantName }: Te
     }
   }, [jobStatus?.status, tenantId]);
 
-  const isConfirmValid = confirmText === expectedConfirmText && reason.trim().length >= 10;
+  const isConfirmValid = confirmText.trim() === expectedConfirmText.trim() && reason.trim().length >= 10;
   const isProcessing = wipeMutation.isPending || Boolean(activeJobId && ["queued", "running"].includes(jobStatus?.status || ""));
+
+  // Debug log for validation state
+  console.log("[TenantWipeModal] Validation:", {
+    confirmText: confirmText.trim(),
+    expectedConfirmText: expectedConfirmText.trim(),
+    confirmMatch: confirmText.trim() === expectedConfirmText.trim(),
+    reasonLength: reason.trim().length,
+    isConfirmValid,
+    isProcessing,
+    summaryProtected: summary?.isProtected,
+  });
 
   const getJobStatusIcon = () => {
     if (!jobStatus) return <Clock className="h-5 w-5 text-muted-foreground" />;
