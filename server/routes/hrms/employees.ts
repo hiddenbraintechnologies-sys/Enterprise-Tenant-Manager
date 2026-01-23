@@ -16,7 +16,7 @@
  */
 
 import { Router } from "express";
-import { requireMinimumRole, auditService } from "../../core";
+import { requireMinimumRole, auditService, checkEmployeeLimit } from "../../core";
 import EmployeeService from "../../services/hrms/employeeService";
 import { ZodError } from "zod";
 
@@ -55,6 +55,19 @@ router.post("/", async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    // Check employee limit before creating
+    const limitCheck = await checkEmployeeLimit(tenantId);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({
+        error: limitCheck.message || "Employee limit reached",
+        code: "EMPLOYEE_LIMIT_REACHED",
+        currentCount: limitCheck.currentCount,
+        limit: limitCheck.limit,
+        isTrialing: limitCheck.isTrialing,
+        upgradeUrl: "/marketplace?addon=payroll&action=upgrade",
+      });
+    }
     
     const employee = await EmployeeService.addEmployee(tenantId, req.body);
     res.status(201).json(employee);

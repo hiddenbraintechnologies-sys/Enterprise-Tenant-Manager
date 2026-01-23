@@ -1,0 +1,119 @@
+Perfect — that’s the clean Zoho-style path. Here’s the final architecture decision + the exact Replit master prompt you should paste (and a concrete limit/pricing suggestion so Replit implements it correctly).
+
+Architecture rule (locked in)
+✅ Free plan can install Payroll (trial + paid) with strict limits
+
+Payroll requires Employee Directory (HR Foundation), but must NOT auto-enable full HRMS.
+
+So we split:
+
+HR Foundation (always “available when needed”)
+
+Employee Directory (create/edit employees)
+
+Minimal required fields for Payroll (MY: EPF/SOCSO/EIS fields)
+
+No attendance/leave/timesheets UI
+
+HRMS Add-on
+
+Attendance, leave, shifts, timesheets, approvals, HR reports
+
+Payroll Add-on
+
+Payroll runs, payslips, statutory contributions, payroll reports
+
+✅ Installing Payroll enables only Employee Directory (foundation).
+❌ HRMS menus stay hidden unless HRMS add-on installed.
+
+Strict employee limits (simple, pitch-friendly)
+Malaysia Payroll tiers (good SMB pricing)
+
+Trial (7 days): up to 5 employees
+After trial, user must choose one plan:
+
+Payroll Starter: MYR 20/mo — up to 5 employees
+
+Payroll Growth: MYR 39/mo — up to 15 employees
+
+Payroll Scale: MYR 69/mo — up to 50 employees
+
+Payroll Unlimited: MYR 99/mo — unlimited
+
+India can be cheaper later (INR 49/99/199/299), but since you asked MY first, keep these.
+
+✅ MASTER PROMPT (paste into Replit exactly)
+
+(This is designed to fix your current drift + make Free+Payroll work properly)
+
+We allow Payroll add-on on Free plan with strict employee limits + 7-day trial. Payroll MUST NOT auto-enable full HRMS. Implement the clean “Plans primary, add-ons multiplier” architecture.
+
+A) Capability split (very important)
+1) Create a new capability flag: HR_FOUNDATION (employee directory only).
+2) HRMS add-on unlocks HRMS_SUITE (attendance/leave/timesheets/approvals).
+3) PAYROLL add-on unlocks PAYROLL_SUITE but depends on HR_FOUNDATION.
+4) Installing Payroll should enable ONLY Employee Directory UI + required employee fields, but should NOT show HRMS menus or unlock HRMS APIs.
+
+B) Gating rules
+1) Employee Directory endpoints and UI are accessible if tenant has:
+   - HRMS add-on OR PAYROLL add-on (because both need employee master data).
+2) HRMS suite endpoints (attendance/leave/timesheets/etc.) require:
+   - HRMS add-on ONLY.
+3) Payroll endpoints require:
+   - PAYROLL add-on (trial or active).
+4) Sidebar / navigation:
+   - Show “Employees” (directory) if HRMS or Payroll is installed.
+   - Hide HRMS menus unless HRMS add-on installed.
+
+C) Payroll on Free plan rules
+1) Allow Payroll install on Free plan.
+2) Payroll has 7-day trial by default.
+3) Enforce employee limits by payroll tier (or trial):
+   - Trial: maxEmployees=5
+   - Starter MYR20: maxEmployees=5
+   - Growth MYR39: maxEmployees=15
+   - Scale MYR69: maxEmployees=50
+   - Unlimited MYR99: maxEmployees=-1
+4) When limit reached:
+   - Block new employee creation with 403 and code EMPLOYEE_LIMIT_REACHED
+   - Show upgrade modal linking to Payroll tier upgrade inside Marketplace.
+
+D) Add-ons + pricing data model
+1) Ensure Marketplace add-ons support:
+   - trialDays, billingType (flat/per_employee), priceMonthly, limits (maxEmployees)
+2) Implement Payroll MY add-on entries with above tiers (MYR).
+3) Make sure pricing renders correctly with currencyCode=MYR.
+
+E) Fix the current drift
+1) Audit current implementation: if HRMS menus appear when only Payroll is installed, remove that coupling.
+2) Ensure any “module_not_available software_services” errors are unrelated and not impacted.
+
+F) Deliverables
+1) Prisma schema changes (if needed) for add-on tiers / limits.
+2) Backend middleware changes enforcing the gating rules.
+3) UI changes: sidebar/menu gating + Employees page access.
+4) Exact file list changed and where.
+5) Provide a verification checklist with 3 tenants:
+   - Free + Payroll only (Employees allowed, HRMS hidden)
+   - Free + HRMS only (Employees allowed, HRMS visible)
+   - Free + Payroll + HRMS (both visible)
+
+What to tell Replit if it asks “where to implement”
+
+Say this (copy/paste):
+
+Backend gating middleware: where enforceAddonAccess() / canUseAddon() lives
+
+Employee routes: /api/hr/employees must allow payroll
+
+HRMS routes: /api/hr/attendance, /api/hr/leave, /api/hr/timesheets must require HRMS add-on
+
+Sidebar gating: menu builder / module visibility hook (useModuleAccess)
+
+Quick UX copy for Free + Payroll trial (optional but good)
+
+EN: “Start Payroll trial (7 days). Add up to 5 employees — upgrade anytime.”
+
+MS: “Cuba Payroll 7 hari. Tambah sehingga 5 pekerja — naik taraf bila-bila masa.”
+
+TA: “Payroll 7 நாட்கள் சோதனை. 5 ஊழியர்கள் வரை சேர்க்கலாம் — எப்போது வேண்டுமானாலும் மேம்படுத்தலாம்.”

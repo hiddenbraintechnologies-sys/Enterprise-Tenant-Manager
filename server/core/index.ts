@@ -1,7 +1,19 @@
 export * from "./context";
 export * from "./features";
-export { requireEmployeeAccess, requireHrmsSuiteAccess, requirePayrollAccess, checkHRAccess } from "./hr-addon-gating";
-export type { HRAccessResult } from "./hr-addon-gating";
+export { 
+  requireEmployeeAccess, 
+  requireHrmsSuiteAccess, 
+  requirePayrollAccess, 
+  checkHRAccess,
+  checkEmployeeLimit,
+  countTenantEmployees,
+  HR_FOUNDATION,
+  HRMS_SUITE,
+  PAYROLL_SUITE,
+  PAYROLL_TRIAL_EMPLOYEE_LIMIT,
+  PAYROLL_TRIAL_DAYS,
+} from "./hr-addon-gating";
+export type { HRAccessResult, EmployeeLimitResult } from "./hr-addon-gating";
 export { 
   PLATFORM_ROLES,
   PLATFORM_PERMISSIONS,

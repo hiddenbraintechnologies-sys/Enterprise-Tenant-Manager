@@ -41,11 +41,22 @@ A complete management console for Super Admins to control the marketplace:
 
 **Key Principle**: Plans remain primary revenue, add-ons are multipliers.
 
+**Capability Flags** (defined in `server/core/hr-addon-gating.ts`):
+- `HR_FOUNDATION`: Employee directory only (Payroll OR HRMS add-on)
+- `HRMS_SUITE`: Full HRMS features (HRMS add-on ONLY)
+- `PAYROLL_SUITE`: Payroll processing (Payroll add-on ONLY)
+
 **HR Foundation (Employee Directory)**:
 - Accessible with: Payroll add-on OR HRMS add-on
-- Features: Employee directory, departments, payroll processing
-- API Routes: `/api/hr/employees/*`, `/api/hr/departments`, `/api/hr/dashboard`, `/api/hr/payroll/*`
+- Features: Employee directory, departments, HR dashboard
+- API Routes: `/api/hr/employees/*`, `/api/hr/departments`, `/api/hr/dashboard`
 - Middleware: `requireEmployeeAccess()` checks for Payroll OR HRMS add-on
+
+**Payroll Processing**:
+- Accessible with: Payroll add-on ONLY (HRMS does NOT grant access)
+- Features: Payroll runs, payslips, statutory contributions
+- API Routes: `/api/hr/payroll/*`
+- Middleware: `requirePayrollAccess()` checks for Payroll add-on specifically
 
 **HRMS Suite (Full HR Management)**:
 - Accessible with: HRMS add-on ONLY (Payroll does NOT grant access)
@@ -53,24 +64,36 @@ A complete management console for Super Admins to control the marketplace:
 - API Routes: `/api/hr/attendance/*`, `/api/hr/leaves/*`, `/api/hr/projects/*`
 - Middleware: `requireHrmsSuiteAccess()` checks for HRMS add-on specifically
 
+**Employee Limit Enforcement**:
+- Trial users: Limited to 5 employees (PAYROLL_TRIAL_EMPLOYEE_LIMIT)
+- Active marketplace subscriptions: Unlimited (-1) by default
+- Legacy tenantPayrollAddon: Respects tier-based maxEmployees
+- Limit exceeded: Returns 403 with code `EMPLOYEE_LIMIT_REACHED`
+
 **Implementation Files**:
 - Backend middleware: `server/core/hr-addon-gating.ts`
-- Route gating: `server/routes/hrms/index.ts`
+- Route gating: `server/routes/hrms/index.ts`, `server/routes/hrms/employees.ts`
 - Sidebar UI: `client/src/components/app-sidebar.tsx`
-  - `hrFoundationItems`: Dashboard, Employees, Payroll
-  - `hrmsSuiteItems`: Attendance, Leave, Pay Runs (locked for Payroll-only users)
+  - `hrCoreItems`: Dashboard, Employees (Payroll OR HRMS)
+  - `payrollItem`: Payroll (Payroll add-on only, locked for HRMS-only)
+  - `hrmsSuiteItems`: Attendance, Leave, Pay Runs (HRMS only, locked for Payroll-only)
 
 **Verification Test Scenarios**:
-1. **Free + Payroll only**: Should see HR Dashboard, Employees, Payroll. Attendance/Leave locked.
-2. **Free + HRMS only**: Should see full HRMS suite (Dashboard, Employees, Attendance, Leave, Payroll, Pay Runs).
+1. **Free + Payroll only**: Should see HR Dashboard, Employees, Payroll. Attendance/Leave/Pay Runs locked.
+2. **Free + HRMS only**: Should see HR Dashboard, Employees, Attendance, Leave, Pay Runs. Payroll locked.
 3. **Basic + Payroll + HRMS**: Full access to everything.
 
-**Payroll Per-Employee Tiered Pricing:**
-- TIER_1_5: 1-5 employees
-- TIER_6_20: 6-20 employees  
-- TIER_21_50: 21-50 employees
-- TIER_51_100: 51-100 employees
-Country-specific pricing with perEmployeeMonthlyPrice and minimumMonthlyCharge per tier.
+**Malaysia Payroll Tiers (SMB-friendly pricing):**
+- Trial: 7 days, up to 5 employees (free)
+- Starter (MYR 20/mo): Up to 5 employees
+- Growth (MYR 39/mo): Up to 15 employees
+- Scale (MYR 69/mo): Up to 50 employees
+- Unlimited (MYR 99/mo): Unlimited employees
+
+**Trial UX Copy** (localized in EN/MS/TA):
+- EN: "Start Payroll trial (7 days). Add up to 5 employees — upgrade anytime."
+- MS: "Cuba Payroll 7 hari. Tambah sehingga 5 pekerja — naik taraf bila-bila masa."
+- TA: "Payroll 7 நாட்கள் சோதனை. 5 ஊழியர்கள் வரை சேர்க்கலாம் — எப்போது வேண்டுமானாலும் மேம்படுத்தலாம்."
 
 **Matrix UI Improvements (Jan 2026):**
 - Country Rollout Matrix: Clickable cells showing status icon + price, inline editing

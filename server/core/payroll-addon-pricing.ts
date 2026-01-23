@@ -58,55 +58,48 @@ export const INDIA_PAYROLL_TIERS = {
 } as const;
 
 export const MALAYSIA_PAYROLL_TIER_CODES = {
-  TIER_1_5: "tier_1_5",
-  TIER_6_20: "tier_6_20",
-  TIER_21_50: "tier_21_50",
-  TIER_51_100: "tier_51_100",
-  TIER_CUSTOM: "tier_custom",
+  STARTER: "starter",      // Up to 5 employees - MYR 20/mo
+  GROWTH: "growth",        // Up to 15 employees - MYR 39/mo
+  SCALE: "scale",          // Up to 50 employees - MYR 69/mo
+  UNLIMITED: "unlimited",  // Unlimited employees - MYR 99/mo
 } as const;
 
+// Malaysia Payroll Tiers - Simple SMB-friendly pricing
+// Trial: 7 days, up to 5 employees (handled in hr-addon-gating.ts)
 export const MALAYSIA_PAYROLL_TIERS = {
-  [MALAYSIA_PAYROLL_TIER_CODES.TIER_1_5]: {
-    tierName: "Payroll 1-5 Employees",
+  [MALAYSIA_PAYROLL_TIER_CODES.STARTER]: {
+    tierName: "Payroll Starter",
     minEmployees: 1,
     maxEmployees: 5,
-    perEmployeeMonthlyPrice: "15",
-    minimumMonthlyCharge: "49",
-    monthlyPrice: "49",
-    yearlyPrice: "490",
+    monthlyPrice: "20",
+    yearlyPrice: "200",  // ~17% discount for yearly
     currencyCode: "MYR",
     countryCode: "MY",
   },
-  [MALAYSIA_PAYROLL_TIER_CODES.TIER_6_20]: {
-    tierName: "Payroll 6-20 Employees",
-    minEmployees: 6,
-    maxEmployees: 20,
-    perEmployeeMonthlyPrice: "12",
-    minimumMonthlyCharge: "99",
-    monthlyPrice: "99",
-    yearlyPrice: "990",
+  [MALAYSIA_PAYROLL_TIER_CODES.GROWTH]: {
+    tierName: "Payroll Growth",
+    minEmployees: 1,
+    maxEmployees: 15,
+    monthlyPrice: "39",
+    yearlyPrice: "390",  // ~17% discount for yearly
     currencyCode: "MYR",
     countryCode: "MY",
   },
-  [MALAYSIA_PAYROLL_TIER_CODES.TIER_21_50]: {
-    tierName: "Payroll 21-50 Employees",
-    minEmployees: 21,
+  [MALAYSIA_PAYROLL_TIER_CODES.SCALE]: {
+    tierName: "Payroll Scale",
+    minEmployees: 1,
     maxEmployees: 50,
-    perEmployeeMonthlyPrice: "10",
-    minimumMonthlyCharge: "199",
-    monthlyPrice: "199",
-    yearlyPrice: "1990",
+    monthlyPrice: "69",
+    yearlyPrice: "690",  // ~17% discount for yearly
     currencyCode: "MYR",
     countryCode: "MY",
   },
-  [MALAYSIA_PAYROLL_TIER_CODES.TIER_51_100]: {
-    tierName: "Payroll 51-100 Employees",
-    minEmployees: 51,
-    maxEmployees: 100,
-    perEmployeeMonthlyPrice: "8",
-    minimumMonthlyCharge: "349",
-    monthlyPrice: "349",
-    yearlyPrice: "3490",
+  [MALAYSIA_PAYROLL_TIER_CODES.UNLIMITED]: {
+    tierName: "Payroll Unlimited",
+    minEmployees: 1,
+    maxEmployees: -1,  // -1 means unlimited
+    monthlyPrice: "99",
+    yearlyPrice: "990",  // ~17% discount for yearly
     currencyCode: "MYR",
     countryCode: "MY",
   },

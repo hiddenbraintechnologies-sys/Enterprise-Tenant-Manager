@@ -16,16 +16,38 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { db } from "../db";
-import { tenantAddons, addons, tenantPayrollAddon } from "@shared/schema";
-import { eq, and, or, like, inArray } from "drizzle-orm";
+import { tenantAddons, addons, tenantPayrollAddon, payrollAddonTiers, hrEmployees } from "@shared/schema";
+import { eq, and, or, count } from "drizzle-orm";
+
+// Capability Flags
+export const HR_FOUNDATION = "HR_FOUNDATION"; // Employee directory only
+export const HRMS_SUITE = "HRMS_SUITE"; // Full HRMS (attendance/leave/timesheets)
+export const PAYROLL_SUITE = "PAYROLL_SUITE"; // Payroll processing
+
+// Default employee limits for trials and tiers
+export const PAYROLL_TRIAL_EMPLOYEE_LIMIT = 5;
+export const PAYROLL_TRIAL_DAYS = 7;
 
 export interface HRAccessResult {
   hasPayrollAddon: boolean;
   hasHrmsAddon: boolean;
-  hasEmployeeAccess: boolean;
-  hasHrmsSuiteAccess: boolean;
-  payrollTier?: string;
-  employeeLimit?: number;
+  hasEmployeeAccess: boolean; // HR_FOUNDATION capability
+  hasHrmsSuiteAccess: boolean; // HRMS_SUITE capability
+  hasPayrollAccess: boolean; // PAYROLL_SUITE capability
+  payrollTierId?: string;
+  payrollTierName?: string;
+  employeeLimit: number; // -1 means unlimited
+  currentEmployeeCount?: number;
+  isTrialing: boolean;
+  trialEndsAt?: Date | null;
+}
+
+export interface EmployeeLimitResult {
+  allowed: boolean;
+  currentCount: number;
+  limit: number; // -1 means unlimited
+  isTrialing: boolean;
+  message?: string;
 }
 
 /**
@@ -37,6 +59,9 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
     hasHrmsAddon: false,
     hasEmployeeAccess: false,
     hasHrmsSuiteAccess: false,
+    hasPayrollAccess: false,
+    employeeLimit: 0,
+    isTrialing: false,
   };
 
   try {
@@ -62,8 +87,20 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
 
     for (const addon of installedAddons) {
       const slug = addon.slug?.toLowerCase() || "";
+      const isTrialing = addon.subscriptionStatus === "trialing";
+      const isActive = addon.subscriptionStatus === "active";
+      
       if (slug.startsWith("payroll")) {
         result.hasPayrollAddon = true;
+        result.hasPayrollAccess = true;
+        if (isTrialing) {
+          result.isTrialing = true;
+          result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
+        } else if (isActive) {
+          // Active marketplace payroll subscription - default to unlimited
+          // Tier-based limits will be enforced via tenantPayrollAddon if configured
+          result.employeeLimit = -1; // Unlimited until tier system is fully integrated
+        }
       }
       if (slug.startsWith("hrms")) {
         result.hasHrmsAddon = true;
@@ -84,21 +121,120 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
 
     if (legacyPayroll) {
       result.hasPayrollAddon = true;
-      result.payrollTier = legacyPayroll.tierId || undefined;
+      result.hasPayrollAccess = true;
+      result.payrollTierId = legacyPayroll.tierId || undefined;
+      result.trialEndsAt = legacyPayroll.trialEndsAt;
+      
+      // Check if trialing
+      if (legacyPayroll.trialEndsAt && new Date(legacyPayroll.trialEndsAt) > new Date()) {
+        result.isTrialing = true;
+        result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
+      }
+      
+      // Get employee limit from tier if not trialing
+      if (legacyPayroll.tierId && !result.isTrialing) {
+        const [tier] = await db
+          .select({ maxEmployees: payrollAddonTiers.maxEmployees, tierName: payrollAddonTiers.tierName })
+          .from(payrollAddonTiers)
+          .where(eq(payrollAddonTiers.id, legacyPayroll.tierId))
+          .limit(1);
+        
+        if (tier) {
+          result.employeeLimit = tier.maxEmployees;
+          result.payrollTierName = tier.tierName;
+        }
+      }
     }
 
-    // Determine access levels
-    // Employee Directory: accessible if tenant has Payroll OR HRMS
+    // Determine access levels (capability flags)
+    // HR_FOUNDATION: Employee Directory accessible if tenant has Payroll OR HRMS
     result.hasEmployeeAccess = result.hasPayrollAddon || result.hasHrmsAddon;
     
-    // HRMS Suite (attendance/leave/timesheets): requires HRMS add-on specifically
+    // HRMS_SUITE: attendance/leave/timesheets requires HRMS add-on specifically
     result.hasHrmsSuiteAccess = result.hasHrmsAddon;
+    
+    // PAYROLL_SUITE: payroll processing requires Payroll add-on
+    // (already set above)
+
+    // If HRMS only (no payroll), no employee limit for HR purposes
+    if (result.hasHrmsAddon && !result.hasPayrollAddon) {
+      result.employeeLimit = -1; // Unlimited for HRMS-only
+    }
 
     return result;
   } catch (error) {
     console.error("[hr-addon-gating] Error checking HR access:", error);
     return result;
   }
+}
+
+/**
+ * Count employees for a tenant
+ */
+export async function countTenantEmployees(tenantId: string): Promise<number> {
+  try {
+    const [result] = await db
+      .select({ count: count() })
+      .from(hrEmployees)
+      .where(eq(hrEmployees.tenantId, tenantId));
+    return result?.count || 0;
+  } catch (error) {
+    console.error("[hr-addon-gating] Error counting employees:", error);
+    return 0;
+  }
+}
+
+/**
+ * Check if tenant can add more employees based on their payroll tier limit
+ */
+export async function checkEmployeeLimit(tenantId: string): Promise<EmployeeLimitResult> {
+  const access = await checkHRAccess(tenantId);
+  const currentCount = await countTenantEmployees(tenantId);
+  
+  // If no payroll addon, check if HRMS-only (unlimited)
+  if (!access.hasPayrollAddon && access.hasHrmsAddon) {
+    return {
+      allowed: true,
+      currentCount,
+      limit: -1,
+      isTrialing: false,
+    };
+  }
+  
+  // If no HR addons at all, not allowed
+  if (!access.hasEmployeeAccess) {
+    return {
+      allowed: false,
+      currentCount,
+      limit: 0,
+      isTrialing: false,
+      message: "Employee directory requires Payroll or HRMS add-on",
+    };
+  }
+  
+  const limit = access.employeeLimit;
+  
+  // -1 means unlimited
+  if (limit === -1) {
+    return {
+      allowed: true,
+      currentCount,
+      limit: -1,
+      isTrialing: access.isTrialing,
+    };
+  }
+  
+  const allowed = currentCount < limit;
+  
+  return {
+    allowed,
+    currentCount,
+    limit,
+    isTrialing: access.isTrialing,
+    message: allowed 
+      ? undefined 
+      : `Employee limit reached (${currentCount}/${limit}). Upgrade your Payroll plan for more employees.`,
+  };
 }
 
 /**
