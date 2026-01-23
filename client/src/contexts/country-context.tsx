@@ -33,6 +33,20 @@ const FALLBACK_COUNTRIES: CountryConfig[] = [
     flag: "IN",
   },
   {
+    code: "MY",
+    name: "Malaysia",
+    currency: {
+      code: "MYR",
+      symbol: "RM",
+      locale: "ms-MY",
+      position: "before",
+    },
+    dateFormat: "dd/MM/yyyy",
+    taxName: "SST",
+    taxRate: 6,
+    flag: "MY",
+  },
+  {
     code: "GB",
     name: "United Kingdom",
     currency: {

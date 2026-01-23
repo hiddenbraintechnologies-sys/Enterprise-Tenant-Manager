@@ -27,6 +27,35 @@ import { getAddonAccess } from "../core/addon-gating";
 
 const router = Router();
 
+// Dashboard route mapping based on business type
+const DASHBOARD_ROUTES: Record<string, string> = {
+  clinic: "/dashboard/clinic",
+  salon: "/dashboard/salon",
+  pg: "/dashboard/pg",
+  coworking: "/dashboard/coworking",
+  service: "/dashboard/service",
+  realestate: "/dashboard/realestate",
+  tourism: "/dashboard/tourism",
+  education: "/dashboard/education",
+  logistics: "/dashboard/logistics",
+  legal: "/dashboard/legal",
+  furniture: "/dashboard/furniture",
+  consulting: "/dashboard/consulting",
+  software_services: "/dashboard/software-services",
+};
+
+async function getDashboardUrl(tenantId: string): Promise<string> {
+  try {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    if (tenant?.businessType) {
+      return DASHBOARD_ROUTES[tenant.businessType] || "/dashboard/service";
+    }
+  } catch (error) {
+    console.error("[billing] Error getting dashboard URL:", error);
+  }
+  return "/dashboard/service";
+}
+
 router.use("/payroll-addon", payrollAddonRoutes);
 router.use("/webhooks/razorpay", razorpayWebhookRoutes);
 router.use("/marketplace-addon", marketplaceAddonRoutes);
@@ -374,11 +403,12 @@ router.post("/select-plan", requiredAuth, async (req: Request, res: Response) =>
 
       console.log(`[billing] Free plan activated for tenant ${tenantId}`);
 
+      const dashboardUrl = await getDashboardUrl(tenantId);
       return res.json({
         success: true,
         subscription,
         plan,
-        redirectUrl: "/dashboard",
+        redirectUrl: dashboardUrl,
       });
     }
 
@@ -581,10 +611,11 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
     }
 
     if (payment.status === "paid") {
+      const dashboardUrl = await getDashboardUrl(tenantId);
       return res.json({
         success: true,
         message: "Payment already verified",
-        redirectUrl: "/dashboard",
+        redirectUrl: dashboardUrl,
       });
     }
 
@@ -724,10 +755,11 @@ router.post("/checkout/verify", requiredAuth, requirePermission(Permissions.SUBS
 
     console.log(`[billing] Payment verified for tenant ${tenantId}`);
 
+    const dashboardUrl = await getDashboardUrl(tenantId);
     return res.json({
       success: true,
       message: "Payment verified successfully",
-      redirectUrl: "/dashboard",
+      redirectUrl: dashboardUrl,
     });
   } catch (error) {
     console.error("[billing] Error verifying payment:", error);
@@ -996,10 +1028,11 @@ router.post("/checkout/mock-verify", requiredAuth, async (req: Request, res: Res
         }
       }
 
+      const dashboardUrl = await getDashboardUrl(tenantId);
       return res.json({
         success: true,
         message: "Mock payment verified successfully",
-        redirectUrl: "/dashboard",
+        redirectUrl: dashboardUrl,
       });
     } else {
       // Mark payment as failed
@@ -1900,10 +1933,11 @@ router.post(
       }
 
       if (payment.status === "paid") {
+        const dashboardUrl = await getDashboardUrl(tenantId);
         return res.json({
           success: true,
           message: "Payment already verified",
-          redirectUrl: "/dashboard",
+          redirectUrl: dashboardUrl,
         });
       }
 
@@ -1969,10 +2003,11 @@ router.post(
       featureService.clearCache(tenantId);
       console.log(`[razorpay] Payment verified and subscription activated: ${subscription.id}, feature cache cleared`);
 
+      const dashboardUrl = await getDashboardUrl(tenantId);
       res.json({
         success: true,
         message: "Payment verified and subscription activated",
-        redirectUrl: "/dashboard",
+        redirectUrl: dashboardUrl,
         planId: subscription.pendingPlanId,
         planName: newPlan.name,
       });
