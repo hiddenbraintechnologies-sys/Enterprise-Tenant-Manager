@@ -3,73 +3,110 @@ import { payrollAddonTiers, bundleDiscounts, tenantPayrollAddon, countryRolloutP
 import { eq, and, sql } from "drizzle-orm";
 
 export const PAYROLL_TIER_CODES = {
-  STARTER: "starter",
-  GROWTH: "growth",
-  ENTERPRISE: "enterprise",
+  TIER_1_5: "tier_1_5",
+  TIER_6_20: "tier_6_20",
+  TIER_21_50: "tier_21_50",
+  TIER_51_100: "tier_51_100",
+  TIER_CUSTOM: "tier_custom",
 } as const;
 
 export const INDIA_PAYROLL_TIERS = {
-  [PAYROLL_TIER_CODES.STARTER]: {
-    tierName: "Payroll Starter",
+  [PAYROLL_TIER_CODES.TIER_1_5]: {
+    tierName: "Payroll 1-5 Employees",
     minEmployees: 1,
     maxEmployees: 5,
-    monthlyPrice: "99",
-    yearlyPrice: "999",
+    perEmployeeMonthlyPrice: "99",
+    minimumMonthlyCharge: "199",
+    monthlyPrice: "199",
+    yearlyPrice: "1990",
     currencyCode: "INR",
     countryCode: "IN",
   },
-  [PAYROLL_TIER_CODES.GROWTH]: {
-    tierName: "Payroll Growth",
+  [PAYROLL_TIER_CODES.TIER_6_20]: {
+    tierName: "Payroll 6-20 Employees",
     minEmployees: 6,
     maxEmployees: 20,
-    monthlyPrice: "199",
-    yearlyPrice: "1999",
+    perEmployeeMonthlyPrice: "79",
+    minimumMonthlyCharge: "399",
+    monthlyPrice: "399",
+    yearlyPrice: "3990",
     currencyCode: "INR",
     countryCode: "IN",
   },
-  [PAYROLL_TIER_CODES.ENTERPRISE]: {
-    tierName: "Payroll Enterprise",
+  [PAYROLL_TIER_CODES.TIER_21_50]: {
+    tierName: "Payroll 21-50 Employees",
     minEmployees: 21,
     maxEmployees: 50,
-    monthlyPrice: "399",
-    yearlyPrice: "3999",
+    perEmployeeMonthlyPrice: "59",
+    minimumMonthlyCharge: "999",
+    monthlyPrice: "999",
+    yearlyPrice: "9990",
+    currencyCode: "INR",
+    countryCode: "IN",
+  },
+  [PAYROLL_TIER_CODES.TIER_51_100]: {
+    tierName: "Payroll 51-100 Employees",
+    minEmployees: 51,
+    maxEmployees: 100,
+    perEmployeeMonthlyPrice: "49",
+    minimumMonthlyCharge: "1999",
+    monthlyPrice: "1999",
+    yearlyPrice: "19990",
     currencyCode: "INR",
     countryCode: "IN",
   },
 } as const;
 
-// Malaysia Payroll Tiers (as per requirements: A=MYR29, B=MYR79, C=MYR149)
 export const MALAYSIA_PAYROLL_TIER_CODES = {
-  TIER_A: "tier_a",
-  TIER_B: "tier_b",
-  TIER_C: "tier_c",
+  TIER_1_5: "tier_1_5",
+  TIER_6_20: "tier_6_20",
+  TIER_21_50: "tier_21_50",
+  TIER_51_100: "tier_51_100",
+  TIER_CUSTOM: "tier_custom",
 } as const;
 
 export const MALAYSIA_PAYROLL_TIERS = {
-  [MALAYSIA_PAYROLL_TIER_CODES.TIER_A]: {
-    tierName: "Payroll Tier A",
+  [MALAYSIA_PAYROLL_TIER_CODES.TIER_1_5]: {
+    tierName: "Payroll 1-5 Employees",
     minEmployees: 1,
-    maxEmployees: 25,
-    monthlyPrice: "29",
-    yearlyPrice: "290", // ~2 months free
+    maxEmployees: 5,
+    perEmployeeMonthlyPrice: "15",
+    minimumMonthlyCharge: "49",
+    monthlyPrice: "49",
+    yearlyPrice: "490",
     currencyCode: "MYR",
     countryCode: "MY",
   },
-  [MALAYSIA_PAYROLL_TIER_CODES.TIER_B]: {
-    tierName: "Payroll Tier B",
-    minEmployees: 26,
+  [MALAYSIA_PAYROLL_TIER_CODES.TIER_6_20]: {
+    tierName: "Payroll 6-20 Employees",
+    minEmployees: 6,
+    maxEmployees: 20,
+    perEmployeeMonthlyPrice: "12",
+    minimumMonthlyCharge: "99",
+    monthlyPrice: "99",
+    yearlyPrice: "990",
+    currencyCode: "MYR",
+    countryCode: "MY",
+  },
+  [MALAYSIA_PAYROLL_TIER_CODES.TIER_21_50]: {
+    tierName: "Payroll 21-50 Employees",
+    minEmployees: 21,
+    maxEmployees: 50,
+    perEmployeeMonthlyPrice: "10",
+    minimumMonthlyCharge: "199",
+    monthlyPrice: "199",
+    yearlyPrice: "1990",
+    currencyCode: "MYR",
+    countryCode: "MY",
+  },
+  [MALAYSIA_PAYROLL_TIER_CODES.TIER_51_100]: {
+    tierName: "Payroll 51-100 Employees",
+    minEmployees: 51,
     maxEmployees: 100,
-    monthlyPrice: "79",
-    yearlyPrice: "790", // ~2 months free
-    currencyCode: "MYR",
-    countryCode: "MY",
-  },
-  [MALAYSIA_PAYROLL_TIER_CODES.TIER_C]: {
-    tierName: "Payroll Tier C (Unlimited)",
-    minEmployees: 101,
-    maxEmployees: 999999, // Unlimited
-    monthlyPrice: "149",
-    yearlyPrice: "1490", // ~2 months free
+    perEmployeeMonthlyPrice: "8",
+    minimumMonthlyCharge: "349",
+    monthlyPrice: "349",
+    yearlyPrice: "3490",
     currencyCode: "MYR",
     countryCode: "MY",
   },
@@ -142,7 +179,7 @@ export const MALAYSIA_BUNDLE_DISCOUNTS = [
 ];
 
 async function seedCountryPayrollTiers(
-  tiers: Record<string, { tierName: string; minEmployees: number; maxEmployees: number; monthlyPrice: string; yearlyPrice: string; currencyCode: string; countryCode: string }>,
+  tiers: Record<string, { tierName: string; minEmployees: number; maxEmployees: number; perEmployeeMonthlyPrice?: string; minimumMonthlyCharge?: string; monthlyPrice: string; yearlyPrice: string; currencyCode: string; countryCode: string }>,
   countryName: string
 ): Promise<void> {
   console.log(`[payroll-addon] Seeding ${countryName} payroll addon tiers...`);
@@ -166,6 +203,8 @@ async function seedCountryPayrollTiers(
           .set({
             minEmployees: config.minEmployees,
             maxEmployees: config.maxEmployees,
+            perEmployeeMonthlyPrice: config.perEmployeeMonthlyPrice,
+            minimumMonthlyCharge: config.minimumMonthlyCharge,
             monthlyPrice: config.monthlyPrice,
             yearlyPrice: config.yearlyPrice,
             currencyCode: config.currencyCode,
@@ -179,6 +218,8 @@ async function seedCountryPayrollTiers(
           tierName: config.tierName,
           minEmployees: config.minEmployees,
           maxEmployees: config.maxEmployees,
+          perEmployeeMonthlyPrice: config.perEmployeeMonthlyPrice,
+          minimumMonthlyCharge: config.minimumMonthlyCharge,
           monthlyPrice: config.monthlyPrice,
           yearlyPrice: config.yearlyPrice,
           currencyCode: config.currencyCode,
@@ -376,10 +417,11 @@ export async function seedPayrollAddon(): Promise<void> {
 }
 
 export function getRecommendedTier(employeeCount: number): typeof PAYROLL_TIER_CODES[keyof typeof PAYROLL_TIER_CODES] | null {
-  if (employeeCount <= 5) return PAYROLL_TIER_CODES.STARTER;
-  if (employeeCount <= 20) return PAYROLL_TIER_CODES.GROWTH;
-  if (employeeCount <= 50) return PAYROLL_TIER_CODES.ENTERPRISE;
-  return null;
+  if (employeeCount <= 5) return PAYROLL_TIER_CODES.TIER_1_5;
+  if (employeeCount <= 20) return PAYROLL_TIER_CODES.TIER_6_20;
+  if (employeeCount <= 50) return PAYROLL_TIER_CODES.TIER_21_50;
+  if (employeeCount <= 100) return PAYROLL_TIER_CODES.TIER_51_100;
+  return PAYROLL_TIER_CODES.TIER_CUSTOM;
 }
 
 export async function getTierForEmployeeCount(employeeCount: number, countryCode: string = "IN"): Promise<any | null> {

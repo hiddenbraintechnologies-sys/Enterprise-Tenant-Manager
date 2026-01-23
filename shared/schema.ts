@@ -6236,6 +6236,8 @@ export const payrollAddonTiers = pgTable("payroll_addon_tiers", {
   tierName: varchar("tier_name", { length: 100 }).notNull(),
   minEmployees: integer("min_employees").notNull(),
   maxEmployees: integer("max_employees").notNull(),
+  perEmployeeMonthlyPrice: decimal("per_employee_monthly_price", { precision: 10, scale: 2 }),
+  minimumMonthlyCharge: decimal("minimum_monthly_charge", { precision: 10, scale: 2 }),
   monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
   yearlyPrice: decimal("yearly_price", { precision: 10, scale: 2 }).notNull(),
   currencyCode: varchar("currency_code", { length: 3 }).notNull().default("INR"),

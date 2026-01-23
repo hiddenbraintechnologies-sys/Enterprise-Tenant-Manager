@@ -109,6 +109,60 @@ const COUNTRIES = [
 
 const PLAN_TIERS = ["free", "basic", "pro", "enterprise"];
 
+function RolloutStatusCell({ isActive, status }: { isActive: boolean; status: string }) {
+  if (isActive && status === "active") {
+    return (
+      <div className="flex items-center justify-center" data-testid="status-active">
+        <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
+          <CheckCircle className="w-4 h-4 text-green-600" />
+        </div>
+      </div>
+    );
+  }
+  if (status === "coming_soon") {
+    return (
+      <div className="flex items-center justify-center" data-testid="status-coming-soon">
+        <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+          <AlertCircle className="w-4 h-4 text-amber-600" />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-center" data-testid="status-off">
+      <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+        <Shield className="w-4 h-4 text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+function EligibilityStatusCell({ canPurchase, trialEnabled }: { canPurchase: boolean; trialEnabled: boolean }) {
+  if (!canPurchase) {
+    return (
+      <div className="flex items-center justify-center" data-testid="eligibility-blocked">
+        <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
+          <span className="text-red-600 text-xs font-bold">X</span>
+        </div>
+      </div>
+    );
+  }
+  if (trialEnabled) {
+    return (
+      <div className="flex items-center justify-center" data-testid="eligibility-trial">
+        <Badge variant="outline" className="text-xs px-1.5 py-0">Trial</Badge>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-center" data-testid="eligibility-enabled">
+      <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
+        <CheckCircle className="w-4 h-4 text-green-600" />
+      </div>
+    </div>
+  );
+}
+
 function getStatusBadge(status: string) {
   const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     draft: "secondary",
@@ -450,25 +504,32 @@ function AddonForm({
   );
 }
 
+interface AllCountryConfigsMap {
+  [addonId: string]: { [countryCode: string]: AddonCountryConfig };
+}
+
 function CountryRolloutTab() {
   const { toast } = useToast();
-  const [selectedAddon, setSelectedAddon] = useState<string>("");
+  const [selectedCell, setSelectedCell] = useState<{ addonId: string; countryCode: string } | null>(null);
 
-  const { data: addonsData } = useQuery<{ addons: Addon[] }>({
+  const { data: addonsData, isLoading: addonsLoading } = useQuery<{ addons: Addon[] }>({
     queryKey: ["/api/super-admin/marketplace/addons"],
   });
 
-  const { data: countryConfigs, isLoading } = useQuery<AddonCountryConfig[]>({
-    queryKey: ["/api/super-admin/marketplace/addons", selectedAddon, "countries"],
-    enabled: !!selectedAddon,
-  });
+  const allCountryConfigsQueries = (addonsData?.addons || []).map((addon) => ({
+    addonId: addon.id,
+    addonName: addon.name,
+  }));
+
+  const configsMap: AllCountryConfigsMap = {};
 
   const updateConfigMutation = useMutation({
     mutationFn: async ({ addonId, countryCode, data }: { addonId: string; countryCode: string; data: Partial<AddonCountryConfig> }) => {
       return apiRequest("PUT", `/api/super-admin/marketplace/addons/${addonId}/countries/${countryCode}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/marketplace/addons", selectedAddon, "countries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/marketplace/addons"] });
+      setSelectedCell(null);
       toast({ title: "Country config updated" });
     },
     onError: (err: Error) => {
@@ -476,100 +537,138 @@ function CountryRolloutTab() {
     },
   });
 
-  const configMap = new Map(countryConfigs?.map((c) => [c.countryCode, c]) || []);
+  if (addonsLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
+
+  const publishedAddons = addonsData?.addons.filter((a) => a.status === "published") || [];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <Label className="whitespace-nowrap">Select Add-on:</Label>
-        <Select value={selectedAddon} onValueChange={setSelectedAddon}>
-          <SelectTrigger className="w-[250px]" data-testid="select-addon-for-country">
-            <SelectValue placeholder="Choose an add-on..." />
-          </SelectTrigger>
-          <SelectContent>
-            {addonsData?.addons.map((addon) => (
-              <SelectItem key={addon.id} value={addon.id}>
-                {addon.name} ({addon.slug})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-center gap-2 mb-4">
+        <h3 className="text-lg font-semibold">Add-on Rollout Control</h3>
+        <Badge variant="outline" className="ml-auto">
+          Click any cell to configure
+        </Badge>
       </div>
 
-      {selectedAddon && (
-        <Table data-testid="table-country-rollout">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Country</TableHead>
-              <TableHead>Active</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Currency</TableHead>
-              <TableHead>Monthly Price</TableHead>
-              <TableHead>Trial</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {COUNTRIES.map((country) => {
-              const config = configMap.get(country.code);
-              return (
-                <TableRow key={country.code} data-testid={`row-country-${country.code}`}>
-                  <TableCell className="font-medium">
-                    {country.name} ({country.code})
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={config?.isActive ?? false}
-                      onCheckedChange={(checked) =>
-                        updateConfigMutation.mutate({
-                          addonId: selectedAddon,
-                          countryCode: country.code,
-                          data: { isActive: checked, currencyCode: country.currency },
-                        })
-                      }
-                      data-testid={`switch-active-${country.code}`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={config?.isActive ? "default" : "secondary"}>
-                      {config?.status || "Not configured"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{config?.currencyCode || country.currency}</TableCell>
-                  <TableCell>{config?.monthlyPrice || "-"}</TableCell>
-                  <TableCell>
-                    {config?.trialEnabled ? `${config.trialDays} days` : "Disabled"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <CountryConfigDialog
-                      addonId={selectedAddon}
-                      countryCode={country.code}
-                      countryName={country.name}
-                      defaultCurrency={country.currency}
-                      existingConfig={config}
-                      onSave={(data) =>
-                        updateConfigMutation.mutate({
-                          addonId: selectedAddon,
-                          countryCode: country.code,
-                          data,
-                        })
-                      }
-                      isLoading={updateConfigMutation.isPending}
-                    />
+      <Card>
+        <CardContent className="p-0 overflow-auto">
+          <Table data-testid="table-country-rollout-matrix">
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="font-semibold min-w-[150px] sticky left-0 bg-muted/50">Add-on</TableHead>
+                {COUNTRIES.map((country) => (
+                  <TableHead key={country.code} className="text-center min-w-[80px]">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span>{country.code}</span>
+                      <span className="text-xs text-muted-foreground font-normal">{country.currency}</span>
+                    </div>
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {publishedAddons.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={COUNTRIES.length + 1} className="text-center py-8 text-muted-foreground">
+                    No published add-ons available
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
+              ) : (
+                publishedAddons.map((addon) => (
+                  <CountryRolloutMatrixRow
+                    key={addon.id}
+                    addon={addon}
+                    onCellClick={(countryCode) => setSelectedCell({ addonId: addon.id, countryCode })}
+                  />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      {!selectedAddon && (
-        <div className="text-center text-muted-foreground py-8">
-          Select an add-on to configure country rollout.
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
+            <CheckCircle className="w-3 h-3 text-green-600" />
+          </div>
+          <span>Live</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <AlertCircle className="w-3 h-3 text-amber-600" />
+          </div>
+          <span>Coming Soon</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center">
+            <Shield className="w-3 h-3 text-muted-foreground" />
+          </div>
+          <span>Off</span>
+        </div>
+      </div>
+
+      {selectedCell && (
+        <CountryConfigDialog
+          addonId={selectedCell.addonId}
+          countryCode={selectedCell.countryCode}
+          countryName={COUNTRIES.find((c) => c.code === selectedCell.countryCode)?.name || selectedCell.countryCode}
+          defaultCurrency={COUNTRIES.find((c) => c.code === selectedCell.countryCode)?.currency || "USD"}
+          existingConfig={undefined}
+          onSave={(data) =>
+            updateConfigMutation.mutate({
+              addonId: selectedCell.addonId,
+              countryCode: selectedCell.countryCode,
+              data,
+            })
+          }
+          isLoading={updateConfigMutation.isPending}
+          isOpen={true}
+          onOpenChange={(open) => !open && setSelectedCell(null)}
+        />
       )}
     </div>
+  );
+}
+
+function CountryRolloutMatrixRow({ addon, onCellClick }: { addon: Addon; onCellClick: (countryCode: string) => void }) {
+  const { data: countryConfigs } = useQuery<AddonCountryConfig[]>({
+    queryKey: ["/api/super-admin/marketplace/addons", addon.id, "countries"],
+  });
+
+  const configMap = new Map(countryConfigs?.map((c) => [c.countryCode, c]) || []);
+
+  return (
+    <TableRow data-testid={`row-addon-${addon.slug}`}>
+      <TableCell className="font-medium sticky left-0 bg-background">{addon.name}</TableCell>
+      {COUNTRIES.map((country) => {
+        const config = configMap.get(country.code);
+        return (
+          <TableCell
+            key={country.code}
+            className="text-center cursor-pointer hover-elevate p-2"
+            onClick={() => onCellClick(country.code)}
+            data-testid={`cell-${addon.slug}-${country.code}`}
+          >
+            <RolloutStatusCell
+              isActive={config?.isActive ?? false}
+              status={config?.status || "disabled"}
+            />
+            {config?.monthlyPrice && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {config.currencyCode} {config.monthlyPrice}
+              </div>
+            )}
+          </TableCell>
+        );
+      })}
+    </TableRow>
   );
 }
 
@@ -581,6 +680,8 @@ function CountryConfigDialog({
   existingConfig,
   onSave,
   isLoading,
+  isOpen,
+  onOpenChange,
 }: {
   addonId: string;
   countryCode: string;
@@ -589,8 +690,14 @@ function CountryConfigDialog({
   existingConfig?: AddonCountryConfig;
   onSave: (data: Partial<AddonCountryConfig>) => void;
   isLoading: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = isOpen !== undefined;
+  const dialogOpen = isControlled ? isOpen : internalOpen;
+  const setDialogOpen = isControlled ? onOpenChange! : setInternalOpen;
+
   const [formData, setFormData] = useState({
     isActive: existingConfig?.isActive ?? false,
     status: existingConfig?.status ?? "coming_soon",
@@ -604,16 +711,18 @@ function CountryConfigDialog({
 
   const handleSave = () => {
     onSave(formData);
-    setOpen(false);
+    setDialogOpen(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" data-testid={`button-config-${countryCode}`}>
-          Configure
-        </Button>
-      </DialogTrigger>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline" data-testid={`button-config-${countryCode}`}>
+            Configure
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Configure {countryName}</DialogTitle>
@@ -702,16 +811,10 @@ function CountryConfigDialog({
 
 function EligibilityTab() {
   const { toast } = useToast();
-  const [selectedAddon, setSelectedAddon] = useState<string>("");
   const [selectedCountry, setSelectedCountry] = useState<string>("IN");
 
-  const { data: addonsData } = useQuery<{ addons: Addon[] }>({
+  const { data: addonsData, isLoading: addonsLoading } = useQuery<{ addons: Addon[] }>({
     queryKey: ["/api/super-admin/marketplace/addons"],
-  });
-
-  const { data: eligibilityRules } = useQuery<EligibilityRule[]>({
-    queryKey: ["/api/super-admin/marketplace/addons", selectedAddon, "eligibility", { countryCode: selectedCountry }],
-    enabled: !!selectedAddon,
   });
 
   const updateEligibilityMutation = useMutation({
@@ -719,7 +822,7 @@ function EligibilityTab() {
       return apiRequest("PUT", `/api/super-admin/marketplace/addons/${addonId}/eligibility/${countryCode}`, { rules });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/marketplace/addons", selectedAddon, "eligibility"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/super-admin/marketplace/addons"] });
       toast({ title: "Eligibility rules updated" });
     },
     onError: (err: Error) => {
@@ -727,53 +830,21 @@ function EligibilityTab() {
     },
   });
 
-  const rulesMap = new Map(eligibilityRules?.map((r) => [r.planTier, r]) || []);
+  if (addonsLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
 
-  const handleToggle = (planTier: string, field: "canPurchase" | "trialEnabled", value: boolean) => {
-    const existingRules = PLAN_TIERS.map((tier) => {
-      const existing = rulesMap.get(tier);
-      if (tier === planTier) {
-        return {
-          planTier: tier,
-          canPurchase: field === "canPurchase" ? value : (existing?.canPurchase ?? true),
-          trialEnabled: field === "trialEnabled" ? value : (existing?.trialEnabled ?? true),
-          trialDays: existing?.trialDays ?? 7,
-        };
-      }
-      return {
-        planTier: tier,
-        canPurchase: existing?.canPurchase ?? true,
-        trialEnabled: existing?.trialEnabled ?? true,
-        trialDays: existing?.trialDays ?? 7,
-      };
-    });
-
-    updateEligibilityMutation.mutate({
-      addonId: selectedAddon,
-      countryCode: selectedCountry,
-      rules: existingRules,
-    });
-  };
+  const publishedAddons = addonsData?.addons.filter((a) => a.status === "published") || [];
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Label className="whitespace-nowrap">Add-on:</Label>
-          <Select value={selectedAddon} onValueChange={setSelectedAddon}>
-            <SelectTrigger className="w-[200px]" data-testid="select-addon-for-eligibility">
-              <SelectValue placeholder="Choose add-on..." />
-            </SelectTrigger>
-            <SelectContent>
-              {addonsData?.addons.map((addon) => (
-                <SelectItem key={addon.id} value={addon.id}>
-                  {addon.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <h3 className="text-lg font-semibold">Plan Eligibility Matrix</h3>
+        <div className="flex items-center gap-2 ml-auto">
           <Label className="whitespace-nowrap">Country:</Label>
           <Select value={selectedCountry} onValueChange={setSelectedCountry}>
             <SelectTrigger className="w-[150px]" data-testid="select-country-for-eligibility">
@@ -790,50 +861,144 @@ function EligibilityTab() {
         </div>
       </div>
 
-      {selectedAddon && (
-        <Table data-testid="table-eligibility">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Plan Tier</TableHead>
-              <TableHead>Can Purchase</TableHead>
-              <TableHead>Trial Enabled</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {PLAN_TIERS.map((tier) => {
-              const rule = rulesMap.get(tier);
-              return (
-                <TableRow key={tier} data-testid={`row-eligibility-${tier}`}>
-                  <TableCell className="font-medium capitalize">{tier}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={rule?.canPurchase ?? true}
-                      onCheckedChange={(v) => handleToggle(tier, "canPurchase", v)}
-                      disabled={updateEligibilityMutation.isPending}
-                      data-testid={`switch-purchase-${tier}`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={rule?.trialEnabled ?? true}
-                      onCheckedChange={(v) => handleToggle(tier, "trialEnabled", v)}
-                      disabled={updateEligibilityMutation.isPending}
-                      data-testid={`switch-trial-${tier}`}
-                    />
+      <Card>
+        <CardContent className="p-0 overflow-auto">
+          <Table data-testid="table-eligibility-matrix">
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="font-semibold min-w-[150px] sticky left-0 bg-muted/50">Add-on</TableHead>
+                {PLAN_TIERS.map((tier) => (
+                  <TableHead key={tier} className="text-center min-w-[80px] capitalize">
+                    {tier}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {publishedAddons.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={PLAN_TIERS.length + 1} className="text-center py-8 text-muted-foreground">
+                    No published add-ons available
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
+              ) : (
+                publishedAddons.map((addon) => (
+                  <EligibilityMatrixRow
+                    key={addon.id}
+                    addon={addon}
+                    countryCode={selectedCountry}
+                    onUpdate={(rules) =>
+                      updateEligibilityMutation.mutate({
+                        addonId: addon.id,
+                        countryCode: selectedCountry,
+                        rules,
+                      })
+                    }
+                    isUpdating={updateEligibilityMutation.isPending}
+                  />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      {!selectedAddon && (
-        <div className="text-center text-muted-foreground py-8">
-          Select an add-on to configure eligibility rules.
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
+            <CheckCircle className="w-3 h-3 text-green-600" />
+          </div>
+          <span>Can Purchase</span>
         </div>
-      )}
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="text-xs px-1 py-0">Trial</Badge>
+          <span>Trial Available</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center">
+            <span className="text-red-600 text-[10px] font-bold">X</span>
+          </div>
+          <span>Blocked</span>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function EligibilityMatrixRow({
+  addon,
+  countryCode,
+  onUpdate,
+  isUpdating,
+}: {
+  addon: Addon;
+  countryCode: string;
+  onUpdate: (rules: Partial<EligibilityRule>[]) => void;
+  isUpdating: boolean;
+}) {
+  const { data: eligibilityRules } = useQuery<EligibilityRule[]>({
+    queryKey: ["/api/super-admin/marketplace/addons", addon.id, "eligibility", { countryCode }],
+  });
+
+  const rulesMap = new Map(eligibilityRules?.map((r) => [r.planTier, r]) || []);
+
+  const handleCellClick = (planTier: string) => {
+    const existing = rulesMap.get(planTier);
+    let newCanPurchase = true;
+    let newTrialEnabled = false;
+
+    if (!existing?.canPurchase) {
+      newCanPurchase = true;
+      newTrialEnabled = true;
+    } else if (existing?.trialEnabled) {
+      newCanPurchase = true;
+      newTrialEnabled = false;
+    } else {
+      newCanPurchase = false;
+      newTrialEnabled = false;
+    }
+
+    const allRules = PLAN_TIERS.map((tier) => {
+      const rule = rulesMap.get(tier);
+      if (tier === planTier) {
+        return {
+          planTier: tier,
+          canPurchase: newCanPurchase,
+          trialEnabled: newTrialEnabled,
+          trialDays: 7,
+        };
+      }
+      return {
+        planTier: tier,
+        canPurchase: rule?.canPurchase ?? true,
+        trialEnabled: rule?.trialEnabled ?? true,
+        trialDays: rule?.trialDays ?? 7,
+      };
+    });
+
+    onUpdate(allRules);
+  };
+
+  return (
+    <TableRow data-testid={`row-eligibility-${addon.slug}`}>
+      <TableCell className="font-medium sticky left-0 bg-background">{addon.name}</TableCell>
+      {PLAN_TIERS.map((tier) => {
+        const rule = rulesMap.get(tier);
+        return (
+          <TableCell
+            key={tier}
+            className="text-center cursor-pointer hover-elevate p-2"
+            onClick={() => !isUpdating && handleCellClick(tier)}
+            data-testid={`cell-${addon.slug}-${tier}`}
+          >
+            <EligibilityStatusCell
+              canPurchase={rule?.canPurchase ?? true}
+              trialEnabled={rule?.trialEnabled ?? false}
+            />
+          </TableCell>
+        );
+      })}
+    </TableRow>
   );
 }
 

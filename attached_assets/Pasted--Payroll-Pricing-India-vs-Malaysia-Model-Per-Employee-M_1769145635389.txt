@@ -1,0 +1,168 @@
+💰 Payroll Pricing — India vs Malaysia
+
+Model: Per Employee / Month (primary), Monthly minimum
+
+🇮🇳 India (SMB-first, price-sensitive)
+
+Goal: high adoption, upsell later to Pro + compliance
+
+Employee Count	Price / Employee / Month	Minimum
+1 – 5	₹99	₹199
+6 – 20	₹79	₹399
+21 – 50	₹59	₹999
+51 – 100	₹49	₹1,999
+100+	Custom	—
+
+Includes
+
+Salary processing
+
+Payslips (PDF)
+
+PF / ESI / PT support
+
+Bank transfer report
+
+Payroll reports
+
+Add-ons (India only)
+
+CA filing support: ₹999 / month
+
+Compliance alerts: ₹299 / month
+
+🇲🇾 Malaysia (compliance-heavy, higher ARPU)
+
+Goal: correctness, statutory trust, fewer but higher-value customers
+
+Employee Count	Price / Employee / Month	Minimum
+1 – 5	RM 15	RM 49
+6 – 20	RM 12	RM 99
+21 – 50	RM 10	RM 199
+51 – 100	RM 8	RM 349
+100+	Custom	—
+
+Includes
+
+EPF / SOCSO / EIS
+
+PCB calculations
+
+EA Form
+
+Bank file export
+
+Statutory reports
+
+Add-ons (Malaysia)
+
+HRDF levy support: RM 49 / month
+
+LHDN audit pack: RM 99 / year
+
+🔑 Pricing Rules (important)
+
+Free plan → cannot purchase Payroll
+
+Basic → 7-day trial → paid
+
+Pro → instant purchase + bundle discount
+
+Currency locked by country
+
+Minimum charge always applies
+
+🧩 Marketplace UI — Matrix Layout (Zoho-style)
+Super Admin → Marketplace → Country Rollout Matrix
+┌───────────────────────────────┐
+│ Add-on Rollout Control        │
+└───────────────────────────────┘
+
+┌────────────┬────────┬────────┬────────┬────────┐
+│ Add-on     │ India  │ MY     │ UK     │ SG     │
+├────────────┼────────┼────────┼────────┼────────┤
+│ Payroll    │ 🟢 ON  │ 🟢 ON  │ 🔒 OFF │ 🔒 OFF │
+│ HRMS       │ 🟢 ON  │ 🟢 ON  │ 🔒 OFF │ 🔒 OFF │
+│ WhatsApp   │ 🟢 ON  │ 🔒 OFF │ 🔒 OFF │ 🔒 OFF │
+│ Invoicing  │ 🟢 ON  │ 🟢 ON  │ 🟢 ON  │ 🔒 OFF │
+└────────────┴────────┴────────┴────────┴────────┘
+
+
+🟢 = Live
+🔒 = Coming soon
+
+Clicking a cell opens:
+
+Price editor
+
+Currency selector
+
+Trial toggle
+
+Compliance note textarea
+
+Plan Eligibility Matrix
+┌────────────┬────────┬────────┬────────┐
+│ Add-on     │ Free   │ Basic  │ Pro    │
+├────────────┼────────┼────────┼────────┤
+│ Payroll    │ ❌     │ Trial  │ ✅     │
+│ HRMS       │ ❌     │ ✅     │ ✅     │
+│ WhatsApp   │ ❌     │ ❌     │ ✅     │
+└────────────┴────────┴────────┴────────┘
+
+Tenant Marketplace View
+
+Browse tab → only eligible + active add-ons
+
+Installed tab → active subscriptions
+
+Locked add-ons show:
+
+🔒 Available on Pro plan
+[Upgrade Plan] [Start Trial]
+
+🔐 RBAC Permission List (Marketplace)
+Core Permissions
+Super Admin
+MARKETPLACE_MANAGE
+MARKETPLACE_PUBLISH
+MARKETPLACE_PRICING
+MARKETPLACE_COUNTRY_ROLLOUT
+MARKETPLACE_ELIGIBILITY
+MARKETPLACE_VIEW_ANALYTICS
+MARKETPLACE_AUDIT_LOGS
+
+Platform Admin (internal ops)
+MARKETPLACE_MANAGE
+MARKETPLACE_VIEW_ANALYTICS
+
+
+❌ Cannot publish or activate without Super Admin
+
+Tenant Admin
+MARKETPLACE_BROWSE
+MARKETPLACE_PURCHASE
+MARKETPLACE_CANCEL
+
+Tenant User
+MARKETPLACE_VIEW_ONLY
+
+Permission Enforcement Examples
+
+❌ Tenant cannot see Payroll if country rollout = OFF
+
+❌ Free plan cannot purchase Payroll
+
+✅ Pro plan sees bundle offer (Pro + Payroll)
+
+❌ Platform admin cannot publish without permission
+
+🔥 Smart Upsell Rules (recommended)
+
+Employee count > 5 → show Payroll nudge
+
+HRMS installed + payroll missing → contextual banner
+
+Pro plan → show bundle discount (-10%)
+
+Trial day 5 → “3 days left” reminder
