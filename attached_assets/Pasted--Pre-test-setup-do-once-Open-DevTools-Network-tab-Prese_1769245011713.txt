@@ -1,0 +1,143 @@
+✅ Pre-test setup (do once)
+
+Open DevTools → Network tab (Preserve log ON).
+
+Confirm your tenant has:
+
+Country = MY (Malaysia)
+
+Language selection doesn’t matter
+
+Scenario 1 — Free + Payroll only (Trial)
+Goal
+
+Employees visible and creatable (up to limit), HRMS menus hidden, payroll accessible.
+
+A) UI checks
+
+Register new tenant → choose MY → choose Free plan
+
+Go to Marketplace → install Payroll (trial)
+
+Sidebar should show:
+
+✅ Employees (or HR → Employees)
+
+✅ Payroll
+
+❌ HRMS suite menus (Attendance/Leave/Shifts/Approvals/Timesheets if those are HRMS)
+
+B) Employee limit check
+
+Go to Employees → create employees until you hit trial limit (e.g., 5)
+
+Create one more:
+
+✅ Must block with clean message
+
+✅ Backend should return 403 EMPLOYEE_LIMIT_REACHED
+
+C) API checks (most important)
+
+In DevTools, confirm requests:
+
+GET /api/hr/employees → ✅ 200
+
+POST /api/hr/employees → ✅ 201 until limit, then ✅ 403 (EMPLOYEE_LIMIT_REACHED)
+
+Try HRMS suite endpoints manually (or via UI if visible):
+
+GET /api/hr/attendance → ✅ 403 (ADDON_REQUIRED: HRMS)
+
+GET /api/hr/leave → ✅ 403
+
+GET /api/hr/timesheets (if HRMS-only) → ✅ 403
+
+If any HRMS suite endpoint returns 200 → gating leak.
+
+Scenario 2 — Free + HRMS only
+Goal
+
+Employees + HRMS suite visible, Payroll hidden/blocked.
+
+A) UI checks
+
+Register a fresh MY tenant → Free plan
+
+Install HRMS add-on (NOT Payroll)
+
+Sidebar should show:
+
+✅ Employees
+
+✅ HRMS menus (Attendance/Leave/etc.)
+
+❌ Payroll menu
+
+B) API checks
+
+GET /api/hr/employees → ✅ 200
+
+GET /api/hr/attendance / leave → ✅ 200
+
+GET /api/payroll/* → ✅ 403 (ADDON_REQUIRED: PAYROLL)
+
+Scenario 3 — Free + Payroll + HRMS
+Goal
+
+Everything visible and accessible.
+
+Register fresh MY tenant → Free plan
+
+Install Payroll + HRMS
+
+Sidebar should show:
+
+✅ Employees
+
+✅ HRMS suite menus
+
+✅ Payroll
+
+API:
+
+Employees ✅ 200/201
+
+HRMS suite ✅ 200
+
+Payroll ✅ 200
+
+Extra regression checks (quick)
+A) Cancel Payroll on Scenario 1 tenant
+
+If you cancel/expire Payroll trial:
+
+Employees should become:
+
+✅ Read-only (recommended)
+
+✅ UI shows upsell “Re-enable Payroll or install HRMS”
+
+Ensure the app doesn’t crash on employee page.
+
+B) Tenant upgrade doesn’t break add-ons
+
+Upgrade tenant to Basic/Pro and confirm add-on state persists.
+
+What to send me after you test
+
+Just paste these 6 results:
+
+Scenario 1: Employees menu visible? (Y/N)
+
+Scenario 1: HRMS menus hidden? (Y/N)
+
+Scenario 1: 6th employee create returns 403 EMPLOYEE_LIMIT_REACHED? (Y/N)
+
+Scenario 2: Payroll hidden? (Y/N)
+
+Scenario 2: HRMS endpoints 200? (Y/N)
+
+Scenario 3: All 3 modules accessible? (Y/N)
+
+If any is “N”, tell me which endpoint returned the wrong status and I’ll give you the exact Replit fix prompt (usually 1 middleware mismatch or wrong capability mapping).
