@@ -12,22 +12,21 @@ import {
 } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { authenticateHybrid } from "../../core/auth-middleware";
-import { requirePermission } from "../../rbac/guards";
-import { Permissions } from "@shared/rbac/permissions";
+import { requireTenantAdmin } from "../../rbac/guards";
 import { isRazorpayConfigured, razorpayService, getRazorpayKeyId } from "../../services/razorpay";
 
 const router = Router();
 
-const requireMarketplaceBrowse = requirePermission(Permissions.MARKETPLACE_BROWSE);
-const requireMarketplacePurchase = requirePermission(Permissions.MARKETPLACE_PURCHASE);
-const requireMarketplaceBilling = requirePermission(Permissions.MARKETPLACE_MANAGE_BILLING);
+// All tenant marketplace actions (trial, purchase, cancel) require tenant admin
+// Browse is available to all authenticated tenant users
+const requireTenantAdminRole = requireTenantAdmin();
 
 const startTrialSchema = z.object({
   addonId: z.string().min(1),
   countryCode: z.string().length(2),
 });
 
-router.post("/trial", authenticateHybrid({ required: true }), requireMarketplacePurchase, async (req: Request, res: Response) => {
+router.post("/trial", authenticateHybrid({ required: true }), requireTenantAdminRole, async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -181,7 +180,7 @@ router.post("/trial", authenticateHybrid({ required: true }), requireMarketplace
   }
 });
 
-router.get("/installed", authenticateHybrid({ required: true }), requireMarketplaceBrowse, async (req: Request, res: Response) => {
+router.get("/installed", authenticateHybrid({ required: true }), async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -219,7 +218,7 @@ router.get("/installed", authenticateHybrid({ required: true }), requireMarketpl
   }
 });
 
-router.post("/cancel", authenticateHybrid({ required: true }), requireMarketplaceBilling, async (req: Request, res: Response) => {
+router.post("/cancel", authenticateHybrid({ required: true }), requireTenantAdminRole, async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -269,7 +268,7 @@ const purchaseSchema = z.object({
   useTrial: z.boolean().default(false),
 });
 
-router.post("/:addonId/purchase", authenticateHybrid({ required: true }), requireMarketplacePurchase, async (req: Request, res: Response) => {
+router.post("/:addonId/purchase", authenticateHybrid({ required: true }), requireTenantAdminRole, async (req: Request, res: Response) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {

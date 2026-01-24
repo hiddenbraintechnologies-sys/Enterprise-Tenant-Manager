@@ -7,15 +7,15 @@ import {
   addonCountryConfig,
 } from "@shared/schema";
 import { eq, sql, and, gte, lte, count, sum, or } from "drizzle-orm";
-import { authenticateJWT, requirePlatformAdmin } from "../../core/auth-middleware";
-import { requirePermission } from "../../rbac/guards";
-import { Permissions } from "@shared/rbac/permissions";
+import { authenticateJWT } from "../../core/auth-middleware";
+import { requireSuperAdminOnly } from "../../rbac/guards";
 
 const router = Router();
 
 const requiredAuth = authenticateJWT({ required: true });
-const requireSuperAdmin = requirePlatformAdmin("SUPER_ADMIN");
-const requireMarketplaceAnalytics = requirePermission(Permissions.MARKETPLACE_VIEW_ANALYTICS);
+// All marketplace analytics routes require super admin (initial phase)
+// Permission constants are kept for future Platform Admin support
+const requireSuperAdmin = requireSuperAdminOnly();
 
 interface AnalyticsOverview {
   activeSubscriptions: number;
@@ -51,7 +51,7 @@ interface FunnelStep {
   conversionRate: number;
 }
 
-router.get("/overview", requiredAuth, requireMarketplaceAnalytics, async (req: Request, res: Response) => {
+router.get("/overview", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { from, to, currency = "INR" } = req.query;
     
@@ -181,7 +181,7 @@ router.get("/overview", requiredAuth, requireMarketplaceAnalytics, async (req: R
   }
 });
 
-router.get("/by-addon", requiredAuth, requireMarketplaceAnalytics, async (req: Request, res: Response) => {
+router.get("/by-addon", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const now = new Date();
     const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -274,7 +274,7 @@ router.get("/by-addon", requiredAuth, requireMarketplaceAnalytics, async (req: R
   }
 });
 
-router.get("/by-country", requiredAuth, requireMarketplaceAnalytics, async (req: Request, res: Response) => {
+router.get("/by-country", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const now = new Date();
     const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -356,7 +356,7 @@ router.get("/by-country", requiredAuth, requireMarketplaceAnalytics, async (req:
   }
 });
 
-router.get("/funnel", requiredAuth, requireMarketplaceAnalytics, async (req: Request, res: Response) => {
+router.get("/funnel", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const [viewedResult] = await db
       .select({ count: count() })

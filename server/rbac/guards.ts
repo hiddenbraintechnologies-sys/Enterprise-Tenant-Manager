@@ -230,14 +230,15 @@ export function requireAnyPermission(...permissions: Permission[]) {
 
 /**
  * requireSuperAdminOnly - Blocks all roles except PLATFORM_SUPER_ADMIN
- * Returns 403 for any non-super-admin
+ * Returns 401 if not authenticated, 403 if authenticated but not super admin
  */
 export function requireSuperAdminOnly() {
   return (req: Request, res: Response, next: NextFunction) => {
+    // Check if user is authenticated at all
     if (!req.platformAdminContext?.platformAdmin) {
-      return res.status(403).json({ 
-        message: "Platform admin access required",
-        code: "NOT_PLATFORM_ADMIN"
+      return res.status(401).json({ 
+        message: "Authentication required",
+        code: "UNAUTHENTICATED"
       });
     }
 
@@ -247,7 +248,36 @@ export function requireSuperAdminOnly() {
     if (role !== PLATFORM_ROLES.SUPER_ADMIN) {
       return res.status(403).json({ 
         message: "Super admin access required",
-        code: "SUPER_ADMIN_REQUIRED"
+        code: "FORBIDDEN_SUPER_ADMIN_ONLY"
+      });
+    }
+
+    next();
+  };
+}
+
+/**
+ * requireTenantAdmin - Requires tenant authentication with admin role
+ * Returns 401 if not authenticated, 403 if not tenant admin
+ */
+export function requireTenantAdmin() {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Check for tenant user context
+    if (!req.context?.user || !req.context?.tenant) {
+      return res.status(401).json({ 
+        message: "Tenant authentication required",
+        code: "UNAUTHENTICATED"
+      });
+    }
+
+    // Check if user has admin role
+    const roleName = req.context.role?.name?.toLowerCase() || "";
+    const isAdmin = ["admin", "owner", "tenant_admin"].includes(roleName);
+
+    if (!isAdmin) {
+      return res.status(403).json({ 
+        message: "Tenant admin access required",
+        code: "TENANT_ADMIN_REQUIRED"
       });
     }
 

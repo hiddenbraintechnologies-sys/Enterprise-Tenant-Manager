@@ -12,20 +12,16 @@ import {
   type InsertAddonPlanEligibility,
 } from "@shared/schema";
 import { eq, and, desc, sql, ilike, or, count, inArray } from "drizzle-orm";
-import { authenticateJWT, requirePlatformAdmin } from "../../core/auth-middleware";
-import { getScopeContext, requirePermission, requireAnyPermission } from "../../rbac/guards";
+import { authenticateJWT } from "../../core/auth-middleware";
+import { requireSuperAdminOnly } from "../../rbac/guards";
 import { Permissions } from "@shared/rbac/permissions";
 
 const router = Router();
 
 const requiredAuth = authenticateJWT({ required: true });
-const requireSuperAdmin = requirePlatformAdmin("SUPER_ADMIN");
-const requireMarketplaceCatalog = requirePermission(Permissions.MARKETPLACE_MANAGE_CATALOG);
-const requireMarketplacePricing = requirePermission(Permissions.MARKETPLACE_MANAGE_PRICING);
-const requireMarketplaceEligibility = requirePermission(Permissions.MARKETPLACE_MANAGE_ELIGIBILITY);
-const requireMarketplacePublish = requirePermission(Permissions.MARKETPLACE_PUBLISH);
-const requireMarketplaceAuditLogs = requirePermission(Permissions.MARKETPLACE_VIEW_AUDIT_LOGS);
-const requireMarketplaceOverride = requirePermission(Permissions.MARKETPLACE_OVERRIDE);
+// All marketplace management routes require super admin (initial phase)
+// Permission constants are kept for future Platform Admin support
+const requireSuperAdmin = requireSuperAdminOnly();
 
 async function logAuditAction(
   req: Request,
@@ -75,7 +71,7 @@ const createAddonSchema = z.object({
 
 const updateAddonSchema = createAddonSchema.partial();
 
-router.get("/addons", requiredAuth, requireMarketplaceCatalog, async (req: Request, res: Response) => {
+router.get("/addons", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { status, category, search, page = "1", limit = "20" } = req.query;
     
@@ -131,7 +127,7 @@ router.get("/addons", requiredAuth, requireMarketplaceCatalog, async (req: Reque
   }
 });
 
-router.get("/addons/:addonId", requiredAuth, requireMarketplaceCatalog, async (req: Request, res: Response) => {
+router.get("/addons/:addonId", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;
     
@@ -172,7 +168,7 @@ router.get("/addons/:addonId", requiredAuth, requireMarketplaceCatalog, async (r
   }
 });
 
-router.post("/addons", requiredAuth, requireMarketplaceCatalog, async (req: Request, res: Response) => {
+router.post("/addons", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const parsed = createAddonSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -216,7 +212,7 @@ router.post("/addons", requiredAuth, requireMarketplaceCatalog, async (req: Requ
   }
 });
 
-router.patch("/addons/:addonId", requiredAuth, requireMarketplaceCatalog, async (req: Request, res: Response) => {
+router.patch("/addons/:addonId", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;
     
@@ -275,7 +271,7 @@ router.patch("/addons/:addonId", requiredAuth, requireMarketplaceCatalog, async 
   }
 });
 
-router.post("/addons/:addonId/publish", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.post("/addons/:addonId/publish", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;
     
@@ -312,7 +308,7 @@ router.post("/addons/:addonId/publish", requiredAuth, requireMarketplacePublish,
   }
 });
 
-router.post("/addons/:addonId/archive", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.post("/addons/:addonId/archive", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;
     
@@ -360,7 +356,7 @@ router.post("/addons/:addonId/archive", requiredAuth, requireMarketplacePublish,
   }
 });
 
-router.post("/addons/:addonId/restore", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.post("/addons/:addonId/restore", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;
     
@@ -427,11 +423,11 @@ const SUPPORTED_COUNTRIES = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD" },
 ];
 
-router.get("/countries", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.get("/countries", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   res.json({ countries: SUPPORTED_COUNTRIES });
 });
 
-router.get("/country-configs", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.get("/country-configs", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const configs = await db
       .select()
@@ -445,7 +441,7 @@ router.get("/country-configs", requiredAuth, requireMarketplacePublish, async (r
   }
 });
 
-router.get("/addons/:addonId/countries", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.get("/addons/:addonId/countries", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;
     
@@ -472,7 +468,7 @@ router.get("/addons/:addonId/countries", requiredAuth, requireMarketplacePublish
   }
 });
 
-router.put("/addons/:addonId/countries/:countryCode", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.put("/addons/:addonId/countries/:countryCode", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId, countryCode } = req.params;
     
@@ -554,7 +550,7 @@ router.put("/addons/:addonId/countries/:countryCode", requiredAuth, requireMarke
   }
 });
 
-router.delete("/addons/:addonId/countries/:countryCode", requiredAuth, requireMarketplacePublish, async (req: Request, res: Response) => {
+router.delete("/addons/:addonId/countries/:countryCode", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId, countryCode } = req.params;
     
@@ -608,7 +604,7 @@ const bulkEligibilitySchema = z.object({
   rules: z.array(eligibilitySchema),
 });
 
-router.get("/addons/:addonId/eligibility", requiredAuth, requireMarketplaceEligibility, async (req: Request, res: Response) => {
+router.get("/addons/:addonId/eligibility", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId } = req.params;
     const { countryCode } = req.query;
@@ -641,7 +637,7 @@ router.get("/addons/:addonId/eligibility", requiredAuth, requireMarketplaceEligi
   }
 });
 
-router.put("/addons/:addonId/eligibility/:countryCode", requiredAuth, requireMarketplaceEligibility, async (req: Request, res: Response) => {
+router.put("/addons/:addonId/eligibility/:countryCode", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { addonId, countryCode } = req.params;
     
@@ -708,7 +704,7 @@ router.put("/addons/:addonId/eligibility/:countryCode", requiredAuth, requireMar
 
 // ==================== AUDIT LOG APIS ====================
 
-router.get("/audit-logs", requiredAuth, requireMarketplaceAuditLogs, async (req: Request, res: Response) => {
+router.get("/audit-logs", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { 
       addonId, 
@@ -781,7 +777,7 @@ router.get("/audit-logs", requiredAuth, requireMarketplaceAuditLogs, async (req:
 
 // ==================== SUMMARY APIS ====================
 
-router.get("/summary", requiredAuth, requireMarketplaceCatalog, async (req: Request, res: Response) => {
+router.get("/summary", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const [draftCount] = await db
       .select({ count: count() })

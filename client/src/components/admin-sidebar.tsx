@@ -110,19 +110,19 @@ const superAdminMenuItems: MenuItem[] = [
     title: "Marketplace Catalog",
     url: "/super-admin/marketplace/catalog",
     icon: Store,
-    permission: Permissions.MARKETPLACE_MANAGE_CATALOG,
+    superAdminOnly: true,
   },
   {
     title: "Country Rollouts",
     url: "/super-admin/marketplace/rollouts",
     icon: Globe2,
-    permission: Permissions.MARKETPLACE_PUBLISH,
+    superAdminOnly: true,
   },
   {
     title: "Marketplace Analytics",
     url: "/super-admin/marketplace-analytics",
     icon: BarChart3,
-    permission: Permissions.MARKETPLACE_VIEW_ANALYTICS,
+    superAdminOnly: true,
   },
 ];
 

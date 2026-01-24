@@ -1,0 +1,148 @@
+✅ Final decision
+
+Only Super Admin can:
+
+Create/edit add-ons (Payroll, HRMS, WhatsApp, etc.)
+
+Publish/unpublish add-ons
+
+Enable per-country rollout
+
+See marketplace analytics
+
+Force-install/uninstall for tenants (support)
+
+Tenants can:
+
+Browse marketplace
+
+Start trial / purchase (if plan allows)
+
+Cancel add-ons
+
+✅ What to implement (minimal but future-proof)
+1) RBAC constants (still define, but only Super Admin uses them now)
+
+Keep permissions in code so later you can reuse for Platform Admin.
+
+Permissions
+
+MARKETPLACE_MANAGE
+
+MARKETPLACE_PUBLISH
+
+MARKETPLACE_VIEW_ANALYTICS
+
+MARKETPLACE_OVERRIDE
+
+2) UI: show marketplace admin pages ONLY to super admin
+
+Sidebar: show Catalog, Country Rollouts, Marketplace Analytics only if user.isSuperAdmin === true.
+
+3) API: all super-admin marketplace endpoints must enforce super admin
+
+Any call to:
+
+/api/super-admin/marketplace/*
+
+/api/super-admin/marketplace-analytics/*
+must require super admin session.
+
+4) Tenant marketplace purchase is separate and should allow tenant admins
+
+/api/marketplace/* should require tenant auth (tenant admin), not super admin.
+
+✅ Replit MASTER PROMPT (Super Admin only)
+
+Paste exactly:
+
+Make Marketplace Admin controls Super-Admin only (initial phase), but keep permission constants for future Platform Admin support.
+
+Backend:
+1) Add/confirm middleware requireSuperAdmin(req,res,next).
+   - If not authenticated: 401 {code:"UNAUTHENTICATED"}
+   - If authenticated but not super admin: 403 {code:"FORBIDDEN_SUPER_ADMIN_ONLY"}
+
+2) Apply requireSuperAdmin to ALL routes:
+   - /api/super-admin/marketplace/*
+   - /api/super-admin/marketplace/rollouts
+   - /api/super-admin/marketplace/catalog
+   - /api/super-admin/marketplace-analytics/*
+   - any endpoint that creates/updates/publishes add-ons
+
+3) Tenant marketplace endpoints remain tenant-auth (tenant admin):
+   - GET /api/marketplace/addons
+   - POST /api/marketplace/purchase
+   - POST /api/marketplace/cancel
+   Ensure these require tenant session and role TENANT_ADMIN.
+   Return 403 {code:"TENANT_ADMIN_REQUIRED"} for non-admin tenant users.
+
+Frontend:
+4) In client/src/components/admin-sidebar.tsx:
+   - Show Marketplace Catalog / Rollouts / Analytics ONLY when currentUser.isSuperAdmin is true.
+   - Hide completely for others (no disabled state).
+
+5) For super admin pages, guard routes:
+   - If not super admin, redirect to /super-admin/dashboard and show toast "Super Admin only".
+
+Data:
+6) Ensure Payroll + HRMS exist in marketplace catalog seed:
+   - payroll_my (Malaysia) category="hr" billing="per_employee"
+   - hrms category="hr" billing="flat_monthly"
+   Mark publish=false by default except countries you enable via rollouts.
+
+Deliverables:
+- Middleware requireSuperAdmin
+- Route protections added
+- Sidebar gating for super admin only
+- Add-ons seeded: Payroll + HRMS visible in Super Admin marketplace catalog
+- Tenant marketplace purchase still works for tenant admins
+- Error responses consistent (401 vs 403 codes)
+
+✅ Extra (important): why Payroll/HRMS may be “missing” in Marketplace
+
+Even if you added them in DB, they won’t show if any one of these is false:
+
+addon.isPublished = true
+
+addon.countryRollout[MY].isActive = true
+
+addon.businessTypes includes tenant.businessType
+
+tenant.planTier allows marketplace (if you gated marketplace)
+
+So super admin needs a Catalog toggle + Country rollout toggle.
+
+✅ Your current architecture worry (Payroll add-on made HRMS appear)
+
+You’re right to worry. Here’s the safe rule to keep architecture clean:
+
+✅ Correct architecture
+
+HRMS is the “base module” that provides employee data
+
+Payroll is an add-on that depends on HRMS
+
+Payroll cannot work without employees → so either:
+
+Payroll add-on automatically installs “HRMS Lite” (employee directory only), OR
+
+Marketplace blocks Payroll install and says: “Install HRMS first”
+
+Since you said: “allowed on Free with strict employee limit + trial”
+Best model is:
+
+✅ Free plan can install HRMS Lite (employee cap)
+✅ Payroll add-on requires HRMS Lite/Full
+✅ Payroll trial 7 days, employee-based pricing.
+
+If you want, I can give the exact dependency + enforcement rules for this.
+
+If you paste your current endpoint name for payroll install (the one returning 401), I’ll tell you whether it’s:
+
+cookie missing (credentials: "include")
+
+token missing (Authorization)
+
+tenant context missing (x-tenant-id / subdomain)
+and the exact 2-line fix.
