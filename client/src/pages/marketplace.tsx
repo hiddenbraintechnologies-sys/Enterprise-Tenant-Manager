@@ -233,6 +233,20 @@ function AddonCard({
         <p className="text-sm text-muted-foreground line-clamp-2">
           {addon.shortDescription || addon.description || "No description available"}
         </p>
+        {/* Micro-copy for Payroll: includes Employee Directory */}
+        {addon.slug?.toLowerCase().startsWith("payroll") && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400" data-testid={`micro-benefit-${addon.id}`}>
+            <Check className="h-3 w-3" />
+            <span>Includes Employee Directory (Lite)</span>
+          </div>
+        )}
+        {/* Micro-copy for HRMS: full suite features */}
+        {addon.slug?.toLowerCase().startsWith("hrms") && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400" data-testid={`micro-benefit-${addon.id}`}>
+            <Check className="h-3 w-3" />
+            <span>Attendance, Leave & Timesheet Management</span>
+          </div>
+        )}
         {requiresUpgrade && (
           <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-800 dark:bg-amber-950" data-testid={`upsell-message-${addon.id}`}>
             <p className="text-xs text-amber-700 dark:text-amber-300">

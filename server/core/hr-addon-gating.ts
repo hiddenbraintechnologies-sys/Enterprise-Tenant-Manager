@@ -40,6 +40,10 @@ export interface HRAccessResult {
   currentEmployeeCount?: number;
   isTrialing: boolean;
   trialEndsAt?: Date | null;
+  // Read-only mode: Payroll expired/cancelled, no HRMS installed
+  // Employees visible but no create/edit allowed
+  isEmployeeReadOnly: boolean;
+  readOnlyReason?: string;
 }
 
 export interface EmployeeLimitResult {
@@ -62,11 +66,15 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
     hasPayrollAccess: false,
     employeeLimit: 0,
     isTrialing: false,
+    isEmployeeReadOnly: false,
   };
+  
+  // Track if tenant previously had payroll (expired/cancelled)
+  let hadPayrollPreviously = false;
 
   try {
-    // Check marketplace tenantAddons for payroll/hrms
-    const installedAddons = await db
+    // Check marketplace tenantAddons for payroll/hrms (including expired/cancelled for read-only check)
+    const allAddons = await db
       .select({
         slug: addons.slug,
         status: tenantAddons.status,
@@ -74,16 +82,25 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
       })
       .from(tenantAddons)
       .innerJoin(addons, eq(tenantAddons.addonId, addons.id))
-      .where(
-        and(
-          eq(tenantAddons.tenantId, tenantId),
-          eq(tenantAddons.status, "active"),
-          or(
-            eq(tenantAddons.subscriptionStatus, "active"),
-            eq(tenantAddons.subscriptionStatus, "trialing")
-          )
-        )
-      );
+      .where(eq(tenantAddons.tenantId, tenantId));
+    
+    // Filter to active subscriptions for access
+    const installedAddons = allAddons.filter(
+      a => a.status === "active" && (a.subscriptionStatus === "active" || a.subscriptionStatus === "trialing")
+    );
+    
+    // Check for expired/cancelled payroll (for read-only mode)
+    for (const addon of allAddons) {
+      const slug = addon.slug?.toLowerCase() || "";
+      if (slug.startsWith("payroll")) {
+        const isExpired = addon.subscriptionStatus === "expired" || 
+                          addon.subscriptionStatus === "cancelled" ||
+                          addon.subscriptionStatus === "past_due";
+        if (isExpired) {
+          hadPayrollPreviously = true;
+        }
+      }
+    }
 
     for (const addon of installedAddons) {
       const slug = addon.slug?.toLowerCase() || "";
@@ -159,6 +176,18 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
     // If HRMS only (no payroll), no employee limit for HR purposes
     if (result.hasHrmsAddon && !result.hasPayrollAddon) {
       result.employeeLimit = -1; // Unlimited for HRMS-only
+    }
+    
+    // Read-only mode: Payroll expired/cancelled, no HRMS installed
+    // Employees visible for data preservation but create/edit blocked
+    if (hadPayrollPreviously && !result.hasPayrollAddon && !result.hasHrmsAddon) {
+      // Check if tenant has any employees (data to preserve)
+      const employeeCount = await countTenantEmployees(tenantId);
+      if (employeeCount > 0) {
+        result.hasEmployeeAccess = true; // Allow read access
+        result.isEmployeeReadOnly = true;
+        result.readOnlyReason = "Re-enable Payroll or add HRMS to create or edit employees.";
+      }
     }
 
     return result;

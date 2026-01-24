@@ -70,6 +70,13 @@ A complete management console for Super Admins to control the marketplace:
 - Legacy tenantPayrollAddon: Respects tier-based maxEmployees
 - Limit exceeded: Returns 403 with code `EMPLOYEE_LIMIT_REACHED`
 
+**Read-Only Mode (Payroll Expired)**:
+- When Payroll expires/cancels and tenant has no HRMS add-on
+- Employee directory becomes read-only (view existing data)
+- Create/Edit blocked with 403 `EMPLOYEE_READ_ONLY`
+- Message: "Re-enable Payroll or add HRMS to create or edit employees."
+- Data preserved to prevent loss; upsell to re-enable
+
 **Implementation Files**:
 - Backend middleware: `server/core/hr-addon-gating.ts`
 - Route gating: `server/routes/hrms/index.ts`, `server/routes/hrms/employees.ts`

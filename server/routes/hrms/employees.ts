@@ -56,6 +56,16 @@ router.post("/", async (req, res) => {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
     
+    // Check if read-only mode (payroll expired, no HRMS)
+    if (req.hrAccess?.isEmployeeReadOnly) {
+      return res.status(403).json({
+        error: "Employee directory is read-only",
+        code: "EMPLOYEE_READ_ONLY",
+        message: req.hrAccess.readOnlyReason || "Re-enable Payroll or add HRMS to create employees.",
+        upgradeUrl: "/marketplace",
+      });
+    }
+    
     // Check employee limit before creating
     const limitCheck = await checkEmployeeLimit(tenantId);
     if (!limitCheck.allowed) {
@@ -85,6 +95,16 @@ router.put("/:id", async (req, res) => {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
     
+    // Check if read-only mode (payroll expired, no HRMS)
+    if (req.hrAccess?.isEmployeeReadOnly) {
+      return res.status(403).json({
+        error: "Employee directory is read-only",
+        code: "EMPLOYEE_READ_ONLY",
+        message: req.hrAccess.readOnlyReason || "Re-enable Payroll or add HRMS to edit employees.",
+        upgradeUrl: "/marketplace",
+      });
+    }
+    
     const employee = await EmployeeService.updateEmployee(tenantId, req.params.id, req.body);
     res.json(employee);
   } catch (error) {
@@ -100,6 +120,16 @@ router.delete("/:id", requireMinimumRole("admin"), async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    // Check if read-only mode (payroll expired, no HRMS)
+    if (req.hrAccess?.isEmployeeReadOnly) {
+      return res.status(403).json({
+        error: "Employee directory is read-only",
+        code: "EMPLOYEE_READ_ONLY",
+        message: req.hrAccess.readOnlyReason || "Re-enable Payroll or add HRMS to delete employees.",
+        upgradeUrl: "/marketplace",
+      });
+    }
     
     await EmployeeService.deleteEmployee(tenantId, req.params.id);
     res.json({ success: true });

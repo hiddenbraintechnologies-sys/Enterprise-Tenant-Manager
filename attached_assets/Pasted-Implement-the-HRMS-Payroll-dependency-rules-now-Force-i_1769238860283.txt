@@ -1,0 +1,127 @@
+Implement the HRMS/Payroll dependency rules now.
+
+Force-install/uninstall is useful later, but dependency rules are what will stop you drifting from the architecture again (and it fixes the exact problem you hit: Payroll installed but couldn’t create employees → someone “enabled HRMS” ad-hoc).
+
+Below is the exact spec + a Replit prompt you can paste.
+
+✅ Dependency rules (final, clean)
+Concepts
+
+HRMS Lite (Foundation) = Employee Directory only (no attendance/leave/timesheets UI)
+
+HRMS Add-on (Full) = Attendance/Leave/Timesheets/Approvals/HR reports
+
+Payroll Add-on = Payroll runs + statutory + payslips
+
+Rules
+
+Payroll requires Employee Directory
+
+If tenant installs Payroll and HRMS is not installed:
+✅ automatically enable HRMS Lite capability
+❌ do NOT show full HRMS menus
+
+Employee Directory access is allowed when
+
+HRMS add-on installed OR
+
+Payroll add-on installed (trial/active) OR
+
+HRMS Lite capability is enabled
+
+HRMS “Full suite” endpoints/pages require HRMS add-on only
+
+attendance, leave, shifts, approvals, timesheets = HRMS add-on
+
+Free plan + Payroll trial
+
+Payroll trial = 7 days
+
+employee limit enforced by payroll tier (trial tier = 5)
+
+If payroll cancelled/expired
+
+If HRMS add-on not installed and HRMS Lite was auto-enabled only for payroll:
+
+keep employees read-only OR keep employee directory but block new adds (your choice)
+
+Recommended: read-only to avoid data loss, upsell to re-enable.
+
+✅ Replit MASTER PROMPT (paste as-is)
+Implement HRMS/Payroll dependency rules without breaking the “Plans primary, add-ons multiplier” architecture.
+
+A) Add new capability flags
+1) Add capability key: HR_FOUNDATION (HRMS Lite) meaning Employee Directory only.
+2) Add capability key: HRMS_SUITE meaning full HRMS (attendance/leave/timesheets/etc.)
+3) Keep PAYROLL_SUITE for payroll features.
+
+B) Dependency behavior
+1) When tenant installs Payroll (trial or paid), automatically ensure HR_FOUNDATION is enabled for that tenant.
+   - DO NOT enable HRMS_SUITE automatically.
+2) HRMS add-on enables HRMS_SUITE (and also implies HR_FOUNDATION).
+
+C) Backend API gating
+1) Allow employee directory endpoints if tenant has any of:
+   - HR_FOUNDATION OR HRMS_SUITE OR PAYROLL_SUITE (trial/active)
+   Endpoints:
+   - /api/hr/employees (CRUD)
+   - /api/hr/departments (optional)
+2) Block HRMS suite endpoints unless HRMS_SUITE enabled:
+   - /api/hr/attendance
+   - /api/hr/leave
+   - /api/hr/timesheets (if considered HRMS suite)
+   Return 403 {code:"ADDON_REQUIRED", requiredAddon:"HRMS"}
+3) Payroll endpoints require PAYROLL_SUITE enabled (trial/active):
+   - /api/payroll/*
+
+D) Employee limits enforcement (Free + Payroll trial)
+1) Payroll trial (7 days) default.
+2) Trial limit maxEmployees=5.
+3) Enforce employee limit on employee create:
+   - if currentEmployeeCount >= maxEmployees: block create
+   - return 403 {code:"EMPLOYEE_LIMIT_REACHED", limit:maxEmployees}
+4) Add the same check to bulk import if exists.
+
+E) UI gating
+1) Sidebar:
+   - Show “Employees” menu when HR_FOUNDATION OR PAYROLL_SUITE OR HRMS_SUITE.
+   - Show full HRMS menus ONLY when HRMS_SUITE enabled.
+2) Marketplace:
+   - Payroll card should show “Includes Employee Directory (Lite)” micro-copy.
+   - HRMS card shows “Attendance, leave, approvals” etc.
+
+F) Data / schema
+Implement this cleanly using existing feature flags / tenant addons tables:
+- Store HR_FOUNDATION as a derived capability in tenant addon state OR persisted feature flag.
+- Make it idempotent: installing payroll twice doesn’t duplicate.
+
+G) Verification required
+Create 3 test tenants and verify:
+1) Free + Payroll trial only:
+   - Employees page visible ✅
+   - Can create up to 5 employees ✅
+   - HRMS menus hidden ✅
+   - Payroll screens accessible ✅
+2) Free + HRMS only:
+   - Employees visible ✅
+   - HRMS menus visible ✅
+   - Payroll hidden ✅
+3) Free + Payroll + HRMS:
+   - Employees ✅
+   - HRMS menus ✅
+   - Payroll ✅
+
+Deliver:
+- list of exact files changed
+- summary of dependency logic
+- screenshots not required but ensure all tests pass
+
+One decision (I’ll assume this unless you say otherwise)
+
+When Payroll expires/cancelled and tenant doesn’t have HRMS:
+✅ Employees become read-only (no new employee creation), data stays.
+Upsell: “Re-enable Payroll or HRMS to add/edit employees.”
+
+That avoids data loss and keeps the system clean.
+
+If you want the other behavior (still allow employee edits without payroll), tell me and I’ll adjust the rule.
