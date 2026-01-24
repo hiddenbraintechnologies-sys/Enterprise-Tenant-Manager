@@ -453,7 +453,7 @@ export async function registerRoutes(
   });
 
   // Register Compliance routes
-  app.use('/api/compliance', isAuthenticated, complianceRoutes);
+  app.use('/api/compliance', authenticateHybrid(), complianceRoutes);
   
   // Register India Compliance routes (GST, DLT, Aadhaar, RBI)
   app.use('/api/india-compliance', indiaComplianceRoutes);
@@ -474,7 +474,7 @@ export async function registerRoutes(
 
   // ==================== ONBOARDING ROUTES ====================
 
-  app.get("/api/onboarding/status", isAuthenticated, async (req, res) => {
+  app.get("/api/onboarding/status", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -498,7 +498,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/onboarding/initialize", isAuthenticated, async (req, res) => {
+  app.post("/api/onboarding/initialize", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -529,7 +529,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/onboarding/step/:stepKey", isAuthenticated, async (req, res) => {
+  app.post("/api/onboarding/step/:stepKey", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -547,7 +547,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/onboarding/advance", isAuthenticated, async (req, res) => {
+  app.post("/api/onboarding/advance", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -562,7 +562,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/onboarding/skip", isAuthenticated, async (req, res) => {
+  app.post("/api/onboarding/skip", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -577,7 +577,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/onboarding/can-modify-business-type", isAuthenticated, async (req, res) => {
+  app.get("/api/onboarding/can-modify-business-type", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -7090,7 +7090,7 @@ export async function registerRoutes(
   });
 
   // ==================== NOTIFICATION TEMPLATES ====================
-  app.get("/api/notification-templates", isAuthenticated, async (req, res) => {
+  app.get("/api/notification-templates", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7102,7 +7102,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/notification-templates", isAuthenticated, async (req, res) => {
+  app.post("/api/notification-templates", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7116,7 +7116,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/notification-templates/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/notification-templates/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7132,7 +7132,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/notification-templates/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/notification-templates/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7149,7 +7149,7 @@ export async function registerRoutes(
   });
 
   // ==================== NOTIFICATION LOGS ====================
-  app.get("/api/notification-logs", isAuthenticated, async (req, res) => {
+  app.get("/api/notification-logs", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7382,7 +7382,7 @@ export async function registerRoutes(
   });
 
   // ==================== INVENTORY CATEGORIES ====================
-  app.get("/api/inventory/categories", isAuthenticated, async (req, res) => {
+  app.get("/api/inventory/categories", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7394,7 +7394,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/inventory/categories", isAuthenticated, async (req, res) => {
+  app.post("/api/inventory/categories", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7409,7 +7409,7 @@ export async function registerRoutes(
   });
 
   // ==================== INVENTORY ITEMS ====================
-  app.get("/api/inventory/items", isAuthenticated, async (req, res) => {
+  app.get("/api/inventory/items", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7421,7 +7421,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/inventory/items", isAuthenticated, async (req, res) => {
+  app.post("/api/inventory/items", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7435,7 +7435,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/inventory/items/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/inventory/items/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7451,7 +7451,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/inventory/items/:id/adjust", isAuthenticated, async (req, res) => {
+  app.post("/api/inventory/items/:id/adjust", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7477,7 +7477,7 @@ export async function registerRoutes(
   });
 
   // ==================== MEMBERSHIP PLANS ====================
-  app.get("/api/membership-plans", isAuthenticated, async (req, res) => {
+  app.get("/api/membership-plans", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7489,7 +7489,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/membership-plans", isAuthenticated, async (req, res) => {
+  app.post("/api/membership-plans", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7503,7 +7503,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/membership-plans/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/membership-plans/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7520,7 +7520,7 @@ export async function registerRoutes(
   });
 
   // ==================== CUSTOMER MEMBERSHIPS ====================
-  app.get("/api/customer-memberships", isAuthenticated, async (req, res) => {
+  app.get("/api/customer-memberships", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7532,7 +7532,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/customer-memberships", isAuthenticated, async (req, res) => {
+  app.post("/api/customer-memberships", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7546,7 +7546,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/customer-memberships/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/customer-memberships/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7564,7 +7564,7 @@ export async function registerRoutes(
 
   // ==================== COWORKING MODULE ====================
 
-  app.get("/api/coworking/spaces", isAuthenticated, async (req, res) => {
+  app.get("/api/coworking/spaces", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7576,7 +7576,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coworking/spaces/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/coworking/spaces/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7589,7 +7589,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/coworking/spaces", isAuthenticated, async (req, res) => {
+  app.post("/api/coworking/spaces", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7603,7 +7603,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/coworking/spaces/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/coworking/spaces/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7627,7 +7627,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/coworking/spaces/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/coworking/spaces/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7641,7 +7641,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coworking/desks", isAuthenticated, async (req, res) => {
+  app.get("/api/coworking/desks", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7654,7 +7654,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/coworking/book", isAuthenticated, async (req, res) => {
+  app.post("/api/coworking/book", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       const userId = getUserId(req);
@@ -7670,7 +7670,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/coworking/bookings", isAuthenticated, async (req, res) => {
+  app.get("/api/coworking/bookings", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       const userId = getUserId(req);
@@ -7691,7 +7691,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/patients", 
-    isAuthenticated, 
+    authenticateHybrid(), 
     requireAccessReason(),
     phiAccessMiddleware("patient"),
     patientDataMasking,
@@ -7709,7 +7709,7 @@ export async function registerRoutes(
   );
 
   app.get("/api/patients/:id", 
-    isAuthenticated, 
+    authenticateHybrid(), 
     requireAccessReason(),
     phiAccessMiddleware("patient"),
     patientDataMasking,
@@ -7730,7 +7730,7 @@ export async function registerRoutes(
   );
 
   app.get("/api/patients/:patientId/access-history", 
-    isAuthenticated,
+    authenticateHybrid(),
     requireAccessReason(),
     async (req, res) => {
       try {
@@ -7749,7 +7749,7 @@ export async function registerRoutes(
   );
 
   app.post("/api/patients", 
-    isAuthenticated, 
+    authenticateHybrid(), 
     phiAccessMiddleware("patient"),
     async (req, res) => {
       try {
@@ -7767,7 +7767,7 @@ export async function registerRoutes(
   );
 
   app.patch("/api/patients/:id", 
-    isAuthenticated, 
+    authenticateHybrid(), 
     requireAccessReason(),
     phiAccessMiddleware("patient"),
     async (req, res) => {
@@ -7788,7 +7788,7 @@ export async function registerRoutes(
   );
 
   // ==================== DOCTORS (Healthcare) ====================
-  app.get("/api/doctors", isAuthenticated, async (req, res) => {
+  app.get("/api/doctors", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7800,7 +7800,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/doctors", isAuthenticated, async (req, res) => {
+  app.post("/api/doctors", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7814,7 +7814,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/doctors/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/doctors/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7831,7 +7831,7 @@ export async function registerRoutes(
   });
 
   // ==================== APPOINTMENTS (Healthcare) ====================
-  app.get("/api/appointments", isAuthenticated, async (req, res) => {
+  app.get("/api/appointments", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7843,7 +7843,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/appointments", isAuthenticated, async (req, res) => {
+  app.post("/api/appointments", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7857,7 +7857,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/appointments/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/appointments/:id", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -7875,7 +7875,7 @@ export async function registerRoutes(
 
   // ==================== MEDICAL RECORDS (Healthcare) ====================
   app.get("/api/patients/:patientId/medical-records", 
-    isAuthenticated, 
+    authenticateHybrid(), 
     requireAccessReason(),
     phiAccessMiddleware("medical_record"),
     async (req, res) => {
@@ -7896,7 +7896,7 @@ export async function registerRoutes(
   );
 
   app.post("/api/medical-records", 
-    isAuthenticated, 
+    authenticateHybrid(), 
     phiAccessMiddleware("medical_record"),
     async (req, res) => {
       try {
@@ -7914,7 +7914,7 @@ export async function registerRoutes(
   );
 
   app.patch("/api/medical-records/:id", 
-    isAuthenticated, 
+    authenticateHybrid(), 
     requireAccessReason(),
     phiAccessMiddleware("medical_record"),
     async (req, res) => {
@@ -7936,7 +7936,7 @@ export async function registerRoutes(
 
   // ==================== COMPLIANCE REPORTS ====================
   app.get("/api/compliance/unusual-access", 
-    isAuthenticated,
+    authenticateHybrid(),
     async (req, res) => {
       try {
         const tenantId = getTenantId(req);
@@ -10059,7 +10059,7 @@ export async function registerRoutes(
   });
 
   // Regenerate portal token
-  app.post("/api/customer-portal/regenerate-token", isAuthenticated, async (req, res) => {
+  app.post("/api/customer-portal/regenerate-token", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -10085,7 +10085,7 @@ export async function registerRoutes(
   });
 
   // Send portal invite to customer
-  app.post("/api/customer-portal/invites", isAuthenticated, async (req, res) => {
+  app.post("/api/customer-portal/invites", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -10131,7 +10131,7 @@ export async function registerRoutes(
   });
 
   // Get portal invites for tenant
-  app.get("/api/customer-portal/invites", isAuthenticated, async (req, res) => {
+  app.get("/api/customer-portal/invites", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
