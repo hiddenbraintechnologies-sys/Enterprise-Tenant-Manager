@@ -106,42 +106,44 @@ A complete management console for Super Admins to control the marketplace:
 - Trial expiry reminders (requires trialEndsAt column in tenantAddons - TODO)
 - Feature unlock recommendations based on plan tier eligibility
 
-**Marketplace RBAC Permissions (Updated Jan 2026):**
+**Marketplace Access Control (Updated Jan 2026):**
 
-*Super Admin / Platform Admin Permissions:*
-- `MARKETPLACE_MANAGE_CATALOG`: Create/edit add-ons, tiers, pricing, limits, icons, categories
-- `MARKETPLACE_MANAGE_PRICING`: Update pricing tiers and country-specific pricing
-- `MARKETPLACE_MANAGE_ELIGIBILITY`: Set plan tier purchase/trial rules
-- `MARKETPLACE_PUBLISH`: Publish/unpublish add-ons, enable per-country rollout
-- `MARKETPLACE_VIEW_ANALYTICS`: View marketplace revenue dashboards, conversion funnels
-- `MARKETPLACE_VIEW_AUDIT_LOGS`: View audit trail of all admin actions
-- `MARKETPLACE_OVERRIDE`: Force-install/uninstall add-ons for tenant (support operations)
+*Initial Phase: Super Admin Only*
+All marketplace management is restricted to Super Admin in this phase. Permission constants are defined for future Platform Admin support.
 
-*Tenant Permissions:*
-- `MARKETPLACE_BROWSE`: View marketplace list and details
-- `MARKETPLACE_PURCHASE`: Start trial / purchase add-on, manage subscriptions
-- `MARKETPLACE_MANAGE_BILLING`: View invoices, update payment method, cancel subscription
+*Super Admin Actions (requireSuperAdminOnly middleware):*
+- Create/edit add-ons (Payroll, HRMS, WhatsApp, etc.)
+- Publish/unpublish add-ons
+- Enable per-country rollout
+- View marketplace analytics
+- Force-install/uninstall for tenants (support) - future
 
-**Marketplace RBAC Enforcement:**
-| Action | Required Permission |
-|--------|---------------------|
-| Create/edit add-on | MARKETPLACE_MANAGE_CATALOG |
-| Change pricing/tiers | MARKETPLACE_MANAGE_PRICING |
-| Publish add-on to country | MARKETPLACE_PUBLISH |
-| View analytics page | MARKETPLACE_VIEW_ANALYTICS |
-| Tenant installs add-on | MARKETPLACE_PURCHASE |
-| Force install/uninstall | MARKETPLACE_OVERRIDE |
+*Tenant Actions (requireTenantAdmin middleware):*
+- Browse marketplace (all authenticated users)
+- Start trial / purchase add-on (Tenant Admin only)
+- Cancel add-on subscription (Tenant Admin only)
 
-**Role Assignments:**
-- `PLATFORM_SUPER_ADMIN`: All marketplace permissions
-- `TENANT_ADMIN`: MARKETPLACE_BROWSE, MARKETPLACE_PURCHASE, MARKETPLACE_MANAGE_BILLING
-- `TENANT_STAFF`: MARKETPLACE_BROWSE only
+**Error Response Codes:**
+| Scenario | Status | Code |
+|----------|--------|------|
+| Not authenticated | 401 | UNAUTHENTICATED |
+| Authenticated but not super admin | 403 | FORBIDDEN_SUPER_ADMIN_ONLY |
+| Tenant user but not admin | 403 | TENANT_ADMIN_REQUIRED |
+
+**Permission Constants (for future Platform Admin support):**
+- `MARKETPLACE_MANAGE_CATALOG`, `MARKETPLACE_MANAGE_PRICING`, `MARKETPLACE_MANAGE_ELIGIBILITY`
+- `MARKETPLACE_PUBLISH`, `MARKETPLACE_VIEW_ANALYTICS`, `MARKETPLACE_VIEW_AUDIT_LOGS`
+- `MARKETPLACE_OVERRIDE` (force install/uninstall)
 
 **API Enforcement Files:**
-- Super Admin routes: `server/routes/super-admin/marketplace-management.ts`
-- Analytics routes: `server/routes/super-admin/marketplace-analytics.ts`
-- Tenant routes: `server/routes/marketplace/tenant-addons.ts`
-- Guard middleware: `server/rbac/guards.ts` (requirePermission)
+- Super Admin routes: `server/routes/super-admin/marketplace-management.ts` (requireSuperAdminOnly)
+- Analytics routes: `server/routes/super-admin/marketplace-analytics.ts` (requireSuperAdminOnly)
+- Tenant routes: `server/routes/marketplace/tenant-addons.ts` (requireTenantAdmin)
+- Guard middleware: `server/rbac/guards.ts`
+
+**Frontend Protection:**
+- Sidebar: Marketplace items use `superAdminOnly: true`
+- Routes: `SuperAdminRouteGuard` redirects non-super-admins to /admin
 
 **Marketplace Revenue Analytics (Jan 2026):**
 - API Endpoints: `/api/super-admin/marketplace/analytics/overview`, `/by-addon`, `/by-country`, `/funnel`
