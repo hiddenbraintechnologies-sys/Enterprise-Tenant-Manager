@@ -10000,7 +10000,7 @@ export async function registerRoutes(
   // ============================================
 
   // Get customer portal settings for tenant
-  app.get("/api/customer-portal/settings", isAuthenticated, async (req, res) => {
+  app.get("/api/customer-portal/settings", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });
@@ -10032,7 +10032,7 @@ export async function registerRoutes(
   });
 
   // Update customer portal settings
-  app.patch("/api/customer-portal/settings", isAuthenticated, async (req, res) => {
+  app.patch("/api/customer-portal/settings", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) return res.status(403).json({ message: "No tenant access" });

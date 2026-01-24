@@ -405,13 +405,16 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
   return async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     
+    // Debug logging for all requests
+    console.log(`[auth-hybrid] ${req.method} ${req.path} - hasAuthHeader=${!!authHeader}, authHeaderPrefix=${authHeader?.substring(0, 20)}`);
+    
     // If Authorization header is present, use JWT authentication
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
       const decoded = await jwtAuthService.verifyAccessToken(token);
 
       if (!decoded) {
-        console.log(`[auth-hybrid] JWT verification FAILED for ${req.method} ${req.path}`);
+        console.log(`[auth-hybrid] JWT verification FAILED for ${req.method} ${req.path} - token length=${token.length}`);
         if (options.required) {
           return res.status(401).json({ 
             message: "Invalid or expired token",
