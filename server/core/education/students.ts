@@ -3,7 +3,7 @@ import { db } from "../../db";
 import { students, insertStudentSchema } from "@shared/schema";
 import { eq, and, desc, asc, sql, ilike, or, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { authenticateJWT, requireMinimumRole } from "../auth-middleware";
+import { authenticateHybrid, requireMinimumRole } from "../auth-middleware";
 import { requirePermission } from "../context";
 import { tenantIsolationMiddleware, createTenantIsolation } from "../tenant-isolation";
 import { auditService } from "../audit";
@@ -21,7 +21,7 @@ const paginationSchema = z.object({
 });
 
 const middleware = [
-  authenticateJWT({ required: true }),
+  authenticateHybrid(),
   tenantIsolationMiddleware(),
   requireMinimumRole("staff"),
 ];

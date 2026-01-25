@@ -432,7 +432,7 @@ export async function registerRoutes(
   app.use(tenantSettingsRoutes);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
-  app.use('/api/feature-flags', authenticateJWT({ required: true }), enforceTenantBoundary(), featureFlagsRoutes);
+  app.use('/api/feature-flags', authenticateHybrid(), enforceTenantBoundary(), featureFlagsRoutes);
 
   // Register Business Version management routes (SuperAdmin only)
   app.use('/api/business-versions', authenticateJWT({ required: true }), businessVersionRoutes);
@@ -594,7 +594,7 @@ export async function registerRoutes(
 
   // ==================== DASHBOARD ACCESS VALIDATION ====================
 
-  app.get("/api/dashboard/access", authenticateJWT({ required: true }), tenantResolutionMiddleware(), enforceTenantBoundary(), requireDashboardAccess(), async (req, res) => {
+  app.get("/api/dashboard/access", authenticateHybrid(), tenantResolutionMiddleware(), enforceTenantBoundary(), requireDashboardAccess(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -620,7 +620,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/dashboard/validate-route", authenticateJWT({ required: true }), tenantResolutionMiddleware(), enforceTenantBoundary(), requireDashboardAccess(), async (req, res) => {
+  app.post("/api/dashboard/validate-route", authenticateHybrid(), tenantResolutionMiddleware(), enforceTenantBoundary(), requireDashboardAccess(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
       if (!tenantId) {
@@ -6477,7 +6477,7 @@ export async function registerRoutes(
   // ==================== TENANT MANAGEMENT ROUTES ====================
   
   const tenantProtectedMiddleware = [
-    authenticateJWT({ required: true }),
+    authenticateHybrid(),
     tenantResolutionMiddleware(),
     enforceTenantBoundary(),
     tenantIsolationMiddleware(),

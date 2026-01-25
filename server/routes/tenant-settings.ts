@@ -2,12 +2,12 @@ import { Router, Request, Response } from "express";
 import { db } from "../db";
 import { tenantSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { authenticateJWT } from "../core/auth-middleware";
+import { authenticateHybrid } from "../core/auth-middleware";
 import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
 import { z } from "zod";
 
 const router = Router();
-const requiredAuth = authenticateJWT({ required: true });
+const requiredAuth = authenticateHybrid();
 
 const updateSettingsSchema = z.object({
   language: z.enum(["en", "hi", "te", "ta", "kn", "ml"]).optional(),

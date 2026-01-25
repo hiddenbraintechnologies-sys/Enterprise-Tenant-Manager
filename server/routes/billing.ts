@@ -10,7 +10,7 @@ import { eq, and, desc, lte } from "drizzle-orm";
 import { subscriptionService } from "../services/subscription";
 import { offerService } from "../services/offers";
 import { featureService } from "../core/features";
-import { authenticateJWT } from "../core/auth-middleware";
+import { authenticateJWT, authenticateHybrid } from "../core/auth-middleware";
 import { getPaymentProvider } from "../core/payments/provider-factory";
 import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
 import { requirePermission, Permissions } from "../rbac/guards";
@@ -62,7 +62,7 @@ router.use("/marketplace-addon", marketplaceAddonRoutes);
 router.use("/addon-permissions", addonPermissionsRoutes);
 
 const optionalAuth = authenticateJWT({ required: false });
-const requiredAuth = authenticateJWT({ required: true });
+const requiredAuth = authenticateHybrid();
 
 router.get("/addons/access", requiredAuth, async (req: Request, res: Response) => {
   try {

@@ -12,14 +12,14 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { authenticateJWT, requireMinimumRole } from "../auth-middleware";
+import { authenticateHybrid, requireMinimumRole } from "../auth-middleware";
 import { tenantIsolationMiddleware } from "../tenant-isolation";
 import { z } from "zod";
 
 export const clinicRouter = Router();
 
 const middleware = [
-  authenticateJWT({ required: true }),
+  authenticateHybrid(),
   tenantIsolationMiddleware(),
   requireMinimumRole("staff"),
 ];

@@ -3,7 +3,7 @@ import { db } from "../../db";
 import { students, attendance, fees, examResults, exams } from "@shared/schema";
 import { eq, and, isNull, sql, gte } from "drizzle-orm";
 import { z } from "zod";
-import { authenticateJWT, requireMinimumRole } from "../auth-middleware";
+import { authenticateHybrid, requireMinimumRole } from "../auth-middleware";
 import { tenantIsolationMiddleware } from "../tenant-isolation";
 import { aiService } from "../ai-service";
 import { auditService } from "../audit";
@@ -11,7 +11,7 @@ import { auditService } from "../audit";
 export const riskPredictionsRouter = Router();
 
 const middleware = [
-  authenticateJWT({ required: true }),
+  authenticateHybrid(),
   tenantIsolationMiddleware(),
   requireMinimumRole("staff"),
 ];
