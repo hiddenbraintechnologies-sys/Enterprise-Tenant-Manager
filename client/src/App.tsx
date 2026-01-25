@@ -22,6 +22,8 @@ import SalonDashboard from "@/pages/salon-dashboard";
 import PGDashboard from "@/pages/pg-dashboard";
 import CoworkingDashboard from "@/pages/coworking-dashboard";
 import CoworkingSpaces from "@/pages/coworking/spaces";
+import CoworkingDesks from "@/pages/coworking/desks";
+import CoworkingBookings from "@/pages/coworking/bookings";
 import ServiceDashboard from "@/pages/service-dashboard";
 import RealEstateDashboard from "@/pages/real-estate-dashboard";
 import RealEstateProperties from "@/pages/real-estate/properties";
@@ -314,14 +316,14 @@ function AuthenticatedRoutes() {
       <Route path="/coworking/desks">
         <DashboardGuard allowedBusinessType="coworking">
           <ModuleGuard moduleId="desks">
-            <CoworkingDashboard />
+            <CoworkingDesks />
           </ModuleGuard>
         </DashboardGuard>
       </Route>
       <Route path="/coworking/bookings">
         <DashboardGuard allowedBusinessType="coworking">
           <ModuleGuard moduleId="bookings">
-            <CoworkingDashboard />
+            <CoworkingBookings />
           </ModuleGuard>
         </DashboardGuard>
       </Route>
@@ -335,7 +337,7 @@ function AuthenticatedRoutes() {
       <Route path="/coworking/book">
         <DashboardGuard allowedBusinessType="coworking">
           <ModuleGuard moduleId="bookings">
-            <CoworkingDashboard />
+            <CoworkingBookings />
           </ModuleGuard>
         </DashboardGuard>
       </Route>
