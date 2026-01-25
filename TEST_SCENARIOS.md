@@ -3,8 +3,8 @@
 ## Document Information
 | Field | Value |
 |-------|-------|
-| Version | 1.0 |
-| Last Updated | 2026-01-07 |
+| Version | 2.0 |
+| Last Updated | 2026-01-25 |
 | Project | MyBizStream Multi-Tenant SaaS Platform |
 
 ---
@@ -27,6 +27,13 @@
 14. [UI/UX Testing](#14-uiux-testing)
 15. [Mobile Application](#15-mobile-application)
 16. [Customer Portal](#16-customer-portal)
+17. [Hybrid Authentication](#17-hybrid-authentication)
+18. [HR Foundation & HRMS Suite](#18-hr-foundation--hrms-suite)
+19. [Payroll Module](#19-payroll-module)
+20. [Marketplace Management](#20-marketplace-management)
+21. [Add-on Gating & Permissions](#21-add-on-gating--permissions)
+22. [Business Modules (Industry-Specific)](#22-business-modules-industry-specific)
+23. [Legal Services Module](#23-legal-services-module)
 
 ---
 
@@ -703,6 +710,319 @@
 
 ---
 
+## 17. Hybrid Authentication
+
+### 17.1 Authentication Method Compatibility
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| HYB-001 | JWT login access to dashboard | JWT authenticated user | 1. Login via email/password<br>2. Navigate to /dashboard | Dashboard loads, all features accessible | P0 |
+| HYB-002 | Session-based login (Replit Auth) | Replit account exists | 1. Click "Continue with Replit"<br>2. Complete OAuth flow<br>3. Navigate to /dashboard | Dashboard loads, all features accessible | P0 |
+| HYB-003 | JWT user access to Coworking | JWT authenticated, Coworking tenant | 1. Navigate to /dashboard/coworking/desks | Desks page loads with data | P0 |
+| HYB-004 | Session user access to Coworking | Session authenticated, Coworking tenant | 1. Navigate to /dashboard/coworking/desks | Desks page loads with data (no 401 error) | P0 |
+| HYB-005 | JWT user access to Legal Services | JWT authenticated, Legal tenant | 1. Navigate to /dashboard/legal/clients | Clients page loads with data | P0 |
+| HYB-006 | Session user access to Legal Services | Session authenticated, Legal tenant | 1. Navigate to /dashboard/legal/clients | Clients page loads with data | P0 |
+| HYB-007 | Mixed auth tenant settings | Both auth types | 1. JWT user: GET /api/tenant/settings<br>2. Session user: GET /api/tenant/settings | Both return 200 with settings | P0 |
+| HYB-008 | Session user billing access | Session authenticated | 1. GET /api/addons/access | Returns 200 with add-on access info | P0 |
+
+### 17.2 Cross-Module Authentication
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| HYB-009 | Session user - Salon module | Session auth, Salon tenant | 1. GET /api/salon/services<br>2. POST /api/salon/appointments | Both requests succeed (200/201) | P0 |
+| HYB-010 | Session user - Clinic module | Session auth, Clinic tenant | 1. GET /api/clinic/patients<br>2. POST /api/clinic/appointments | Both requests succeed | P0 |
+| HYB-011 | Session user - PG/Hostel module | Session auth, PG tenant | 1. GET /api/pg-hostel/rooms<br>2. GET /api/pg-hostel/tenants | Both requests succeed | P0 |
+| HYB-012 | Session user - Gym module | Session auth, Gym tenant | 1. GET /api/gym/members<br>2. GET /api/gym/classes | Both requests succeed | P0 |
+| HYB-013 | Session user - Tourism module | Session auth, Tourism tenant | 1. GET /api/tourism/itineraries | Request succeeds | P0 |
+| HYB-014 | Session user - Logistics module | Session auth, Logistics tenant | 1. GET /api/logistics/shipments<br>2. GET /api/logistics/vehicles | Both requests succeed | P0 |
+| HYB-015 | Session user - Real Estate module | Session auth, Real Estate tenant | 1. GET /api/real-estate/properties<br>2. GET /api/real-estate/leads | Both requests succeed | P0 |
+| HYB-016 | Session user - Education module | Session auth, Education tenant | 1. GET /api/education/students<br>2. GET /api/education/courses | Both requests succeed | P0 |
+
+### 17.3 Dashboard Route Validation
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| HYB-017 | Dashboard access validation - JWT | JWT user | 1. GET /api/dashboard/access/validate | Returns 200 with access info | P0 |
+| HYB-018 | Dashboard access validation - Session | Session user | 1. GET /api/dashboard/access/validate | Returns 200 with access info | P0 |
+| HYB-019 | Feature flags - JWT user | JWT user | 1. GET /api/tenant/feature-flags | Returns feature flags for tenant | P1 |
+| HYB-020 | Feature flags - Session user | Session user | 1. GET /api/tenant/feature-flags | Returns feature flags for tenant | P1 |
+
+---
+
+## 18. HR Foundation & HRMS Suite
+
+### 18.1 HR Foundation (Employee Directory)
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| HRF-001 | Access employee directory with Payroll add-on | Tenant has Payroll add-on active | 1. Navigate to /dashboard/hr/employees | Employee list displayed | P0 |
+| HRF-002 | Access employee directory with HRMS add-on | Tenant has HRMS add-on active | 1. Navigate to /dashboard/hr/employees | Employee list displayed | P0 |
+| HRF-003 | Access employee directory - no add-ons | Tenant has no HR add-ons | 1. Navigate to /dashboard/hr/employees | Access denied or locked feature modal | P0 |
+| HRF-004 | Create employee with Payroll | Payroll add-on active | 1. Click Add Employee<br>2. Fill details<br>3. Save | Employee created successfully | P0 |
+| HRF-005 | Create employee with HRMS | HRMS add-on active | 1. Click Add Employee<br>2. Fill details<br>3. Save | Employee created successfully | P0 |
+| HRF-006 | HR Dashboard access with Payroll | Payroll add-on active | 1. Navigate to /dashboard/hr | HR Dashboard loads | P0 |
+| HRF-007 | HR Dashboard access with HRMS | HRMS add-on active | 1. Navigate to /dashboard/hr | HR Dashboard loads | P0 |
+| HRF-008 | Department management | Payroll OR HRMS active | 1. GET /api/hr/departments | Departments list returned | P1 |
+
+### 18.2 HRMS Suite (Full HR Management)
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| HRMS-001 | Access attendance - HRMS only | Tenant has HRMS add-on | 1. Navigate to /dashboard/hr/attendance | Attendance tracking page loads | P0 |
+| HRMS-002 | Access attendance - Payroll only | Tenant has only Payroll | 1. Navigate to /dashboard/hr/attendance | Locked feature modal, upsell to HRMS | P0 |
+| HRMS-003 | Access leave management - HRMS | HRMS add-on active | 1. Navigate to /dashboard/hr/leaves | Leave management page loads | P0 |
+| HRMS-004 | Access leave management - Payroll only | Only Payroll add-on | 1. Navigate to /dashboard/hr/leaves | Locked feature modal | P0 |
+| HRMS-005 | Access pay runs - HRMS | HRMS add-on active | 1. Navigate to /dashboard/hr/pay-runs | Pay runs page loads | P0 |
+| HRMS-006 | Access projects/timesheets - HRMS | HRMS add-on active | 1. GET /api/hr/projects | Projects list returned | P1 |
+| HRMS-007 | HRMS does NOT grant Payroll access | HRMS only, no Payroll | 1. Navigate to /dashboard/hr/payroll | Locked feature, requires Payroll add-on | P0 |
+
+### 18.3 Sidebar Navigation Gating
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| NAV-001 | Sidebar with Payroll only | Payroll add-on active | 1. View sidebar HR section | Shows: HR Dashboard, Employees, Payroll<br>Locked: Attendance, Leave, Pay Runs | P0 |
+| NAV-002 | Sidebar with HRMS only | HRMS add-on active | 1. View sidebar HR section | Shows: HR Dashboard, Employees, Attendance, Leave, Pay Runs<br>Locked: Payroll | P0 |
+| NAV-003 | Sidebar with both add-ons | Payroll + HRMS active | 1. View sidebar HR section | All HR items accessible (none locked) | P0 |
+| NAV-004 | Sidebar with no HR add-ons | No Payroll, no HRMS | 1. View sidebar | HR section hidden or all items locked | P0 |
+
+---
+
+## 19. Payroll Module
+
+### 19.1 Payroll Access Control
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| PAY-001 | Access payroll - Payroll add-on | Payroll add-on active | 1. Navigate to /dashboard/hr/payroll | Payroll dashboard loads | P0 |
+| PAY-002 | Access payroll - HRMS only | HRMS add-on only | 1. Navigate to /dashboard/hr/payroll | Locked feature modal | P0 |
+| PAY-003 | Access payroll API - Payroll add-on | Payroll active | 1. GET /api/hr/payroll/runs | Returns 200 with payroll runs | P0 |
+| PAY-004 | Access payroll API - HRMS only | HRMS only | 1. GET /api/hr/payroll/runs | Returns 403 Forbidden | P0 |
+| PAY-005 | Run payroll - Payroll add-on | Payroll active, employees exist | 1. Create new payroll run<br>2. Process payroll | Payroll processed, payslips generated | P0 |
+
+### 19.2 Employee Limit Enforcement
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| EMP-001 | Trial user - add within limit | Payroll trial, < 5 employees | 1. Add 4th employee | Employee added successfully | P0 |
+| EMP-002 | Trial user - exceed limit | Payroll trial, 5 employees | 1. Try adding 6th employee | 403 error with code EMPLOYEE_LIMIT_REACHED | P0 |
+| EMP-003 | Paid subscription - unlimited | Active Payroll subscription | 1. Add employees beyond 5 | Employees added (no limit for paid) | P0 |
+| EMP-004 | Limit message display | Trial user at limit | 1. Click Add Employee | Clear message about trial limit, upgrade CTA | P1 |
+
+### 19.3 Read-Only Mode (Expired Payroll)
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| RO-001 | View employees after expiry | Payroll expired, no HRMS | 1. Navigate to /dashboard/hr/employees | Employee list visible (read-only) | P0 |
+| RO-002 | Create employee blocked | Payroll expired, no HRMS | 1. Try adding new employee | 403 with code EMPLOYEE_READ_ONLY | P0 |
+| RO-003 | Edit employee blocked | Payroll expired, no HRMS | 1. Try editing employee | 403 with message to re-enable | P0 |
+| RO-004 | Data preservation | Payroll cancelled | 1. View existing employees | All employee data still visible | P0 |
+| RO-005 | Upsell message | Read-only mode | 1. Try to edit | Message: "Re-enable Payroll or add HRMS" | P1 |
+
+### 19.4 Malaysia Payroll Tiers
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| MY-001 | Trial tier - Malaysia | Malaysian tenant, new user | 1. Start Payroll trial | 7-day trial, max 5 employees | P0 |
+| MY-002 | Starter tier (MYR 20) | Malaysia, < 5 employees | 1. Subscribe to Starter | MYR 20/month charged | P1 |
+| MY-003 | Growth tier (MYR 39) | Malaysia, 6-15 employees | 1. Subscribe to Growth | MYR 39/month, up to 15 employees | P1 |
+| MY-004 | Scale tier (MYR 69) | Malaysia, 16-50 employees | 1. Subscribe to Scale | MYR 69/month, up to 50 employees | P1 |
+| MY-005 | Unlimited tier (MYR 99) | Malaysia, > 50 employees | 1. Subscribe to Unlimited | MYR 99/month, no limit | P1 |
+
+---
+
+## 20. Marketplace Management
+
+### 20.1 Super Admin Marketplace Access
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| MKT-001 | Super Admin access | Logged in as Super Admin | 1. Navigate to /super-admin/marketplace-management | Marketplace management page loads | P0 |
+| MKT-002 | Platform Admin access denied | Logged in as Platform Admin | 1. Navigate to /super-admin/marketplace-management | 403 Forbidden or redirect | P0 |
+| MKT-003 | Tenant Admin access denied | Logged in as Tenant Admin | 1. Navigate to /super-admin/marketplace-management | 403 Forbidden or redirect | P0 |
+| MKT-004 | Unauthenticated access | Not logged in | 1. Navigate to /super-admin/marketplace-management | Redirect to login | P0 |
+
+### 20.2 Add-on Catalog Management
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| CAT-001 | View all add-ons | Super Admin | 1. GET /api/super-admin/marketplace/addons | List of all add-ons returned | P0 |
+| CAT-002 | Create new add-on | Super Admin | 1. POST /api/super-admin/marketplace/addons with data | Add-on created, audit logged | P0 |
+| CAT-003 | Edit add-on | Super Admin | 1. PATCH /api/super-admin/marketplace/addons/:id | Add-on updated, audit logged | P1 |
+| CAT-004 | Publish add-on | Super Admin, draft add-on | 1. POST /api/super-admin/marketplace/addons/:id/publish | Add-on status: published | P0 |
+| CAT-005 | Archive add-on | Super Admin, published add-on | 1. POST /api/super-admin/marketplace/addons/:id/archive | Add-on archived, hidden from catalog | P1 |
+| CAT-006 | Restore archived add-on | Super Admin | 1. POST /api/super-admin/marketplace/addons/:id/restore | Add-on restored to draft | P1 |
+
+### 20.3 Country Rollout Configuration
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| CR-001 | View country configs | Super Admin | 1. GET /api/super-admin/marketplace/addons/:id/countries/:code | Country config returned | P0 |
+| CR-002 | Enable add-on for country | Super Admin | 1. PUT with isActive: true, pricing | Add-on available in that country | P0 |
+| CR-003 | Disable add-on for country | Super Admin | 1. DELETE /api/super-admin/marketplace/addons/:id/countries/:code | Add-on hidden in that country | P1 |
+| CR-004 | Set country-specific pricing | Super Admin | 1. PUT with monthlyPrice, yearlyPrice | Prices set per country/currency | P0 |
+| CR-005 | Country matrix view | Super Admin | 1. View Country Rollout Tab | Matrix shows all countries × add-ons | P1 |
+| CR-006 | Inline price editing | Super Admin | 1. Click cell in matrix<br>2. Edit prices<br>3. Save | Price updated, audit logged | P1 |
+
+### 20.4 Plan Eligibility Configuration
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| PE-001 | View eligibility rules | Super Admin | 1. GET /api/super-admin/marketplace/addons/:id/eligibility/:code | Eligibility rules returned | P0 |
+| PE-002 | Set plan can purchase | Super Admin | 1. PUT canPurchase: true for Free tier | Free tier can purchase add-on | P1 |
+| PE-003 | Enable trial for plan | Super Admin | 1. PUT trialEnabled: true | Trial available for that plan tier | P1 |
+| PE-004 | Set max quantity | Super Admin | 1. PUT maxQuantity: 5 | Tenant limited to 5 instances | P2 |
+| PE-005 | Eligibility matrix view | Super Admin | 1. View Eligibility Tab | Matrix shows plans × add-ons with states | P1 |
+| PE-006 | 3-state toggle (blocked → trial → enabled) | Super Admin | 1. Click cell to cycle states | State changes: blocked → trial → enabled | P1 |
+
+### 20.5 Audit Logs
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| AUD-001 | View marketplace audit logs | Super Admin | 1. GET /api/super-admin/marketplace/audit-logs | Audit entries returned | P0 |
+| AUD-002 | Filter logs by action | Super Admin | 1. GET with ?action=create | Only create actions shown | P1 |
+| AUD-003 | Filter logs by add-on | Super Admin | 1. GET with ?addonId=xxx | Only logs for that add-on | P1 |
+| AUD-004 | Pagination | Super Admin | 1. GET with ?page=2&limit=20 | Paginated results | P2 |
+| AUD-005 | Log contains admin info | Audit log exists | 1. View log entry | Shows adminId, adminEmail, timestamp | P1 |
+
+---
+
+## 21. Add-on Gating & Permissions
+
+### 21.1 Tenant Add-on Access
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| TAG-001 | Browse marketplace | Any authenticated user | 1. Navigate to /marketplace | Add-on catalog displayed | P0 |
+| TAG-002 | Start trial - Tenant Admin | Tenant Admin, eligible plan | 1. Click Start Trial<br>2. Confirm | Trial started, add-on accessible | P0 |
+| TAG-003 | Start trial - non-admin | Staff user | 1. Try starting trial | 403 TENANT_ADMIN_REQUIRED | P0 |
+| TAG-004 | Purchase add-on | Tenant Admin | 1. Click Purchase<br>2. Complete payment | Subscription created | P0 |
+| TAG-005 | Cancel subscription | Tenant Admin | 1. Navigate to subscriptions<br>2. Cancel | Subscription cancelled at period end | P1 |
+
+### 21.2 Feature Gating (useFeatureGate Hook)
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| FG-001 | Feature unlocked | Add-on active, correct plan | 1. Access gated feature | Feature accessible | P0 |
+| FG-002 | Feature locked - no add-on | Add-on not purchased | 1. Access gated feature | Locked modal with upsell CTA | P0 |
+| FG-003 | Feature locked - wrong plan | Basic plan, Pro required | 1. Access gated feature | Locked modal with upgrade CTA | P0 |
+| FG-004 | Feature locked - wrong country | Add-on not available in country | 1. Access gated feature | Locked modal or hidden | P1 |
+| FG-005 | Trial feature access | Add-on in trial period | 1. Access gated feature | Feature accessible, trial banner shown | P0 |
+| FG-006 | Expired trial access | Trial ended | 1. Access gated feature | Locked modal with purchase CTA | P0 |
+
+### 21.3 Smart Upsell Engine
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| USL-001 | Employee limit nudge (80%) | Payroll active, 4/5 employees | 1. View HR section | High priority upgrade nudge | P1 |
+| USL-002 | Employee limit nudge (95%) | Payroll active, near limit | 1. View HR section | Critical priority nudge | P1 |
+| USL-003 | Bundle suggestion | Has HRMS, no Payroll | 1. View upgrade options | Suggests HR Complete Bundle | P2 |
+| USL-004 | Trial expiry reminder | Trial ends in 3 days | 1. View dashboard | Trial expiry reminder | P1 |
+
+---
+
+## 22. Business Modules (Industry-Specific)
+
+### 22.1 Coworking Module
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| COW-001 | View desks (JWT auth) | JWT user, Coworking tenant | 1. GET /api/coworking/desks | Desks list returned | P0 |
+| COW-002 | View desks (Session auth) | Session user, Coworking tenant | 1. GET /api/coworking/desks | Desks list returned (no 401) | P0 |
+| COW-003 | Create desk booking | Authenticated user | 1. POST /api/coworking/bookings | Booking created | P0 |
+| COW-004 | View spaces | Authenticated user | 1. GET /api/coworking/spaces | Spaces list returned | P1 |
+| COW-005 | Meeting room booking | Coworking tenant | 1. Book meeting room with time slot | Booking created, conflicts checked | P1 |
+
+### 22.2 General Service Module
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| GS-001 | View services (JWT) | JWT user | 1. GET /api/general-service/services | Services returned | P0 |
+| GS-002 | View services (Session) | Session user | 1. GET /api/general-service/services | Services returned | P0 |
+| GS-003 | Create booking | Authenticated user | 1. POST /api/general-service/bookings | Booking created | P0 |
+
+### 22.3 Logistics Module
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| LOG-001 | View shipments | Logistics tenant | 1. GET /api/logistics/shipments | Shipments list returned | P0 |
+| LOG-002 | View vehicles | Logistics tenant | 1. GET /api/logistics/vehicles | Vehicles list returned | P0 |
+| LOG-003 | View drivers | Logistics tenant | 1. GET /api/logistics/drivers | Drivers list returned | P0 |
+| LOG-004 | View trips | Logistics tenant | 1. GET /api/logistics/trips | Trips list returned | P0 |
+| LOG-005 | Vehicle maintenance | Logistics tenant | 1. GET /api/logistics/maintenance | Maintenance records returned | P1 |
+| LOG-006 | Route optimization | Logistics tenant | 1. POST optimize route | Optimized route returned | P2 |
+
+### 22.4 Real Estate Module
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| RE-001 | View properties | Real Estate tenant | 1. GET /api/real-estate/properties | Properties returned | P0 |
+| RE-002 | View listings | Real Estate tenant | 1. GET /api/real-estate/listings | Listings returned | P0 |
+| RE-003 | View leads | Real Estate tenant | 1. GET /api/real-estate/leads | Leads returned | P0 |
+| RE-004 | Site visits | Real Estate tenant | 1. GET /api/real-estate/site-visits | Site visits returned | P1 |
+| RE-005 | Agent management | Real Estate tenant | 1. GET /api/real-estate/agents | Agents returned | P1 |
+| RE-006 | Commission tracking | Real Estate tenant | 1. GET /api/real-estate/commissions | Commissions returned | P1 |
+
+### 22.5 Education Module
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| EDU-001 | View students | Education tenant | 1. GET /api/education/students | Students returned | P0 |
+| EDU-002 | View courses | Education tenant | 1. GET /api/education/courses | Courses returned | P0 |
+| EDU-003 | View batches | Education tenant | 1. GET /api/education/batches | Batches returned | P0 |
+| EDU-004 | Attendance tracking | Education tenant | 1. GET /api/education/attendance | Attendance records | P1 |
+| EDU-005 | Exam management | Education tenant | 1. GET /api/education/exams | Exams returned | P1 |
+| EDU-006 | Fee tracking | Education tenant | 1. GET /api/education/fees | Fee records returned | P1 |
+| EDU-007 | Risk predictions | Education tenant | 1. GET /api/education/risk-predictions | Risk data returned | P2 |
+
+---
+
+## 23. Legal Services Module
+
+### 23.1 Client Management
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| LEG-001 | View clients list | Legal Services tenant | 1. Navigate to /dashboard/legal/clients | Clients list displayed | P0 |
+| LEG-002 | Create client (JWT) | JWT authenticated | 1. Click Add Client<br>2. Fill details<br>3. Save | Client created | P0 |
+| LEG-003 | Create client (Session) | Session authenticated | 1. Click Add Client<br>2. Fill details<br>3. Save | Client created (no 401) | P0 |
+| LEG-004 | Edit client | Client exists | 1. Edit client details<br>2. Save | Client updated | P1 |
+| LEG-005 | Search clients | Clients exist | 1. Enter search term | Filtered results | P1 |
+
+### 23.2 Case Management
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| LEG-006 | View cases list | Legal tenant | 1. Navigate to /dashboard/legal/cases | Cases list displayed | P0 |
+| LEG-007 | Create case | Client exists | 1. Click Add Case<br>2. Select client<br>3. Fill details<br>4. Save | Case created | P0 |
+| LEG-008 | Case status workflow | Case exists | 1. Change status (Open → In Progress → Closed) | Status updated | P1 |
+| LEG-009 | Link documents to case | Case exists | 1. Upload document<br>2. Link to case | Document linked | P1 |
+
+### 23.3 Legal Appointments
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| LEG-010 | View appointments | Legal tenant | 1. Navigate to /dashboard/legal/appointments | Appointments displayed | P0 |
+| LEG-011 | Create appointment | Client exists | 1. Schedule new appointment | Appointment created | P0 |
+| LEG-012 | Appointment conflict check | Existing appointment | 1. Book overlapping time | Warning or error shown | P1 |
+
+### 23.4 Legal Documents
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| LEG-013 | View documents | Legal tenant | 1. Navigate to /dashboard/legal/documents | Documents list displayed | P0 |
+| LEG-014 | Upload document | Legal tenant | 1. Upload document | Document stored | P1 |
+| LEG-015 | Document categorization | Documents exist | 1. Filter by category | Filtered results | P2 |
+
+### 23.5 Legal Billing
+
+| ID | Scenario | Preconditions | Test Steps | Expected Result | Priority |
+|----|----------|---------------|------------|-----------------|----------|
+| LEG-016 | View billing entries | Legal tenant | 1. Navigate to /dashboard/legal/billing | Billing records displayed | P0 |
+| LEG-017 | Create billing entry | Case exists | 1. Add time entry or expense | Entry created | P0 |
+| LEG-018 | Generate invoice from entries | Billing entries exist | 1. Select entries<br>2. Generate invoice | Invoice created | P1 |
+
+---
+
 ## Appendix C: Defect Severity
 
 | Severity | Description | Example |
@@ -711,6 +1031,35 @@
 | High (P1) | Major feature broken, no workaround | Cannot create invoices |
 | Medium (P2) | Feature impaired, workaround exists | Filter not working, can use search |
 | Low (P3) | Minor issue, cosmetic | Alignment off, typo |
+
+---
+
+## Appendix D: New Test Coverage Summary (v2.0)
+
+| Area | Test Cases | Priority Distribution |
+|------|------------|----------------------|
+| Hybrid Authentication | HYB-001 to HYB-020 | 18 P0, 2 P1 |
+| HR Foundation | HRF-001 to HRF-008 | 7 P0, 1 P1 |
+| HRMS Suite | HRMS-001 to HRMS-007 | 6 P0, 1 P1 |
+| Sidebar Navigation Gating | NAV-001 to NAV-004 | 4 P0 |
+| Payroll Access | PAY-001 to PAY-005 | 5 P0 |
+| Employee Limit Enforcement | EMP-001 to EMP-004 | 3 P0, 1 P1 |
+| Read-Only Mode | RO-001 to RO-005 | 4 P0, 1 P1 |
+| Malaysia Payroll Tiers | MY-001 to MY-005 | 1 P0, 4 P1 |
+| Marketplace Management | MKT-001 to MKT-004 | 4 P0 |
+| Add-on Catalog | CAT-001 to CAT-006 | 2 P0, 4 P1 |
+| Country Rollout | CR-001 to CR-006 | 2 P0, 4 P1 |
+| Plan Eligibility | PE-001 to PE-006 | 1 P0, 3 P1, 2 P2 |
+| Audit Logs | AUD-001 to AUD-005 | 1 P0, 3 P1, 1 P2 |
+| Tenant Add-on Access | TAG-001 to TAG-005 | 4 P0, 1 P1 |
+| Feature Gating | FG-001 to FG-006 | 5 P0, 1 P1 |
+| Smart Upsell | USL-001 to USL-004 | 0 P0, 2 P1, 2 P2 |
+| Coworking Module | COW-001 to COW-005 | 3 P0, 2 P1 |
+| General Service | GS-001 to GS-003 | 3 P0 |
+| Logistics Module | LOG-001 to LOG-006 | 4 P0, 1 P1, 1 P2 |
+| Real Estate Module | RE-001 to RE-006 | 3 P0, 3 P1 |
+| Education Module | EDU-001 to EDU-007 | 3 P0, 3 P1, 1 P2 |
+| Legal Services | LEG-001 to LEG-018 | 7 P0, 8 P1, 1 P2 |
 
 ---
 
