@@ -31,6 +31,11 @@ import TourismDashboard from "@/pages/tourism-dashboard";
 import EducationDashboard from "@/pages/education-dashboard";
 import LogisticsDashboard from "@/pages/logistics-dashboard";
 import LegalDashboard from "@/pages/legal-dashboard";
+import LegalClients from "@/pages/legal/clients";
+import LegalCases from "@/pages/legal/cases";
+import LegalAppointments from "@/pages/legal/appointments";
+import LegalDocuments from "@/pages/legal/documents";
+import LegalBilling from "@/pages/legal/billing";
 import FurnitureDashboard from "@/pages/furniture-dashboard";
 import FurnitureProducts from "@/pages/furniture/products";
 import FurnitureRawMaterials from "@/pages/furniture/raw-materials";
@@ -198,6 +203,31 @@ function AuthenticatedRoutes() {
       <Route path="/dashboard/legal">
         <DashboardGuard allowedBusinessType="legal">
           <LegalDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/legal/clients">
+        <DashboardGuard allowedBusinessType="legal">
+          <LegalClients />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/legal/cases">
+        <DashboardGuard allowedBusinessType="legal">
+          <LegalCases />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/legal/appointments">
+        <DashboardGuard allowedBusinessType="legal">
+          <LegalAppointments />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/legal/documents">
+        <DashboardGuard allowedBusinessType="legal">
+          <LegalDocuments />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/legal/billing">
+        <DashboardGuard allowedBusinessType="legal">
+          <LegalBilling />
         </DashboardGuard>
       </Route>
       <Route path="/dashboard/furniture">

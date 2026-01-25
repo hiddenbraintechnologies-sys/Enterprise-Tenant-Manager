@@ -23,6 +23,8 @@ import {
   FileText,
   BadgeCheck,
   Puzzle,
+  Briefcase,
+  DollarSign,
 } from "lucide-react";
 import {
   Sidebar,
@@ -127,11 +129,11 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   ],
   legal: [
     { title: "Dashboard", url: "/dashboard/legal", icon: LayoutDashboard },
-    { title: "Clients", url: "/clients", icon: Users },
-    { title: "Cases", url: "/cases", icon: Package },
-    { title: "Appointments", url: "/appointments", icon: Calendar },
-    { title: "Documents", url: "/documents", icon: Package },
-    { title: "Billing", url: "/billing", icon: Package },
+    { title: "Clients", url: "/dashboard/legal/clients", icon: Users },
+    { title: "Cases", url: "/dashboard/legal/cases", icon: Briefcase },
+    { title: "Appointments", url: "/dashboard/legal/appointments", icon: Calendar },
+    { title: "Documents", url: "/dashboard/legal/documents", icon: FileText },
+    { title: "Billing", url: "/dashboard/legal/billing", icon: DollarSign },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
   furniture_manufacturing: [
