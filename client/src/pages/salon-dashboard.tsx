@@ -117,8 +117,8 @@ export default function SalonDashboard() {
               <p className="mt-4 text-sm text-muted-foreground">
                 No appointments scheduled for today
               </p>
-              <Button className="mt-4" asChild>
-                <Link href="/bookings">
+              <Button className="mt-4" asChild data-testid="button-book-appointment">
+                <Link href="/bookings?action=new">
                   <Plus className="mr-2 h-4 w-4" />
                   Book Appointment
                 </Link>
@@ -143,8 +143,8 @@ export default function SalonDashboard() {
               <p className="mt-4 text-sm text-muted-foreground">
                 No services added yet
               </p>
-              <Button className="mt-4" asChild>
-                <Link href="/services">
+              <Button className="mt-4" asChild data-testid="button-add-service">
+                <Link href="/services?action=new">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Service
                 </Link>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -501,11 +502,23 @@ function BookingDialog({
 }
 
 export default function Bookings() {
+  const [, setLocation] = useLocation();
+  const searchParams = useSearch();
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
   const { formatCurrency } = useCountry();
+
+  // Auto-open dialog if action=new is in query params
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    if (params.get("action") === "new") {
+      setDialogOpen(true);
+      // Clear the query parameter after opening
+      setLocation("/bookings", { replace: true });
+    }
+  }, [searchParams, setLocation]);
 
   const { data: bookings, isLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/bookings"],
