@@ -32,6 +32,12 @@ import RealEstateLeads from "@/pages/real-estate/leads";
 import TourismDashboard from "@/pages/tourism-dashboard";
 import EducationDashboard from "@/pages/education-dashboard";
 import LogisticsDashboard from "@/pages/logistics-dashboard";
+import LogisticsVehicles from "@/pages/logistics/vehicles";
+import LogisticsDrivers from "@/pages/logistics/drivers";
+import LogisticsTrips from "@/pages/logistics/trips";
+import LogisticsShipments from "@/pages/logistics/shipments";
+import LogisticsTracking from "@/pages/logistics/tracking";
+import LogisticsMaintenance from "@/pages/logistics/maintenance";
 import LegalDashboard from "@/pages/legal-dashboard";
 import LegalClients from "@/pages/legal/clients";
 import LegalCases from "@/pages/legal/cases";
@@ -195,6 +201,36 @@ function AuthenticatedRoutes() {
       <Route path="/dashboard/education">
         <DashboardGuard allowedBusinessType="education">
           <EducationDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/logistics/vehicles">
+        <DashboardGuard allowedBusinessType="logistics">
+          <LogisticsVehicles />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/logistics/drivers">
+        <DashboardGuard allowedBusinessType="logistics">
+          <LogisticsDrivers />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/logistics/trips">
+        <DashboardGuard allowedBusinessType="logistics">
+          <LogisticsTrips />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/logistics/shipments">
+        <DashboardGuard allowedBusinessType="logistics">
+          <LogisticsShipments />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/logistics/tracking">
+        <DashboardGuard allowedBusinessType="logistics">
+          <LogisticsTracking />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/logistics/maintenance">
+        <DashboardGuard allowedBusinessType="logistics">
+          <LogisticsMaintenance />
         </DashboardGuard>
       </Route>
       <Route path="/dashboard/logistics">

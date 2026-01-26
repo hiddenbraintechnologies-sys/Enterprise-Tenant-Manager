@@ -119,12 +119,12 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   ],
   logistics: [
     { title: "Dashboard", url: "/dashboard/logistics", icon: LayoutDashboard },
-    { title: "Vehicles", url: "/vehicles", icon: Package },
-    { title: "Drivers", url: "/drivers", icon: Users },
-    { title: "Trips", url: "/trips", icon: MapPin },
-    { title: "Shipments", url: "/shipments", icon: Package },
-    { title: "Tracking", url: "/tracking", icon: MapPin },
-    { title: "Maintenance", url: "/maintenance", icon: Settings },
+    { title: "Vehicles", url: "/dashboard/logistics/vehicles", icon: Package },
+    { title: "Drivers", url: "/dashboard/logistics/drivers", icon: Users },
+    { title: "Trips", url: "/dashboard/logistics/trips", icon: MapPin },
+    { title: "Shipments", url: "/dashboard/logistics/shipments", icon: Package },
+    { title: "Tracking", url: "/dashboard/logistics/tracking", icon: MapPin },
+    { title: "Maintenance", url: "/dashboard/logistics/maintenance", icon: Settings },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
   legal: [
