@@ -800,7 +800,7 @@ export default function Marketplace() {
               />
             </div>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-[180px]" data-testid="select-category">
+              <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-category">
                 <Filter className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Category" />
               </SelectTrigger>

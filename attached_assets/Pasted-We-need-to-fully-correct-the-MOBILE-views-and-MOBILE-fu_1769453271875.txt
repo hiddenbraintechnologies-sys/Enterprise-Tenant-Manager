@@ -1,0 +1,190 @@
+We need to fully correct the MOBILE views and MOBILE functionality of the entire application. 
+This is a production system with multi-tenant SaaS, RBAC, plans, add-ons, HRMS, Payroll, Marketplace, Super Admin, and Tenant dashboards.
+
+Goal:
+The app must be fully usable on mobile (Android + iOS browsers) with no broken flows, hidden actions, or blocked functionality.
+
+This is NOT cosmetic only — fix UX, navigation, forms, modals, permissions, and flows.
+
+====================================================
+A) GLOBAL MOBILE FOUNDATIONS (MANDATORY)
+====================================================
+
+1) Viewport & Layout
+- Verify <meta name="viewport"> is correct.
+- Ensure no fixed-width containers (min-width, max-width bugs).
+- Remove horizontal scrolling everywhere.
+- Ensure all pages use responsive layout (flex/grid with breakpoints).
+
+2) Touch Targets
+- Buttons, icons, menu items must be >= 44px height.
+- Dropdowns, toggles, checkboxes must be finger-friendly.
+
+3) Typography
+- Base font readable on mobile (no 12px text).
+- Headings wrap correctly.
+- No text overflow or clipping.
+
+====================================================
+B) NAVIGATION (CRITICAL)
+====================================================
+
+4) Sidebar → Mobile Navigation
+- Sidebar must collapse into a mobile drawer or bottom nav.
+- Hamburger menu must work on all dashboards:
+  - Tenant dashboard
+  - Super Admin dashboard
+- Ensure:
+  - Menu opens/closes correctly
+  - Active state highlights correctly
+  - Menu does NOT disappear on route change
+
+5) Route Guards
+- Ensure mobile navigation respects:
+  - Super Admin vs Tenant vs Public
+  - Marketplace permissions
+  - HRMS/Payroll dependencies
+- No redirect loops on mobile.
+
+====================================================
+C) AUTH + ONBOARDING (HIGH PRIORITY)
+====================================================
+
+6) Login / Register / Country Selection
+- Country selector modal must be usable on mobile.
+- Registration form:
+  - Scrollable
+  - Keyboard does not hide inputs
+  - Submit button always visible
+- Login (email + password + tenant discovery):
+  - Tenant picker modal usable on mobile
+  - No clipped dialogs
+
+7) Packages / Plans Page
+- Pricing cards stack vertically
+- CTA buttons always visible
+- Language switching works on mobile
+- No overflow in multilingual text (EN/HI/MS/TA)
+
+====================================================
+D) TENANT DASHBOARD (CORE FLOWS)
+====================================================
+
+8) Dashboard Cards
+- Cards stack vertically
+- Actions accessible without hover
+- No hidden “…” menus that are unreachable on mobile
+
+9) Marketplace (Very Important)
+- Add-on cards stack correctly
+- Install / Trial / Buy buttons clickable
+- No infinite “Processing” spinners
+- Errors (401, limits) visible and readable
+- After install, state updates correctly
+
+10) HR Foundation / HRMS / Payroll
+- Employees page:
+  - Table → mobile card/list view
+  - Add employee form usable
+  - Employee limit errors visible
+- HRMS:
+  - Attendance/Leave/Timesheets usable on mobile
+- Payroll:
+  - Payroll run, payslip view readable
+  - Download buttons accessible
+
+====================================================
+E) TABLES → MOBILE ADAPTATION
+====================================================
+
+11) Convert Large Tables
+For all tables:
+- Tenants
+- Users
+- Employees
+- Payroll runs
+- Invoices
+- Marketplace analytics
+
+Implement:
+- Mobile card view OR
+- Horizontal scroll with sticky first column OR
+- Expandable rows
+
+No table should overflow viewport.
+
+====================================================
+F) FORMS, MODALS & ERRORS
+====================================================
+
+12) Forms
+- All forms must scroll correctly
+- Sticky submit button on mobile
+- Validation messages visible inline
+- No modal taller than viewport without scroll
+
+13) Modals & Dialogs
+- Centered properly
+- Close button reachable
+- Keyboard safe (input not hidden)
+
+14) Error Handling
+- All API errors show readable mobile-friendly alerts
+- No console-only errors
+- No silent failures
+
+====================================================
+G) SUPER ADMIN (MOBILE SAFE)
+====================================================
+
+15) Super Admin Dashboard
+- Sidebar drawer works
+- Marketplace Catalog usable
+- Country Rollouts matrix:
+  - Convert matrix into stacked cards on mobile
+- Tenant details readable
+- Delete/Wipe modals usable
+
+====================================================
+H) PERFORMANCE & STABILITY
+====================================================
+
+16) Loading States
+- Skeleton loaders instead of blank screens
+- No permanent spinners
+
+17) Memory & Scroll
+- No scroll-lock bugs
+- Modal close restores scroll
+
+====================================================
+I) TESTING & VERIFICATION (REQUIRED)
+====================================================
+
+18) Test on:
+- Chrome Android emulation
+- iPhone viewport (Safari-like)
+- Real mobile touch assumptions
+
+19) Mandatory verification flows:
+- Register → Select plan → Dashboard (mobile)
+- Marketplace → Install Payroll (mobile)
+- Create Employee (mobile)
+- Super Admin → Marketplace Catalog (mobile)
+
+====================================================
+J) DELIVERABLES
+====================================================
+
+Return:
+1) List of files changed (grouped by area)
+2) Summary of fixes per section (Nav, Forms, Tables, Marketplace)
+3) Known limitations (if any)
+4) Confirmation:
+   - No desktop regressions
+   - RBAC intact
+   - HRMS/Payroll dependency intact
+
+DO NOT introduce new features.
+DO NOT change business logic.
+ONLY fix mobile UX + mobile functionality.

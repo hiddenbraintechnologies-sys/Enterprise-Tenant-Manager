@@ -301,3 +301,67 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .dark input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
+
+/* ========================================
+   MOBILE RESPONSIVENESS UTILITIES
+   ======================================== */
+
+/* Horizontal scroll for tables on mobile */
+.table-scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+}
+
+/* Ensure minimum touch target size (44x44px) for interactive elements */
+@media (max-width: 767px) {
+  /* Mobile-safe dialogs - ensure they don't exceed viewport */
+  [role="dialog"] {
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+  
+  /* Prevent horizontal overflow on mobile */
+  .overflow-x-hidden-mobile {
+    overflow-x: hidden;
+  }
+  
+  /* Mobile card stacking */
+  .mobile-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  /* Ensure touch targets are finger-friendly for form controls (excludes icon buttons) */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 2.5rem; /* 40px minimum */
+  }
+  
+  /* Prevent zoom on iOS when focusing inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Sticky submit button for forms on mobile */
+.mobile-sticky-footer {
+  @media (max-width: 767px) {
+    position: sticky;
+    bottom: 0;
+    background: hsl(var(--background));
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-top: 1px solid hsl(var(--border));
+    margin-top: auto;
+  }
+}

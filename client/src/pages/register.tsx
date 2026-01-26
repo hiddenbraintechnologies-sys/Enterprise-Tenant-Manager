@@ -245,7 +245,7 @@ export default function Register() {
         </div>
       </nav>
 
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6 py-12">
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-6 sm:px-6 sm:py-12">
         <Card className="w-full max-w-lg">
           <CardHeader className="space-y-1">
             <div className="flex items-center gap-2">

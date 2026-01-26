@@ -270,7 +270,7 @@ export default function Login() {
         <ThemeToggle />
       </header>
 
-      <div className="flex items-center justify-center p-8">
+      <div className="flex items-center justify-center p-4 sm:p-8 min-h-[calc(100vh-4rem)]">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto flex items-center gap-2 mb-4">
