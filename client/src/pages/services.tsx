@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -309,11 +310,23 @@ function ServiceCard({
 }
 
 export default function Services() {
+  const [, setLocation] = useLocation();
+  const searchParams = useSearch();
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | undefined>();
   const { toast } = useToast();
   const { formatCurrency, country } = useCountry();
+
+  // Auto-open dialog if action=new is in query params
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    if (params.get("action") === "new") {
+      setDialogOpen(true);
+      // Clear the query parameter after opening
+      setLocation("/services", { replace: true });
+    }
+  }, [searchParams, setLocation]);
 
   const { data: services, isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],

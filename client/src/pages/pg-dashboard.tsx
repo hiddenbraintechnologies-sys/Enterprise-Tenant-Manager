@@ -103,7 +103,7 @@ export default function PGDashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-lg">Room Occupancy</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/pg/rooms">
+              <Link href="/services">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -115,8 +115,8 @@ export default function PGDashboard() {
               <p className="mt-4 text-sm text-muted-foreground">
                 No rooms configured yet
               </p>
-              <Button className="mt-4" asChild>
-                <Link href="/pg/rooms/new">
+              <Button className="mt-4" asChild data-testid="button-add-room">
+                <Link href="/services?action=new">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Room
                 </Link>
@@ -129,7 +129,7 @@ export default function PGDashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-lg">Recent Tenants</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/pg/tenants">
+              <Link href="/customers">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -141,8 +141,8 @@ export default function PGDashboard() {
               <p className="mt-4 text-sm text-muted-foreground">
                 No tenants registered yet
               </p>
-              <Button className="mt-4" asChild>
-                <Link href="/pg/tenants/new">
+              <Button className="mt-4" asChild data-testid="button-add-tenant">
+                <Link href="/customers?action=new">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Tenant
                 </Link>

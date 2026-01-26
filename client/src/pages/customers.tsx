@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -319,6 +320,8 @@ interface PortalSettings {
 }
 
 export default function Customers() {
+  const [, setLocation] = useLocation();
+  const searchParams = useSearch();
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
@@ -326,6 +329,16 @@ export default function Customers() {
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Auto-open dialog if action=new is in query params
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    if (params.get("action") === "new") {
+      setDialogOpen(true);
+      // Clear the query parameter after opening
+      setLocation("/customers", { replace: true });
+    }
+  }, [searchParams, setLocation]);
 
   const { data: customers, isLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
