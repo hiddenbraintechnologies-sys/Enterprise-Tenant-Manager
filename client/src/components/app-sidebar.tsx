@@ -97,7 +97,8 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
     { title: "Properties", url: "/properties", icon: Building2 },
     { title: "Listings", url: "/listings", icon: Home },
     { title: "Leads", url: "/leads", icon: Users },
-    { title: "Site Visits", url: "/site-visits", icon: MapPin },
+    { title: "Site Visits", url: "/bookings", icon: MapPin },
+    { title: "Customers", url: "/customers", icon: Users },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
   tourism: [
