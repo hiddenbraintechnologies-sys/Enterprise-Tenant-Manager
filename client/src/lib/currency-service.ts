@@ -1,4 +1,5 @@
 import type { ExchangeRate } from "@shared/schema";
+import { apiRequest } from "./queryClient";
 
 export interface CurrencyConfig {
   code: string;
@@ -258,13 +259,10 @@ export async function fetchExchangeRate(
   toCurrency: string
 ): Promise<ExchangeRate | null> {
   try {
-    const response = await fetch(
+    const response = await apiRequest(
+      "GET",
       `/api/exchange-rates/${fromCurrency}/${toCurrency}`
     );
-    
-    if (!response.ok) {
-      return null;
-    }
     
     return response.json();
   } catch (error) {
@@ -279,17 +277,11 @@ export async function convertCurrency(
   toCurrency: string
 ): Promise<{ convertedAmount: number; rate: number; decimalPlaces: number } | null> {
   try {
-    const response = await fetch("/api/exchange-rates/convert", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ amount, fromCurrency, toCurrency }),
+    const response = await apiRequest("POST", "/api/exchange-rates/convert", {
+      amount,
+      fromCurrency,
+      toCurrency,
     });
-    
-    if (!response.ok) {
-      return null;
-    }
     
     const data = await response.json();
     return {
