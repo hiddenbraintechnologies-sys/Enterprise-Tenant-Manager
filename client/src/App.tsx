@@ -308,11 +308,6 @@ function AuthenticatedRoutes() {
         </DashboardGuard>
       </Route>
       
-      <Route path="/coworking">
-        <DashboardGuard allowedBusinessType="coworking">
-          <CoworkingDashboard />
-        </DashboardGuard>
-      </Route>
       <Route path="/coworking/desks">
         <DashboardGuard allowedBusinessType="coworking">
           <ModuleGuard moduleId="desks">
@@ -339,6 +334,11 @@ function AuthenticatedRoutes() {
           <ModuleGuard moduleId="bookings">
             <CoworkingBookings />
           </ModuleGuard>
+        </DashboardGuard>
+      </Route>
+      <Route path="/coworking">
+        <DashboardGuard allowedBusinessType="coworking">
+          <CoworkingDashboard />
         </DashboardGuard>
       </Route>
       
