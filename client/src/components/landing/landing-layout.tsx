@@ -87,16 +87,13 @@ export function LandingLayout({ children, showCountryPrompt = false }: LandingLa
               <LandingLanguageSelector countryCode={currentCountry} />
             </div>
             <ThemeToggle />
-            <Button variant="ghost" asChild className="hidden md:inline-flex" data-testid="button-signin">
+            <Button variant="ghost" size="sm" asChild data-testid="button-signin" className="sm:hidden">
+              <a href="/login">Login</a>
+            </Button>
+            <Button variant="ghost" asChild className="hidden sm:inline-flex" data-testid="button-signin-desktop">
               <a href="/login">Sign In</a>
             </Button>
-            <Button size="sm" asChild data-testid="button-get-started-nav" className="sm:hidden">
-              <a href="/register">
-                Start
-                <ArrowRight className="ml-1 h-3 w-3" />
-              </a>
-            </Button>
-            <Button asChild data-testid="button-get-started-nav-full" className="hidden sm:inline-flex">
+            <Button asChild data-testid="button-get-started-nav" className="hidden sm:inline-flex">
               <a href="/register">
                 Get Started
                 <ArrowRight className="ml-2 h-4 w-4" />
