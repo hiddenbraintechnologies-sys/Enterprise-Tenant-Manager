@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,6 +106,18 @@ function CustomerDialog({
       notes: customer?.notes ?? "",
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: customer?.name ?? "",
+        email: customer?.email ?? "",
+        phone: customer?.phone ?? "",
+        address: customer?.address ?? "",
+        notes: customer?.notes ?? "",
+      });
+    }
+  }, [open, customer, form]);
 
   const mutation = useMutation({
     mutationFn: async (data: CustomerFormValues) => {
