@@ -422,29 +422,55 @@ function BookingDialog({
             <FormField
               control={form.control}
               name="startTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Start Time</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-booking-time">
-                        <SelectValue placeholder="Select time" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-60">
-                      {timeSlots.filter((t) => {
-                        const hour = parseInt(t.split(":")[0]);
-                        return hour >= 6 && hour < 22;
-                      }).map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const selectedDate = form.watch("bookingDate");
+                const isToday = selectedDate && format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+                const currentHour = new Date().getHours();
+                const currentMinute = new Date().getMinutes();
+                
+                const availableTimeSlots = timeSlots.filter((t) => {
+                  const [hourStr, minStr] = t.split(":");
+                  const hour = parseInt(hourStr);
+                  const min = parseInt(minStr);
+                  
+                  if (hour < 6 || hour >= 22) return false;
+                  
+                  if (isToday) {
+                    if (hour < currentHour) return false;
+                    if (hour === currentHour && min <= currentMinute) return false;
+                  }
+                  
+                  return true;
+                });
+                
+                return (
+                  <FormItem>
+                    <FormLabel>Start Time</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-booking-time">
+                          <SelectValue placeholder="Select time" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-60">
+                        {availableTimeSlots.length > 0 ? (
+                          availableTimeSlots.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                            No available time slots for today
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {isToday && <p className="text-xs text-muted-foreground">Only future time slots are shown</p>}
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
             <FormField
               control={form.control}
