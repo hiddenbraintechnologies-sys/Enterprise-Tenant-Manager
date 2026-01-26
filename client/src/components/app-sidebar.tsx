@@ -103,7 +103,8 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   tourism: [
     { title: "Dashboard", url: "/dashboard/tourism", icon: LayoutDashboard },
     { title: "Packages", url: "/dashboard/tourism/packages", icon: Package },
-    { title: "Bookings", url: "/dashboard/tourism/bookings", icon: Calendar },
+    { title: "Services", url: "/services", icon: Scissors },
+    { title: "Bookings", url: "/bookings", icon: Calendar },
     { title: "Customers", url: "/customers", icon: Users },
     { title: "Itineraries", url: "/dashboard/tourism/itineraries", icon: MapPin },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
