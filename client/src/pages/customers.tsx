@@ -82,11 +82,21 @@ function getPhoneErrorMessage(): string {
   return rules?.message || "Phone number must be 7-15 digits";
 }
 
+const TAX_ID_CONFIG_BY_COUNTRY: Record<string, { label: string; placeholder: string; pattern?: RegExp; type: string }> = {
+  IN: { label: "GSTIN", placeholder: "22AAAAA0000A1Z5", pattern: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, type: "gstin" },
+  MY: { label: "SST Number", placeholder: "W12-3456-78901234", type: "sst" },
+  UK: { label: "VAT Number", placeholder: "GB123456789", type: "vat" },
+  AE: { label: "TRN", placeholder: "100123456700003", type: "trn" },
+  SG: { label: "GST Reg No", placeholder: "M12345678X", type: "gst" },
+  US: { label: "EIN/Tax ID", placeholder: "12-3456789", type: "ein" },
+};
+
 const customerFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional().refine(validatePhoneForCountry, { message: "Invalid phone number for selected country" }),
   address: z.string().optional(),
+  taxId: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -113,6 +123,7 @@ function CustomerDialog({
       email: customer?.email ?? "",
       phone: customer?.phone ?? "",
       address: customer?.address ?? "",
+      taxId: customer?.taxId ?? "",
       notes: customer?.notes ?? "",
     },
   });
@@ -124,6 +135,7 @@ function CustomerDialog({
         email: customer?.email ?? "",
         phone: customer?.phone ?? "",
         address: customer?.address ?? "",
+        taxId: customer?.taxId ?? "",
         notes: customer?.notes ?? "",
       });
     }
@@ -245,6 +257,27 @@ function CustomerDialog({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+            <FormField
+              control={form.control}
+              name="taxId"
+              render={({ field }) => {
+                const country = localStorage.getItem("selectedCountry") || "IN";
+                const taxConfig = TAX_ID_CONFIG_BY_COUNTRY[country] || { label: "Tax ID", placeholder: "Tax identification number", type: "other" };
+                return (
+                  <FormItem>
+                    <FormLabel>{taxConfig.label} (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder={taxConfig.placeholder} 
+                        {...field} 
+                        data-testid="input-customer-tax-id" 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
             <FormField
               control={form.control}

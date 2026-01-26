@@ -843,6 +843,8 @@ export const customers = pgTable("customers", {
   email: text("email"),
   phone: text("phone"),
   address: text("address"),
+  taxId: varchar("tax_id", { length: 50 }), // GSTIN (India), VAT (UK/UAE), SST (Malaysia), EIN (US)
+  taxIdType: varchar("tax_id_type", { length: 20 }), // gstin, vat, sst, ein
   notes: text("notes"),
   tags: jsonb("tags").default([]),
   customFields: jsonb("custom_fields").default({}),
