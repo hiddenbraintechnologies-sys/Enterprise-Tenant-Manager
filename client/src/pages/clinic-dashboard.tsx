@@ -105,7 +105,7 @@ export default function ClinicDashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-lg">Today's Appointments</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/clinic/appointments">
+              <Link href="/bookings">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -117,8 +117,8 @@ export default function ClinicDashboard() {
               <p className="mt-4 text-sm text-muted-foreground">
                 No appointments scheduled for today
               </p>
-              <Button className="mt-4" asChild>
-                <Link href="/clinic/appointments/new">
+              <Button className="mt-4" asChild data-testid="button-schedule-appointment">
+                <Link href="/bookings?action=new">
                   <Plus className="mr-2 h-4 w-4" />
                   Schedule Appointment
                 </Link>
@@ -131,7 +131,7 @@ export default function ClinicDashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-lg">Recent Patients</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/clinic/patients">
+              <Link href="/customers">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -143,8 +143,8 @@ export default function ClinicDashboard() {
               <p className="mt-4 text-sm text-muted-foreground">
                 No patients registered yet
               </p>
-              <Button className="mt-4" asChild>
-                <Link href="/clinic/patients/new">
+              <Button className="mt-4" asChild data-testid="button-add-patient">
+                <Link href="/customers?action=new">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Patient
                 </Link>
