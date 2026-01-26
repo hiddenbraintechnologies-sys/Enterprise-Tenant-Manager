@@ -30,7 +30,16 @@ import RealEstateProperties from "@/pages/real-estate/properties";
 import RealEstateListings from "@/pages/real-estate/listings";
 import RealEstateLeads from "@/pages/real-estate/leads";
 import TourismDashboard from "@/pages/tourism-dashboard";
+import TourismPackages from "@/pages/tourism/tour-packages";
+import TourismBookings from "@/pages/tourism/tour-bookings";
+import TourismItineraries from "@/pages/tourism/itineraries";
 import EducationDashboard from "@/pages/education-dashboard";
+import EducationStudents from "@/pages/education/students";
+import EducationCourses from "@/pages/education/courses";
+import EducationBatches from "@/pages/education/batches";
+import EducationAttendance from "@/pages/education/attendance";
+import EducationExams from "@/pages/education/exams";
+import EducationFees from "@/pages/education/fees";
 import LogisticsDashboard from "@/pages/logistics-dashboard";
 import LogisticsVehicles from "@/pages/logistics/vehicles";
 import LogisticsDrivers from "@/pages/logistics/drivers";
@@ -193,9 +202,59 @@ function AuthenticatedRoutes() {
           <RealEstateLeads />
         </DashboardGuard>
       </Route>
+      <Route path="/dashboard/tourism/packages/new">
+        <DashboardGuard allowedBusinessType="tourism">
+          <TourismPackages />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/tourism/packages">
+        <DashboardGuard allowedBusinessType="tourism">
+          <TourismPackages />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/tourism/bookings">
+        <DashboardGuard allowedBusinessType="tourism">
+          <TourismBookings />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/tourism/itineraries">
+        <DashboardGuard allowedBusinessType="tourism">
+          <TourismItineraries />
+        </DashboardGuard>
+      </Route>
       <Route path="/dashboard/tourism">
         <DashboardGuard allowedBusinessType="tourism">
           <TourismDashboard />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/education/students">
+        <DashboardGuard allowedBusinessType="education">
+          <EducationStudents />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/education/courses">
+        <DashboardGuard allowedBusinessType="education">
+          <EducationCourses />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/education/batches">
+        <DashboardGuard allowedBusinessType="education">
+          <EducationBatches />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/education/attendance">
+        <DashboardGuard allowedBusinessType="education">
+          <EducationAttendance />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/education/exams">
+        <DashboardGuard allowedBusinessType="education">
+          <EducationExams />
+        </DashboardGuard>
+      </Route>
+      <Route path="/dashboard/education/fees">
+        <DashboardGuard allowedBusinessType="education">
+          <EducationFees />
         </DashboardGuard>
       </Route>
       <Route path="/dashboard/education">
