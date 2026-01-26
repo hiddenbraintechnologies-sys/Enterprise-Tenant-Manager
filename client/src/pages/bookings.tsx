@@ -119,6 +119,7 @@ function BookingDialog({
 }) {
   const { toast } = useToast();
   const { formatCurrency } = useCountry();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const { data: customers, isLoading: customersLoading, isError: customersError } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
@@ -385,7 +386,7 @@ function BookingDialog({
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Date</FormLabel>
-                  <Popover>
+                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -405,7 +406,10 @@ function BookingDialog({
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        onSelect={field.onChange}
+                        onSelect={(date) => {
+                          field.onChange(date);
+                          setDatePickerOpen(false);
+                        }}
                         disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                         initialFocus
                       />
