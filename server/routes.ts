@@ -6859,6 +6859,41 @@ export async function registerRoutes(
     }
   });
 
+  // Salon Dashboard Stats
+  app.get("/api/salon/stats", authenticateHybrid(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+      const [customers, services, bookings] = await Promise.all([
+        storage.getCustomers(tenantId),
+        storage.getServices(tenantId),
+        storage.getBookings(tenantId),
+      ]);
+
+      const todayAppointments = bookings.filter(b => b.bookingDate === today).length;
+      const activeServices = services.filter(s => s.isActive !== false).length;
+      const monthlyRevenue = bookings
+        .filter(b => b.bookingDate && b.bookingDate >= startOfMonth && b.status === "completed")
+        .reduce((sum, b) => sum + (parseFloat(b.amount?.toString() || "0")), 0);
+
+      res.json({
+        totalClients: customers.length,
+        todayAppointments,
+        activeServices,
+        monthlyRevenue,
+      });
+    } catch (error) {
+      console.error("Error fetching salon stats:", error);
+      res.status(500).json({ message: "Failed to fetch salon stats" });
+    }
+  });
+
   app.get("/api/bookings", authenticateHybrid(), async (req, res) => {
     try {
       const tenantId = getTenantId(req);
