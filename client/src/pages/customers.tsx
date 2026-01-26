@@ -47,10 +47,35 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Customer } from "@shared/schema";
 import { format } from "date-fns";
 
+const PHONE_VALIDATION_BY_COUNTRY: Record<string, { minLength: number; maxLength: number; pattern?: RegExp; message: string }> = {
+  IN: { minLength: 10, maxLength: 10, pattern: /^[6-9]\d{9}$/, message: "Indian phone number must be exactly 10 digits starting with 6-9" },
+  MY: { minLength: 9, maxLength: 11, message: "Malaysian phone number must be 9-11 digits" },
+  UK: { minLength: 10, maxLength: 11, message: "UK phone number must be 10-11 digits" },
+  AE: { minLength: 9, maxLength: 9, message: "UAE phone number must be exactly 9 digits" },
+  SG: { minLength: 8, maxLength: 8, message: "Singapore phone number must be exactly 8 digits" },
+  US: { minLength: 10, maxLength: 10, message: "US phone number must be exactly 10 digits" },
+};
+
+function validatePhoneForCountry(val: string | undefined): boolean {
+  if (!val || val.trim() === "") return true;
+  const country = localStorage.getItem("selectedCountry") || "IN";
+  const rules = PHONE_VALIDATION_BY_COUNTRY[country] || { minLength: 7, maxLength: 15 };
+  const digitsOnly = val.replace(/[\s\-\+\(\)]/g, "");
+  if (digitsOnly.length < rules.minLength || digitsOnly.length > rules.maxLength) return false;
+  if (rules.pattern && !rules.pattern.test(digitsOnly)) return false;
+  return true;
+}
+
+function getPhoneErrorMessage(): string {
+  const country = localStorage.getItem("selectedCountry") || "IN";
+  const rules = PHONE_VALIDATION_BY_COUNTRY[country];
+  return rules?.message || "Phone number must be 7-15 digits";
+}
+
 const customerFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
-  phone: z.string().optional(),
+  phone: z.string().optional().refine(validatePhoneForCountry, { message: "Invalid phone number for selected country" }),
   address: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -151,15 +176,40 @@ function CustomerDialog({
             <FormField
               control={form.control}
               name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone</FormLabel>
-                  <FormControl>
-                    <Input placeholder="+91 9876543210" {...field} data-testid="input-customer-phone" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const country = localStorage.getItem("selectedCountry") || "IN";
+                const placeholders: Record<string, string> = {
+                  IN: "9876543210",
+                  MY: "123456789",
+                  UK: "7911123456",
+                  AE: "501234567",
+                  SG: "91234567",
+                  US: "2025551234",
+                };
+                const hints: Record<string, string> = {
+                  IN: "10 digits starting with 6-9",
+                  MY: "9-11 digits",
+                  UK: "10-11 digits",
+                  AE: "9 digits",
+                  SG: "8 digits",
+                  US: "10 digits",
+                };
+                return (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder={placeholders[country] || "Phone number"} 
+                        maxLength={15}
+                        {...field} 
+                        data-testid="input-customer-phone" 
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">{hints[country] || "7-15 digits"}</p>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
             <FormField
               control={form.control}
