@@ -73,20 +73,30 @@ export function LandingLayout({ children, showCountryPrompt = false }: LandingLa
               <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Building2 className="h-5 w-5" />
               </div>
-              <span className="text-xl font-semibold" data-testid="text-logo">MyBizStream</span>
+              <span className="text-lg font-semibold sm:text-xl" data-testid="text-logo">MyBizStream</span>
             </a>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <CountrySwitch
-              pathname={location}
-              onOpenSelector={() => setSelectorOpen(true)}
-            />
-            <LandingLanguageSelector countryCode={currentCountry} />
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
+            <div className="hidden sm:block">
+              <CountrySwitch
+                pathname={location}
+                onOpenSelector={() => setSelectorOpen(true)}
+              />
+            </div>
+            <div className="hidden md:block">
+              <LandingLanguageSelector countryCode={currentCountry} />
+            </div>
             <ThemeToggle />
-            <Button variant="ghost" asChild className="hidden sm:inline-flex" data-testid="button-signin">
+            <Button variant="ghost" asChild className="hidden md:inline-flex" data-testid="button-signin">
               <a href="/login">Sign In</a>
             </Button>
-            <Button asChild data-testid="button-get-started-nav">
+            <Button size="sm" asChild data-testid="button-get-started-nav" className="sm:hidden">
+              <a href="/register">
+                Start
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </a>
+            </Button>
+            <Button asChild data-testid="button-get-started-nav-full" className="hidden sm:inline-flex">
               <a href="/register">
                 Get Started
                 <ArrowRight className="ml-2 h-4 w-4" />
