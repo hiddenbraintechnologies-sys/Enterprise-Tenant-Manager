@@ -32,8 +32,10 @@ import {
   XCircle,
   CreditCard,
   Banknote,
-  History
+  History,
+  ArrowLeft
 } from "lucide-react";
+import { Link } from "wouter";
 import type { Invoice, Customer, ExchangeRate, Payment } from "@shared/schema";
 
 interface InvoiceItem {
@@ -314,9 +316,16 @@ export default function InvoicesPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-invoices-title">Invoices</h1>
-          <p className="text-muted-foreground">Manage invoices with multi-currency support</p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild data-testid="button-back">
+            <Link href="/dashboard">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold" data-testid="text-invoices-title">Invoices</h1>
+            <p className="text-muted-foreground">Manage invoices with multi-currency support</p>
+          </div>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
