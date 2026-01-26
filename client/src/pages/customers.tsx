@@ -23,6 +23,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -279,6 +289,8 @@ export default function Customers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -460,7 +472,10 @@ export default function Customers() {
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => deleteMutation.mutate(customer.id)}
+                              onClick={() => {
+                                setCustomerToDelete(customer);
+                                setDeleteConfirmOpen(true);
+                              }}
                               disabled={deleteMutation.isPending}
                               className="text-destructive"
                               data-testid={`menu-delete-${customer.id}`}
@@ -538,7 +553,10 @@ export default function Customers() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => deleteMutation.mutate(customer.id)}
+                              onClick={() => {
+                                setCustomerToDelete(customer);
+                                setDeleteConfirmOpen(true);
+                              }}
                               disabled={deleteMutation.isPending}
                               data-testid={`button-delete-customer-${customer.id}`}
                             >
@@ -575,6 +593,34 @@ export default function Customers() {
         onOpenChange={setDialogOpen}
         onSuccess={() => setEditingCustomer(undefined)}
       />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {customerToDelete?.name ? `"${customerToDelete.name}"` : "this customer"}? 
+              This action cannot be undone and will permanently remove the customer record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (customerToDelete) {
+                  deleteMutation.mutate(customerToDelete.id);
+                }
+                setDeleteConfirmOpen(false);
+                setCustomerToDelete(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
