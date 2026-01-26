@@ -61,6 +61,7 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   clinic: [
     { title: "Dashboard", url: "/dashboard/clinic", icon: LayoutDashboard },
     { title: "Customers", url: "/customers", icon: Users },
+    { title: "Services", url: "/services", icon: Stethoscope },
     { title: "Bookings", url: "/bookings", icon: Calendar },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
