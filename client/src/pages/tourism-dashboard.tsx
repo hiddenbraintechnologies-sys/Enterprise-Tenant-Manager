@@ -159,10 +159,10 @@ export default function TourismDashboard() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
+          <CardHeader className="flex flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-semibold">Recent Bookings</CardTitle>
-            <Link href="/bookings/new">
-              <Button size="sm" data-testid="button-new-booking">
+            <Link href="/bookings?action=new">
+              <Button size="sm" data-testid="button-new-booking" className="w-fit">
                 <Plus className="mr-2 h-4 w-4" />
                 New Booking
               </Button>
@@ -211,10 +211,10 @@ export default function TourismDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
+          <CardHeader className="flex flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-semibold">Featured Packages</CardTitle>
-            <Link href="/packages/new">
-              <Button size="sm" data-testid="button-create-package">
+            <Link href="/services?action=new">
+              <Button size="sm" data-testid="button-create-package" className="w-fit">
                 <Plus className="mr-2 h-4 w-4" />
                 Create Package
               </Button>
@@ -261,12 +261,12 @@ export default function TourismDashboard() {
 
       <div className="mt-8">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
+          <CardHeader>
             <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-3">
-              <Link href="/packages/new">
+              <Link href="/services?action=new">
                 <Button variant="outline" data-testid="button-add-package">
                   <Package className="mr-2 h-4 w-4" />
                   Add Package

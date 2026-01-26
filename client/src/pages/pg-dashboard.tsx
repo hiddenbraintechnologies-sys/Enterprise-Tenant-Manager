@@ -100,9 +100,9 @@ export default function PGDashboard() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Room Occupancy</CardTitle>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="w-fit">
               <Link href="/services">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -126,9 +126,9 @@ export default function PGDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Recent Tenants</CardTitle>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="w-fit">
               <Link href="/customers">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />

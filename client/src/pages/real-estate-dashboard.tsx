@@ -154,10 +154,10 @@ export default function RealEstateDashboard() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
+          <CardHeader className="flex flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-semibold">Recent Leads</CardTitle>
             <Link href="/leads/new">
-              <Button size="sm" data-testid="button-add-lead">
+              <Button size="sm" data-testid="button-add-lead" className="w-fit">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Lead
               </Button>
@@ -204,10 +204,10 @@ export default function RealEstateDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
+          <CardHeader className="flex flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-semibold">Upcoming Site Visits</CardTitle>
-            <Link href="/site-visits/new">
-              <Button size="sm" data-testid="button-schedule-visit">
+            <Link href="/bookings?action=new">
+              <Button size="sm" data-testid="button-schedule-visit" className="w-fit">
                 <Plus className="mr-2 h-4 w-4" />
                 Schedule Visit
               </Button>
@@ -254,7 +254,7 @@ export default function RealEstateDashboard() {
 
       <div className="mt-8">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
+          <CardHeader>
             <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>

@@ -120,9 +120,9 @@ export default function CoworkingDashboard() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Recent Bookings</CardTitle>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="w-fit">
               <Link href="/coworking/bookings">
                 View All
                 <ArrowRight className="ml-1 h-4 w-4" />
@@ -178,9 +178,9 @@ export default function CoworkingDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Desk Availability</CardTitle>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="w-fit">
               <Link href="/coworking/desks">
                 Manage Desks
                 <ArrowRight className="ml-1 h-4 w-4" />

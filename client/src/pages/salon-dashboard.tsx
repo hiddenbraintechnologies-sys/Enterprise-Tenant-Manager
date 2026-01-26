@@ -102,9 +102,9 @@ export default function SalonDashboard() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Today's Appointments</CardTitle>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="w-fit">
               <Link href="/bookings">
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -128,9 +128,9 @@ export default function SalonDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Popular Services</CardTitle>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="w-fit">
               <Link href="/services">
                 Manage
                 <ArrowRight className="ml-2 h-4 w-4" />

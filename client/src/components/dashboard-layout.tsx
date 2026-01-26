@@ -92,17 +92,17 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
       <div className="flex h-screen w-full">
         <AppSidebar />
         <SidebarInset className="flex flex-1 flex-col overflow-hidden">
-          <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 border-b bg-background px-4">
+          <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-4">
             <SidebarTrigger className="-ml-1" data-testid="button-sidebar-toggle" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb className="flex-1">
+            <Separator orientation="vertical" className="mr-2 h-4 hidden sm:block" />
+            <Breadcrumb className="flex-1 hidden sm:block">
               <BreadcrumbList>
-                <BreadcrumbItem>
+                <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink href="/dashboard">Home</BreadcrumbLink>
                 </BreadcrumbItem>
                 {breadcrumbs.map((crumb, index) => (
                   <span key={index} className="contents">
-                    <BreadcrumbSeparator />
+                    <BreadcrumbSeparator className="hidden md:block" />
                     <BreadcrumbItem>
                       {crumb.href ? (
                         <BreadcrumbLink href={crumb.href}>{crumb.label}</BreadcrumbLink>
@@ -114,8 +114,10 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
                 ))}
               </BreadcrumbList>
             </Breadcrumb>
-            <div className="flex items-center gap-2">
-              <CountrySelector />
+            <div className="flex items-center gap-1 sm:gap-2 ml-auto">
+              <div className="hidden md:block">
+                <CountrySelector />
+              </div>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -123,6 +125,7 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
                     size="icon"
                     onClick={() => startTour(dashboardTour)}
                     data-testid="button-start-tour"
+                    className="hidden sm:flex"
                   >
                     <HelpCircle className="h-4 w-4" />
                   </Button>
@@ -135,11 +138,11 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-4 md:p-6">
             <div className="mx-auto max-w-7xl">
               <SubscriptionExpiryBanner />
               <PlanUpgradeNudge />
-              <h1 className="mb-6 text-2xl font-semibold" data-testid="text-page-title">{title}</h1>
+              <h1 className="mb-4 text-xl font-semibold md:mb-6 md:text-2xl" data-testid="text-page-title">{title}</h1>
               {children}
             </div>
           </main>
