@@ -193,7 +193,17 @@ function AuthenticatedRoutes() {
           <RealEstateProperties />
         </DashboardGuard>
       </Route>
+      <Route path="/properties/new">
+        <DashboardGuard allowedBusinessType="real_estate">
+          <RealEstateProperties />
+        </DashboardGuard>
+      </Route>
       <Route path="/listings">
+        <DashboardGuard allowedBusinessType="real_estate">
+          <RealEstateListings />
+        </DashboardGuard>
+      </Route>
+      <Route path="/listings/new">
         <DashboardGuard allowedBusinessType="real_estate">
           <RealEstateListings />
         </DashboardGuard>
@@ -201,6 +211,11 @@ function AuthenticatedRoutes() {
       <Route path="/leads">
         <DashboardGuard allowedBusinessType="real_estate">
           <RealEstateLeads />
+        </DashboardGuard>
+      </Route>
+      <Route path="/agents/new">
+        <DashboardGuard allowedBusinessType="real_estate">
+          <RealEstateProperties />
         </DashboardGuard>
       </Route>
       <Route path="/dashboard/tourism/packages/new">
