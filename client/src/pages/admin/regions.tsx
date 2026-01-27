@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,6 +73,7 @@ interface RegionConfig {
   registrationEnabled: boolean;
   billingEnabled: boolean;
   compliancePacksEnabled: boolean;
+  allowedBusinessTypes: string[] | null;
   defaultCurrency: string;
   defaultTimezone: string;
   taxType: string | null;
@@ -128,6 +130,22 @@ const TIMEZONES = [
   { value: "Asia/Riyadh", label: "Asia/Riyadh (AST)" },
 ];
 
+const BUSINESS_TYPES = [
+  { key: "pg_hostel", label: "PG / Hostel" },
+  { key: "consulting", label: "Consulting" },
+  { key: "software_services", label: "Software Services" },
+  { key: "clinic_healthcare", label: "Clinic / Healthcare" },
+  { key: "salon_spa", label: "Salon / Spa" },
+  { key: "legal", label: "Legal Services" },
+  { key: "digital_agency", label: "Digital Agency" },
+  { key: "retail_store", label: "Retail Store" },
+  { key: "furniture_manufacturing", label: "Furniture Manufacturing" },
+  { key: "logistics_fleet", label: "Logistics & Fleet" },
+  { key: "education_institute", label: "Coaching Institute" },
+  { key: "tourism", label: "Tourism" },
+  { key: "real_estate", label: "Real Estate" },
+];
+
 interface CountryOption {
   code: string;
   name: string;
@@ -173,6 +191,7 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
     registrationEnabled: region?.registrationEnabled ?? true,
     billingEnabled: region?.billingEnabled ?? true,
     compliancePacksEnabled: region?.compliancePacksEnabled ?? true,
+    allowedBusinessTypes: region?.allowedBusinessTypes || [] as string[],
     taxType: region?.taxType || "",
     taxRate: region?.taxRate || "",
     taxInclusive: region?.taxInclusive ?? false,
@@ -182,6 +201,29 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
     dataResidencyRequired: region?.dataResidencyRequired ?? false,
     dataResidencyRegion: region?.dataResidencyRegion || "",
   });
+
+  const toggleBusinessType = (key: string) => {
+    setFormData(prev => ({
+      ...prev,
+      allowedBusinessTypes: prev.allowedBusinessTypes.includes(key)
+        ? prev.allowedBusinessTypes.filter(t => t !== key)
+        : [...prev.allowedBusinessTypes, key]
+    }));
+  };
+
+  const selectAllBusinessTypes = () => {
+    setFormData(prev => ({
+      ...prev,
+      allowedBusinessTypes: BUSINESS_TYPES.map(t => t.key)
+    }));
+  };
+
+  const clearAllBusinessTypes = () => {
+    setFormData(prev => ({
+      ...prev,
+      allowedBusinessTypes: []
+    }));
+  };
 
   const handleCountrySelect = (code: string) => {
     const country = countries?.find(c => c.code === code);
@@ -235,6 +277,7 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
       taxRate: formData.taxRate || null,
       taxType: formData.taxType || null,
       dataResidencyRegion: formData.dataResidencyRegion || null,
+      allowedBusinessTypes: formData.allowedBusinessTypes.length > 0 ? formData.allowedBusinessTypes : null,
     };
     if (isEdit) {
       updateMutation.mutate(payload as any);
@@ -490,6 +533,52 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
               onCheckedChange={(checked) => setFormData({ ...formData, emailEnabled: checked })}
             />
           </div>
+        </div>
+      </div>
+
+      <div className="space-y-4 border-t pt-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-base font-medium">Business Types Allowed</Label>
+            <p className="text-sm text-muted-foreground">
+              Select which business types can register in this country ({formData.allowedBusinessTypes.length} selected)
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={selectAllBusinessTypes}
+              data-testid="button-select-all-bt"
+            >
+              Select All
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={clearAllBusinessTypes}
+              data-testid="button-clear-all-bt"
+            >
+              Clear All
+            </Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto rounded-md border p-3">
+          {BUSINESS_TYPES.map((bt) => (
+            <div key={bt.key} className="flex items-center gap-2">
+              <Checkbox
+                id={`bt-${bt.key}`}
+                checked={formData.allowedBusinessTypes.includes(bt.key)}
+                onCheckedChange={() => toggleBusinessType(bt.key)}
+                data-testid={`checkbox-bt-${bt.key}`}
+              />
+              <Label htmlFor={`bt-${bt.key}`} className="text-sm font-normal cursor-pointer">
+                {bt.label}
+              </Label>
+            </div>
+          ))}
         </div>
       </div>
 

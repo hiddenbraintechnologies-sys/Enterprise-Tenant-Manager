@@ -19,6 +19,7 @@ import {
   dsarRequests, gstConfigurations, ukVatConfigurations,
   adminAccountLockouts, adminLoginAttempts, platformAdmins, adminTwoFactorAuth, adminAuditLogs,
   taxRules, taxCalculationLogs, taxReports, insertTaxRuleSchema,
+  countryRolloutPolicy,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -3321,6 +3322,30 @@ export async function registerRoutes(
       }
 
       const config = await storage.updateRegionConfig(req.params.id, parsed.data as any);
+      if (!config) {
+        return res.status(500).json({ message: "Failed to update region config" });
+      }
+
+      // Sync business types to countryRolloutPolicy if allowedBusinessTypes was updated
+      if (parsed.data.allowedBusinessTypes !== undefined) {
+        const countryCode = config.countryCode.toUpperCase();
+        const businessTypes = parsed.data.allowedBusinessTypes || [];
+        
+        const existingPolicy = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, countryCode)).limit(1);
+        if (existingPolicy.length > 0) {
+          await db.update(countryRolloutPolicy)
+            .set({ enabledBusinessTypes: businessTypes, updatedAt: new Date() })
+            .where(eq(countryRolloutPolicy.countryCode, countryCode));
+        } else {
+          await db.insert(countryRolloutPolicy).values({
+            countryCode,
+            isActive: config.status === "enabled",
+            enabledBusinessTypes: businessTypes,
+          });
+        }
+        // Clear country config cache
+        countryRolloutService.clearCache();
+      }
 
       auditService.logAsync({
         tenantId: undefined,
