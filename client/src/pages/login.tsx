@@ -184,6 +184,8 @@ export default function Login() {
               furniture_manufacturing: "/dashboard/furniture",
               consulting: "/dashboard/consulting",
               software_services: "/dashboard/software-services",
+              digital_agency: "/dashboard/digital-agency",
+              retail_store: "/dashboard/retail",
             };
             const dashboardRoute = dashboardRoutes[businessType] || "/dashboard/service";
             setLocation(dashboardRoute);

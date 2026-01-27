@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
+export type BusinessType = "clinic" | "salon" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
 
 export interface ModuleConfig {
   id: string;
@@ -33,6 +33,8 @@ const FEATURE_FLAGS: FeatureFlagConfig = {
   furniture_manufacturing: ["hrms_it_extensions", "multi_currency", "payroll"],
   software_services: ["hrms_it_extensions", "multi_currency", "payroll"],
   consulting: ["hrms_it_extensions", "multi_currency", "payroll"],
+  digital_agency: ["hrms_it_extensions", "multi_currency", "payroll"],
+  retail_store: ["payroll"],
 };
 
 const HRMS_MODULE: ModuleConfig = {
@@ -172,6 +174,23 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
+  digital_agency: [
+    { id: "projects", name: "Campaigns", enabled: true, routes: ["/digital-agency/projects", "/digital-agency/projects/new"] },
+    { id: "customers", name: "Clients", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "invoices", name: "Invoices", enabled: true, routes: ["/digital-agency/invoices", "/digital-agency/invoices/new"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  retail_store: [
+    { id: "products", name: "Products", enabled: true, routes: ["/retail/products", "/retail/products/new"] },
+    { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "orders", name: "Orders", enabled: true, routes: ["/retail/orders", "/retail/orders/new"] },
+    { id: "invoices", name: "Invoices", enabled: true, routes: ["/retail/invoices"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
@@ -189,6 +208,8 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   furniture_manufacturing: "/dashboard/furniture",
   software_services: "/dashboard/software-services",
   consulting: "/dashboard/consulting",
+  digital_agency: "/dashboard/digital-agency",
+  retail_store: "/dashboard/retail",
 };
 
 

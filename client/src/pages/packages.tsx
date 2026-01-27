@@ -182,6 +182,8 @@ const DASHBOARD_ROUTES: Record<string, string> = {
   furniture_manufacturing: "/dashboard/furniture",
   software_services: "/dashboard/software-services",
   consulting: "/dashboard/consulting",
+  digital_agency: "/dashboard/digital-agency",
+  retail_store: "/dashboard/retail",
 };
 
 export default function PackagesPage() {

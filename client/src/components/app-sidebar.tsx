@@ -171,6 +171,21 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
     { title: "Invoices", url: "/dashboard/consulting/invoices", icon: Package },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
+  digital_agency: [
+    { title: "Dashboard", url: "/dashboard/digital-agency", icon: LayoutDashboard },
+    { title: "Campaigns", url: "/digital-agency/projects", icon: Package },
+    { title: "Clients", url: "/customers", icon: Users },
+    { title: "Invoices", url: "/digital-agency/invoices", icon: Package },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
+  retail_store: [
+    { title: "Dashboard", url: "/dashboard/retail", icon: LayoutDashboard },
+    { title: "Products", url: "/retail/products", icon: Package },
+    { title: "Orders", url: "/retail/orders", icon: Calendar },
+    { title: "Customers", url: "/customers", icon: Users },
+    { title: "Invoices", url: "/retail/invoices", icon: Package },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
@@ -188,6 +203,8 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   furniture_manufacturing: "/dashboard/furniture",
   software_services: "/dashboard/software-services",
   consulting: "/dashboard/consulting",
+  digital_agency: "/dashboard/digital-agency",
+  retail_store: "/dashboard/retail",
 };
 
 const systemItems: NavItem[] = [
