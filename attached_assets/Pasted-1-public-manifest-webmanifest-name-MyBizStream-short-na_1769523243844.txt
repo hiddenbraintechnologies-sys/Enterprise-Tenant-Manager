@@ -1,0 +1,245 @@
+1) public/manifest.webmanifest
+{
+  "name": "MyBizStream",
+  "short_name": "MyBizStream",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B1220",
+  "theme_color": "#2563EB",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
+
+
+✅ Put icons here:
+
+public/icons/icon-192.png
+
+public/icons/icon-512.png
+
+public/icons/icon-512-maskable.png
+
+2) public/sw.js (minimal, does not cache /api, safe for auth)
+/* Minimal safe Service Worker
+   - Cache static assets (app shell) only
+   - Never cache /api or auth-bearing requests
+   - Offline fallback for navigation
+*/
+
+const CACHE_NAME = "app-shell-v1";
+const OFFLINE_URL = "/offline.html";
+
+// Keep this list minimal & safe.
+// If your build outputs hashed bundles you can skip precache and rely on runtime caching.
+const PRECACHE_URLS = [
+  OFFLINE_URL,
+  "/manifest.webmanifest"
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.addAll(PRECACHE_URLS);
+      self.skipWaiting();
+    })()
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => (k === CACHE_NAME ? null : caches.delete(k))));
+      self.clients.claim();
+    })()
+  );
+});
+
+function isApiRequest(url) {
+  return url.pathname.startsWith("/api/");
+}
+
+function hasAuthHeaders(request) {
+  // If you use cookie sessions, browser may attach cookies implicitly.
+  // We avoid caching anything that *looks* authenticated or tenant-scoped.
+  const auth = request.headers.get("Authorization");
+  const tenant = request.headers.get("X-Tenant-ID");
+  // Note: Service Worker cannot reliably detect cookies. So we play safe by:
+  // - never caching /api at all
+  // - only caching GET static assets by extension or same-origin known assets
+  return Boolean(auth) || Boolean(tenant);
+}
+
+function isStaticAsset(url) {
+  // Add more if needed
+  return (
+    url.pathname.startsWith("/assets/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".css") ||
+    url.pathname.endsWith(".woff2") ||
+    url.pathname.endsWith(".png") ||
+    url.pathname.endsWith(".jpg") ||
+    url.pathname.endsWith(".svg")
+  );
+}
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  const url = new URL(req.url);
+
+  // Only handle same-origin
+  if (url.origin !== self.location.origin) return;
+
+  // Never intercept non-GET except navigation fallback
+  if (req.method !== "GET") return;
+
+  // Never cache or intercept API calls
+  if (isApiRequest(url)) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // If request has auth/tenant headers, do not cache
+  if (hasAuthHeaders(req)) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  const isNav = req.mode === "navigate";
+
+  // Navigation: network-first, fallback to offline page
+  if (isNav) {
+    event.respondWith(
+      (async () => {
+        try {
+          const res = await fetch(req);
+          return res;
+        } catch (e) {
+          const cache = await caches.open(CACHE_NAME);
+          const offline = await cache.match(OFFLINE_URL);
+          return offline || new Response("Offline", { status: 200, headers: { "Content-Type": "text/plain" } });
+        }
+      })()
+    );
+    return;
+  }
+
+  // Static assets: cache-first
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cached = await cache.match(req);
+        if (cached) return cached;
+
+        const res = await fetch(req);
+        // Cache only successful basic responses
+        if (res && res.status === 200 && res.type === "basic") {
+          cache.put(req, res.clone());
+        }
+        return res;
+      })()
+    );
+  }
+});
+
+3) Register the Service Worker (React entry)
+
+In client/src/main.tsx (or client/src/index.tsx), add near the bottom:
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .catch((err) => console.error("SW registration failed:", err));
+  });
+}
+
+4) public/offline.html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Offline</title>
+    <style>
+      body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0B1220; color:#fff; }
+      .wrap { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+      .card { max-width: 420px; width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius:16px; padding:20px; }
+      h1 { font-size:18px; margin:0 0 8px; }
+      p { margin:0 0 16px; opacity:0.85; line-height:1.4; }
+      button { width:100%; height:44px; border-radius:12px; border:0; background:#2563EB; color:#fff; font-weight:600; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>You’re offline</h1>
+        <p>Please reconnect to continue. Some actions (billing, marketplace, saves) need internet.</p>
+        <button onclick="location.reload()">Retry</button>
+      </div>
+    </div>
+  </body>
+</html>
+
+5) Add the manifest + theme color to your HTML
+
+If you have client/index.html (Vite) or public/index.html, add inside <head>:
+
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#2563EB" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+Optional: small “Offline banner” (React)
+
+Create client/src/components/offline-banner.tsx:
+
+import * as React from "react";
+
+export function OfflineBanner() {
+  const [online, setOnline] = React.useState<boolean>(navigator.onLine);
+
+  React.useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  if (online) return null;
+
+  return (
+    <div className="w-full px-3 py-2 text-sm bg-amber-500/20 border-b border-amber-500/30 text-amber-200">
+      You’re offline. Some actions may not work until you reconnect.
+    </div>
+  );
+}
+
+
+Then render it once in your main layout (top of app shell).

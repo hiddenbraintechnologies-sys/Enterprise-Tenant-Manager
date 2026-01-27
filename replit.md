@@ -27,7 +27,17 @@ The platform includes an enhanced Booking Dialog with alerts for missing data an
 The platform supports 8 languages via `react-i18next`: English, Hindi, Telugu, Tamil, Kannada, Malayalam, Malay, and Chinese Simplified. It features country-driven language selection with defined language lists for India, Malaysia, UK, UAE, and Singapore. Language and country preferences are persisted, with automatic language switching if the current language is invalid for a selected country.
 
 ### Progressive Web App (PWA)
-The platform offers PWA features including an installable app with manifest and icons, an offline fallback page, and a smart install prompt. A service worker provides safe caching for static assets (cache-first) while strictly avoiding caching of API requests or requests with authentication/tenant headers.
+The platform offers PWA features including an installable app with manifest and icons, an offline fallback page (dark theme), and a smart install prompt. A service worker provides safe caching for static assets (cache-first) while strictly avoiding caching of API requests or requests with authentication/tenant headers.
+
+**Branding:** Theme color #2563EB (blue), background #0B1220 (dark)
+
+**Files:**
+- `client/public/manifest.webmanifest`: App manifest
+- `client/public/sw.js`: Service worker (safe caching)
+- `client/public/offline.html`: Offline page (dark theme)
+- `client/public/icons/`: PWA icons (blue theme)
+- `client/src/components/pwa/offline-banner.tsx`: Amber status banner
+- `client/src/components/pwa/install-prompt.tsx`: Install button/hook
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
