@@ -1,7 +1,7 @@
 # MyBizStream - Multi-Tenant SaaS Business Management Platform
 
 ## Overview
-MyBizStream is an enterprise-grade, multi-tenant SaaS platform designed to streamline operations and manage customer relationships for small and medium businesses across various sectors. It provides scalable and secure solutions for bookings, analytics, invoicing, and business management with a vision for diverse business needs and global market potential. The platform offers specialized modules for various industries including Healthcare, Salon/Spa, PG/Hostel, Coworking, General Services, Real Estate, Tourism, Education, Logistics, Legal Services, and Furniture Manufacturing.
+MyBizStream is an enterprise-grade, multi-tenant SaaS platform designed to streamline operations and manage customer relationships for small and medium businesses across various sectors. It provides scalable and secure solutions for bookings, analytics, invoicing, and business management. The platform aims to serve diverse business needs and has global market potential, offering specialized modules for industries such as Healthcare, Salon/Spa, PG/Hostel, Coworking, General Services, Real Estate, Tourism, Education, Logistics, Legal Services, and Furniture Manufacturing.
 
 ## User Preferences
 The user wants the AI to act as an expert developer and to follow all the architectural and technical guidelines provided. The AI should prioritize security, scalability, and maintainability. When making changes, the AI should always consider the multi-tenant nature of the platform and ensure that any modifications are compliant with country-specific regulations, especially regarding data protection and taxation. The user prefers clear, concise explanations and wants to be informed of major architectural decisions or significant code changes before they are implemented.
@@ -9,201 +9,25 @@ The user wants the AI to act as an expert developer and to follow all the archit
 ## System Architecture
 
 ### Core Platform
-MyBizStream is built as a multi-tenant SaaS platform with robust authentication (Replit Auth OIDC, JWT, hybrid middleware for flexibility), fine-grained Role-Based Access Control (RBAC), and a five-tier administration system. It supports subdomain isolation, per-tenant feature flags, and comprehensive audit logging. The platform offers a Customer Portal, White-Label & Reseller System, and extensive Tenant Branding options. Compliance with HIPAA/DPDP and various country-specific regulations (India, UAE, UK, Malaysia, US) is integrated, alongside multi-currency support.
+MyBizStream is built as a multi-tenant SaaS platform featuring robust authentication (Replit Auth OIDC, JWT, hybrid middleware), fine-grained Role-Based Access Control (RBAC), and a five-tier administration system. It supports subdomain isolation, per-tenant feature flags, and comprehensive audit logging. Key features include a Customer Portal, White-Label & Reseller System, extensive Tenant Branding options, multi-currency support, and compliance with various international data protection and taxation regulations (HIPAA/DPDP, India, UAE, UK, Malaysia, US).
 
 ### Add-on Marketplace
-The platform features an Add-on Marketplace with country-specific filtering and multi-currency pricing. Add-ons are compatible with specific countries or globally available, with pricing tiers across multiple currencies. A comprehensive feature gating system (useFeatureGate hook) enables soft-upselling by controlling access to modules and features based on plan tier, add-on status, country, and user roles. Locked feature pages/modals with trial CTAs are used to guide users. A Super Admin Marketplace Revenue Analytics Dashboard provides insights into subscriptions, revenue, and conversion funnels.
-
-### Super Admin Marketplace Management (Added Jan 2026)
-A complete management console for Super Admins to control the marketplace:
-
-**Database Tables:**
-- `addonPlanEligibility`: Per-plan tier eligibility rules (canPurchase, trialEnabled, maxQuantity)
-- `addonCountryConfig`: Per-addon country activation, pricing (monthly/yearly), trial config
-- `addonAuditLog`: Audit trail for all marketplace admin actions
-
-**API Endpoints** (`/api/super-admin/marketplace/`):
-- Catalog CRUD: GET/POST/PATCH addons, POST publish/archive/restore
-- Country Rollout: GET/PUT/DELETE addons/:addonId/countries/:countryCode
-- Eligibility: GET/PUT addons/:addonId/eligibility/:countryCode
-- Audit Logs: GET audit-logs with filtering/pagination
-- Summary: GET summary for dashboard stats
-
-**UI Page** (`/super-admin/marketplace-management`):
-- Catalog Tab: Create/edit/publish/archive add-ons
-- Country Rollout Tab: Configure per-country activation and pricing
-- Eligibility Tab: Set plan tier purchase/trial rules
-- Audit Logs Tab: View all admin actions with filters
-
-**Seeded Add-ons**: HRMS (IN/MY/UK), Payroll (IN/MY/UK), WhatsApp Automation, Advanced Analytics with country configs and eligibility rules.
-
-### HR Foundation vs HRMS Suite Architecture (Jan 2026)
-
-**Key Principle**: Plans remain primary revenue, add-ons are multipliers.
-
-**Capability Flags** (defined in `server/core/hr-addon-gating.ts`):
-- `HR_FOUNDATION`: Employee directory only (Payroll OR HRMS add-on)
-- `HRMS_SUITE`: Full HRMS features (HRMS add-on ONLY)
-- `PAYROLL_SUITE`: Payroll processing (Payroll add-on ONLY)
-
-**HR Foundation (Employee Directory)**:
-- Accessible with: Payroll add-on OR HRMS add-on
-- Features: Employee directory, departments, HR dashboard
-- API Routes: `/api/hr/employees/*`, `/api/hr/departments`, `/api/hr/dashboard`
-- Middleware: `requireEmployeeAccess()` checks for Payroll OR HRMS add-on
-
-**Payroll Processing**:
-- Accessible with: Payroll add-on ONLY (HRMS does NOT grant access)
-- Features: Payroll runs, payslips, statutory contributions
-- API Routes: `/api/hr/payroll/*`
-- Middleware: `requirePayrollAccess()` checks for Payroll add-on specifically
-
-**HRMS Suite (Full HR Management)**:
-- Accessible with: HRMS add-on ONLY (Payroll does NOT grant access)
-- Features: Attendance tracking, leave management, timesheets, approvals
-- API Routes: `/api/hr/attendance/*`, `/api/hr/leaves/*`, `/api/hr/projects/*`
-- Middleware: `requireHrmsSuiteAccess()` checks for HRMS add-on specifically
-
-**Employee Limit Enforcement**:
-- Trial users: Limited to 5 employees (PAYROLL_TRIAL_EMPLOYEE_LIMIT)
-- Active marketplace subscriptions: Unlimited (-1) by default
-- Legacy tenantPayrollAddon: Respects tier-based maxEmployees
-- Limit exceeded: Returns 403 with code `EMPLOYEE_LIMIT_REACHED`
-
-**Read-Only Mode (Payroll Expired)**:
-- When Payroll expires/cancels and tenant has no HRMS add-on
-- Employee directory becomes read-only (view existing data)
-- Create/Edit blocked with 403 `EMPLOYEE_READ_ONLY`
-- Message: "Re-enable Payroll or add HRMS to create or edit employees."
-- Data preserved to prevent loss; upsell to re-enable
-
-**Implementation Files**:
-- Backend middleware: `server/core/hr-addon-gating.ts`
-- Route gating: `server/routes/hrms/index.ts`, `server/routes/hrms/employees.ts`
-- Sidebar UI: `client/src/components/app-sidebar.tsx`
-  - `hrCoreItems`: Dashboard, Employees (Payroll OR HRMS)
-  - `payrollItem`: Payroll (Payroll add-on only, locked for HRMS-only)
-  - `hrmsSuiteItems`: Attendance, Leave, Pay Runs (HRMS only, locked for Payroll-only)
-
-**Verification Test Scenarios**:
-1. **Free + Payroll only**: Should see HR Dashboard, Employees, Payroll. Attendance/Leave/Pay Runs locked.
-2. **Free + HRMS only**: Should see HR Dashboard, Employees, Attendance, Leave, Pay Runs. Payroll locked.
-3. **Basic + Payroll + HRMS**: Full access to everything.
-
-**Malaysia Payroll Tiers (SMB-friendly pricing):**
-- Trial: 7 days, up to 5 employees (free)
-- Starter (MYR 20/mo): Up to 5 employees
-- Growth (MYR 39/mo): Up to 15 employees
-- Scale (MYR 69/mo): Up to 50 employees
-- Unlimited (MYR 99/mo): Unlimited employees
-
-**Trial UX Copy** (localized in EN/MS/TA):
-- EN: "Start Payroll trial (7 days). Add up to 5 employees — upgrade anytime."
-- MS: "Cuba Payroll 7 hari. Tambah sehingga 5 pekerja — naik taraf bila-bila masa."
-- TA: "Payroll 7 நாட்கள் சோதனை. 5 ஊழியர்கள் வரை சேர்க்கலாம் — எப்போது வேண்டுமானாலும் மேம்படுத்தலாம்."
-
-**Matrix UI Improvements (Jan 2026):**
-- Country Rollout Matrix: Clickable cells showing status icon + price, inline editing
-- Plan Eligibility Matrix: Zoho-style grid with 3-state toggle cycle (blocked → trial → enabled)
-- CountryConfigDialog supports both controlled and uncontrolled modes for flexible integration
-
-**Smart Upsell Engine** (`server/services/marketplace/upsell-engine.ts`):
-- Employee count tier upgrade nudges (80% usage = high priority, 95% = critical)
-- Bundle discount suggestions: HR Complete Bundle (HRMS + Payroll + WhatsApp), Analytics Bundle
-- Trial expiry reminders (requires trialEndsAt column in tenantAddons - TODO)
-- Feature unlock recommendations based on plan tier eligibility
-
-**Marketplace Access Control (Updated Jan 2026):**
-
-*Initial Phase: Super Admin Only*
-All marketplace management is restricted to Super Admin in this phase. Permission constants are defined for future Platform Admin support.
-
-*Super Admin Actions (requireSuperAdminOnly middleware):*
-- Create/edit add-ons (Payroll, HRMS, WhatsApp, etc.)
-- Publish/unpublish add-ons
-- Enable per-country rollout
-- View marketplace analytics
-- Force-install/uninstall for tenants (support) - future
-
-*Tenant Actions (requireTenantAdmin middleware):*
-- Browse marketplace (all authenticated users)
-- Start trial / purchase add-on (Tenant Admin only)
-- Cancel add-on subscription (Tenant Admin only)
-
-**Error Response Codes:**
-| Scenario | Status | Code |
-|----------|--------|------|
-| Not authenticated | 401 | UNAUTHENTICATED |
-| Authenticated but not super admin | 403 | FORBIDDEN_SUPER_ADMIN_ONLY |
-| Tenant user but not admin | 403 | TENANT_ADMIN_REQUIRED |
-
-**Permission Constants (for future Platform Admin support):**
-- `MARKETPLACE_MANAGE_CATALOG`, `MARKETPLACE_MANAGE_PRICING`, `MARKETPLACE_MANAGE_ELIGIBILITY`
-- `MARKETPLACE_PUBLISH`, `MARKETPLACE_VIEW_ANALYTICS`, `MARKETPLACE_VIEW_AUDIT_LOGS`
-- `MARKETPLACE_OVERRIDE` (force install/uninstall)
-
-**API Enforcement Files:**
-- Super Admin routes: `server/routes/super-admin/marketplace-management.ts` (requireSuperAdminOnly)
-- Analytics routes: `server/routes/super-admin/marketplace-analytics.ts` (requireSuperAdminOnly)
-- Tenant routes: `server/routes/marketplace/tenant-addons.ts` (requireTenantAdmin)
-- Guard middleware: `server/rbac/guards.ts`
-
-**Frontend Protection:**
-- Sidebar: Marketplace items use `superAdminOnly: true`
-- Routes: `SuperAdminRouteGuard` redirects non-super-admins to /admin
-
-**Marketplace Revenue Analytics (Jan 2026):**
-- API Endpoints: `/api/super-admin/marketplace/analytics/overview`, `/by-addon`, `/by-country`, `/funnel`
-- KPIs: Active subscriptions, MTD/YTD revenue, trial-to-paid conversion, payroll attach rate
-
-**Razorpay Add-on Subscription Integration:**
-- Webhook endpoint: `/api/webhooks/razorpay-marketplace`
-- Events: subscription.activated, subscription.charged, subscription.halted, subscription.cancelled, subscription.completed, payment.failed
-- Idempotent processing via MarketplaceEvent table
-- Trial flow: `/api/marketplace/addons/trial` with country/plan eligibility validation
-
-**Marketplace i18n (Jan 2026):**
-- Added marketplace translations to EN, HI, MS, TA locales
-- Includes: add-on names, descriptions, micro-benefits, analytics labels
-- Country-specific micro-benefits for Payroll (IN: PF/ESI/PT, MY: EPF/SOCSO/EIS)
+The platform includes an Add-on Marketplace with country-specific filtering and multi-currency pricing, allowing add-ons to be globally available or country-specific. A comprehensive feature gating system (using `useFeatureGate` hook) enables soft-upselling by controlling module and feature access based on plan tier, add-on status, country, and user roles. Locked feature pages/modals include trial Calls-to-Action. A Super Admin Marketplace Revenue Analytics Dashboard provides insights into subscriptions, revenue, and conversion funnels. The Super Admin console allows full management of the marketplace, including catalog, country rollout, and eligibility rules. HR-related add-ons (HRMS, Payroll) are structured to provide specific capabilities and restrict access based on add-on subscriptions, with mechanisms for employee limit enforcement and read-only modes upon subscription expiry.
 
 ### Technical Implementation
-The **Frontend** uses React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, following a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adopting a RESTful API design with Zod for validation. **Database** operations use PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) adheres to Clean Architecture, BLoC for state management, Dio for HTTP, and Hive for offline caching, fully supporting multi-tenancy. Deployment is global on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore) with multi-region support and disaster recovery.
+The **Frontend** is developed using React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, featuring a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adhering to a RESTful API design with Zod for validation. **Database** operations utilize PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) follows Clean Architecture, uses BLoC for state management, Dio for HTTP, and Hive for offline caching, with full multi-tenancy support. Deployment is multi-cloud on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore) with multi-region support and disaster recovery.
 
 ### Billing & Pricing
-The platform uses a flexible billing system with multi-interval pricing (monthly, quarterly, yearly) and automatic savings calculations. Platform admins can configure pricing via a dedicated UI. Razorpay is integrated for subscription management of marketplace add-ons, handling plan creation, subscription lifecycle, and idempotent webhook processing for events like activation, charging, and cancellation, including trial support.
+A flexible billing system supports multi-interval pricing (monthly, quarterly, yearly) with automatic savings calculations, configurable by platform admins. Razorpay is integrated for marketplace add-on subscription management, handling plan creation, subscription lifecycle, and idempotent webhook processing for various events including trial support.
 
 ### User Experience & Notifications
-The Booking Dialog features enhanced alerts for missing customer/service data with quick action buttons and informative dropdown placeholders. A customizable Notification Center includes a NotificationBell for in-app alerts and a Preferences UI allowing users to configure notification types, severity, channels (In-App, Email, WhatsApp, SMS), and quiet hours.
+The platform includes an enhanced Booking Dialog with alerts for missing data and quick action buttons. A customizable Notification Center offers a NotificationBell for in-app alerts and preferences for configuring notification types, severity, channels (In-App, Email, WhatsApp, SMS), and quiet hours.
 
 ### Internationalization (i18n)
-The platform supports 8 languages with react-i18next:
-- **English (en)**: Default language
-- **Hindi (hi)**: For India market
-- **Telugu (te)**: For India market
-- **Tamil (ta)**: For India and Malaysia markets
-- **Kannada (kn)**: For India market
-- **Malayalam (ml)**: For India market
-- **Malay (ms)**: For Malaysia market (Bahasa Malaysia)
-- **Chinese Simplified (zh)**: For Malaysia and Singapore markets (中文简体)
+The platform supports 8 languages via `react-i18next`: English, Hindi, Telugu, Tamil, Kannada, Malayalam, Malay, and Chinese Simplified. It features country-driven language selection with defined language lists for India, Malaysia, UK, UAE, and Singapore. Language and country preferences are persisted, with automatic language switching if the current language is invalid for a selected country.
 
-**Country-Language Mapping:**
-The landing pages use country-driven language selection. Each country has a defined list of available languages:
-- **IN (India)**: en, hi, ta, te, kn, ml (default: en)
-- **MY (Malaysia)**: en, ms, zh, ta (default: en)
-- **UK (United Kingdom)**: en (default: en)
-- **AE (UAE)**: en (default: en)
-- **SG (Singapore)**: en, zh, ms, ta (default: en)
-
-Config location: `client/src/lib/country-language-config.ts`
-
-**Behavior:**
-- When country changes, if current language is not valid for new country, auto-switch to default
-- Both country and language are persisted in localStorage and cookies
-- Country routes (/in, /my, /uk, /uae, /sg) auto-set country and validate language
-- Language detection order: localStorage -> browser navigator. Fallback: English
-
-Translation files: `client/src/i18n/locales/`
+### Progressive Web App (PWA)
+The platform offers PWA features including an installable app with manifest and icons, an offline fallback page, and a smart install prompt. A service worker provides safe caching for static assets (cache-first) while strictly avoiding caching of API requests or requests with authentication/tenant headers.
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
