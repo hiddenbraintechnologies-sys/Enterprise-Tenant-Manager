@@ -97,7 +97,13 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => window.history.back()}
+              onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  setLocation("/dashboard");
+                }
+              }}
               className="sm:hidden -ml-1"
               data-testid="button-back-mobile"
             >

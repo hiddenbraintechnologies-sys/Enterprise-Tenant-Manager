@@ -1186,7 +1186,7 @@ export default function MarketplaceManagement() {
       <Card>
         <CardContent className="pt-6">
           <Tabs defaultValue="catalog">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4" data-testid="tabs-marketplace">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1" data-testid="tabs-marketplace">
               <TabsTrigger value="catalog" data-testid="tab-catalog">
                 <Package className="mr-2 h-4 w-4 hidden sm:block" />
                 Catalog
