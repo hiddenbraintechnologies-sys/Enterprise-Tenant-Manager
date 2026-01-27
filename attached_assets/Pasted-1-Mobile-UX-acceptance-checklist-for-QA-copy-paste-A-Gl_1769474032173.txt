@@ -1,0 +1,277 @@
+1) Mobile UX acceptance checklist for QA (copy/paste)
+A. Global layout
+
+ No horizontal scroll on any page (test: swipe left/right on every main page)
+
+ Safe-area padding works on iOS (no content under notch/home bar)
+
+ Text wraps correctly (no clipped headings, no “…” cutting important info)
+
+ Tap targets ≥ 44px (buttons, icons, menu items, checkboxes)
+
+ Keyboard doesn’t cover inputs (especially last fields + submit)
+
+B. Navigation
+
+ Mobile menu opens/closes reliably (hamburger/drawer)
+
+ Active route highlight works after navigation
+
+ Back button doesn’t break state or show blank screens
+
+ No “hover-only” actions (all actions accessible by tap)
+
+ Sidebar doesn’t disappear after clicking menu item (regression test)
+
+C. Auth & onboarding
+
+ Country selector modal works on mobile (scroll, close, select)
+
+ Register form scrolls and submits (button always reachable)
+
+ Login works after clearing cache (tenant discovery + tenant picker)
+
+ Packages/plans page cards stack and CTA buttons are visible
+
+ Redirects correct: register → packages → dashboard
+
+D. Core tenant workflows
+
+ Create/edit entity works on mobile for each enabled business module
+
+ Marketplace: Add-on install/trial shows clear state (no infinite spinner)
+
+ Marketplace purchase errors show readable message + retry
+
+ HR Foundation/HRMS/Payroll gating behaves correctly on mobile:
+
+ Payroll only → Employees visible, HRMS suite hidden
+
+ HRMS only → HRMS suite visible, Payroll hidden
+
+ Both → both visible
+
+ Employee limit errors show clearly (EMPLOYEE_LIMIT_REACHED)
+
+E. Forms & validation
+
+ Required field errors appear inline near fields
+
+ Submit button disabled only when appropriate (not stuck)
+
+ Form works in narrow view (320px) and standard (375–414px)
+
+ Dropdowns usable (no clipped menus off-screen)
+
+ Date/time pickers usable (mobile-friendly)
+
+F. Tables & lists
+
+ All tables have a mobile layout (cards or horizontal scroll)
+
+ Actions (edit/delete/view) are reachable without hover
+
+ Pagination controls usable on mobile (tap targets, spacing)
+
+ Empty states are readable and not broken
+
+G. Modals & dialogs
+
+ Modal never renders off-screen
+
+ Modal scrolls internally if content tall
+
+ Close button always reachable
+
+ Confirm actions require explicit confirmation (delete/wipe)
+
+H. Performance & stability
+
+ No page takes >3–4s without showing skeleton/loading state (on mobile network throttling)
+
+ No permanent spinners
+
+ No repeated refetch loops when opening modals
+
+ No console errors on common flows
+
+I. Super Admin (mobile)
+
+ Super-admin menu usable on mobile (drawer)
+
+ Marketplace Catalog and Country Rollouts usable (card layout)
+
+ Tenant details view usable + no 404 on “view details”
+
+ Delete/Wipe modals usable on mobile
+
+J. Accessibility basics
+
+ Focus visible on keyboard navigation
+
+ Form labels accessible (screen readers)
+
+ Color contrast acceptable for key text
+
+2) Mobile-first component patterns (tables, cards, modals)
+A) Tables → “Responsive DataList” pattern (recommended)
+
+Desktop: normal table
+Mobile: card list where each row becomes a card with label/value pairs + actions
+
+Rules
+
+Card header: primary identifier + status badge
+
+Body: 3–6 key fields (label/value)
+
+Footer: primary action + overflow menu (⋯)
+
+Avoid showing 10+ fields; link to details page for full view
+
+Example structure
+
+Card header: Customer Name + Status
+
+Card body: Amount, Date, Owner
+
+Card footer: View button + ⋯ menu (Edit/Delete)
+
+Implementation note
+
+Use the same data source and map to either <Table/> or <CardList/> by breakpoint.
+
+Keep sorting/filtering same; only layout changes.
+
+B) Cards → “Action-first cards”
+
+Rule: Every card must have a clear action, not hidden hover buttons.
+
+Primary CTA visible (“Create”, “View”, “Pay”, “Install”)
+
+Secondary actions under a kebab menu
+
+Status and warnings near top (not bottom)
+
+Best layout
+
+Title (1 line)
+
+Micro-benefit or key stat (1–2 lines)
+
+CTA row (buttons full-width on mobile)
+
+Optional details collapsed behind “Show details”
+
+C) Modals → “Bottom Sheet on Mobile, Dialog on Desktop”
+
+Why: mobile dialogs often render off-screen; bottom sheets feel native.
+
+Rules
+
+On mobile, modal opens as a bottom sheet:
+
+90% height max
+
+Internal scroll
+
+Sticky action bar at bottom (Cancel/Confirm)
+
+On desktop, normal centered dialog
+
+Must-have
+
+Close icon top-right
+
+Title always visible
+
+Submit buttons always visible (sticky bottom)
+
+If form is long: split into steps (“Next”)
+
+D) Forms → “Sticky submit + safe keyboard”
+
+Sticky footer button on mobile
+
+Scroll to first error on submit
+
+Use input types properly (email, tel, number)
+
+Avoid multi-column forms on mobile
+
+3) PWA readiness suggestions (offline, install banner, icons)
+A) Minimum PWA checklist (should do)
+
+Web App Manifest
+
+name, short_name
+
+icons (192, 512, maskable 512)
+
+theme_color, background_color
+
+display: standalone
+
+start_url: /
+
+Service Worker (Workbox recommended)
+
+Cache static assets (JS/CSS/fonts/icons)
+
+Network-first for API calls
+
+Offline fallback page for navigation routes
+
+B) Offline strategy (practical for SaaS)
+
+You typically don’t want full offline CRUD for multi-tenant SaaS initially. Do this instead:
+
+Offline read-only shell
+
+App loads with cached shell UI
+
+Show banner: “You’re offline. Some actions are unavailable.”
+
+Queue-only for safe actions (optional later)
+
+Allow drafting forms locally, submit when back online
+
+Only for non-financial actions (notes, drafts)
+
+Rules
+
+Payments, admin actions, and billing should be blocked offline.
+
+Show clear “Retry when online” state.
+
+C) Install banner behavior
+
+Don’t auto-spam.
+
+Show “Install App” prompt when:
+
+user has logged in
+
+visited ≥ 2 times
+
+not dismissed in last 14 days
+
+Provide manual install button in user menu too.
+
+D) Icons & splash
+
+Add maskable icons (Android)
+
+Add apple-touch-icon (iOS)
+
+Provide splash-ready background color (manifest + CSS)
+
+E) Caching precautions
+
+Never cache authenticated API responses blindly.
+
+Use:
+
+Cache-Control: no-store for sensitive endpoints
+
+SW should avoid caching /api/* unless explicitly safe (like /api/public/rollouts)

@@ -1186,22 +1186,22 @@ export default function MarketplaceManagement() {
       <Card>
         <CardContent className="pt-6">
           <Tabs defaultValue="catalog">
-            <TabsList className="grid w-full grid-cols-4" data-testid="tabs-marketplace">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4" data-testid="tabs-marketplace">
               <TabsTrigger value="catalog" data-testid="tab-catalog">
-                <Package className="mr-2 h-4 w-4" />
+                <Package className="mr-2 h-4 w-4 hidden sm:block" />
                 Catalog
               </TabsTrigger>
               <TabsTrigger value="countries" data-testid="tab-countries">
-                <Globe className="mr-2 h-4 w-4" />
-                Country Rollout
+                <Globe className="mr-2 h-4 w-4 hidden sm:block" />
+                <span className="hidden sm:inline">Country </span>Rollout
               </TabsTrigger>
               <TabsTrigger value="eligibility" data-testid="tab-eligibility">
-                <Shield className="mr-2 h-4 w-4" />
+                <Shield className="mr-2 h-4 w-4 hidden sm:block" />
                 Eligibility
               </TabsTrigger>
               <TabsTrigger value="audit" data-testid="tab-audit">
-                <FileText className="mr-2 h-4 w-4" />
-                Audit Logs
+                <FileText className="mr-2 h-4 w-4 hidden sm:block" />
+                <span className="hidden sm:inline">Audit </span>Logs
               </TabsTrigger>
             </TabsList>
 

@@ -6,7 +6,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HelpCircle, Loader2 } from "lucide-react";
+import { HelpCircle, Loader2, ArrowLeft } from "lucide-react";
 import { useTour } from "@/contexts/tour-context";
 import { dashboardTour } from "@/lib/tours";
 import { useAuth } from "@/hooks/use-auth";
@@ -94,6 +94,15 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
         <SidebarInset className="flex flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:h-16 md:px-4">
             <SidebarTrigger className="-ml-1" data-testid="button-sidebar-toggle" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => window.history.back()}
+              className="sm:hidden -ml-1"
+              data-testid="button-back-mobile"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <Separator orientation="vertical" className="mr-2 h-4 hidden sm:block" />
             <Breadcrumb className="flex-1 hidden sm:block">
               <BreadcrumbList>

@@ -57,7 +57,14 @@ import {
   Calendar as CalendarIconOutline,
   UserPlus,
   AlertCircle,
+  MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Link } from "wouter";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useForm } from "react-hook-form";
@@ -606,7 +613,88 @@ export default function Bookings() {
               ))}
             </div>
           ) : filteredBookings && filteredBookings.length > 0 ? (
-            <div className="overflow-x-auto">
+            <>
+              {/* Mobile Card View */}
+              <div className="space-y-3 md:hidden">
+                {filteredBookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="rounded-md border p-4"
+                    data-testid={`booking-card-${booking.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="flex h-10 w-10 flex-col items-center justify-center rounded-md bg-muted shrink-0">
+                          <span className="text-[10px] font-medium text-muted-foreground">
+                            {format(parseISO(booking.bookingDate), "MMM")}
+                          </span>
+                          <span className="text-sm font-bold leading-none">
+                            {format(parseISO(booking.bookingDate), "d")}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{booking.customer?.name || "No customer"}</p>
+                          <p className="text-sm text-muted-foreground truncate">{booking.service?.name || "No service"}</p>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`button-actions-${booking.id}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {booking.status === "pending" && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => updateStatusMutation.mutate({ id: booking.id, status: "confirmed" })}
+                              >
+                                <Check className="mr-2 h-4 w-4 text-green-600" />
+                                Confirm
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => updateStatusMutation.mutate({ id: booking.id, status: "cancelled" })}
+                                className="text-destructive"
+                              >
+                                <X className="mr-2 h-4 w-4" />
+                                Cancel
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {booking.status === "confirmed" && (
+                            <DropdownMenuItem
+                              onClick={() => updateStatusMutation.mutate({ id: booking.id, status: "completed" })}
+                            >
+                              <Check className="mr-2 h-4 w-4 text-green-600" />
+                              Complete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground text-xs">Time</span>
+                        <p className="font-medium">{booking.startTime?.slice(0, 5)} - {booking.endTime?.slice(0, 5)}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Amount</span>
+                        <p className="font-medium">{formatCurrency(Number(booking.amount || 0))}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Badge variant={getStatusVariant(booking.status || "pending")}>
+                        {booking.status}
+                      </Badge>
+                      <Badge variant={getPaymentStatusVariant(booking.paymentStatus || "pending")}>
+                        {booking.paymentStatus}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop Table View */}
+              <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -706,7 +794,8 @@ export default function Bookings() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+              </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <CalendarIconOutline className="h-12 w-12 text-muted-foreground/50" />
