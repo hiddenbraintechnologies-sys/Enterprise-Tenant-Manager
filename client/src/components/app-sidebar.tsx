@@ -79,6 +79,12 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
     { title: "Bookings", url: "/bookings", icon: Calendar },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
+  pg_hostel: [
+    { title: "Dashboard", url: "/dashboard/pg", icon: LayoutDashboard },
+    { title: "Customers", url: "/customers", icon: Users },
+    { title: "Bookings", url: "/bookings", icon: Calendar },
+    { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  ],
   coworking: [
     { title: "Dashboard", url: "/dashboard/coworking", icon: LayoutDashboard },
     { title: "Spaces", url: "/coworking/spaces", icon: MapPin },
@@ -171,6 +177,7 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   clinic: "/dashboard/clinic",
   salon: "/dashboard/salon",
   pg: "/dashboard/pg",
+  pg_hostel: "/dashboard/pg",
   coworking: "/dashboard/coworking",
   service: "/dashboard/service",
   real_estate: "/dashboard/real-estate",

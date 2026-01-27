@@ -171,6 +171,7 @@ const DASHBOARD_ROUTES: Record<string, string> = {
   clinic: "/dashboard/clinic",
   salon: "/dashboard/salon",
   pg: "/dashboard/pg",
+  pg_hostel: "/dashboard/pg",
   coworking: "/dashboard/coworking",
   service: "/dashboard/service",
   real_estate: "/dashboard/real-estate",

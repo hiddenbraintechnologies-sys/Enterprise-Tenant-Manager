@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
+export type BusinessType = "clinic" | "salon" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
 
 export interface ModuleConfig {
   id: string;
@@ -22,6 +22,7 @@ const FEATURE_FLAGS: FeatureFlagConfig = {
   clinic: ["hrms_it_extensions", "payroll"],
   salon: ["payroll"],
   pg: ["payroll"],
+  pg_hostel: ["payroll"],
   coworking: ["hrms_it_extensions", "payroll"],
   service: ["hrms_it_extensions", "payroll"],
   real_estate: ["payroll"],
@@ -58,6 +59,13 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
   pg: [
+    { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  pg_hostel: [
     { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
     { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
     HRMS_MODULE,
@@ -170,6 +178,7 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   clinic: "/dashboard/clinic",
   salon: "/dashboard/salon",
   pg: "/dashboard/pg",
+  pg_hostel: "/dashboard/pg",
   coworking: "/dashboard/coworking",
   service: "/dashboard/service",
   real_estate: "/dashboard/real-estate",
