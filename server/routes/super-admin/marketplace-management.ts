@@ -8,6 +8,7 @@ import {
   addonAuditLog,
   addonPricing,
   tenantAddons,
+  countryRolloutPolicy,
   type InsertAddonCountryConfig,
   type InsertAddonPlanEligibility,
 } from "@shared/schema";
@@ -817,6 +818,116 @@ router.get("/summary", requiredAuth, requireSuperAdmin, async (req: Request, res
   } catch (error) {
     console.error("[marketplace-management] Error fetching summary:", error);
     res.status(500).json({ error: "Failed to fetch summary" });
+  }
+});
+
+// ==================== BUSINESS TYPES PER COUNTRY ====================
+
+import { BUSINESS_TYPE_CODES } from "@shared/business-types";
+
+// Use canonical business type codes from shared registry
+const ALL_BUSINESS_TYPES = BUSINESS_TYPE_CODES;
+
+// GET /rollouts/:countryCode/business-types
+router.get("/rollouts/:countryCode/business-types", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { countryCode } = req.params;
+    const upperCode = countryCode.toUpperCase();
+
+    const [policy] = await db
+      .select({ enabledBusinessTypes: countryRolloutPolicy.enabledBusinessTypes })
+      .from(countryRolloutPolicy)
+      .where(eq(countryRolloutPolicy.countryCode, upperCode))
+      .limit(1);
+
+    const enabledSet = new Set((policy?.enabledBusinessTypes as string[]) || []);
+
+    const businessTypes = ALL_BUSINESS_TYPES.map((bt) => ({
+      businessType: bt,
+      isEnabled: enabledSet.has(bt),
+    }));
+
+    res.json({ businessTypes, countryCode: upperCode });
+  } catch (error) {
+    console.error("[marketplace-management] Error fetching business types:", error);
+    res.status(500).json({ error: "Failed to fetch business types" });
+  }
+});
+
+// PATCH /rollouts/:countryCode/business-types
+const updateBusinessTypesSchema = z.object({
+  businessTypes: z.array(z.object({
+    businessType: z.string(),
+    isEnabled: z.boolean(),
+  })),
+});
+
+router.patch("/rollouts/:countryCode/business-types", requiredAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { countryCode } = req.params;
+    const upperCode = countryCode.toUpperCase();
+
+    const parsed = updateBusinessTypesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    }
+
+    // Extract enabled business types
+    const enabledBusinessTypes = parsed.data.businessTypes
+      .filter((bt) => bt.isEnabled)
+      .map((bt) => bt.businessType);
+
+    // Validate that all business types are valid
+    const validBusinessTypes = new Set<string>(ALL_BUSINESS_TYPES);
+    const invalidTypes = enabledBusinessTypes.filter((bt) => !validBusinessTypes.has(bt));
+    if (invalidTypes.length > 0) {
+      return res.status(400).json({ 
+        error: "Invalid business types", 
+        invalidTypes,
+        validTypes: Array.from(ALL_BUSINESS_TYPES),
+      });
+    }
+
+    // Check if policy exists
+    const [existing] = await db
+      .select()
+      .from(countryRolloutPolicy)
+      .where(eq(countryRolloutPolicy.countryCode, upperCode))
+      .limit(1);
+
+    if (existing) {
+      await db.update(countryRolloutPolicy)
+        .set({ 
+          enabledBusinessTypes, 
+          updatedAt: new Date(),
+          updatedBy: (req as any).user?.id,
+        })
+        .where(eq(countryRolloutPolicy.countryCode, upperCode));
+    } else {
+      await db.insert(countryRolloutPolicy).values({
+        countryCode: upperCode,
+        isActive: false,
+        status: "coming_soon",
+        enabledBusinessTypes,
+      });
+    }
+
+    // Log audit
+    await logAuditAction(
+      req,
+      "update_business_types",
+      null,
+      null,
+      upperCode,
+      existing?.enabledBusinessTypes || [],
+      enabledBusinessTypes,
+      { action: "business_types_update" }
+    );
+
+    res.json({ success: true, countryCode: upperCode, enabledBusinessTypes });
+  } catch (error) {
+    console.error("[marketplace-management] Error updating business types:", error);
+    res.status(500).json({ error: "Failed to update business types" });
   }
 });
 

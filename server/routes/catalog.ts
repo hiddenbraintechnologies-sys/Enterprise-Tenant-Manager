@@ -1,29 +1,11 @@
 import { Router, Request, Response } from "express";
 import { countryRolloutService } from "../services/country-rollout";
+import { getBusinessTypeOptions } from "@shared/business-types";
 
 const router = Router();
 
-// Business Type Registry - matches shared/business-types.ts
-// ❌ Never change codes after launch | ✅ Labels can be renamed
-const ALL_BUSINESS_TYPES = [
-  // Phase-1 India
-  { value: "pg_hostel", label: "PG / Hostel", category: "hospitality", phase: "phase1" },
-  // Phase-1 Multi-country
-  { value: "consulting", label: "Consulting / Professional Services", category: "professional", phase: "phase1" },
-  { value: "software_services", label: "Software / IT Services", category: "technology", phase: "phase1" },
-  // Phase-2
-  { value: "clinic_healthcare", label: "Clinic / Healthcare", category: "healthcare", phase: "phase2" },
-  // Later phases
-  { value: "legal", label: "Legal & Compliance", category: "professional", phase: "later" },
-  { value: "digital_agency", label: "Digital Marketing Agency", category: "technology", phase: "later" },
-  { value: "retail_store", label: "Retail Store / POS", category: "retail", phase: "later" },
-  { value: "salon_spa", label: "Salon / Spa", category: "services", phase: "later" },
-  { value: "furniture_manufacturing", label: "Furniture Manufacturing", category: "manufacturing", phase: "later" },
-  { value: "logistics_fleet", label: "Logistics & Fleet", category: "logistics", phase: "later" },
-  { value: "education_institute", label: "Coaching / Training Institute", category: "education", phase: "later" },
-  { value: "tourism", label: "Tourism / Travel Agency", category: "travel", phase: "later" },
-  { value: "real_estate", label: "Real Estate Agency", category: "property", phase: "later" },
-];
+// Use shared business type registry - single source of truth
+const ALL_BUSINESS_TYPES = getBusinessTypeOptions();
 
 // GET /api/catalog/business-types?country=IN
 // Returns only allowed business types for the given country
@@ -52,13 +34,14 @@ router.get("/business-types", async (req: Request, res: Response) => {
 
     const enabledTypes = config.enabledBusinessTypes;
     
-    // If no specific business types are enabled, return all
+    // If no specific business types are enabled, return empty list (enforces gating)
     if (!enabledTypes || enabledTypes.length === 0) {
       return res.json({
         countryCode,
         rolloutStatus: config.rolloutStatus,
         countryName: config.countryName,
-        businessTypes: ALL_BUSINESS_TYPES,
+        businessTypes: [],
+        message: "No business types are currently enabled for this country.",
       });
     }
 

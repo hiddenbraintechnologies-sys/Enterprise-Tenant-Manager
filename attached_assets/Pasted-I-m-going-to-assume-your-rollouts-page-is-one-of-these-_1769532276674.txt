@@ -1,0 +1,279 @@
+I’m going to assume your rollouts page is one of these (pick the one you actually have — same snippet works):
+
+client/src/pages/super-admin/marketplace/rollouts.tsx
+
+or client/src/pages/super-admin/marketplace-rollouts.tsx
+
+And your admin API wrapper is your usual apiFetch/TanStack Query setup.
+
+1) ✅ JSX: Business Types Tab (paste into Rollouts page)
+Add this component inside the Rollouts page file
+
+File: client/src/pages/super-admin/marketplace/rollouts.tsx (or wherever the page is)
+
+import * as React from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+
+// Adjust this import to your project API helper
+import { apiFetch } from "@/lib/api"; // or "@/lib/apiClient"
+
+type BusinessTypeKey =
+  | "PG_HOSTEL"
+  | "HOSTEL"
+  | "PG_MALE"
+  | "PG_FEMALE"
+  | "CO_WORKING"
+  | "CLINIC"
+  | "FURNITURE"
+  | "CONSULTING"
+  | "SOFTWARE_SERVICES"
+  | "RESTAURANT"
+  | "HOTEL";
+
+const ALL_BUSINESS_TYPES: { key: BusinessTypeKey; label: string }[] = [
+  { key: "PG_HOSTEL", label: "PG / Hostel Management" },
+  { key: "HOSTEL", label: "Hostel" },
+  { key: "PG_MALE", label: "PG (Male)" },
+  { key: "PG_FEMALE", label: "PG (Female)" },
+  { key: "CO_WORKING", label: "Co-working" },
+  { key: "CLINIC", label: "Clinic / Healthcare" },
+  { key: "FURNITURE", label: "Furniture Manufacturing" },
+  { key: "CONSULTING", label: "Consulting" },
+  { key: "SOFTWARE_SERVICES", label: "Software Services" },
+  { key: "RESTAURANT", label: "Restaurant" },
+  { key: "HOTEL", label: "Hotel" },
+];
+
+type RolloutBusinessTypeRow = {
+  businessType: BusinessTypeKey;
+  isEnabled: boolean;
+};
+
+function BusinessTypesPanel({ countryCode }: { countryCode: string }) {
+  const qc = useQueryClient();
+  const [q, setQ] = React.useState("");
+
+  const queryKey = ["rollout-business-types", countryCode];
+
+  const btQuery = useQuery({
+    queryKey,
+    queryFn: async (): Promise<{ businessTypes: RolloutBusinessTypeRow[] }> => {
+      return apiFetch(`/api/super-admin/rollouts/${countryCode}/business-types`);
+    },
+    staleTime: 0,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: { businessTypes: RolloutBusinessTypeRow[] }) => {
+      return apiFetch(`/api/super-admin/rollouts/${countryCode}/business-types`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["public-rollouts"] }); // if you cache public rollouts in admin UI
+    },
+  });
+
+  const rows = btQuery.data?.businessTypes ?? [];
+  const enabledCount = rows.filter((r) => r.isEnabled).length;
+
+  const merged = React.useMemo(() => {
+    // Ensure all business types exist in UI even if API returns partial
+    const map = new Map<BusinessTypeKey, boolean>();
+    for (const r of rows) map.set(r.businessType, r.isEnabled);
+    return ALL_BUSINESS_TYPES.map((bt) => ({
+      businessType: bt.key,
+      label: bt.label,
+      isEnabled: map.get(bt.key) ?? false,
+    }));
+  }, [rows]);
+
+  const filtered = merged.filter((x) =>
+    (x.label + " " + x.businessType).toLowerCase().includes(q.toLowerCase().trim())
+  );
+
+  const setAll = (value: boolean) => {
+    const next = merged.map((x) => ({ businessType: x.businessType, isEnabled: value }));
+    saveMutation.mutate({ businessTypes: next });
+  };
+
+  const toggleOne = (key: BusinessTypeKey, value: boolean) => {
+    const next = merged.map((x) =>
+      x.businessType === key ? { businessType: x.businessType, isEnabled: value } : { businessType: x.businessType, isEnabled: x.isEnabled }
+    );
+    saveMutation.mutate({ businessTypes: next });
+  };
+
+  return (
+    <Card className="mt-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div>
+          <CardTitle className="text-base">Business Types Allowed</CardTitle>
+          <div className="mt-1 text-sm text-muted-foreground">
+            Enable which business types appear during signup for <span className="font-medium">{countryCode}</span>.
+          </div>
+        </div>
+
+        <Badge variant={enabledCount > 0 ? "default" : "secondary"}>
+          {enabledCount} enabled
+        </Badge>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search business types…"
+            className="sm:max-w-sm"
+          />
+
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => setAll(true)} disabled={saveMutation.isPending || btQuery.isLoading}>
+              Enable all
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setAll(false)} disabled={saveMutation.isPending || btQuery.isLoading}>
+              Disable all
+            </Button>
+          </div>
+        </div>
+
+        <Separator />
+
+        {btQuery.isLoading ? (
+          <div className="text-sm text-muted-foreground">Loading business types…</div>
+        ) : btQuery.isError ? (
+          <div className="text-sm text-destructive">
+            Failed to load business types. Please retry.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {filtered.map((x) => (
+              <label
+                key={x.businessType}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium">{x.label}</span>
+                  <span className="text-xs text-muted-foreground">{x.businessType}</span>
+                </div>
+
+                <Checkbox
+                  checked={x.isEnabled}
+                  onCheckedChange={(v) => toggleOne(x.businessType, Boolean(v))}
+                  disabled={saveMutation.isPending}
+                />
+              </label>
+            ))}
+          </div>
+        )}
+
+        {saveMutation.isPending && (
+          <div className="text-sm text-muted-foreground">Saving…</div>
+        )}
+
+        {saveMutation.isError && (
+          <div className="text-sm text-destructive">
+            Save failed. Check permissions or server logs.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+2) ✅ Hook it into your existing country card (Tabs)
+
+Inside your country rollout card UI (where you show Live/Soon toggle), add:
+
+<Tabs defaultValue="marketplace">
+  <TabsList>
+    <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
+    <TabsTrigger value="businessTypes">Business Types</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value="marketplace">
+    {/* your existing marketplace rollout controls */}
+  </TabsContent>
+
+  <TabsContent value="businessTypes">
+    <BusinessTypesPanel countryCode={rollout.countryCode} />
+  </TabsContent>
+</Tabs>
+
+
+That’s it for UI.
+
+3) ✅ Register page filter (business type dropdown)
+
+File: client/src/pages/register.tsx
+
+Add logic like:
+
+const selectedCountry = localStorage.getItem("app:country") || "IN";
+
+const rollouts = await fetch("/api/public/rollouts", { credentials: "omit" }).then(r => r.json());
+const current = rollouts.rollouts?.find((r: any) => r.countryCode === selectedCountry);
+
+const enabled = new Set((current?.enabledBusinessTypes || []) as string[]);
+
+// Then filter your dropdown options:
+const filteredBusinessOptions = ALL_BUSINESS_OPTIONS.filter(o => enabled.has(o.value));
+
+
+If enabledBusinessTypes is empty or country inactive → show Coming Soon message.
+
+4) ✅ API endpoints needed (backend)
+
+Make sure these exist:
+
+Super Admin
+
+GET /api/super-admin/rollouts/:countryCode/business-types
+
+PATCH /api/super-admin/rollouts/:countryCode/business-types
+
+Public
+
+GET /api/public/rollouts returns enabledBusinessTypes
+
+5) Replit prompt to implement (single paste)
+
+If you want to tell Replit exactly what to do, paste this:
+
+Add “Business Types per Country” rollout control in Super Admin.
+
+UI:
+- In /super-admin/marketplace/rollouts add a “Business Types” tab for each country card.
+- Show checklist of ALL business types with search, enable/disable all, and save.
+- Use endpoints:
+  GET /api/super-admin/rollouts/:countryCode/business-types
+  PATCH /api/super-admin/rollouts/:countryCode/business-types
+- Super-admin only.
+
+Backend:
+- Add Prisma model CountryRolloutBusinessType with unique(rolloutId,businessType).
+- Seed defaults:
+  IN: enable PG_HOSTEL only
+  MY: enable CONSULTING + SOFTWARE_SERVICES
+  UK: enable CONSULTING + SOFTWARE_SERVICES
+- Public endpoint GET /api/public/rollouts must include enabledBusinessTypes array per country.
+
+Register page:
+- Filter businessType dropdown based on selected country enabledBusinessTypes.
+- If empty, show Coming Soon.
+
+Return list of files changed and how to verify:
+Toggle business type in admin → refresh register → dropdown updates.
+
+
+If you tell me the actual rollouts page file path in your repo (the one you open in browser), I’ll tailor the snippet to match your exact component names and data structure (camelCase vs snake_case) so you can paste with zero edits.
