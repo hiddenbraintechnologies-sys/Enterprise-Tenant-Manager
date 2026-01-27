@@ -1,0 +1,74 @@
+Implement PWA baseline (safe, minimal) without breaking authentication, tenant discovery, or RBAC. Do NOT cache authenticated API responses.
+
+GOALS
+1) Add manifest + icons + installability
+2) Add service worker that caches only static assets (app shell) and a safe offline fallback page
+3) Add optional install prompt UI (manual button + smart prompt)
+4) Ensure auth flows still work (cookies/JWT), and no /api/* caching causes stale/unsafe behavior
+
+A) FILES / OUTPUTS
+1) Create/verify:
+- public/manifest.webmanifest
+- public/icons/icon-192.png
+- public/icons/icon-512.png
+- public/icons/icon-512-maskable.png
+- public/offline.html (or /offline route)
+- service worker setup (choose one approach below)
+
+B) APPROACH (choose the simplest compatible with current stack)
+If Vite/React:
+- Use Workbox or a minimal custom SW in public/sw.js
+- Register SW in client entry (e.g., client/src/main.tsx)
+
+C) MANIFEST REQUIREMENTS
+- name, short_name, start_url="/"
+- display="standalone"
+- theme_color/background_color aligned to existing branding
+- icons include maskable
+- prefer lang-neutral name
+
+D) SERVICE WORKER RULES (CRITICAL SAFETY)
+1) Cache-first ONLY for:
+- static JS/CSS bundles
+- fonts/images in /assets or /icons
+2) Network-first for navigation requests (HTML routes), fallback to offline page when offline.
+3) NEVER cache:
+- any request starting with /api/
+- any request with Authorization header
+- any request with Cookie header
+- any request with X-Tenant-ID header
+4) Add explicit bypass:
+- if url.pathname startsWith("/api/") return fetch(request)
+
+E) OFFLINE UX
+- When offline and user navigates, show offline page with:
+  “You’re offline. Please reconnect to continue.”
+- Do not attempt offline writes.
+- Add a small banner component in app shell:
+  shows when navigator.onLine === false
+
+F) INSTALL PROMPT UX (NON-SPAM)
+- Add “Install App” button in user menu/footer.
+- Use beforeinstallprompt event:
+  - store the event
+  - show a prompt only after:
+    user logged in OR visited 2+ times
+  - if dismissed, don’t show again for 14 days (localStorage key)
+
+G) VERIFICATION CHECKLIST (must be done)
+1) Lighthouse PWA: installable, manifest valid, icons present
+2) Auth verification:
+- /login works
+- /register works
+- tenant discovery flow works after cache clear
+- marketplace purchase still sends credentials and returns non-401 when logged in
+3) Offline verification:
+- Turn on offline in DevTools:
+  - App shell loads (if previously visited)
+  - /api calls fail gracefully (show error, no infinite spinner)
+  - offline page appears for navigation routes
+
+DELIVERABLES
+- list exact files created/changed
+- brief summary of caching strategy and safety guarantees
+- confirm no /api caching and auth unaffected

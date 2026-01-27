@@ -9,6 +9,7 @@ import { TenantProvider, DashboardGuard, ModuleGuard, FeatureGuard, useTenant, O
 import { TourProvider } from "@/contexts/tour-context";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { CountryProvider } from "@/contexts/country-context";
+import { OfflineBanner } from "@/components/pwa/offline-banner";
 
 import LandingGlobal from "@/pages/landing-global";
 import LandingIndia from "@/pages/landing-india";
@@ -837,6 +838,7 @@ function App() {
           <TooltipProvider>
             <TourProvider>
               <Toaster />
+              <OfflineBanner />
               <AppRouter />
               <TourOverlay />
             </TourProvider>
