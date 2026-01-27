@@ -1,0 +1,195 @@
+In Super Admin → Country Rollouts:
+
+
+For each country (IN, MY, UK, etc.)
+
+
+Toggle:
+
+
+Country is Live/Soon
+
+
+Which business types are allowed (PG/Hostel, Clinic, Consulting, Furniture, etc.)
+
+
+Optional: default business types for new tenants
+
+
+
+
+This ensures:
+
+
+Signup dropdown only shows business types enabled for selected country
+
+
+You can launch “PG/Hostel only” in India first and enable others later
+
+
+
+1) Prisma schema (add business types per country)
+Add a table mapping country → businessType.
+✅ Prisma models (example)
+model CountryRollout {
+  id           String   @id @default(cuid())
+  countryCode  String   @unique
+  isActive     Boolean  @default(false)
+  // existing fields...
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  businessTypes CountryRolloutBusinessType[]
+}
+
+model CountryRolloutBusinessType {
+  id          String   @id @default(cuid())
+  rolloutId   String
+  businessType String  // e.g. "PG_HOSTEL", "CONSULTING", "CLINIC", etc.
+  isEnabled   Boolean  @default(true)
+
+  rollout     CountryRollout @relation(fields: [rolloutId], references: [id], onDelete: Cascade)
+
+  @@unique([rolloutId, businessType])
+  @@index([businessType])
+}
+
+✅ Benefits:
+
+
+Simple
+
+
+Editable per country
+
+
+Safe for future business additions
+
+
+
+2) API (Super Admin + Public)
+A) Super Admin endpoints
+
+
+GET /api/super-admin/rollouts/:countryCode/business-types
+
+
+PATCH /api/super-admin/rollouts/:countryCode/business-types
+
+
+Payload example:
+{
+  "businessTypes": [
+    { "businessType": "PG_HOSTEL", "isEnabled": true },
+    { "businessType": "CONSULTING", "isEnabled": false }
+  ]
+}
+
+B) Public endpoint (used by register page)
+
+
+GET /api/public/rollouts
+Return also:
+
+
+{
+  "countryCode": "IN",
+  "isActive": true,
+  "enabledBusinessTypes": ["PG_HOSTEL", "HOSTEL", "PG_FEMALE"]
+}
+
+
+3) UI (Super Admin: Business Type Rollout panel)
+In /super-admin/marketplace/rollouts (or your existing Rollouts page):
+Add a section per country:
+✅ Business Types Allowed
+
+
+Multi-select checklist of all business types
+
+
+Search bar
+
+
+“Enable all / Disable all”
+
+
+Save
+
+
+UI layout pattern:
+
+
+Country card header (Live/Soon toggle)
+
+
+Tabs: Marketplace Add-ons | Business Types
+
+
+Business Types tab contains the checklist
+
+
+
+4) Signup dropdown behavior (critical)
+In client/src/pages/register.tsx:
+
+
+Get selected country from localStorage.getItem("app:country")
+
+
+Call /api/public/rollouts
+
+
+Filter business type dropdown to those enabled for that country
+
+
+If country is Soon or no business types enabled → show Coming Soon message
+
+
+
+✅ Replit master prompt (single paste)
+Use this to implement end-to-end:
+Add “Business Type rollout per country” in Super Admin.
+
+Requirements:
+1) Super Admin must enable/disable business types per country.
+2) Register page must show business type dropdown filtered by selected country rollout.
+3) Public rollouts API must return enabledBusinessTypes per country.
+4) Safe defaults: if no mapping exists for a country, treat as none enabled (or seed defaults).
+
+Implement:
+
+A) Prisma
+- Add CountryRolloutBusinessType model with unique(rolloutId,businessType)
+- Relation to CountryRollout
+- Migration + seed: create entries for each existing country and all business types with default enabled=false, then enable:
+  IN: PG_HOSTEL only (phase 1)
+  MY: CONSULTING + SOFTWARE_SERVICES (current)
+  UK: CONSULTING + SOFTWARE_SERVICES
+
+B) API
+- Super Admin endpoints:
+  GET /api/super-admin/rollouts/:countryCode/business-types
+  PATCH /api/super-admin/rollouts/:countryCode/business-types
+  Super Admin only, audit log changes
+- Public endpoint:
+  GET /api/public/rollouts includes enabledBusinessTypes array
+
+C) UI
+- Update super-admin rollouts page:
+  add “Business Types” tab per country
+  checklist UI with enable/disable toggles and Save
+  show count enabled (e.g., “3 enabled”)
+
+D) Register page
+- Filter businessType dropdown by selected country’s enabledBusinessTypes
+- If empty or country inactive, show Coming Soon message
+- Add tests for filtering logic
+
+Deliver:
+- file list changed
+- verification steps:
+  toggle business type in admin → refresh register → dropdown updates
+
+
+If you tell me what file your rollouts UI is currently in (example: client/src/pages/super-admin/rollouts.tsx), I can also give you the exact JSX section to paste for the business type checklist.
