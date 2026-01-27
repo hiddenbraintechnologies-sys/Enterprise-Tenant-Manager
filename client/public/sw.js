@@ -36,7 +36,9 @@ self.addEventListener('fetch', (event) => {
   
   if (
     event.request.headers.has('Authorization') ||
-    event.request.headers.has('X-Tenant-ID')
+    event.request.headers.has('Cookie') ||
+    event.request.headers.has('X-Tenant-ID') ||
+    event.request.credentials === 'include'
   ) {
     return;
   }
