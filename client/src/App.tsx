@@ -10,6 +10,7 @@ import { TourProvider } from "@/contexts/tour-context";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { CountryProvider } from "@/contexts/country-context";
 import { OfflineBanner } from "@/components/pwa/offline-banner";
+import { InstallBanner } from "@/components/pwa/install-prompt";
 
 import LandingGlobal from "@/pages/landing-global";
 import LandingIndia from "@/pages/landing-india";
@@ -854,6 +855,7 @@ function App() {
             <TourProvider>
               <Toaster />
               <OfflineBanner />
+              <InstallBanner />
               <AppRouter />
               <TourOverlay />
             </TourProvider>
