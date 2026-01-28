@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'secure_storage.dart';
 
 abstract class TokenStorage {
@@ -19,15 +21,27 @@ class TokenStorageImpl implements TokenStorage {
 
   TokenStorageImpl(this._storage);
 
+  void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint('[TokenStorage] $message');
+    }
+  }
+
   @override
   Future<void> saveTokens({
     required String accessToken,
     required String refreshToken,
   }) async {
+    _debugLog('Saving tokens - access: ${accessToken.length} chars, refresh: ${refreshToken.length} chars');
     await Future.wait([
       _storage.write(_accessTokenKey, accessToken),
       _storage.write(_refreshTokenKey, refreshToken),
     ]);
+    
+    // Verify tokens were saved
+    final savedAccess = await _storage.read(_accessTokenKey);
+    final savedRefresh = await _storage.read(_refreshTokenKey);
+    _debugLog('Tokens saved - verify access: ${savedAccess != null}, refresh: ${savedRefresh != null}');
   }
 
   @override

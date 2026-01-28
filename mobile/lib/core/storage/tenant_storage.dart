@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'secure_storage.dart';
 
 abstract class TenantStorage {
@@ -51,19 +53,34 @@ class TenantStorageImpl implements TenantStorage {
 
   TenantStorageImpl(this._storage);
 
+  void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint('[TenantStorage] $message');
+    }
+  }
+
   @override
   Future<void> setCurrentTenant(TenantInfo tenant) async {
+    _debugLog('Saving tenant: ${tenant.name} (${tenant.id})');
     await _storage.write(_currentTenantKey, json.encode(tenant.toJson()));
+    
+    // Verify tenant was saved
+    final saved = await _storage.read(_currentTenantKey);
+    _debugLog('Tenant saved - verify: ${saved != null}');
   }
 
   @override
   Future<TenantInfo?> getCurrentTenant() async {
     final data = await _storage.read(_currentTenantKey);
+    _debugLog('Loading tenant - data exists: ${data != null}');
     if (data == null) return null;
     
     try {
-      return TenantInfo.fromJson(json.decode(data));
+      final tenant = TenantInfo.fromJson(json.decode(data));
+      _debugLog('Loaded tenant: ${tenant.name} (${tenant.id})');
+      return tenant;
     } catch (e) {
+      _debugLog('Failed to parse tenant: $e');
       return null;
     }
   }

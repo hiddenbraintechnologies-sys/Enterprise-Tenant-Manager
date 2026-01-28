@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/storage/tenant_storage.dart';
@@ -27,30 +28,51 @@ class TenantBloc extends Bloc<TenantEvent, TenantState> {
     on<TenantCleared>(_onTenantCleared);
   }
 
+  void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint('[TenantBloc] $message');
+    }
+  }
+
   Future<void> _onLoadRequested(
     TenantLoadRequested event,
     Emitter<TenantState> emit,
   ) async {
+    _debugLog('=== TENANT LOAD START ===');
     emit(const TenantLoading());
 
+    _debugLog('Step 1: Loading saved tenant from storage...');
     final currentTenant = await _tenantStorage.getCurrentTenant();
+    _debugLog('Step 1 Result: savedTenant=${currentTenant?.name ?? "NULL"}');
     
+    _debugLog('Step 2: Fetching tenants from API...');
     final result = await _getTenantsUseCase();
     
     result.fold(
-      (failure) => emit(TenantError(failure.message)),
+      (failure) {
+        _debugLog('=== TENANT LOAD ERROR: ${failure.message} ===');
+        emit(TenantError(failure.message));
+      },
       (tenants) {
+        _debugLog('Step 2 Result: ${tenants.length} tenants fetched');
+        
         Tenant? selected;
         if (currentTenant != null) {
           try {
             selected = tenants.firstWhere((t) => t.id == currentTenant.id);
+            _debugLog('Step 3: Restored saved tenant: ${selected.name}');
           } catch (_) {
             selected = tenants.isNotEmpty ? tenants.first : null;
+            _debugLog('Step 3: Saved tenant not found, using first: ${selected?.name ?? "NONE"}');
           }
         } else if (tenants.length == 1) {
           selected = tenants.first;
+          _debugLog('Step 3: Only one tenant, auto-selecting: ${selected.name}');
+        } else {
+          _debugLog('Step 3: No saved tenant, ${tenants.length} available');
         }
         
+        _debugLog('=== TENANT LOAD END: selected=${selected?.name ?? "NULL"} ===');
         emit(TenantLoaded(
           tenants: tenants,
           currentTenant: selected,

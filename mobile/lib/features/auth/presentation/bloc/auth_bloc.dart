@@ -47,83 +47,97 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthCheckRequested event,
     Emitter<AuthState> emit,
   ) async {
-    _debugLog('Boot start - checking stored tokens');
+    _debugLog('=== BOOTSTRAP START ===');
     emit(const AuthLoading());
 
     try {
+      // Step 1: Load tokens from secure storage
+      _debugLog('Step 1: Loading tokens from storage...');
       final accessToken = await _tokenStorage.getAccessToken();
       final refreshToken = await _tokenStorage.getRefreshToken();
       
-      _debugLog('Tokens loaded - access: ${accessToken != null}, refresh: ${refreshToken != null}');
+      _debugLog('Step 1 Result: accessToken=${accessToken != null ? "EXISTS (${accessToken.length} chars)" : "NULL"}, refreshToken=${refreshToken != null ? "EXISTS" : "NULL"}');
 
       if (accessToken == null && refreshToken == null) {
-        _debugLog('No tokens found - routing to login');
+        _debugLog('=== BOOTSTRAP END: No tokens - UNAUTHENTICATED ===');
         emit(const AuthUnauthenticated());
         return;
       }
 
+      // Step 2: Validate access token
+      _debugLog('Step 2: Validating access token...');
       final hasValidTokens = await _tokenStorage.hasValidTokens();
-      _debugLog('Access token valid: $hasValidTokens');
+      _debugLog('Step 2 Result: hasValidTokens=$hasValidTokens');
       
       if (hasValidTokens) {
         final payload = await _tokenStorage.decodeAccessToken();
+        _debugLog('Step 2 Payload: ${payload?.keys.join(", ") ?? "NULL"}');
+        
         if (payload != null) {
-          final user = User(
-            id: payload['userId'] as String? ?? '',
-            email: payload['email'] as String? ?? '',
-            role: payload['role'] as String? ?? 'user',
-          );
-          _debugLog('Valid token - authenticated as ${user.email}');
+          final userId = payload['userId'] as String? ?? payload['sub'] as String? ?? '';
+          final email = payload['email'] as String? ?? '';
+          final role = payload['role'] as String? ?? 'user';
+          
+          final user = User(id: userId, email: email, role: role);
+          _debugLog('=== BOOTSTRAP END: Valid token - AUTHENTICATED as $email ===');
           emit(AuthAuthenticated(user: user, isBootstrapped: true));
           return;
         }
       }
 
+      // Step 3: Try to refresh token
       if (refreshToken != null) {
-        _debugLog('Access token expired - attempting refresh');
+        _debugLog('Step 3: Access token expired/invalid - attempting refresh...');
         final result = await _refreshTokenUseCase(refreshToken);
         
-        final authState = result.fold<AuthState>(
-          (failure) {
-            _debugLog('Refresh failed: ${failure.message} - clearing tokens');
-            return const AuthUnauthenticated();
-          },
-          (tokens) {
-            _debugLog('Refresh successful - new tokens saved');
-            return const AuthLoading();
-          },
-        );
+        final isSuccess = result.isRight();
+        _debugLog('Step 3 Result: refresh ${isSuccess ? "SUCCESS" : "FAILED"}');
 
-        if (authState is AuthUnauthenticated) {
+        if (!isSuccess) {
+          final failure = result.fold((l) => l.message, (r) => '');
+          _debugLog('Step 3 Failure reason: $failure');
+          _debugLog('Clearing tokens and tenant...');
           await _tokenStorage.clearTokens();
           await _tenantStorage.clearCurrentTenant();
-          emit(authState);
+          _debugLog('=== BOOTSTRAP END: Refresh failed - UNAUTHENTICATED ===');
+          emit(const AuthUnauthenticated());
           return;
         }
 
+        // Step 4: Decode refreshed token
+        _debugLog('Step 4: Decoding refreshed token...');
         final payload = await _tokenStorage.decodeAccessToken();
+        _debugLog('Step 4 Payload: ${payload?.keys.join(", ") ?? "NULL"}');
+        
         if (payload != null) {
-          final user = User(
-            id: payload['userId'] as String? ?? '',
-            email: payload['email'] as String? ?? '',
-            role: payload['role'] as String? ?? 'user',
-          );
-          _debugLog('After refresh - authenticated as ${user.email}');
+          final userId = payload['userId'] as String? ?? payload['sub'] as String? ?? '';
+          final email = payload['email'] as String? ?? '';
+          final role = payload['role'] as String? ?? 'user';
+          
+          final user = User(id: userId, email: email, role: role);
+          _debugLog('=== BOOTSTRAP END: Refreshed - AUTHENTICATED as $email ===');
           emit(AuthAuthenticated(user: user, isBootstrapped: true));
         } else {
-          _debugLog('Failed to decode refreshed token - clearing');
+          _debugLog('Step 4: Failed to decode - clearing tokens');
           await _tokenStorage.clearTokens();
           await _tenantStorage.clearCurrentTenant();
+          _debugLog('=== BOOTSTRAP END: Decode failed - UNAUTHENTICATED ===');
           emit(const AuthUnauthenticated());
         }
       } else {
-        _debugLog('No refresh token - routing to login');
+        _debugLog('=== BOOTSTRAP END: No refresh token - UNAUTHENTICATED ===');
         emit(const AuthUnauthenticated());
       }
-    } catch (e) {
-      _debugLog('Bootstrap error: $e - routing to login');
-      await _tokenStorage.clearTokens();
-      await _tenantStorage.clearCurrentTenant();
+    } catch (e, stackTrace) {
+      _debugLog('=== BOOTSTRAP ERROR: $e ===');
+      _debugLog('Stack trace: $stackTrace');
+      try {
+        await _tokenStorage.clearTokens();
+        await _tenantStorage.clearCurrentTenant();
+      } catch (cleanupError) {
+        _debugLog('Cleanup error: $cleanupError');
+      }
+      _debugLog('=== BOOTSTRAP END: Error - UNAUTHENTICATED ===');
       emit(const AuthUnauthenticated());
     }
   }
