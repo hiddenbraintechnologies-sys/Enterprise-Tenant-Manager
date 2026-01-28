@@ -178,6 +178,7 @@ void _registerBlocs() {
       logoutUseCase: getIt<LogoutUseCase>(),
       refreshTokenUseCase: getIt<RefreshTokenUseCase>(),
       tokenStorage: getIt<TokenStorage>(),
+      tenantStorage: getIt<TenantStorage>(),
     ),
   );
   

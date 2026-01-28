@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -15,7 +16,7 @@ class AppRouter {
   static final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
     redirect: _guardRoute,
     routes: [
       GoRoute(
@@ -41,31 +42,55 @@ class AppRouter {
     ],
   );
 
+  static void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint('[AppRouter] $message');
+    }
+  }
+
   static String? _guardRoute(BuildContext context, GoRouterState state) {
     final authState = context.read<AuthBloc>().state;
     final tenantState = context.read<TenantBloc>().state;
     
-    final isOnSplash = state.matchedLocation == '/splash';
-    final isOnLogin = state.matchedLocation == '/login';
-    final isOnTenantSelector = state.matchedLocation == '/select-tenant';
+    final currentLocation = state.matchedLocation;
+    final isOnSplash = currentLocation == '/splash';
+    final isOnLogin = currentLocation == '/login';
+    final isOnTenantSelector = currentLocation == '/select-tenant';
     
-    if (authState is AuthInitial || authState is AuthLoading) {
+    _debugLog('Guard: location=$currentLocation, auth=${authState.runtimeType}, bootstrapped=${authState.isBootstrapped}');
+
+    // Wait for bootstrap to complete before making routing decisions
+    if (!authState.isBootstrapped) {
+      _debugLog('Not bootstrapped yet - staying on splash');
       return isOnSplash ? null : '/splash';
     }
     
-    if (authState is AuthUnauthenticated) {
+    // After bootstrap, route based on auth state
+    if (authState is AuthUnauthenticated || authState is AuthError) {
+      _debugLog('Unauthenticated - redirect to login');
       return isOnLogin ? null : '/login';
     }
     
     if (authState is AuthAuthenticated) {
+      // Wait for tenant state to be loaded before leaving splash
+      if (tenantState is TenantInitial || tenantState is TenantLoading) {
+        _debugLog('Tenant still loading - staying on splash');
+        return isOnSplash ? null : '/splash';
+      }
+      
+      // Don't stay on splash or login if authenticated
       if (isOnLogin || isOnSplash) {
         if (tenantState is TenantLoaded && tenantState.currentTenant != null) {
+          _debugLog('Authenticated with tenant - redirect to dashboard');
           return '/dashboard';
         }
+        _debugLog('Authenticated without tenant - redirect to tenant selector');
         return '/select-tenant';
       }
       
-      if (tenantState is TenantLoaded && tenantState.currentTenant == null && !isOnTenantSelector) {
+      // Ensure tenant is selected before accessing dashboard
+      if (!isOnTenantSelector && tenantState is TenantLoaded && tenantState.currentTenant == null) {
+        _debugLog('No tenant selected - redirect to tenant selector');
         return '/select-tenant';
       }
     }

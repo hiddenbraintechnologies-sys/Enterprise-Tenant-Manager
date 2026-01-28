@@ -17,13 +17,22 @@ class BizFlowApp extends StatelessWidget {
         BlocProvider(create: (_) => getIt<AuthBloc>()..add(const AuthCheckRequested())),
         BlocProvider(create: (_) => getIt<TenantBloc>()),
       ],
-      child: MaterialApp.router(
-        title: 'BizFlow',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        routerConfig: AppRouter.router,
+      child: BlocListener<AuthBloc, AuthState>(
+        listenWhen: (previous, current) => 
+          current is AuthAuthenticated && previous is! AuthAuthenticated,
+        listener: (context, state) {
+          if (state is AuthAuthenticated) {
+            context.read<TenantBloc>().add(const TenantLoadRequested());
+          }
+        },
+        child: MaterialApp.router(
+          title: 'BizFlow',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: ThemeMode.system,
+          routerConfig: AppRouter.router,
+        ),
       ),
     );
   }
