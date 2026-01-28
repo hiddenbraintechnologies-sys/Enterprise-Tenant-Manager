@@ -81,6 +81,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           final user = User(id: userId, email: email, role: role);
           _debugLog('=== BOOTSTRAP END: Valid token - AUTHENTICATED as $email ===');
           emit(AuthAuthenticated(user: user, isBootstrapped: true));
+          // Tenant loading will be triggered by app-level listener
           return;
         }
       }

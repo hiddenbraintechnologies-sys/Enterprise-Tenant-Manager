@@ -47,37 +47,23 @@ void main() {
     authBloc.close();
   });
 
-  group('AuthBloc Bootstrap', () {
-    test('initial state is AuthInitial with isBootstrapped false', () {
+  group('AuthBloc Bootstrap - Session Persistence', () {
+    test('initial state is AuthInitial with isBootstrapped=false', () {
       expect(authBloc.state, const AuthInitial());
       expect(authBloc.state.isBootstrapped, false);
     });
 
     blocTest<AuthBloc, AuthState>(
-      'emits [AuthLoading, AuthUnauthenticated] when no tokens stored',
+      'bootstrap loads tokens from storage and authenticates when valid',
       build: () {
-        when(() => mockTokenStorage.getAccessToken()).thenAnswer((_) async => null);
-        when(() => mockTokenStorage.getRefreshToken()).thenAnswer((_) async => null);
-        return authBloc;
-      },
-      act: (bloc) => bloc.add(const AuthCheckRequested()),
-      expect: () => [
-        const AuthLoading(),
-        const AuthUnauthenticated(),
-      ],
-      verify: (_) {
-        verify(() => mockTokenStorage.getAccessToken()).called(1);
-        verify(() => mockTokenStorage.getRefreshToken()).called(1);
-      },
-    );
-
-    blocTest<AuthBloc, AuthState>(
-      'emits [AuthLoading, AuthAuthenticated] when valid tokens exist',
-      build: () {
-        when(() => mockTokenStorage.getAccessToken()).thenAnswer((_) async => 'valid_access_token');
-        when(() => mockTokenStorage.getRefreshToken()).thenAnswer((_) async => 'valid_refresh_token');
-        when(() => mockTokenStorage.hasValidTokens()).thenAnswer((_) async => true);
-        when(() => mockTokenStorage.decodeAccessToken()).thenAnswer((_) async => {
+        when(() => mockTokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'valid_access_token');
+        when(() => mockTokenStorage.getRefreshToken())
+            .thenAnswer((_) async => 'valid_refresh_token');
+        when(() => mockTokenStorage.hasValidTokens())
+            .thenAnswer((_) async => true);
+        when(() => mockTokenStorage.decodeAccessToken())
+            .thenAnswer((_) async => {
           'userId': 'user123',
           'email': 'test@example.com',
           'role': 'admin',
@@ -91,21 +77,49 @@ void main() {
             .having((s) => s.user.email, 'email', 'test@example.com')
             .having((s) => s.isBootstrapped, 'isBootstrapped', true),
       ],
+      verify: (_) {
+        verify(() => mockTokenStorage.getAccessToken()).called(1);
+        verify(() => mockTokenStorage.getRefreshToken()).called(1);
+        verify(() => mockTokenStorage.hasValidTokens()).called(1);
+      },
     );
 
     blocTest<AuthBloc, AuthState>(
-      'emits [AuthLoading, AuthAuthenticated] after successful token refresh',
+      'bootstrap with no tokens results in unauthenticated (isBootstrapped=true)',
       build: () {
-        when(() => mockTokenStorage.getAccessToken()).thenAnswer((_) async => 'expired_token');
-        when(() => mockTokenStorage.getRefreshToken()).thenAnswer((_) async => 'valid_refresh_token');
-        when(() => mockTokenStorage.hasValidTokens()).thenAnswer((_) async => false);
-        when(() => mockRefreshTokenUseCase('valid_refresh_token')).thenAnswer(
-          (_) async => Right(AuthTokens(
-            accessToken: 'new_access_token',
-            refreshToken: 'new_refresh_token',
-          )),
-        );
-        when(() => mockTokenStorage.decodeAccessToken()).thenAnswer((_) async => {
+        when(() => mockTokenStorage.getAccessToken())
+            .thenAnswer((_) async => null);
+        when(() => mockTokenStorage.getRefreshToken())
+            .thenAnswer((_) async => null);
+        return authBloc;
+      },
+      act: (bloc) => bloc.add(const AuthCheckRequested()),
+      expect: () => [
+        const AuthLoading(),
+        const AuthUnauthenticated(),
+      ],
+      verify: (_) {
+        final state = authBloc.state;
+        expect(state.isBootstrapped, true);
+      },
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'bootstrap refreshes expired token and authenticates on success',
+      build: () {
+        when(() => mockTokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'expired_token');
+        when(() => mockTokenStorage.getRefreshToken())
+            .thenAnswer((_) async => 'valid_refresh_token');
+        when(() => mockTokenStorage.hasValidTokens())
+            .thenAnswer((_) async => false);
+        when(() => mockRefreshTokenUseCase('valid_refresh_token'))
+            .thenAnswer((_) async => Right(AuthTokens(
+              accessToken: 'new_access_token',
+              refreshToken: 'new_refresh_token',
+            )));
+        when(() => mockTokenStorage.decodeAccessToken())
+            .thenAnswer((_) async => {
           'userId': 'user123',
           'email': 'refreshed@example.com',
           'role': 'user',
@@ -119,19 +133,26 @@ void main() {
             .having((s) => s.user.email, 'email', 'refreshed@example.com')
             .having((s) => s.isBootstrapped, 'isBootstrapped', true),
       ],
+      verify: (_) {
+        verify(() => mockRefreshTokenUseCase('valid_refresh_token')).called(1);
+      },
     );
 
     blocTest<AuthBloc, AuthState>(
-      'emits [AuthLoading, AuthUnauthenticated] when refresh fails and clears tokens',
+      'bootstrap clears tokens when refresh fails',
       build: () {
-        when(() => mockTokenStorage.getAccessToken()).thenAnswer((_) async => 'expired_token');
-        when(() => mockTokenStorage.getRefreshToken()).thenAnswer((_) async => 'invalid_refresh_token');
-        when(() => mockTokenStorage.hasValidTokens()).thenAnswer((_) async => false);
-        when(() => mockRefreshTokenUseCase('invalid_refresh_token')).thenAnswer(
-          (_) async => Left(ApiException('Refresh token expired')),
-        );
-        when(() => mockTokenStorage.clearTokens()).thenAnswer((_) async {});
-        when(() => mockTenantStorage.clearCurrentTenant()).thenAnswer((_) async {});
+        when(() => mockTokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'expired_token');
+        when(() => mockTokenStorage.getRefreshToken())
+            .thenAnswer((_) async => 'invalid_refresh_token');
+        when(() => mockTokenStorage.hasValidTokens())
+            .thenAnswer((_) async => false);
+        when(() => mockRefreshTokenUseCase('invalid_refresh_token'))
+            .thenAnswer((_) async => Left(ApiException('Refresh token expired')));
+        when(() => mockTokenStorage.clearTokens())
+            .thenAnswer((_) async {});
+        when(() => mockTenantStorage.clearCurrentTenant())
+            .thenAnswer((_) async {});
         return authBloc;
       },
       act: (bloc) => bloc.add(const AuthCheckRequested()),
@@ -142,32 +163,92 @@ void main() {
       verify: (_) {
         verify(() => mockTokenStorage.clearTokens()).called(1);
         verify(() => mockTenantStorage.clearCurrentTenant()).called(1);
+        expect(authBloc.state.isBootstrapped, true);
       },
     );
   });
 
-  group('AuthState isBootstrapped', () {
-    test('AuthInitial has isBootstrapped false', () {
+  group('AuthState isBootstrapped property', () {
+    test('AuthInitial has isBootstrapped=false', () {
       expect(const AuthInitial().isBootstrapped, false);
     });
 
-    test('AuthLoading has isBootstrapped false', () {
+    test('AuthLoading has isBootstrapped=false', () {
       expect(const AuthLoading().isBootstrapped, false);
     });
 
-    test('AuthAuthenticated has isBootstrapped true by default', () {
+    test('AuthAuthenticated has isBootstrapped=true by default', () {
       final state = AuthAuthenticated(
         user: User(id: '1', email: 'test@example.com', role: 'user'),
       );
       expect(state.isBootstrapped, true);
     });
 
-    test('AuthUnauthenticated has isBootstrapped true', () {
+    test('AuthUnauthenticated has isBootstrapped=true', () {
       expect(const AuthUnauthenticated().isBootstrapped, true);
     });
 
-    test('AuthError has isBootstrapped true', () {
+    test('AuthError has isBootstrapped=true', () {
       expect(const AuthError('error').isBootstrapped, true);
     });
+  });
+
+  group('Session Persistence Flow', () {
+    blocTest<AuthBloc, AuthState>(
+      'closing app and reopening should restore session with valid tokens',
+      build: () {
+        // Simulate app restart: tokens exist in storage from previous session
+        when(() => mockTokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'stored_access_token');
+        when(() => mockTokenStorage.getRefreshToken())
+            .thenAnswer((_) async => 'stored_refresh_token');
+        when(() => mockTokenStorage.hasValidTokens())
+            .thenAnswer((_) async => true);
+        when(() => mockTokenStorage.decodeAccessToken())
+            .thenAnswer((_) async => {
+          'userId': 'user123',
+          'email': 'restored@example.com',
+          'role': 'admin',
+        });
+        return authBloc;
+      },
+      act: (bloc) => bloc.add(const AuthCheckRequested()),
+      expect: () => [
+        const AuthLoading(),
+        isA<AuthAuthenticated>()
+            .having((s) => s.user.email, 'email', 'restored@example.com'),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'closing app with expired token should refresh on restart',
+      build: () {
+        // Simulate app restart with expired access token
+        when(() => mockTokenStorage.getAccessToken())
+            .thenAnswer((_) async => 'expired_access_token');
+        when(() => mockTokenStorage.getRefreshToken())
+            .thenAnswer((_) async => 'valid_refresh_token');
+        when(() => mockTokenStorage.hasValidTokens())
+            .thenAnswer((_) async => false); // Token expired
+        when(() => mockRefreshTokenUseCase('valid_refresh_token'))
+            .thenAnswer((_) async => Right(AuthTokens(
+              accessToken: 'new_access_token',
+              refreshToken: 'new_refresh_token',
+            )));
+        when(() => mockTokenStorage.decodeAccessToken())
+            .thenAnswer((_) async => {
+          'userId': 'user123',
+          'email': 'refreshed@example.com',
+          'role': 'admin',
+        });
+        return authBloc;
+      },
+      act: (bloc) => bloc.add(const AuthCheckRequested()),
+      expect: () => [
+        const AuthLoading(),
+        isA<AuthAuthenticated>()
+            .having((s) => s.user.email, 'email', 'refreshed@example.com'),
+      ],
+    );
   });
 }

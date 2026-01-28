@@ -16,7 +16,6 @@ import '../notifications/notification_preferences.dart';
 import '../notifications/deep_link_handler.dart';
 import '../analytics/analytics_service.dart';
 import '../subscription/subscription_gating_service.dart';
-import '../../presentation/routes/app_router.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/datasources/tenant_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
@@ -113,7 +112,6 @@ void _registerNetwork() {
   
   getIt.registerLazySingleton<DeepLinkHandler>(
     () => DeepLinkHandler(
-      router: AppRouter.router,
       tenantStorage: getIt<TenantStorage>(),
     ),
   );

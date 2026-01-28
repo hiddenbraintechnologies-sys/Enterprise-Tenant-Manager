@@ -6,6 +6,7 @@ import 'secure_storage.dart';
 
 abstract class TenantStorage {
   Future<void> setCurrentTenant(TenantInfo tenant);
+  Future<void> setCurrentTenantId(String tenantId);
   Future<TenantInfo?> getCurrentTenant();
   Future<String?> getCurrentTenantId();
   Future<void> clearCurrentTenant();
@@ -89,6 +90,14 @@ class TenantStorageImpl implements TenantStorage {
   Future<String?> getCurrentTenantId() async {
     final tenant = await getCurrentTenant();
     return tenant?.id;
+  }
+
+  @override
+  Future<void> setCurrentTenantId(String tenantId) async {
+    _debugLog('Setting tenant ID: $tenantId');
+    // Create a minimal tenant info with just the ID
+    final tenant = TenantInfo(id: tenantId, name: '');
+    await setCurrentTenant(tenant);
   }
 
   @override

@@ -5,16 +5,24 @@ import '../storage/tenant_storage.dart';
 import 'notification_model.dart';
 
 class DeepLinkHandler {
-  final GoRouter _router;
+  GoRouter? _router;
   final TenantStorage _tenantStorage;
 
   DeepLinkHandler({
-    required GoRouter router,
     required TenantStorage tenantStorage,
-  })  : _router = router,
-        _tenantStorage = tenantStorage;
+  }) : _tenantStorage = tenantStorage;
+
+  /// Set the router instance after app initialization
+  void setRouter(GoRouter router) {
+    _router = router;
+  }
 
   Future<void> handleNotification(NotificationModel notification) async {
+    if (_router == null) {
+      debugPrint('DeepLinkHandler: Router not set yet, ignoring notification');
+      return;
+    }
+    
     debugPrint('Handling notification deep link: ${notification.deepLink}');
 
     if (notification.tenantId != null) {
@@ -26,7 +34,7 @@ class DeepLinkHandler {
     }
 
     if (notification.deepLink != null) {
-      _router.go(notification.deepLink!);
+      _router!.go(notification.deepLink!);
       return;
     }
 
@@ -36,6 +44,8 @@ class DeepLinkHandler {
   }
 
   void _navigateToModule(NotificationModel notification) {
+    if (_router == null) return;
+    
     final module = notification.targetModule!;
     final targetId = notification.targetId;
 
@@ -118,10 +128,15 @@ class DeepLinkHandler {
     }
 
     debugPrint('Navigating to: $route');
-    _router.go(route);
+    _router!.go(route);
   }
 
   void handleDeepLinkUri(Uri uri) {
+    if (_router == null) {
+      debugPrint('DeepLinkHandler: Router not set yet, ignoring deep link');
+      return;
+    }
+    
     debugPrint('Handling deep link URI: $uri');
     
     final path = uri.path;
@@ -131,7 +146,7 @@ class DeepLinkHandler {
       _tenantStorage.setCurrentTenantId(queryParams['tenantId']!);
     }
 
-    _router.go(path);
+    _router!.go(path);
   }
 
   static String buildDeepLink({
