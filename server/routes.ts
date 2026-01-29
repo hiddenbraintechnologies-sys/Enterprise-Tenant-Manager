@@ -213,32 +213,38 @@ export async function registerRoutes(
         console.log("[bootstrap] Payroll addon pricing seeding skipped:", err);
       }
 
-      // Seed country rollout policies (ensure IN/MY are active)
+      // Seed country rollout policies (ensure IN/MY are active with proper business types)
       try {
         const { countryRolloutPolicy } = await import("@shared/schema");
         const countries = [
-          { code: "IN", active: true },
-          { code: "MY", active: true },
-          { code: "GB", active: false },
-          { code: "SG", active: false },
+          { code: "IN", active: true, status: "live" as const, businessTypes: ["pg_hostel"] },
+          { code: "MY", active: true, status: "beta" as const, businessTypes: ["consulting", "software_services"] },
+          { code: "GB", active: true, status: "beta" as const, businessTypes: ["consulting", "software_services"] },
+          { code: "SG", active: false, status: "coming_soon" as const, businessTypes: [] },
         ];
         for (const country of countries) {
           const [existing] = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, country.code)).limit(1);
           if (existing) {
-            await db.update(countryRolloutPolicy).set({ isActive: country.active, updatedAt: new Date() }).where(eq(countryRolloutPolicy.countryCode, country.code));
+            // Update all critical fields, not just isActive
+            await db.update(countryRolloutPolicy).set({ 
+              isActive: country.active, 
+              status: country.status,
+              enabledBusinessTypes: country.businessTypes,
+              updatedAt: new Date() 
+            }).where(eq(countryRolloutPolicy.countryCode, country.code));
           } else {
             await db.insert(countryRolloutPolicy).values({
               countryCode: country.code,
               isActive: country.active,
-              status: "coming_soon",
-              enabledBusinessTypes: ["consulting", "software_services"],
+              status: country.status,
+              enabledBusinessTypes: country.businessTypes,
               enabledModules: [],
               disabledFeatures: [],
               updatedBy: "bootstrap",
             });
           }
         }
-        console.log("[bootstrap] Country rollout policies seeded (IN/MY active)");
+        console.log("[bootstrap] Country rollout policies seeded (IN/MY/GB active)");
       } catch (err) {
         console.log("[bootstrap] Country rollout seeding skipped:", err);
       }
