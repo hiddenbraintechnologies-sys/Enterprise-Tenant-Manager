@@ -660,8 +660,14 @@ export async function registerRoutes(
   const authRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
 
   const registrationSchema = z.object({
-    firstName: z.string().min(1, "First name is required").max(100),
-    lastName: z.string().min(1, "Last name is required").max(100),
+    firstName: z.string()
+      .min(1, "First name is required")
+      .max(100)
+      .regex(/[a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/, "First name must contain at least one letter"),
+    lastName: z.string()
+      .min(1, "Last name is required")
+      .max(100)
+      .regex(/[a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/, "Last name must contain at least one letter"),
     email: z.string().email("Invalid email format"),
     password: z.string()
       .min(8, "Password must be at least 8 characters")
