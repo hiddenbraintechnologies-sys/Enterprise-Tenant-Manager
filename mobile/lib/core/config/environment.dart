@@ -44,7 +44,7 @@ class EnvironmentConfig {
     switch (env) {
       case EnvironmentType.development:
         return const EnvironmentConfig(
-          baseUrl: 'https://dev.bizflow.app',
+          baseUrl: 'https://mybizstream.replit.app',
           apiVersion: 'v1',
           connectTimeout: Duration(seconds: 30),
           receiveTimeout: Duration(seconds: 30),
@@ -53,7 +53,7 @@ class EnvironmentConfig {
         );
       case EnvironmentType.production:
         return const EnvironmentConfig(
-          baseUrl: 'https://api.bizflow.app',
+          baseUrl: 'https://payodsoft.co.uk',
           apiVersion: 'v1',
           connectTimeout: Duration(seconds: 15),
           receiveTimeout: Duration(seconds: 15),

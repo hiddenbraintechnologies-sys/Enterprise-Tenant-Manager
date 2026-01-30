@@ -61,10 +61,10 @@ void _registerStorage() {
     () => const FlutterSecureStorage(
       aOptions: AndroidOptions(
         encryptedSharedPreferences: true,
-        resetOnError: true,
+        resetOnError: false,
       ),
       iOptions: IOSOptions(
-        accessibility: KeychainAccessibility.first_unlock_this_device,
+        accessibility: KeychainAccessibility.first_unlock,
       ),
     ),
   );

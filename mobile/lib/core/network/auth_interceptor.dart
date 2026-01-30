@@ -26,6 +26,7 @@ class AuthInterceptor extends Interceptor {
     '/api/auth/register',
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
+    '/api/auth/token/refresh',
   ];
 
   AuthInterceptor(this._tokenStorage);
@@ -84,7 +85,7 @@ class AuthInterceptor extends Interceptor {
       ));
 
       final response = await dio.post(
-        '/api/auth/refresh',
+        '/api/auth/token/refresh',
         data: {'refreshToken': refreshToken},
       );
 

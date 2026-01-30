@@ -47,8 +47,9 @@ class _LoginPageState extends State<LoginPage> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          context.read<TenantBloc>().add(const TenantLoadRequested());
-          context.go('/select-tenant');
+          // Navigation is handled by app.dart's router guard
+          // Tenant loading is triggered by app.dart's auth subscription
+          // No action needed here - just let the guard handle it
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
