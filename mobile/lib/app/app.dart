@@ -151,8 +151,9 @@ class _BizFlowAppState extends State<BizFlowApp> {
   void dispose() {
     _authSubscription.cancel();
     _refreshStream.dispose();
-    _authBloc.close();
-    _tenantBloc.close();
+    // Note: Don't close singleton blocs - they're managed by GetIt
+    // _authBloc.close();
+    // _tenantBloc.close();
     super.dispose();
   }
 

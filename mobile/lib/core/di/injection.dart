@@ -175,7 +175,9 @@ void _registerUseCases() {
 }
 
 void _registerBlocs() {
-  getIt.registerFactory<AuthBloc>(
+  // CRITICAL: Use LazySingleton for blocs that manage global app state
+  // Using factory would create new instances with different state!
+  getIt.registerLazySingleton<AuthBloc>(
     () => AuthBloc(
       loginUseCase: getIt<LoginUseCase>(),
       logoutUseCase: getIt<LogoutUseCase>(),
@@ -185,7 +187,7 @@ void _registerBlocs() {
     ),
   );
   
-  getIt.registerFactory<TenantBloc>(
+  getIt.registerLazySingleton<TenantBloc>(
     () => TenantBloc(
       getTenantsUseCase: getIt<GetTenantsUseCase>(),
       selectTenantUseCase: getIt<SelectTenantUseCase>(),

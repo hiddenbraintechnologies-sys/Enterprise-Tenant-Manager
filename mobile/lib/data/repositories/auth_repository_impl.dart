@@ -21,11 +21,13 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<ApiException, AuthResult>> login({
     required String email,
     required String password,
+    String? tenantId,
   }) async {
     try {
       final response = await _remoteDataSource.login(
         email: email,
         password: password,
+        tenantId: tenantId,
       );
 
       await _tokenStorage.saveTokens(
