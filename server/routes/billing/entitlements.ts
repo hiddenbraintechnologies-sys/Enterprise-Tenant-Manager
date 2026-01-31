@@ -179,10 +179,24 @@ router.post("/:addonCode/checkout", async (req, res) => {
       });
     }
     
+    // Validate payment gateway configuration
     if (!isRazorpayConfigured()) {
+      console.error("[entitlements-checkout] Razorpay not configured - missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET");
       return res.status(503).json({
         error: "PAYMENT_GATEWAY_UNAVAILABLE",
         message: "Payment gateway is not configured. Please contact support.",
+        debugCode: "MISSING_RAZORPAY_CREDENTIALS",
+      });
+    }
+    
+    // Validate key format
+    const keyId = getRazorpayKeyId();
+    if (!keyId.startsWith("rzp_test_") && !keyId.startsWith("rzp_live_")) {
+      console.error(`[entitlements-checkout] Invalid Razorpay key format: ${keyId.substring(0, 10)}...`);
+      return res.status(503).json({
+        error: "PAYMENT_GATEWAY_UNAVAILABLE",
+        message: "Payment gateway configuration is invalid. Please contact support.",
+        debugCode: "INVALID_RAZORPAY_KEY_FORMAT",
       });
     }
     
@@ -275,18 +289,51 @@ router.post("/:addonCode/checkout", async (req, res) => {
         },
       });
     } catch (rpError: any) {
-      console.error(`[entitlements-checkout] Razorpay error:`, rpError);
+      // Structured error logging for debugging
+      const errorDetails = {
+        message: rpError.message,
+        code: rpError.code,
+        statusCode: rpError.statusCode,
+        error: rpError.error,
+        description: rpError.error?.description,
+        source: rpError.error?.source,
+        requestParams: {
+          addonCode,
+          tenantId,
+          billingPeriod,
+          price,
+          currency,
+        },
+      };
+      console.error(`[entitlements-checkout] Razorpay error:`, JSON.stringify(errorDetails, null, 2));
+      
+      // Determine specific debug code based on error
+      let debugCode = "RAZORPAY_UNKNOWN_ERROR";
+      let userMessage = "Failed to create payment session. Please try again.";
+      let statusCode = 500;
       
       if (rpError.code === "ECONNABORTED" || rpError.message?.includes("timeout")) {
-        return res.status(504).json({
-          error: "PAYMENT_PROVIDER_TIMEOUT",
-          message: "Payment provider is not responding. Please try again.",
-        });
+        debugCode = "RAZORPAY_TIMEOUT";
+        userMessage = "Payment provider is not responding. Please try again.";
+        statusCode = 504;
+      } else if (rpError.statusCode === 401 || rpError.error?.code === "BAD_REQUEST_ERROR" && rpError.error?.description?.includes("authentication")) {
+        debugCode = "RAZORPAY_AUTH_FAILED";
+        userMessage = "Payment gateway authentication failed. Please contact support.";
+        statusCode = 503;
+      } else if (rpError.error?.code === "BAD_REQUEST_ERROR") {
+        debugCode = "RAZORPAY_BAD_REQUEST";
+        userMessage = rpError.error?.description || "Invalid payment configuration. Please contact support.";
+        statusCode = 400;
+      } else if (rpError.statusCode === 404 || rpError.error?.description?.includes("not found")) {
+        debugCode = "RAZORPAY_ENDPOINT_NOT_FOUND";
+        userMessage = "Payment service configuration error. Please contact support.";
+        statusCode = 503;
       }
       
-      return res.status(500).json({
+      return res.status(statusCode).json({
         error: "PAYMENT_SETUP_FAILED",
-        message: rpError.message || "Failed to create payment session. Please try again.",
+        message: userMessage,
+        debugCode,
       });
     }
   } catch (error) {

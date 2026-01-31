@@ -1,0 +1,56 @@
+We fixed tenant context, but Renew now fails with:
+500 {"error":"PAYMENT_SETUP_FAILED","message":"Failed to create payment session. Please try again."}
+
+Goal: Make renewal checkout session creation succeed and make failures actionable.
+
+1) Locate the renew endpoint handler (POST /api/billing/addons/:addonCode/checkout or renew).
+   - Find where it calls Stripe (checkout.sessions.create) or provider SDK.
+
+2) Improve error handling:
+   - Catch the provider error and log structured details server-side:
+     - error.message
+     - error.type
+     - error.code
+     - error.raw?.message
+     - request parameters used (without secrets)
+   - Return safe but helpful response to client:
+     - { error:"PAYMENT_SETUP_FAILED", message:"...", debugCode:"STRIPE_PRICE_NOT_FOUND" | "MISSING_STRIPE_KEY" | "INVALID_SUCCESS_URL" ... }
+   - Ensure logs are visible in Replit console.
+
+3) Validate required configuration BEFORE attempting session creation:
+   - Assert env vars exist:
+     - STRIPE_SECRET_KEY (or provider key)
+     - APP_URL (base url for success/cancel)
+   - If missing, return 500 with message:
+     - "Payment is not configured. Missing STRIPE_SECRET_KEY" (or similar) and debugCode.
+
+4) Fix price mapping for renew:
+   - Implement deterministic lookup:
+     - Determine addonCode (e.g. payroll)
+     - Determine country/region (MY)
+     - Determine billing cycle (monthly default)
+     - Map to a Stripe Price ID via config table or env vars:
+       - STRIPE_PRICE_PAYROLL_MY_MONTHLY
+       - STRIPE_PRICE_PAYROLL_MY_YEARLY
+   - If mapping not found, return:
+     - 400 { error:"PRICE_NOT_CONFIGURED", addon:"payroll", country:"MY", cycle:"monthly" }
+
+5) Ensure success/cancel URLs are valid absolute https URLs:
+   - success_url = `${APP_URL}/billing/renew/success?session_id={CHECKOUT_SESSION_ID}`
+   - cancel_url = `${APP_URL}/dashboard/service` (My Add-ons)
+   - Use the deployed domain (not localhost) in production.
+
+6) Stripe mode correctness:
+   - If STRIPE_SECRET_KEY starts with sk_test_, ensure Price IDs are from test mode.
+   - If sk_live_, ensure live Price IDs.
+   - Add a guard to detect mismatch and return debugCode="STRIPE_MODE_MISMATCH".
+
+7) Manual test:
+   - Click Renew -> backend returns checkout url
+   - Browser redirects to Stripe checkout page
+   - On cancel returns to My Add-ons without error
+
+Deliverables:
+- Show which env vars are required and where documented (README or server/config)
+- Show mapping logic file for MY payroll renewal prices
+- Confirm server logs show real cause if it fails again
