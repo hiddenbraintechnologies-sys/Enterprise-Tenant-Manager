@@ -77,13 +77,39 @@ export function TourOverlay() {
   const { state, nextStep, prevStep, endTour, skipTour } = useTour();
   const [spotlight, setSpotlight] = useState<SpotlightPosition | null>(null);
   const [tooltipPos, setTooltipPos] = useState<TooltipPosition>({ top: 0, left: 0 });
+  const [availableSteps, setAvailableSteps] = useState<number[]>([]);
+
+  // Calculate which steps are actually available (have visible elements)
+  useEffect(() => {
+    if (!state.activeTour) {
+      setAvailableSteps([]);
+      return;
+    }
+    
+    // Give time for elements to render
+    const timer = setTimeout(() => {
+      const available: number[] = [];
+      state.activeTour?.steps.forEach((step, index) => {
+        const element = document.querySelector(step.target);
+        if (element) {
+          available.push(index);
+        }
+      });
+      setAvailableSteps(available);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [state.activeTour]);
 
   const currentStep = state.activeTour?.steps[state.currentStepIndex];
-  const isFirstStep = state.currentStepIndex === 0;
-  const isLastStep = state.activeTour 
-    ? state.currentStepIndex === state.activeTour.steps.length - 1 
-    : false;
-  const totalSteps = state.activeTour?.steps.length || 0;
+  
+  // Find the position of current step in available steps
+  const currentAvailableIndex = availableSteps.indexOf(state.currentStepIndex);
+  const totalAvailableSteps = availableSteps.length || 1;
+  const displayStepNumber = currentAvailableIndex >= 0 ? currentAvailableIndex + 1 : 1;
+  
+  const isFirstStep = currentAvailableIndex === 0 || currentAvailableIndex === -1;
+  const isLastStep = currentAvailableIndex === availableSteps.length - 1;
 
   const updatePositions = useCallback(() => {
     if (!currentStep) return;
@@ -209,11 +235,11 @@ export function TourOverlay() {
                   </Button>
                 </div>
                 <div className="flex gap-1 mt-2">
-                  {Array.from({ length: totalSteps }).map((_, i) => (
+                  {Array.from({ length: totalAvailableSteps }).map((_, i) => (
                     <div
                       key={i}
                       className={`h-1 flex-1 rounded-full transition-colors ${
-                        i <= state.currentStepIndex
+                        i < displayStepNumber
                           ? "bg-primary"
                           : "bg-muted"
                       }`}
@@ -226,7 +252,7 @@ export function TourOverlay() {
               </CardContent>
               <CardFooter className="flex items-center justify-between gap-2 pt-0">
                 <span className="text-xs text-muted-foreground">
-                  Step {state.currentStepIndex + 1} of {totalSteps}
+                  Step {displayStepNumber} of {totalAvailableSteps}
                 </span>
                 <div className="flex gap-2">
                   {!isFirstStep && (
