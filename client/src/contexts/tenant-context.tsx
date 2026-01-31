@@ -459,31 +459,29 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
             </p>
           </div>
           <div className="flex flex-col gap-3 w-full">
+            <button
+              onClick={handleRetry}
+              className="w-full px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              data-testid="button-retry-subscription"
+            >
+              Retry Connection
+            </button>
             {isAuthError ? (
               <button
                 onClick={handleLogout}
-                className="w-full px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                className="w-full px-4 py-3 text-sm font-medium border rounded-lg hover:bg-muted transition-colors"
                 data-testid="button-logout"
               >
                 Sign In Again
               </button>
             ) : (
-              <>
-                <button
-                  onClick={handleRetry}
-                  className="w-full px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                  data-testid="button-retry-subscription"
-                >
-                  Retry Connection
-                </button>
-                <a
-                  href="/packages"
-                  className="w-full px-4 py-3 text-sm font-medium border rounded-lg hover:bg-muted transition-colors text-center"
-                  data-testid="link-select-plan"
-                >
-                  View Plans
-                </a>
-              </>
+              <a
+                href="/dashboard"
+                className="w-full px-4 py-3 text-sm font-medium border rounded-lg hover:bg-muted transition-colors text-center"
+                data-testid="link-go-dashboard"
+              >
+                Go to Dashboard
+              </a>
             )}
           </div>
         </div>
