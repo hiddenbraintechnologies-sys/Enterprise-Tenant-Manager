@@ -11,12 +11,15 @@ import { tenantAddons, addons, addonCountryConfig, tenants } from "@shared/schem
 import { eq, and } from "drizzle-orm";
 import { getAllTenantEntitlements, getTenantAddonEntitlement, checkDependencyEntitlement } from "../../services/entitlement";
 import { isRazorpayConfigured, razorpayService, getRazorpayKeyId } from "../../services/razorpay";
-import { tenantIsolationMiddleware } from "../../core";
+import { authenticateHybrid } from "../../core/auth-middleware";
+import { tenantIsolationMiddleware, tenantResolutionMiddleware } from "../../core";
 
 const router = Router();
 
-// Apply tenant isolation middleware to all entitlements routes
-// This ensures req.context.tenant is populated for authenticated requests
+// Apply authentication and tenant context middleware to all entitlements routes
+// Order: authenticate -> resolve tenant -> isolate tenant access
+router.use(authenticateHybrid({ required: true }));
+router.use(tenantResolutionMiddleware());
 router.use(tenantIsolationMiddleware());
 
 router.get("/", async (req, res) => {
