@@ -226,8 +226,10 @@ router.post("/:addonCode/checkout", async (req, res) => {
     }
     
     try {
-      // Generate unique reference ID for this payment
-      const referenceId = `addon_${addonCode}_${tenantId}_${Date.now()}`;
+      // Generate unique reference ID for this payment (max 40 chars for Razorpay)
+      const shortTenantId = tenantId.slice(0, 8);
+      const timestamp = Date.now().toString(36); // Base36 for shorter timestamp
+      const referenceId = `add_${addonCode.slice(0, 15)}_${shortTenantId}_${timestamp}`;
       
       // Use Payment Links API - works on all Razorpay accounts
       const paymentLink = await razorpayService.createPaymentLink({
