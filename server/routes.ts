@@ -213,26 +213,21 @@ export async function registerRoutes(
         console.log("[bootstrap] Payroll addon pricing seeding skipped:", err);
       }
 
-      // Seed country rollout policies (ensure IN/MY are active with proper business types)
+      // Seed country rollout policies - ONLY CREATE IF NOT EXISTS (never overwrite admin settings)
       try {
         const { countryRolloutPolicy } = await import("@shared/schema");
-        const countries = [
+        const defaultCountries = [
           { code: "IN", active: true, status: "live" as const, businessTypes: ["pg_hostel"] },
           { code: "MY", active: true, status: "beta" as const, businessTypes: ["consulting", "software_services"] },
-          { code: "GB", active: true, status: "beta" as const, businessTypes: ["consulting", "software_services"] },
+          { code: "GB", active: false, status: "coming_soon" as const, businessTypes: [] }, // Default to inactive - admin enables manually
           { code: "SG", active: false, status: "coming_soon" as const, businessTypes: [] },
+          { code: "AE", active: false, status: "coming_soon" as const, businessTypes: [] },
         ];
-        for (const country of countries) {
+        let created = 0;
+        for (const country of defaultCountries) {
           const [existing] = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, country.code)).limit(1);
-          if (existing) {
-            // Update all critical fields, not just isActive
-            await db.update(countryRolloutPolicy).set({ 
-              isActive: country.active, 
-              status: country.status,
-              enabledBusinessTypes: country.businessTypes,
-              updatedAt: new Date() 
-            }).where(eq(countryRolloutPolicy.countryCode, country.code));
-          } else {
+          if (!existing) {
+            // ONLY insert new records - never update existing (respect admin settings)
             await db.insert(countryRolloutPolicy).values({
               countryCode: country.code,
               isActive: country.active,
@@ -242,6 +237,7 @@ export async function registerRoutes(
               disabledFeatures: [],
               updatedBy: "bootstrap",
             });
+            created++;
           }
         }
         // Clear cache to ensure fresh data is served immediately
@@ -249,7 +245,7 @@ export async function registerRoutes(
         // Mark bootstrap as ready so catalog endpoints can serve data
         const { bootstrapStatus } = await import("./services/bootstrap-status");
         bootstrapStatus.markCountryRolloutReady();
-        console.log("[bootstrap] Country rollout policies seeded (IN/MY/GB active)");
+        console.log(`[bootstrap] Country rollout: ${created} new, existing policies preserved`);
       } catch (err) {
         console.log("[bootstrap] Country rollout seeding skipped:", err);
       }
