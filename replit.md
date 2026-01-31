@@ -14,6 +14,40 @@ MyBizStream is built as a multi-tenant SaaS platform featuring robust authentica
 ### Add-on Marketplace
 The platform includes an Add-on Marketplace with country-specific filtering and multi-currency pricing, allowing add-ons to be globally available or country-specific. A comprehensive feature gating system (using `useFeatureGate` hook) enables soft-upselling by controlling module and feature access based on plan tier, add-on status, country, and user roles. Locked feature pages/modals include trial Calls-to-Action. A Super Admin Marketplace Revenue Analytics Dashboard provides insights into subscriptions, revenue, and conversion funnels. The Super Admin console allows full management of the marketplace, including catalog, country rollout, and eligibility rules. HR-related add-ons (HRMS, Payroll) are structured to provide specific capabilities and restrict access based on add-on subscriptions, with mechanisms for employee limit enforcement and read-only modes upon subscription expiry.
 
+### Add-on Entitlement Enforcement
+A comprehensive entitlement enforcement system controls add-on access across the platform:
+
+**Entitlement States:**
+- `active` - Paid subscription active and valid
+- `trial` - Trial period active and not expired  
+- `grace` - Subscription expired but within grace period (3 days default)
+- `expired` - Subscription/trial has fully expired
+- `not_installed` - Add-on not installed for tenant
+- `cancelled` - Add-on explicitly cancelled/disabled
+
+**Backend Enforcement:**
+- `requireAddonMiddleware` enforces access at API level, returning 403 with specific error codes
+- Dependency checking enforces add-on prerequisites (e.g., Payroll requires HRMS)
+- Built-in dependencies: `payroll → hrms`, `payroll-india → hrms/hrms-india`, etc.
+- Error codes: `ADDON_EXPIRED`, `ADDON_TRIAL_EXPIRED`, `ADDON_NOT_INSTALLED`, `ADDON_CANCELLED`, `ADDON_DEPENDENCY_MISSING`, `ADDON_DEPENDENCY_EXPIRED`
+
+**Frontend Enforcement:**
+- `useEntitlements` hook provides entitlement state for all installed add-ons
+- `useAddonEntitlement(code)` checks specific add-on status
+- `RequireAddon` wrapper component blocks/redirects unauthorized access
+- My Add-ons page uses entitlements for Open/Renew button logic
+
+**Background Processing:**
+- Hourly sync job (`startAddonEntitlementSync`) updates subscription statuses
+- Grace period management via `graceUntil` field on tenant_addons table
+
+**Key Files:**
+- `server/services/entitlement.ts`: Core entitlement logic
+- `server/middleware/require-addon.ts`: API middleware
+- `server/routes/billing/entitlements.ts`: Entitlements API
+- `client/src/hooks/use-entitlements.ts`: Frontend hooks
+- `client/src/components/gating/require-addon.tsx`: Route wrapper component
+
 ### Technical Implementation
 The **Frontend** is developed using React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, featuring a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adhering to a RESTful API design with Zod for validation. **Database** operations utilize PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) follows Clean Architecture, uses BLoC for state management, Dio for HTTP, and Hive for offline caching, with full multi-tenancy support. Deployment is multi-cloud on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore) with multi-region support and disaster recovery.
 
