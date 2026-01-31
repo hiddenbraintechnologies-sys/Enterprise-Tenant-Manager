@@ -375,11 +375,12 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const canFetchSubscription = Boolean(tenantId) && isAuthenticated;
   
   // Use default query function from queryClient (includes getAuthHeaders with X-Tenant-ID)
-  const { data: subscriptionData, isLoading, isError, isSuccess, refetch, isFetching } = useQuery<SubscriptionData>({
+  const { data: subscriptionData, isLoading, isError, error, isSuccess, refetch, isFetching } = useQuery<SubscriptionData>({
     queryKey: ["/api/billing/subscription"],
     enabled: canFetchSubscription, // 🔑 NEVER run when tenantId is null/undefined
     staleTime: 30000,
-    retry: canFetchSubscription ? 2 : false, // Don't retry if missing tenant
+    retry: canFetchSubscription ? 3 : false, // Retry up to 3 times for network issues
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000), // Exponential backoff
   });
 
   // When activation flag is detected and subscription is active, clear the flag
@@ -423,9 +424,20 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
   // If query failed after retries, show error with retry option instead of blind redirect
   if (isError) {
+    // Check if this is an auth-related error (401/403)
+    const isAuthError = error && typeof error === 'object' && 'status' in error && 
+      (error.status === 401 || error.status === 403);
+    
     // Use refetch directly - simpler and avoids duplicate requests
     const handleRetry = () => {
       refetch();
+    };
+
+    const handleLogout = () => {
+      // Clear auth data and redirect to login
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("tenantId");
+      window.location.href = "/login";
     };
 
     return (
@@ -436,9 +448,11 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
           </div>
           <h2 className="text-lg font-semibold">Unable to load subscription</h2>
           <p className="text-sm text-muted-foreground">
-            We couldn't verify your subscription status. This may be a temporary network issue.
+            {isAuthError 
+              ? "Your session may have expired. Please log in again."
+              : "We couldn't verify your subscription status. This may be a temporary network issue."}
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-center">
             <button
               onClick={handleRetry}
               className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
@@ -446,13 +460,23 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
             >
               Try again
             </button>
-            <a
-              href="/packages"
-              className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
-              data-testid="link-select-plan"
-            >
-              Select a plan
-            </a>
+            {isAuthError ? (
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
+                data-testid="button-logout"
+              >
+                Log in again
+              </button>
+            ) : (
+              <a
+                href="/packages"
+                className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
+                data-testid="link-select-plan"
+              >
+                Select a plan
+              </a>
+            )}
           </div>
         </div>
       </div>
