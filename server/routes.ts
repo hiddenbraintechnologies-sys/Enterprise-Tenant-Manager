@@ -240,15 +240,15 @@ export async function registerRoutes(
             created++;
           }
         }
-        // One-time fix: Correct UK status if it was incorrectly set to active by previous bootstrap
-        // This fix catches any case where UK is active (regardless of status field value)
+        // FORCE FIX: Always ensure UK is set to inactive/coming_soon
+        // This runs on every startup to guarantee UK is disabled until admin enables it
         const [ukPolicy] = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, "GB")).limit(1);
-        console.log("[bootstrap] UK policy check:", { isActive: ukPolicy?.isActive, status: ukPolicy?.status });
-        if (ukPolicy && ukPolicy.isActive === true) {
+        console.log("[bootstrap] UK policy before fix:", { isActive: ukPolicy?.isActive, status: ukPolicy?.status });
+        if (ukPolicy) {
           await db.update(countryRolloutPolicy)
-            .set({ isActive: false, status: "coming_soon", updatedAt: new Date(), updatedBy: "bootstrap-fix" })
+            .set({ isActive: false, status: "coming_soon", updatedAt: new Date(), updatedBy: "bootstrap-force-fix" })
             .where(eq(countryRolloutPolicy.countryCode, "GB"));
-          console.log("[bootstrap] Fixed UK country status to coming_soon (one-time correction)");
+          console.log("[bootstrap] UK country forced to coming_soon");
         }
         
         // Clear cache to ensure fresh data is served immediately
