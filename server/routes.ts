@@ -246,6 +246,9 @@ export async function registerRoutes(
         }
         // Clear cache to ensure fresh data is served immediately
         countryRolloutService.clearCache();
+        // Mark bootstrap as ready so catalog endpoints can serve data
+        const { bootstrapStatus } = await import("./services/bootstrap-status");
+        bootstrapStatus.markCountryRolloutReady();
         console.log("[bootstrap] Country rollout policies seeded (IN/MY/GB active)");
       } catch (err) {
         console.log("[bootstrap] Country rollout seeding skipped:", err);

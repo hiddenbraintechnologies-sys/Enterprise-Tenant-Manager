@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { countryRolloutService } from "../services/country-rollout";
+import { bootstrapStatus } from "../services/bootstrap-status";
 import { getBusinessTypeOptions } from "@shared/business-types";
 
 const router = Router();
@@ -18,6 +19,14 @@ router.get("/business-types", async (req: Request, res: Response) => {
         error: "Country code is required",
         code: "COUNTRY_REQUIRED" 
       });
+    }
+
+    // Wait for bootstrap to complete country rollout seeding (max 10 seconds)
+    if (!bootstrapStatus.isCountryRolloutReady) {
+      const ready = await bootstrapStatus.waitForCountryRollout(10000);
+      if (!ready) {
+        console.warn("[catalog] Bootstrap timeout - serving request without waiting");
+      }
     }
 
     const countryCode = country.toUpperCase();
