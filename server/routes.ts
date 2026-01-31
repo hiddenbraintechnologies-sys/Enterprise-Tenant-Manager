@@ -240,6 +240,16 @@ export async function registerRoutes(
             created++;
           }
         }
+        // One-time fix: Correct UK status if it was incorrectly set to active by previous bootstrap
+        // This fix is safe to run multiple times - it only corrects UK if wrong
+        const [ukPolicy] = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, "GB")).limit(1);
+        if (ukPolicy && ukPolicy.isActive === true && ukPolicy.status === "live") {
+          await db.update(countryRolloutPolicy)
+            .set({ isActive: false, status: "coming_soon", updatedAt: new Date(), updatedBy: "bootstrap-fix" })
+            .where(eq(countryRolloutPolicy.countryCode, "GB"));
+          console.log("[bootstrap] Fixed UK country status to coming_soon (one-time correction)");
+        }
+        
         // Clear cache to ensure fresh data is served immediately
         countryRolloutService.clearCache();
         // Mark bootstrap as ready so catalog endpoints can serve data
