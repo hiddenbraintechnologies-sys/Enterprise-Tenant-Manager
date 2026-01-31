@@ -70,14 +70,14 @@ interface EmployeesResponse {
 }
 
 const employeeFormSchema = z.object({
-  employeeCode: z.string().min(1, "Employee code is required"),
+  employeeId: z.string().min(1, "Employee code is required"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Valid email is required"),
   phone: z.string().optional(),
   designation: z.string().optional(),
   departmentId: z.string().optional(),
-  joiningDate: z.string().min(1, "Joining date is required"),
+  joinDate: z.string().min(1, "Joining date is required"),
   employmentType: z.enum(["full_time", "part_time", "contract", "intern"]),
 });
 
@@ -107,14 +107,14 @@ export default function EmployeesPage() {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues: {
-      employeeCode: "",
+      employeeId: "",
       firstName: "",
       lastName: "",
       email: "",
       phone: "",
       designation: "",
       departmentId: "",
-      joiningDate: new Date().toISOString().split("T")[0],
+      joinDate: new Date().toISOString().split("T")[0],
       employmentType: "full_time",
     },
   });
@@ -139,7 +139,35 @@ export default function EmployeesPage() {
       form.reset();
     },
     onError: (error: any) => {
-      toast({ title: "Failed to create employee", description: error.message, variant: "destructive" });
+      let errorMessage = "Please check all required fields and try again.";
+      
+      try {
+        if (error.message) {
+          const parsed = JSON.parse(error.message);
+          if (parsed.details && Array.isArray(parsed.details)) {
+            const fieldErrors = parsed.details.map((d: any) => {
+              const field = d.path?.[0] || "Field";
+              const fieldName = field === "employeeId" ? "Employee Code" : 
+                               field === "joinDate" ? "Joining Date" :
+                               field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
+              return `${fieldName}: ${d.message}`;
+            });
+            errorMessage = fieldErrors.join(", ");
+          } else if (parsed.error) {
+            errorMessage = parsed.error;
+          }
+        }
+      } catch {
+        if (error.message && !error.message.includes("{")) {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast({ 
+        title: "Failed to create employee", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
     },
   });
 
@@ -206,7 +234,7 @@ export default function EmployeesPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
-                    name="employeeCode"
+                    name="employeeId"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Employee Code</FormLabel>
@@ -298,7 +326,7 @@ export default function EmployeesPage() {
                   />
                   <FormField
                     control={form.control}
-                    name="joiningDate"
+                    name="joinDate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Joining Date</FormLabel>
