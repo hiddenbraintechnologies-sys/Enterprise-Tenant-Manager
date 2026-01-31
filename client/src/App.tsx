@@ -739,8 +739,10 @@ function AppRouter() {
   // PUBLIC ROUTES - Always accessible, no subscription checks, no TenantProvider
   // Must check BEFORE authenticated routes to prevent OnboardingGuard from running
   // Includes: landing pages, auth pages (login/register), pricing
-  const publicPaths = ["/", "/in", "/uk", "/uae", "/sg", "/my", "/pricing", "/login", "/register", "/signup", "/not-authorized"];
+  // NOTE: "/" is handled separately to redirect logged-in users to their dashboard
+  const publicPaths = ["/in", "/uk", "/uae", "/sg", "/my", "/pricing", "/login", "/register", "/signup", "/not-authorized"];
   const isPublicPath = publicPaths.includes(location);
+  const isRootPath = location === "/";
 
   if (isAdminLoginPath) {
     return <AdminLogin />;
@@ -772,6 +774,33 @@ function AppRouter() {
     );
   }
 
+  // Handle root path "/" - redirect logged-in users to dashboard
+  if (isRootPath) {
+    // Check localStorage for existing session to avoid flicker
+    const hasToken = !!localStorage.getItem("accessToken");
+    
+    if (hasToken && !isLoading && user) {
+      // User is logged in, redirect to their dashboard
+      const dashboardRoute = user.dashboardRoute || `/dashboard/${user.tenant?.businessType || "service"}`;
+      return <Redirect to={dashboardRoute} />;
+    }
+    
+    if (hasToken && isLoading) {
+      // Still loading auth, show loading spinner instead of landing
+      return (
+        <div className="flex h-screen w-full items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    // No token or user not found, show landing page
+    return <LandingGlobal />;
+  }
+
   // Render ALL public routes BEFORE auth loading check
   // This ensures public pages never show subscription errors or loading spinners
   if (isPublicPath) {
@@ -787,7 +816,6 @@ function AppRouter() {
         <Route path="/my" component={LandingMalaysia} />
         <Route path="/pricing" component={Pricing} />
         <Route path="/not-authorized" component={NotAuthorized} />
-        <Route path="/" component={LandingGlobal} />
       </Switch>
     );
   }
