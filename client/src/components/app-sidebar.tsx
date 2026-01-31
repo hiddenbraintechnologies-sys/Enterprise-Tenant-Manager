@@ -48,7 +48,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { LockedFeatureModal } from "@/components/gating/locked-feature";
 import { useFeatureGate, isDismissed, setDismissed } from "@/hooks/use-feature-gate";
 import { InstallButton } from "@/components/pwa/install-prompt";
-import { LanguageSelector } from "@/components/language-selector";
 import type { BusinessType } from "@/contexts/tenant-context";
 import type { GateReason } from "@/hooks/use-feature-gate";
 
@@ -623,7 +622,6 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
               {user?.email}
             </span>
           </div>
-          <LanguageSelector tenantId={tenantId || undefined} />
           <InstallButton variant="ghost" />
           <Button
             variant="ghost"

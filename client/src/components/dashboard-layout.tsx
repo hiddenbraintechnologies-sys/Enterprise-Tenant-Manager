@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CountrySelector } from "@/components/country-selector";
+import { LanguageSelector } from "@/components/language-selector";
 import { NotificationBell } from "@/components/notification-bell";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -130,8 +131,9 @@ export function DashboardLayout({ children, title, breadcrumbs = [] }: Dashboard
               </BreadcrumbList>
             </Breadcrumb>
             <div className="flex items-center gap-1 sm:gap-2 ml-auto">
-              <div className="hidden md:block">
+              <div className="hidden md:flex items-center gap-1">
                 <CountrySelector />
+                <LanguageSelector />
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>
