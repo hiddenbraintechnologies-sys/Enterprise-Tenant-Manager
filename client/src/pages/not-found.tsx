@@ -2,10 +2,8 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Home, LogIn, ArrowLeft } from "lucide-react";
-import { useLocation } from "wouter";
 
 export default function NotFound() {
-  const [, setLocation] = useLocation();
   const [countdown, setCountdown] = useState(5);
   
   const hasToken = typeof window !== "undefined" && !!localStorage.getItem("accessToken");
@@ -15,7 +13,7 @@ export default function NotFound() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setLocation(hasToken ? "/" : "/login");
+          window.location.href = hasToken ? "/" : "/login";
           return 0;
         }
         return prev - 1;
@@ -23,14 +21,14 @@ export default function NotFound() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [setLocation, hasToken]);
+  }, [hasToken]);
 
   const handleGoHome = () => {
-    setLocation("/");
+    window.location.href = "/";
   };
 
   const handleGoLogin = () => {
-    setLocation("/login");
+    window.location.href = "/login";
   };
 
   return (
