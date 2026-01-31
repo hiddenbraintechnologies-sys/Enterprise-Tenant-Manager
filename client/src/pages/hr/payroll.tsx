@@ -90,12 +90,10 @@ interface PayrollRecord {
 
 interface PayrollResponse {
   data: PayrollRecord[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 const payrollFormSchema = z.object({
@@ -635,11 +633,11 @@ export default function HrPayroll() {
                 </TableBody>
               </Table>
 
-              {payrollData.pagination.totalPages > 1 && (
+              {(payrollData.totalPages || 1) > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Page {payrollData.pagination.page} of {payrollData.pagination.totalPages}
-                    {" "}({payrollData.pagination.total} total records)
+                    Page {payrollData.page || 1} of {payrollData.totalPages || 1}
+                    {" "}({payrollData.total || 0} total records)
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -655,7 +653,7 @@ export default function HrPayroll() {
                       variant="outline"
                       size="sm"
                       onClick={() => setPage((p) => p + 1)}
-                      disabled={page >= payrollData.pagination.totalPages}
+                      disabled={page >= (payrollData.totalPages || 1)}
                       data-testid="button-next-page"
                     >
                       <ChevronRight className="h-4 w-4" />
