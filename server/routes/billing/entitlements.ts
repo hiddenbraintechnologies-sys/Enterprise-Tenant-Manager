@@ -11,8 +11,13 @@ import { tenantAddons, addons, addonCountryConfig, tenants } from "@shared/schem
 import { eq, and } from "drizzle-orm";
 import { getAllTenantEntitlements, getTenantAddonEntitlement, checkDependencyEntitlement } from "../../services/entitlement";
 import { isRazorpayConfigured, razorpayService, getRazorpayKeyId } from "../../services/razorpay";
+import { tenantIsolationMiddleware } from "../../core";
 
 const router = Router();
+
+// Apply tenant isolation middleware to all entitlements routes
+// This ensures req.context.tenant is populated for authenticated requests
+router.use(tenantIsolationMiddleware());
 
 router.get("/", async (req, res) => {
   try {
