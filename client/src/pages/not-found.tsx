@@ -13,7 +13,7 @@ export default function NotFound() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          window.location.href = hasToken ? "/" : "/login";
+          window.location.href = hasToken ? "/dashboard/service" : "/login";
           return 0;
         }
         return prev - 1;
@@ -47,13 +47,13 @@ export default function NotFound() {
 
             <div className="flex flex-col gap-2 w-full mt-4">
               <a 
-                href="/"
+                href={hasToken ? "/dashboard/service" : "/"}
                 className="w-full"
                 data-testid="link-go-home"
               >
                 <Button type="button" className="w-full">
                   <Home className="mr-2 h-4 w-4" />
-                  Go to Home
+                  Go to Dashboard
                 </Button>
               </a>
               
@@ -70,16 +70,16 @@ export default function NotFound() {
                 </a>
               )}
               
-              <Button 
-                type="button"
-                variant="ghost" 
-                onClick={() => window.history.go(-1)}
+              <a 
+                href="/login"
                 className="w-full"
-                data-testid="button-go-back"
+                data-testid="link-go-back"
               >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Go Back
-              </Button>
+                <Button type="button" variant="ghost" className="w-full">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Go to Login
+                </Button>
+              </a>
             </div>
           </div>
         </CardContent>
