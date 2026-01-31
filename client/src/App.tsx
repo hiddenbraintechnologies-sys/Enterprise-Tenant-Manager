@@ -149,14 +149,15 @@ import { GatedPage } from "@/components/gating/gated-page";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
+  const effectiveDashboard = dashboardRoute || `/dashboard/${businessType || "service"}`;
 
   return (
     <Switch>
       <Route path="/">
-        <Redirect to={dashboardRoute} />
+        <Redirect to={effectiveDashboard} />
       </Route>
       <Route path="/dashboard">
-        <Redirect to={dashboardRoute} />
+        <Redirect to={effectiveDashboard} />
       </Route>
       
       <Route path="/dashboard/clinic">
@@ -893,6 +894,9 @@ function AppRouter() {
         <Switch>
           <Route path="/packages" component={Packages} />
           <Route path="/checkout" component={Checkout} />
+          <Route path="/">
+            <AuthenticatedRoutes />
+          </Route>
           <Route>
             <AuthenticatedRoutes />
           </Route>
