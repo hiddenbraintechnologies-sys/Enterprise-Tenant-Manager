@@ -1,6 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
+import { useState } from "react";
 
 interface InstalledAddon {
   installation: {
@@ -38,53 +41,73 @@ interface InstalledAddonsResponse {
   installedAddons: InstalledAddon[];
 }
 
-function getStatusBadge(status: string, subscriptionStatus: string, trialEndsAt: string | null) {
-  const now = new Date();
-  
-  if (subscriptionStatus === "trialing" && trialEndsAt) {
-    const trialEnd = new Date(trialEndsAt);
-    const daysLeft = differenceInDays(trialEnd, now);
-    
-    if (daysLeft <= 0) {
-      return (
-        <Badge variant="destructive" className="gap-1" data-testid="badge-status-expired">
-          <AlertTriangle className="h-3 w-3" />Trial Expired
-        </Badge>
-      );
-    }
-    if (daysLeft <= 3) {
-      return (
-        <Badge variant="secondary" className="gap-1" data-testid="badge-status-trial-ending">
-          <Clock className="h-3 w-3" />{daysLeft} days left
-        </Badge>
-      );
-    }
+interface EntitlementInfo {
+  entitled: boolean;
+  state: "active" | "trial" | "grace" | "expired" | "not_installed" | "cancelled";
+  daysRemaining?: number;
+}
+
+function getStatusBadgeFromEntitlement(entitlement: EntitlementInfo | undefined) {
+  if (!entitlement) {
     return (
-      <Badge variant="secondary" className="gap-1" data-testid="badge-status-trial">
-        <Clock className="h-3 w-3" />Trial - {daysLeft} days
+      <Badge variant="outline" className="gap-1" data-testid="badge-status-loading">
+        <Clock className="h-3 w-3" />Loading
       </Badge>
     );
   }
-  
-  if (status === "active" && subscriptionStatus === "active") {
+
+  const { state, daysRemaining } = entitlement;
+
+  if (state === "active") {
     return (
       <Badge variant="default" className="gap-1" data-testid="badge-status-active">
         <CheckCircle2 className="h-3 w-3" />Active
       </Badge>
     );
   }
-  
-  if (subscriptionStatus === "cancelled" || subscriptionStatus === "halted") {
+
+  if (state === "trial") {
+    if (daysRemaining !== undefined && daysRemaining <= 3) {
+      return (
+        <Badge variant="secondary" className="gap-1" data-testid="badge-status-trial-ending">
+          <Clock className="h-3 w-3" />{daysRemaining} days left
+        </Badge>
+      );
+    }
     return (
-      <Badge variant="destructive" className="gap-1" data-testid="badge-status-inactive">
-        <AlertTriangle className="h-3 w-3" />Inactive
+      <Badge variant="secondary" className="gap-1" data-testid="badge-status-trial">
+        <Clock className="h-3 w-3" />Trial{daysRemaining !== undefined ? ` - ${daysRemaining} days` : ""}
       </Badge>
     );
   }
-  
+
+  if (state === "grace") {
+    return (
+      <Badge variant="secondary" className="gap-1" data-testid="badge-status-grace">
+        <Clock className="h-3 w-3" />Grace Period
+      </Badge>
+    );
+  }
+
+  if (state === "expired") {
+    return (
+      <Badge variant="destructive" className="gap-1" data-testid="badge-status-expired">
+        <AlertTriangle className="h-3 w-3" />Expired
+      </Badge>
+    );
+  }
+
+  if (state === "cancelled") {
+    return (
+      <Badge variant="destructive" className="gap-1" data-testid="badge-status-inactive">
+        <AlertTriangle className="h-3 w-3" />Cancelled
+      </Badge>
+    );
+  }
+
   return (
     <Badge variant="outline" className="gap-1" data-testid="badge-status-other">
-      {status}
+      {state}
     </Badge>
   );
 }
@@ -136,10 +159,41 @@ export function MyAddons() {
   const { tenant } = useAuth();
   const tenantId = tenant?.id;
   const { entitlements } = useEntitlements();
+  const { toast } = useToast();
+  const [renewingAddon, setRenewingAddon] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery<InstalledAddonsResponse>({
     queryKey: ["/api/addons/tenant", tenantId, "addons"],
     enabled: !!tenantId,
+  });
+
+  const renewMutation = useMutation({
+    mutationFn: async (addonSlug: string) => {
+      const response = await apiRequest("POST", `/api/billing/entitlements/${addonSlug}/checkout`, {
+        action: "renew",
+        billingPeriod: "monthly",
+      });
+      return response.json();
+    },
+    onSuccess: (data, addonSlug) => {
+      setRenewingAddon(null);
+      if (data.url || data.checkoutUrl) {
+        window.location.href = data.url || data.checkoutUrl;
+      } else if (data.status === "ACTIVATED") {
+        toast({
+          title: "Add-on Activated",
+          description: data.message || "Your add-on has been activated successfully.",
+        });
+      }
+    },
+    onError: (error: any, addonSlug) => {
+      setRenewingAddon(null);
+      toast({
+        title: "Renewal Failed",
+        description: error.message || "Failed to start renewal. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const installedAddons = data?.installedAddons || [];
@@ -150,6 +204,11 @@ export function MyAddons() {
     const baseSlug = slug.replace(/-india$|-malaysia$|-uk$|-uae$/, "");
     if (baseSlug !== slug && entitlements[baseSlug]?.entitled) return true;
     return false;
+  };
+
+  const handleRenew = (slug: string) => {
+    setRenewingAddon(slug);
+    renewMutation.mutate(slug);
   };
 
   if (isLoading) {
@@ -246,7 +305,7 @@ export function MyAddons() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-medium text-sm" data-testid={`text-addon-name-${addon.slug}`}>{addon.name}</h4>
-                        {getStatusBadge(installation.status, installation.subscriptionStatus, installation.trialEndsAt)}
+                        {getStatusBadgeFromEntitlement(entitlements[addon.slug] || entitlements[addon.slug.replace(/-india$|-malaysia$|-uk$|-uae$/, "")])}
                       </div>
                       {addon.shortDescription && (
                         <p className="text-xs text-muted-foreground line-clamp-1" data-testid={`text-addon-desc-${addon.slug}`}>
@@ -271,12 +330,24 @@ export function MyAddons() {
                       const moduleLink = getModuleLink(addon.slug);
                       
                       if (!entitled) {
+                        const isRenewing = renewingAddon === addon.slug;
                         return (
-                          <Link href={`/marketplace?addon=${addon.slug}`}>
-                            <Button variant="default" size="sm" data-testid={`button-renew-${addon.slug}`}>
-                              Renew
-                            </Button>
-                          </Link>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            data-testid={`button-renew-${addon.slug}`}
+                            onClick={() => handleRenew(addon.slug)}
+                            disabled={isRenewing}
+                          >
+                            {isRenewing ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Processing
+                              </>
+                            ) : (
+                              "Renew"
+                            )}
+                          </Button>
                         );
                       }
                       

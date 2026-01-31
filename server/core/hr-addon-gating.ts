@@ -18,6 +18,7 @@ import type { Request, Response, NextFunction } from "express";
 import { db } from "../db";
 import { tenantAddons, addons, tenantPayrollAddon, payrollAddonTiers, hrEmployees } from "@shared/schema";
 import { eq, and, or, count } from "drizzle-orm";
+import { getTenantAddonEntitlement } from "../services/entitlement";
 
 // Capability Flags
 export const HR_FOUNDATION = "HR_FOUNDATION"; // Employee directory only
@@ -56,6 +57,7 @@ export interface EmployeeLimitResult {
 
 /**
  * Check if tenant has HR-related add-ons installed
+ * Uses entitlement service for proper date-based expiry checking
  */
 export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
   const result: HRAccessResult = {
@@ -73,55 +75,28 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
   let hadPayrollPreviously = false;
 
   try {
-    // Check marketplace tenantAddons for payroll/hrms (including expired/cancelled for read-only check)
-    const allAddons = await db
-      .select({
-        slug: addons.slug,
-        status: tenantAddons.status,
-        subscriptionStatus: tenantAddons.subscriptionStatus,
-      })
-      .from(tenantAddons)
-      .innerJoin(addons, eq(tenantAddons.addonId, addons.id))
-      .where(eq(tenantAddons.tenantId, tenantId));
+    // Use entitlement service for proper date-based checks
+    const payrollEntitlement = await getTenantAddonEntitlement(tenantId, "payroll", { checkDependencies: false });
+    const hrmsEntitlement = await getTenantAddonEntitlement(tenantId, "hrms", { checkDependencies: false });
     
-    // Filter to active subscriptions for access
-    const installedAddons = allAddons.filter(
-      a => a.status === "active" && (a.subscriptionStatus === "active" || a.subscriptionStatus === "trialing")
-    );
-    
-    // Check for expired/cancelled payroll (for read-only mode)
-    for (const addon of allAddons) {
-      const slug = addon.slug?.toLowerCase() || "";
-      if (slug.startsWith("payroll")) {
-        const isExpired = addon.subscriptionStatus === "expired" || 
-                          addon.subscriptionStatus === "cancelled" ||
-                          addon.subscriptionStatus === "past_due";
-        if (isExpired) {
-          hadPayrollPreviously = true;
-        }
+    // Check payroll entitlement
+    if (payrollEntitlement.entitled) {
+      result.hasPayrollAddon = true;
+      result.hasPayrollAccess = true;
+      if (payrollEntitlement.state === "trial") {
+        result.isTrialing = true;
+        result.trialEndsAt = payrollEntitlement.validUntil;
+        result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
+      } else {
+        result.employeeLimit = -1; // Unlimited for active paid subscriptions
       }
+    } else if (payrollEntitlement.state === "expired" || payrollEntitlement.state === "cancelled") {
+      hadPayrollPreviously = true;
     }
-
-    for (const addon of installedAddons) {
-      const slug = addon.slug?.toLowerCase() || "";
-      const isTrialing = addon.subscriptionStatus === "trialing";
-      const isActive = addon.subscriptionStatus === "active";
-      
-      if (slug.startsWith("payroll")) {
-        result.hasPayrollAddon = true;
-        result.hasPayrollAccess = true;
-        if (isTrialing) {
-          result.isTrialing = true;
-          result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
-        } else if (isActive) {
-          // Active marketplace payroll subscription - default to unlimited
-          // Tier-based limits will be enforced via tenantPayrollAddon if configured
-          result.employeeLimit = -1; // Unlimited until tier system is fully integrated
-        }
-      }
-      if (slug.startsWith("hrms")) {
-        result.hasHrmsAddon = true;
-      }
+    
+    // Check HRMS entitlement
+    if (hrmsEntitlement.entitled) {
+      result.hasHrmsAddon = true;
     }
 
     // Also check legacy tenantPayrollAddon table

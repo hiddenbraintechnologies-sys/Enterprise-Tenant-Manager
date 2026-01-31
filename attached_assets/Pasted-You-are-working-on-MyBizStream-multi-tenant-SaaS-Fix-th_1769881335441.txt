@@ -1,0 +1,130 @@
+You are working on MyBizStream (multi-tenant SaaS). Fix the add-on card status + implement “Renew by paying” for expired add-ons with correct entitlement enforcement.
+
+PROBLEM
+1) Expired add-on is still shown as “active” in My Add-ons page.
+2) Tenant can click into the module even if trial/payment expired.
+3) “Renew” button should take the tenant to a payment checkout and, after payment, re-activate the add-on.
+
+GOALS (Must)
+A) Correctly compute add-on entitlement state per tenant:
+   - active: paidUntil >= now
+   - trial: trialEndsAt >= now AND no paidUntil (or paidUntil < now)
+   - grace: graceUntil >= now (optional)
+   - expired: trialEndsAt < now AND paidUntil < now AND graceUntil < now
+   - not_installed: no record
+B) UI shows correct badge (Active/Trial/Grace/Expired) and correct CTA:
+   - active/trial/grace => Open
+   - expired => Renew
+   - not_installed => Install
+C) Backend hard-enforcement:
+   - All Payroll/HRMS/Attendance APIs MUST return 403 when addon not entitled.
+D) Renew flow:
+   - Clicking Renew creates a payment Checkout session (Stripe or your existing provider)
+   - After successful payment, webhook updates tenant_addons => status becomes active, paidUntil extended
+   - Tenant returns and can access module immediately
+
+IMPLEMENTATION DETAILS
+
+1) BACKEND: Entitlements Service
+Create/Update a single service (server/services/entitlements or similar):
+- function getAddonEntitlement(tenantId, addonCode, now = new Date()):
+  - load tenant_addons row
+  - return { entitled:boolean, state:'active'|'trial'|'grace'|'expired'|'not_installed', validUntil:Date|null, reasonCode }
+
+Rules:
+- if no row => not_installed
+- if paidUntil && paidUntil >= now => active, validUntil=paidUntil
+- else if trialEndsAt && trialEndsAt >= now => trial, validUntil=trialEndsAt
+- else if graceUntil && graceUntil >= now => grace, validUntil=graceUntil (entitled true only if you choose allowGrace)
+- else => expired, validUntil = max(trialEndsAt, paidUntil, graceUntil) or null
+
+Expose API:
+GET /api/billing/entitlements
+returns:
+{
+  "addons": {
+    "payroll": { "entitled": false, "state":"expired", "validUntil":"...", "reasonCode":"ADDON_EXPIRED" },
+    ...
+  }
+}
+
+2) BACKEND: Middleware Guard
+Create middleware requireAddon(addonCode, options):
+- options: { allowGrace?: boolean, dependency?: string[] }
+- Reads tenantId from existing tenant context
+- Checks entitlement for addonCode, and dependencies
+- If blocked => return 403 JSON:
+  { error:"ADDON_ACCESS_DENIED", code:"ADDON_EXPIRED|ADDON_NOT_INSTALLED|ADDON_DEPENDENCY_MISSING|ADDON_DEPENDENCY_EXPIRED", addon:addonCode, dependency?:string, validUntil?:date }
+
+Apply to ALL protected routes:
+- Payroll routes: requireAddon('payroll', { dependency:['hrms'], allowGrace:false for write endpoints })
+- HRMS routes: requireAddon('hrms')
+- Attendance routes if part of payroll/hrms: requireAddon('hrms') or payroll as needed
+
+3) FRONTEND: Fix “Active” badge bug
+On My Add-ons page, STOP using “installed => active”.
+Instead, use the entitlements API response to render:
+- Badge text = state (Active/Trial/Grace/Expired)
+- “Open” only if entitled true (or if state in active/trial/grace and allowGrace)
+- “Renew” only if state=expired
+- Disable Open if expired, and show tooltip “Trial expired—Renew to continue”.
+
+4) FRONTEND: Route Guard
+Create <RequireAddon code="payroll"> wrapper:
+- Calls useEntitlements()
+- If loading => skeleton
+- If not entitled => redirect to /dashboard/service (My Add-ons) and show toast “Access expired—Renew to continue”
+Wrap all payroll/hrms pages with it.
+
+5) RENEW PAYMENT FLOW
+Backend endpoint:
+POST /api/billing/addons/:addonCode/checkout
+Body: { "action":"renew" }
+- Verify tenant auth
+- Verify addon exists for tenant and is expired or near expiry
+- Create Stripe Checkout Session (or your provider)
+  - currency based on tenant region (Malaysia => MYR)
+  - include metadata: tenantId, addonCode, planCycle (monthly/yearly)
+- Return { url }
+
+Frontend:
+- On Renew click => call POST checkout => redirect to returned url
+
+Webhook:
+POST /api/billing/webhooks/stripe
+- On checkout.session.completed:
+  - Read metadata tenantId, addonCode, cycle
+  - Update tenant_addons:
+    status='active'
+    paidUntil = now + cycleDuration (or extend from max(now, current paidUntil))
+    trialEndsAt stays for history but entitlement uses paidUntil
+    graceUntil = null
+- Ensure idempotent (if webhook repeats, do not double-extend incorrectly)
+
+6) STATUS SYNC (Optional but recommended)
+Add a server startup job or scheduled function to normalize statuses:
+- If paidUntil >= now => status=active
+- Else if trialEndsAt >= now => status=trial
+- Else if graceUntil >= now => status=grace
+- Else => status=expired
+This ensures UI/API consistent.
+
+7) TESTS (Must)
+Add Jest tests:
+- expired payroll => payroll endpoint returns 403 code=ADDON_EXPIRED
+- active payroll => payroll endpoint returns 200
+- payroll active but hrms missing => 403 ADDON_DEPENDENCY_MISSING
+- entitlements endpoint returns correct state for each date condition
+- checkout endpoint returns url for expired addon
+
+DELIVERABLES
+- List of files changed
+- Manual test steps:
+  1) Expire trialEndsAt yesterday => verify badge “Expired”, Open disabled, Renew works
+  2) Complete payment => addon becomes Active, Open works, payroll APIs allowed
+  3) Directly hit payroll API while expired => 403
+
+IMPORTANT
+- Do NOT rely on UI-only restrictions.
+- Do NOT break auth, tenant isolation, or existing marketplace install/uninstall logic.
+- Keep all responses consistent for Malaysia (MYR) and language switching.
