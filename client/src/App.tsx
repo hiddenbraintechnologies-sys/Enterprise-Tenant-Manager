@@ -894,12 +894,7 @@ function AppRouter() {
         <Switch>
           <Route path="/packages" component={Packages} />
           <Route path="/checkout" component={Checkout} />
-          <Route path="/">
-            <AuthenticatedRoutes />
-          </Route>
-          <Route>
-            <AuthenticatedRoutes />
-          </Route>
+          <Route component={AuthenticatedRoutes} />
         </Switch>
       </OnboardingGuard>
     </TenantProvider>
