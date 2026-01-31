@@ -26,6 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import {
   Search,
   Package,
@@ -311,16 +312,39 @@ function InstalledAddonCard({
   onEnable,
   onUninstall,
   isPending,
+  entitlementState,
 }: {
   installed: InstalledAddon;
   onDisable: (addonId: string) => void;
   onEnable: (addonId: string) => void;
   onUninstall: (addonId: string) => void;
   isPending: boolean;
+  entitlementState?: "active" | "trial" | "grace" | "expired" | "not_installed" | "cancelled";
 }) {
   const { addon, installation, version, pricing } = installed;
   const usage = installation.usageThisPeriod as Record<string, number>;
   const usageEntries = Object.entries(usage || {});
+  
+  // Use entitlement state if available, otherwise fall back to installation status
+  const displayState = entitlementState || installation.status;
+  const isActive = displayState === "active" || displayState === "trial";
+  
+  const getStatusBadge = () => {
+    switch (displayState) {
+      case "active":
+        return <Badge variant="default" className="text-xs bg-green-600">Active</Badge>;
+      case "trial":
+        return <Badge variant="secondary" className="text-xs bg-blue-600 text-white">Trial</Badge>;
+      case "grace":
+        return <Badge variant="secondary" className="text-xs bg-amber-500 text-white">Grace Period</Badge>;
+      case "expired":
+        return <Badge variant="destructive" className="text-xs">Expired</Badge>;
+      case "cancelled":
+        return <Badge variant="secondary" className="text-xs">Cancelled</Badge>;
+      default:
+        return <Badge variant="secondary" className="text-xs">{displayState}</Badge>;
+    }
+  };
 
   return (
     <Card>
@@ -337,12 +361,7 @@ function InstalledAddonCard({
             <CardTitle className="text-base font-semibold truncate" data-testid={`text-installed-addon-${addon.id}`}>
               {addon.name}
             </CardTitle>
-            <Badge
-              variant={installation.status === "active" ? "default" : "secondary"}
-              className="text-xs"
-            >
-              {installation.status}
-            </Badge>
+            {getStatusBadge()}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             v{version.semverMajor}.{version.semverMinor}.{version.semverPatch}
@@ -451,6 +470,7 @@ export default function Marketplace() {
   const tenantCountryCode = normalizeCountryCode(tenant?.country);
   const tenantCurrency = tenant?.currency || COUNTRY_TO_CURRENCY[tenantCountryCode] || "INR";
   const { toast } = useToast();
+  const { entitlements } = useEntitlements();
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
   
@@ -857,16 +877,23 @@ export default function Marketplace() {
             </div>
           ) : installedData?.installedAddons && installedData.installedAddons.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {installedData.installedAddons.map((installed) => (
-                <InstalledAddonCard
-                  key={installed.installation.id}
-                  installed={installed}
-                  onDisable={disableMutation.mutate}
-                  onEnable={enableMutation.mutate}
-                  onUninstall={uninstallMutation.mutate}
-                  isPending={isPending}
-                />
-              ))}
+              {installedData.installedAddons.map((installed) => {
+                // Get entitlement state for this addon (check both slug and country-specific variants)
+                const slug = installed.addon.slug;
+                const ent = entitlements[slug] || 
+                            entitlements[slug.replace(/-india$|-malaysia$|-uk$|-uae$/, "")];
+                return (
+                  <InstalledAddonCard
+                    key={installed.installation.id}
+                    installed={installed}
+                    onDisable={disableMutation.mutate}
+                    onEnable={enableMutation.mutate}
+                    onUninstall={uninstallMutation.mutate}
+                    isPending={isPending}
+                    entitlementState={ent?.state}
+                  />
+                );
+              })}
             </div>
           ) : (
             <Card data-testid="card-empty-installed">
