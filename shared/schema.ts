@@ -6157,6 +6157,9 @@ export const tenantAddons = pgTable("tenant_addons", {
   // Trial
   trialEndsAt: timestamp("trial_ends_at"),
   
+  // Grace period
+  graceUntil: timestamp("grace_until"),
+  
   // Billing inputs (for per-employee pricing)
   units: integer("units").default(0),
   monthlyAmount: integer("monthly_amount").default(0),

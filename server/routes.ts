@@ -114,6 +114,7 @@ import tenantAddonsRoutes from "./routes/marketplace/tenant-addons";
 import publicRoutes from "./routes/public";
 import catalogRoutes from "./routes/catalog";
 import promoRoutes from "./routes/billing/promos";
+import entitlementsRoutes from "./routes/billing/entitlements";
 import employeePortalRoutes from "./routes/employee-portal";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
@@ -432,6 +433,7 @@ export async function registerRoutes(
   // Billing & Checkout routes (for tenant onboarding)
   app.use('/api/billing', billingRoutes);
   app.use('/api/billing/promos', promoRoutes);
+  app.use('/api/billing/entitlements', entitlementsRoutes);
   
   // Public routes (no auth required)
   app.use('/api/public', publicRoutes);

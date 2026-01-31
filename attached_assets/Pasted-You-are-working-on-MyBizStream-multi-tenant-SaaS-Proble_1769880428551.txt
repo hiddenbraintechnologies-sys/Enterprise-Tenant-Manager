@@ -1,0 +1,86 @@
+You are working on MyBizStream (multi-tenant SaaS). Problem: Add-ons show “Trial Expired” in UI but tenants can still access modules. Implement true entitlement enforcement end-to-end (DB/service, API middleware, frontend route/menu gating), without breaking auth or tenant isolation.
+
+GOALS
+1) A single source of truth for add-on entitlement per tenant (installed, status, trialEndsAt, paidUntil).
+2) Hard backend enforcement: protected APIs must return 403 when add-on inactive/expired.
+3) Frontend gating: hide/disable menus, block routes, and replace “Open” with “Renew/Upgrade” on expired add-ons.
+4) Grace period support (configurable), and consistent UI messaging.
+5) Cover addon dependencies: Payroll requires HRMS (or enforce rules already implemented). If dependency missing/expired, block Payroll too with clear error.
+6) Add tests: API-level and UI-level. Ensure no regressions.
+
+IMPLEMENTATION REQUIREMENTS
+A) Data model
+- Ensure we have a tenant_addons (or equivalent) table storing:
+  tenantId, addonCode, status ENUM('active','trial','expired','cancelled'), installedAt,
+  trialEndsAt, paidUntil, graceUntil (optional), updatedAt.
+- Add a computed function: isAddonEntitled(addonRecord, now) that returns true iff:
+  status in ('active','trial') AND (paidUntil >= now OR trialEndsAt >= now) OR (graceUntil >= now).
+- Add a service method: getTenantAddonEntitlement(tenantId, addonCode) returning:
+  { entitled: boolean, state: 'active'|'trial'|'grace'|'expired'|'not_installed', validUntil: date|null, reasonCode }.
+
+B) Backend middleware
+- Create middleware requireAddon(addonCode, { allowGrace?: true, dependency?: addonCode[] }).
+- Middleware must:
+  1) Read tenantId from tenant context (already exists).
+  2) Fetch entitlement for addonCode and any dependencies.
+  3) If not entitled, return 403 with JSON:
+     { error: "ADDON_ACCESS_DENIED", code: "ADDON_EXPIRED"|"ADDON_NOT_INSTALLED"|"ADDON_DEPENDENCY_MISSING"|"ADDON_DEPENDENCY_EXPIRED", addon: addonCode, dependency?: code, validUntil?: date }
+- Apply requireAddon('payroll') to ALL Payroll + HR/Payroll endpoints (employees/payroll/attendance).
+- Apply requireAddon('hrms') to HRMS endpoints if HRMS is its own addon.
+- Ensure routes that are common (like “list addons”) remain accessible.
+
+C) Frontend gating
+- Add a single hook: useEntitlements() that calls /api/billing/entitlements (or similar) to get:
+  { addons: { [code]: { entitled, state, validUntil, reasonCode } } }
+- Sidebar:
+  - Only show HR/Payroll section if payroll entitled (or show but disabled with lock icon).
+  - If shown disabled, clicking routes redirects to /my-add-ons with a toast.
+- Routes:
+  - Wrap payroll/hrms pages with <RequireAddon code="payroll"> that:
+    - If loading: skeleton
+    - If not entitled: redirect to /my-add-ons and show “Trial expired” / “Renew to continue”.
+- My Add-ons page:
+  - If state is expired/grace ended: replace “Open” with “Renew” button and keep “Manage”.
+  - “Open” should be disabled when not entitled.
+
+D) Background expiry sync
+- Add a server-side job (on request or cron-like) to update addon statuses:
+  - If trialEndsAt < now and paidUntil is null or < now and graceUntil < now => status='expired'
+  - If paidUntil >= now => status='active'
+  - If trialEndsAt >= now and no paidUntil => status='trial'
+- Ensure idempotent; runs at server startup and optionally daily.
+
+E) Tests
+- Add Jest API tests:
+  1) payroll endpoints return 403 when payroll expired
+  2) return 403 when payroll entitled but hrms dependency expired/missing
+  3) return 200 when entitled within grace period if allowGrace=true
+  4) tenant isolation: tenant A cannot read tenant B entitlements
+- Add minimal frontend tests or at least component-level checks:
+  - Open button disabled when expired
+  - RequireAddon redirects properly
+
+F) UX details
+- Standardize messages:
+  - trial ended: “Your trial ended on {date}. Renew to continue.”
+  - grace: “You’re in grace period until {date}.”
+- Ensure Malaysia (MYR) region and language switching unaffected.
+
+DELIVERABLES
+- PR-ready code changes across:
+  - DB schema/migration
+  - entitlement service + middleware
+  - API route wiring
+  - frontend entitlements hook + RequireAddon wrapper
+  - My Add-ons UI changes
+  - tests passing
+
+DO NOT
+- Do not break login/tenant resolution
+- Do not remove existing add-on install/uninstall logic; extend it
+- Do not rely on UI-only checks for security
+
+After implementing, summarize:
+- What files changed
+- How to test manually (steps)
+- What tests added

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ function getCategoryIcon(category: string) {
 export function MyAddons() {
   const { tenant } = useAuth();
   const tenantId = tenant?.id;
+  const { entitlements } = useEntitlements();
 
   const { data, isLoading, error } = useQuery<InstalledAddonsResponse>({
     queryKey: ["/api/addons/tenant", tenantId, "addons"],
@@ -141,6 +143,14 @@ export function MyAddons() {
   });
 
   const installedAddons = data?.installedAddons || [];
+  
+  const isAddonEntitled = (slug: string): boolean => {
+    const ent = entitlements[slug];
+    if (ent?.entitled) return true;
+    const baseSlug = slug.replace(/-india$|-malaysia$|-uk$|-uae$/, "");
+    if (baseSlug !== slug && entitlements[baseSlug]?.entitled) return true;
+    return false;
+  };
 
   if (isLoading) {
     return (
@@ -256,13 +266,32 @@ export function MyAddons() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {getModuleLink(addon.slug) && (
-                      <Link href={getModuleLink(addon.slug)!}>
-                        <Button variant="default" size="sm" data-testid={`button-open-${addon.slug}`}>
-                          Open
-                        </Button>
-                      </Link>
-                    )}
+                    {(() => {
+                      const entitled = isAddonEntitled(addon.slug);
+                      const moduleLink = getModuleLink(addon.slug);
+                      
+                      if (!entitled) {
+                        return (
+                          <Link href={`/marketplace?addon=${addon.slug}`}>
+                            <Button variant="default" size="sm" data-testid={`button-renew-${addon.slug}`}>
+                              Renew
+                            </Button>
+                          </Link>
+                        );
+                      }
+                      
+                      if (moduleLink) {
+                        return (
+                          <Link href={moduleLink}>
+                            <Button variant="default" size="sm" data-testid={`button-open-${addon.slug}`}>
+                              Open
+                            </Button>
+                          </Link>
+                        );
+                      }
+                      
+                      return null;
+                    })()}
                     <Link href="/marketplace?tab=installed">
                       <Button variant="ghost" size="sm" data-testid={`button-manage-${addon.slug}`}>
                         Manage

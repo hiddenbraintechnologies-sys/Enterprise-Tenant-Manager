@@ -319,6 +319,9 @@ app.use((req, res, next) => {
   // Start background job for processing expired subscriptions
   startSubscriptionExpiryProcessor();
   
+  // Start background job for syncing addon entitlements
+  startAddonEntitlementSync();
+  
   // Server is already listening (started at the top of this async block)
   // This ensures Replit health checks pass immediately
   } catch (error) {
@@ -367,4 +370,24 @@ function startSubscriptionExpiryProcessor() {
   setTimeout(() => runProcessor(), 10000);
   setInterval(runProcessor, INTERVAL_MS);
   log("Subscription expiry processor started (runs hourly)", "subscription-expiry-job");
+}
+
+function startAddonEntitlementSync() {
+  const INTERVAL_MS = 60 * 60 * 1000;
+  
+  const runSync = async () => {
+    try {
+      const { syncExpiredAddons } = await import("./services/entitlement");
+      const result = await syncExpiredAddons();
+      if (result.processed > 0) {
+        log(`Synced ${result.processed} addon entitlements`, "addon-entitlement-sync");
+      }
+    } catch (error) {
+      console.error("[addon-entitlement-sync] Error syncing addon entitlements:", error);
+    }
+  };
+
+  setTimeout(() => runSync(), 15000);
+  setInterval(runSync, INTERVAL_MS);
+  log("Addon entitlement sync started (runs hourly)", "addon-entitlement-sync");
 }
