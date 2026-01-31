@@ -441,41 +441,49 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     };
 
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4 max-w-md text-center px-4">
-          <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
-            <span className="text-2xl">!</span>
+      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-b from-background to-muted/30">
+        <div className="flex flex-col items-center gap-6 max-w-sm text-center px-6 py-8 bg-card rounded-xl shadow-lg border">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <svg className="h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
           </div>
-          <h2 className="text-lg font-semibold">Unable to load subscription</h2>
-          <p className="text-sm text-muted-foreground">
-            {isAuthError 
-              ? "Your session may have expired. Please log in again."
-              : "We couldn't verify your subscription status. This may be a temporary network issue."}
-          </p>
-          <div className="flex gap-2 flex-wrap justify-center">
-            <button
-              onClick={handleRetry}
-              className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-              data-testid="button-retry-subscription"
-            >
-              Try again
-            </button>
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-foreground">
+              {isAuthError ? "Session Expired" : "Connection Issue"}
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {isAuthError 
+                ? "For your security, your session has timed out. Please sign in again to continue."
+                : "We're having trouble connecting right now. This is usually temporary."}
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 w-full">
             {isAuthError ? (
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
+                className="w-full px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                 data-testid="button-logout"
               >
-                Log in again
+                Sign In Again
               </button>
             ) : (
-              <a
-                href="/packages"
-                className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
-                data-testid="link-select-plan"
-              >
-                Select a plan
-              </a>
+              <>
+                <button
+                  onClick={handleRetry}
+                  className="w-full px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                  data-testid="button-retry-subscription"
+                >
+                  Retry Connection
+                </button>
+                <a
+                  href="/packages"
+                  className="w-full px-4 py-3 text-sm font-medium border rounded-lg hover:bg-muted transition-colors text-center"
+                  data-testid="link-select-plan"
+                >
+                  View Plans
+                </a>
+              </>
             )}
           </div>
         </div>
