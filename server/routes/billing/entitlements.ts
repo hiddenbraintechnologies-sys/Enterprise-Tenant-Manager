@@ -307,33 +307,42 @@ router.post("/:addonCode/checkout", async (req, res) => {
       };
       console.error(`[entitlements-checkout] Razorpay error:`, JSON.stringify(errorDetails, null, 2));
       
-      // Determine specific debug code based on error
+      // Determine specific debug code based on error - ordered by priority
       let debugCode = "RAZORPAY_UNKNOWN_ERROR";
       let userMessage = "Failed to create payment session. Please try again.";
       let statusCode = 500;
+      const razorpayErrorCode = rpError.error?.code;
       
+      // Check for network/timeout issues first
       if (rpError.code === "ECONNABORTED" || rpError.message?.includes("timeout")) {
         debugCode = "RAZORPAY_TIMEOUT";
         userMessage = "Payment provider is not responding. Please try again.";
         statusCode = 504;
-      } else if (rpError.statusCode === 401 || rpError.error?.code === "BAD_REQUEST_ERROR" && rpError.error?.description?.includes("authentication")) {
+      } 
+      // Check for authentication failures (401, 403, or explicit auth error)
+      else if (rpError.statusCode === 401 || rpError.statusCode === 403 || razorpayErrorCode === "AUTHENTICATION_ERROR") {
         debugCode = "RAZORPAY_AUTH_FAILED";
         userMessage = "Payment gateway authentication failed. Please contact support.";
         statusCode = 503;
-      } else if (rpError.error?.code === "BAD_REQUEST_ERROR") {
-        debugCode = "RAZORPAY_BAD_REQUEST";
-        userMessage = rpError.error?.description || "Invalid payment configuration. Please contact support.";
-        statusCode = 400;
-      } else if (rpError.statusCode === 404 || rpError.error?.description?.includes("not found")) {
+      }
+      // Check for 404 endpoint not found
+      else if (rpError.statusCode === 404) {
         debugCode = "RAZORPAY_ENDPOINT_NOT_FOUND";
         userMessage = "Payment service configuration error. Please contact support.";
         statusCode = 503;
+      }
+      // Handle BAD_REQUEST errors (client-side issues)
+      else if (razorpayErrorCode === "BAD_REQUEST_ERROR") {
+        debugCode = "RAZORPAY_BAD_REQUEST";
+        userMessage = rpError.error?.description || "Invalid payment request. Please contact support.";
+        statusCode = 400;
       }
       
       return res.status(statusCode).json({
         error: "PAYMENT_SETUP_FAILED",
         message: userMessage,
         debugCode,
+        razorpayErrorCode: razorpayErrorCode || null,
       });
     }
   } catch (error) {
