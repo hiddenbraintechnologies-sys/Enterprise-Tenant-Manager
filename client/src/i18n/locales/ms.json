@@ -784,6 +784,7 @@
   },
   "sidebar": {
     "mainMenu": "Menu Utama",
+    "hrmsSuite": "Suite HRMS",
     "dashboard": "Papan Pemuka",
     "projects": "Projek",
     "timesheets": "Lembaran Masa",

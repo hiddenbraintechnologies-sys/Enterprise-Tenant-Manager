@@ -822,6 +822,7 @@
   },
   "sidebar": {
     "mainMenu": "Main Menu",
+    "hrmsSuite": "HRMS Suite",
     "dashboard": "Dashboard",
     "projects": "Projects",
     "timesheets": "Timesheets",

@@ -58,6 +58,59 @@ interface NavItem {
   tourId?: string;
 }
 
+// Map English titles to translation keys
+const TITLE_TO_KEY: Record<string, string> = {
+  "Dashboard": "sidebar.dashboard",
+  "Projects": "sidebar.projects",
+  "Timesheets": "sidebar.timesheets",
+  "Clients": "sidebar.clients",
+  "Customers": "sidebar.clients",
+  "Invoices": "sidebar.invoices",
+  "Analytics": "sidebar.analytics",
+  "My Add-ons": "sidebar.myAddons",
+  "Bookings": "sidebar.bookings",
+  "Appointments": "sidebar.appointments",
+  "Services": "sidebar.services",
+  "Rooms": "sidebar.rooms",
+  "Tenants": "sidebar.tenants",
+  "Beds": "sidebar.beds",
+  "Properties": "sidebar.properties",
+  "Leads": "sidebar.leads",
+  "Listings": "sidebar.listings",
+  "Site Visits": "sidebar.bookings",
+  "Tours": "sidebar.tours",
+  "Packages": "sidebar.packages",
+  "Itineraries": "sidebar.itineraries",
+  "Students": "sidebar.students",
+  "Courses": "sidebar.courses",
+  "Batches": "sidebar.batches",
+  "Exams": "sidebar.exams",
+  "Fees": "sidebar.fees",
+  "Attendance": "sidebar.attendance",
+  "Vehicles": "sidebar.vehicles",
+  "Drivers": "sidebar.drivers",
+  "Shipments": "sidebar.shipments",
+  "Trips": "sidebar.trips",
+  "Maintenance": "sidebar.maintenance",
+  "Tracking": "sidebar.tracking",
+  "Cases": "sidebar.cases",
+  "Documents": "sidebar.documents",
+  "Billing": "sidebar.billing",
+  "Products": "sidebar.products",
+  "Raw Materials": "sidebar.inventory",
+  "Production": "sidebar.production",
+  "Sales Orders": "sidebar.orders",
+  "Engagements": "sidebar.projects",
+  "Desks": "sidebar.desks",
+  "Spaces": "sidebar.spaces",
+  "HR Dashboard": "sidebar.hrDashboard",
+  "Employees": "sidebar.employees",
+  "Payroll": "sidebar.payroll",
+  "Attendance & Leave": "sidebar.attendanceLeave",
+  "Marketplace": "sidebar.marketplace",
+  "Settings": "sidebar.settings",
+};
+
 const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   clinic: [
     { title: "Dashboard", url: "/dashboard/clinic", icon: LayoutDashboard },
@@ -381,7 +434,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Main Menu
+            {t("sidebar.mainMenu", "Main Menu")}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -398,7 +451,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                         data-tour={`sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                       >
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <span>{t(TITLE_TO_KEY[item.title] || item.title, item.title)}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -468,7 +521,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
         {showHrSection && (
           <SidebarGroup data-testid="sidebar-group-hr">
             <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              {hasHrmsSuiteAccess ? "HRMS Suite" : "HR / Payroll"}
+              {hasHrmsSuiteAccess ? t("sidebar.hrmsSuite", "HRMS Suite") : t("sidebar.hrPayroll", "HR / Payroll")}
               {isPayrollTrialing() && (
                 <span 
                   className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 rounded"
@@ -492,7 +545,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                         data-testid={`link-hr-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                       >
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <span>{t(TITLE_TO_KEY[item.title] || item.title, item.title)}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -548,7 +601,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                           data-testid={`link-hrms-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                         >
                           <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
+                          <span>{t(TITLE_TO_KEY[item.title] || item.title, item.title)}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -580,7 +633,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            System
+            {t("sidebar.system", "System")}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -596,7 +649,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                       data-tour={item.tourId || `sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                     >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span>{t(TITLE_TO_KEY[item.title] || item.title, item.title)}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
