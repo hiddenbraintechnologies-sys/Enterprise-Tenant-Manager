@@ -586,13 +586,13 @@ async function seedCountryRolloutPolicies(): Promise<void> {
     },
     {
       countryCode: "GB",
-      isActive: true,
-      status: "beta" as const,
+      isActive: false, // Default to inactive - Super Admin enables manually when ready
+      status: "coming_soon" as const,
       enabledBusinessTypes: ["consulting", "software_services"],
       enabledModules: ["dashboard", "projects", "timesheets", "invoicing", "hrms", "analytics"],
       enabledFeatures: { hrms: true, payroll: false, gst_invoicing: false, whatsapp_automation: false, sms_notifications: true },
       comingSoonMessage: null,
-      notes: "UK Beta - Consulting and Software Services",
+      notes: "UK - Coming Soon (Super Admin enables when ready)",
       updatedBy: "system",
     },
   ];
@@ -605,21 +605,8 @@ async function seedCountryRolloutPolicies(): Promise<void> {
       .limit(1);
 
     if (existing) {
-      console.log(`  - Country rollout policy for ${policy.countryCode} already exists, updating...`);
-      await db
-        .update(countryRolloutPolicy)
-        .set({
-          isActive: policy.isActive,
-          status: policy.status,
-          enabledBusinessTypes: policy.enabledBusinessTypes,
-          enabledModules: policy.enabledModules,
-          enabledFeatures: policy.enabledFeatures,
-          comingSoonMessage: policy.comingSoonMessage,
-          notes: policy.notes,
-          updatedBy: policy.updatedBy,
-          updatedAt: new Date(),
-        })
-        .where(eq(countryRolloutPolicy.countryCode, policy.countryCode));
+      // NEVER overwrite admin settings (isActive, status) - only create if not exists
+      console.log(`  - Country rollout policy for ${policy.countryCode} already exists, preserving admin settings`);
     } else {
       console.log(`  - Creating country rollout policy for ${policy.countryCode}...`);
       await db.insert(countryRolloutPolicy).values(policy);
