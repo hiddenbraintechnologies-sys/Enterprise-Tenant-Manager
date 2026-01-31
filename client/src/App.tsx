@@ -777,15 +777,9 @@ function AppRouter() {
   // Handle root path "/" - redirect logged-in users to dashboard
   if (isRootPath) {
     // Check localStorage for existing session to avoid flicker
-    const hasToken = !!localStorage.getItem("accessToken");
+    const rootHasToken = !!localStorage.getItem("accessToken");
     
-    if (hasToken && !isLoading && user) {
-      // User is logged in, redirect to their dashboard
-      const dashboardRoute = user.dashboardRoute || `/dashboard/${user.tenant?.businessType || "service"}`;
-      return <Redirect to={dashboardRoute} />;
-    }
-    
-    if (hasToken && isLoading) {
+    if (rootHasToken && isLoading) {
       // Still loading auth, show loading spinner instead of landing
       return (
         <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -797,7 +791,13 @@ function AppRouter() {
       );
     }
     
-    // No token or user not found, show landing page
+    if (user) {
+      // User is logged in, redirect to their dashboard
+      const dashboardRoute = user.dashboardRoute || `/dashboard/${user.tenant?.businessType || "service"}`;
+      return <Redirect to={dashboardRoute} />;
+    }
+    
+    // No user (either no token, or auth failed), show landing page
     return <LandingGlobal />;
   }
 
@@ -835,7 +835,35 @@ function AppRouter() {
     return <AdminRoutes />;
   }
 
+  // Check if user is on a protected route without being logged in
+  const isDashboardPath = location.startsWith("/dashboard") || 
+    location.startsWith("/customers") || 
+    location.startsWith("/bookings") ||
+    location.startsWith("/analytics") ||
+    location.startsWith("/settings") ||
+    location.startsWith("/hr") ||
+    location.startsWith("/marketplace") ||
+    location.startsWith("/invoices");
+    
+  // If user has token but auth is checking, wait for it on protected routes
+  const hasToken = !!localStorage.getItem("accessToken");
+  if (isDashboardPath && hasToken && isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
+    // If on a protected route without auth, redirect to login
+    if (isDashboardPath) {
+      return <Redirect to="/login" />;
+    }
+    
     return (
       <Switch>
         <Route path="/login" component={Login} />
