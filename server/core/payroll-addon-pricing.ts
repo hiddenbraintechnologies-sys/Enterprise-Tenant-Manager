@@ -191,20 +191,8 @@ async function seedCountryPayrollTiers(
         .limit(1);
 
       if (existing.length > 0) {
-        await db
-          .update(payrollAddonTiers)
-          .set({
-            minEmployees: config.minEmployees,
-            maxEmployees: config.maxEmployees,
-            perEmployeeMonthlyPrice: config.perEmployeeMonthlyPrice,
-            minimumMonthlyCharge: config.minimumMonthlyCharge,
-            monthlyPrice: config.monthlyPrice,
-            yearlyPrice: config.yearlyPrice,
-            currencyCode: config.currencyCode,
-            updatedAt: new Date(),
-          })
-          .where(eq(payrollAddonTiers.id, existing[0].id));
-        console.log(`[payroll-addon] Updated tier: ${config.tierName}`);
+        // Tier exists - preserve admin settings, don't overwrite
+        console.log(`[payroll-addon] Tier exists, preserving: ${config.tierName}`);
       } else {
         await db.insert(payrollAddonTiers).values({
           addonCode: "payroll",
@@ -269,16 +257,8 @@ export async function seedBundleDiscounts(): Promise<void> {
         .limit(1);
 
       if (existing.length > 0) {
-        await db
-          .update(bundleDiscounts)
-          .set({
-            discountType: discountConfig.discountType,
-            discountAmount: discountConfig.discountAmount,
-            addonTierId,
-            updatedAt: new Date(),
-          })
-          .where(eq(bundleDiscounts.id, existing[0].id));
-        console.log(`[payroll-addon] Updated discount: ${discountConfig.name}`);
+        // Discount exists - preserve admin settings, don't overwrite
+        console.log(`[payroll-addon] Discount exists, preserving: ${discountConfig.name}`);
       } else {
         await db.insert(bundleDiscounts).values({
           name: discountConfig.name,
@@ -318,15 +298,8 @@ export async function seedBundleDiscounts(): Promise<void> {
         .limit(1);
 
       if (existing.length > 0) {
-        await db
-          .update(bundleDiscounts)
-          .set({
-            discountType: discountConfig.discountType,
-            discountAmount: discountConfig.discountAmount,
-            updatedAt: new Date(),
-          })
-          .where(eq(bundleDiscounts.id, existing[0].id));
-        console.log(`[payroll-addon] Updated discount: ${discountConfig.name}`);
+        // Discount exists - preserve admin settings, don't overwrite
+        console.log(`[payroll-addon] Discount exists, preserving: ${discountConfig.name}`);
       } else {
         await db.insert(bundleDiscounts).values({
           name: discountConfig.name,
@@ -367,20 +340,21 @@ async function seedCountryPayrollRollout(): Promise<void> {
         .limit(1);
 
       if (existing.length > 0) {
+        // Only add payroll to enabledAddons if not already present - preserve other admin settings
         const currentAddons = (existing[0].enabledAddons as string[]) || [];
-        const updatedAddons = currentAddons.includes("payroll") ? currentAddons : [...currentAddons, "payroll"];
-        
-        await db
-          .update(countryRolloutPolicy)
-          .set({
-            payrollStatus: country.status,
-            payrollDisclaimerText: country.disclaimer,
-            enabledAddons: updatedAddons,
-            updatedBy: "system",
-            updatedAt: new Date(),
-          })
-          .where(eq(countryRolloutPolicy.countryCode, country.countryCode));
-        console.log(`[payroll-addon] Updated payroll rollout for ${country.countryCode}`);
+        if (!currentAddons.includes("payroll")) {
+          await db
+            .update(countryRolloutPolicy)
+            .set({
+              enabledAddons: [...currentAddons, "payroll"],
+              updatedBy: "system",
+              updatedAt: new Date(),
+            })
+            .where(eq(countryRolloutPolicy.countryCode, country.countryCode));
+          console.log(`[payroll-addon] Added payroll to ${country.countryCode} enabled addons`);
+        } else {
+          console.log(`[payroll-addon] Payroll already enabled for ${country.countryCode}, preserving settings`);
+        }
       } else {
         await db.insert(countryRolloutPolicy).values({
           countryCode: country.countryCode,

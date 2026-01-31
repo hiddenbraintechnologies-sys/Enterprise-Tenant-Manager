@@ -540,27 +540,9 @@ export async function seedMarketplaceAddons(): Promise<void> {
       let addonId: string;
 
       if (existing) {
-        await db.update(addons)
-          .set({
-            name: addonData.name,
-            shortDescription: addonData.shortDescription,
-            fullDescription: addonData.fullDescription,
-            category: addonData.category,
-            supportedCountries: addonData.supportedCountries,
-            supportedBusinessTypes: addonData.supportedBusinessTypes,
-            tags: addonData.tags,
-            featured: addonData.featured,
-            featuredOrder: addonData.featuredOrder,
-            requiredPlanTier: addonData.requiredPlanTier,
-            allowedRoles: addonData.allowedRoles || [],
-            status: "published",
-            developerName: "MyBizStream",
-            updatedAt: new Date(),
-            publishedAt: new Date(),
-          })
-          .where(eq(addons.id, existing.id));
+        // Addon exists - preserve admin settings, don't overwrite
         addonId = existing.id;
-        console.log(`[marketplace-addons] Updated: ${addonData.name}`);
+        console.log(`[marketplace-addons] Addon exists, preserving: ${addonData.name}`);
       } else {
         const [newAddon] = await db.insert(addons)
           .values({
@@ -635,9 +617,8 @@ export async function seedMarketplaceAddons(): Promise<void> {
           const matchingPricing = existingForCurrency.find(p => p.currency === priceInfo.currency);
 
           if (matchingPricing) {
-            await db.update(addonPricing)
-              .set(pricingValues)
-              .where(eq(addonPricing.id, matchingPricing.id));
+            // Pricing exists - preserve admin settings, don't overwrite
+            // console.log(`[marketplace-addons] Pricing exists for ${priceInfo.currency}, preserving`);
           } else {
             await db.insert(addonPricing).values(pricingValues);
           }
@@ -697,14 +678,12 @@ async function seedAddonCountryConfigs() {
       };
       
       if (existing) {
-        await db.update(addonCountryConfig)
-          .set({ ...configValues, updatedAt: new Date() })
-          .where(eq(addonCountryConfig.id, existing.id));
+        // Config exists - preserve admin settings, don't overwrite
+        console.log(`[marketplace-addons] Config exists, preserving: ${config.slug} for ${config.countryCode}`);
       } else {
         await db.insert(addonCountryConfig).values(configValues);
+        console.log(`[marketplace-addons] Created config: ${config.slug} for ${config.countryCode}`);
       }
-      
-      console.log(`[marketplace-addons] Configured ${config.slug} for ${config.countryCode}`);
     } catch (error) {
       console.error(`[marketplace-addons] Error seeding config for ${config.slug}/${config.countryCode}:`, error);
     }
@@ -782,11 +761,11 @@ async function seedAddonPlanEligibility() {
       };
       
       if (existing) {
-        await db.update(addonPlanEligibility)
-          .set({ ...ruleValues, updatedAt: new Date() })
-          .where(eq(addonPlanEligibility.id, existing.id));
+        // Rule exists - preserve admin settings, don't overwrite
+        console.log(`[marketplace-addons] Eligibility exists, preserving: ${rule.slug} for ${rule.countryCode}/${rule.planTier}`);
       } else {
         await db.insert(addonPlanEligibility).values(ruleValues);
+        console.log(`[marketplace-addons] Created eligibility: ${rule.slug} for ${rule.countryCode}/${rule.planTier}`);
       }
     } catch (error) {
       console.error(`[marketplace-addons] Error seeding eligibility for ${rule.slug}/${rule.countryCode}/${rule.planTier}:`, error);

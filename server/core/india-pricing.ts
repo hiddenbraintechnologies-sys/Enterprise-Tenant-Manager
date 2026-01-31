@@ -296,28 +296,8 @@ export async function seedIndiaPricingPlans(): Promise<void> {
       });
       console.log(`[india-pricing] Created plan: ${config.name}`);
     } else {
-      await db
-        .update(globalPricingPlans)
-        .set({
-          name: config.name,
-          description: config.description,
-          basePrice: config.basePrice,
-          billingCycles: config.billingCycles,
-          maxUsers: config.maxUsers,
-          maxCustomers: config.maxCustomers,
-          features: config.features,
-          featureFlags: featureFlagsData,
-          limits: limitsData,
-          isActive: true,
-          isPublic: true,
-          isRecommended,
-          sortOrder: displayOrder,
-          countryCode: "IN",
-          currencyCode: "INR",
-          updatedAt: new Date(),
-        })
-        .where(eq(globalPricingPlans.code, config.code));
-      console.log(`[india-pricing] Updated plan: ${config.name}`);
+      // Plan exists - preserve admin settings, don't overwrite
+      console.log(`[india-pricing] Plan exists, preserving: ${config.name}`);
     }
   }
 

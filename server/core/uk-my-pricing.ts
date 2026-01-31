@@ -262,28 +262,8 @@ export async function seedUKPricingPlans(): Promise<void> {
       });
       console.log(`[uk-pricing] Created plan: ${config.name}`);
     } else {
-      await db
-        .update(globalPricingPlans)
-        .set({
-          name: config.name,
-          description: config.description,
-          basePrice: config.basePrice,
-          billingCycles: config.billingCycles,
-          maxUsers: config.maxUsers,
-          maxCustomers: config.maxCustomers,
-          features: config.features,
-          featureFlags: featureFlagsData,
-          limits: limitsData,
-          isActive: true,
-          isPublic: true,
-          isRecommended,
-          sortOrder: displayOrder,
-          countryCode: "UK",
-          currencyCode: "GBP",
-          updatedAt: new Date(),
-        })
-        .where(eq(globalPricingPlans.code, config.code));
-      console.log(`[uk-pricing] Updated plan: ${config.name}`);
+      // Plan exists - preserve admin settings, don't overwrite
+      console.log(`[uk-pricing] Plan exists, preserving: ${config.name}`);
     }
   }
 
@@ -346,28 +326,8 @@ export async function seedMYPricingPlans(): Promise<void> {
       });
       console.log(`[my-pricing] Created plan: ${config.name}`);
     } else {
-      await db
-        .update(globalPricingPlans)
-        .set({
-          name: config.name,
-          description: config.description,
-          basePrice: config.basePrice,
-          billingCycles: config.billingCycles,
-          maxUsers: config.maxUsers,
-          maxCustomers: config.maxCustomers,
-          features: config.features,
-          featureFlags: featureFlagsData,
-          limits: limitsData,
-          isActive: true,
-          isPublic: true,
-          isRecommended,
-          sortOrder: displayOrder,
-          countryCode: "MY",
-          currencyCode: "MYR",
-          updatedAt: new Date(),
-        })
-        .where(eq(globalPricingPlans.code, config.code));
-      console.log(`[my-pricing] Updated plan: ${config.name}`);
+      // Plan exists - preserve admin settings, don't overwrite
+      console.log(`[my-pricing] Plan exists, preserving: ${config.name}`);
     }
   }
 
