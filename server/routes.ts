@@ -244,6 +244,8 @@ export async function registerRoutes(
             });
           }
         }
+        // Clear cache to ensure fresh data is served immediately
+        countryRolloutService.clearCache();
         console.log("[bootstrap] Country rollout policies seeded (IN/MY/GB active)");
       } catch (err) {
         console.log("[bootstrap] Country rollout seeding skipped:", err);
