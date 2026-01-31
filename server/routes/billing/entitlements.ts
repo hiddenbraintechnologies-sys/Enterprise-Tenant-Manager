@@ -345,4 +345,114 @@ router.post("/:addonCode/checkout", async (req, res) => {
   }
 });
 
+// Verify payment and activate add-on (called after payment redirect)
+router.post("/:addonCode/verify-payment", async (req, res) => {
+  try {
+    const { addonCode } = req.params;
+    const { paymentLinkId } = req.body;
+    const tenantId = req.context?.tenant?.id || (req as any).tokenPayload?.tenantId;
+    
+    if (!tenantId) {
+      return res.status(401).json({
+        error: "UNAUTHORIZED",
+        message: "Tenant context required",
+      });
+    }
+    
+    // Find the tenant addon
+    const [tenantAddon] = await db
+      .select()
+      .from(tenantAddons)
+      .innerJoin(addons, eq(tenantAddons.addonId, addons.id))
+      .where(
+        and(
+          eq(tenantAddons.tenantId, tenantId),
+          eq(addons.slug, addonCode)
+        )
+      )
+      .limit(1);
+    
+    if (!tenantAddon) {
+      return res.status(404).json({
+        error: "NOT_FOUND",
+        message: "Add-on not found for this tenant",
+      });
+    }
+    
+    // Check if already active
+    if (tenantAddon.tenant_addons.status === "active") {
+      return res.json({
+        status: "ALREADY_ACTIVE",
+        message: "Add-on is already active",
+      });
+    }
+    
+    // Verify payment link status with Razorpay
+    const storedPaymentLinkId = tenantAddon.tenant_addons.providerSubscriptionId;
+    const linkIdToCheck = paymentLinkId || storedPaymentLinkId;
+    
+    if (!linkIdToCheck || !linkIdToCheck.startsWith("plink_")) {
+      return res.status(400).json({
+        error: "INVALID_PAYMENT_LINK",
+        message: "No valid payment link found for verification",
+      });
+    }
+    
+    try {
+      const paymentLink = await razorpayService.fetchPaymentLink(linkIdToCheck);
+      
+      if (paymentLink.status === "paid") {
+        // Calculate new period
+        const billingPeriod = (tenantAddon.tenant_addons as any).billingPeriod || "monthly";
+        const now = new Date();
+        const periodEnd = new Date(now);
+        if (billingPeriod === "yearly") {
+          periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+        } else {
+          periodEnd.setMonth(periodEnd.getMonth() + 1);
+        }
+        
+        // Update add-on to active
+        await db
+          .update(tenantAddons)
+          .set({
+            status: "active",
+            subscriptionStatus: "active",
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            graceUntil: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(tenantAddons.id, tenantAddon.tenant_addons.id));
+        
+        console.log(`[entitlements-verify] Verified payment for ${addonCode}, activated until ${periodEnd.toISOString()}`);
+        
+        return res.json({
+          status: "ACTIVATED",
+          message: "Payment verified, add-on activated",
+          periodEnd: periodEnd.toISOString(),
+        });
+      } else {
+        return res.json({
+          status: "PAYMENT_PENDING",
+          message: `Payment status: ${paymentLink.status}`,
+          paymentStatus: paymentLink.status,
+        });
+      }
+    } catch (rpError: any) {
+      console.error(`[entitlements-verify] Razorpay error:`, rpError.message);
+      return res.status(400).json({
+        error: "VERIFICATION_FAILED",
+        message: "Could not verify payment status",
+      });
+    }
+  } catch (error) {
+    console.error("[entitlements-verify] Error:", error);
+    res.status(500).json({
+      error: "INTERNAL_ERROR",
+      message: "Failed to verify payment",
+    });
+  }
+});
+
 export default router;

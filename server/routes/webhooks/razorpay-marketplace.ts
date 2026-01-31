@@ -38,6 +38,14 @@ interface RazorpayWebhookPayload {
         error_description?: string;
       };
     };
+    payment_link?: {
+      entity: {
+        id: string;
+        status: string;
+        reference_id?: string;
+        notes?: Record<string, string>;
+      };
+    };
   };
   created_at: number;
 }
@@ -211,6 +219,52 @@ async function processEvent(
         `[razorpay-marketplace] Payment failed for subscription ${subscriptionId}`
       );
     }
+  } else if (eventType === "payment_link.paid") {
+    // Handle payment link payments (used for add-on renewals)
+    const paymentLink = payload.payload.payment_link?.entity;
+    if (!paymentLink) {
+      console.warn(`[razorpay-marketplace] No payment_link in ${eventType}`);
+      return;
+    }
+
+    const paymentLinkId = paymentLink.id;
+    const notes = paymentLink.notes || {};
+    
+    // Find tenant addon by payment link ID
+    const tenantAddon = await findTenantAddonBySubscription(paymentLinkId);
+    
+    if (!tenantAddon) {
+      console.warn(
+        `[razorpay-marketplace] No tenant addon found for payment link ${paymentLinkId}`
+      );
+      return;
+    }
+
+    // Calculate new period based on billing period from notes
+    const billingPeriod = notes.billing_period || "monthly";
+    const now = new Date();
+    const periodEnd = new Date(now);
+    if (billingPeriod === "yearly") {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    } else {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    }
+
+    await db
+      .update(tenantAddons)
+      .set({
+        status: "active",
+        subscriptionStatus: "active",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        graceUntil: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantAddons.id, tenantAddon.id));
+    
+    console.log(
+      `[razorpay-marketplace] Payment link ${paymentLinkId} paid, addon activated until ${periodEnd.toISOString()}`
+    );
   }
 }
 

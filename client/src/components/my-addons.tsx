@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { queryClient } from "@/lib/queryClient";
 
 interface InstalledAddon {
   installation: {
@@ -221,6 +222,39 @@ export function MyAddons() {
   });
 
   const installedAddons = data?.installedAddons || [];
+  
+  // Verify pending payments on component mount
+  const verifyPaymentMutation = useMutation({
+    mutationFn: async (addonSlug: string) => {
+      const response = await apiRequest("POST", `/api/billing/entitlements/${addonSlug}/verify-payment`, {});
+      return response.json();
+    },
+    onSuccess: (data, addonSlug) => {
+      if (data.status === "ACTIVATED") {
+        toast({
+          title: "Payment Verified",
+          description: "Your add-on has been activated successfully.",
+        });
+        // Refresh the addons list and entitlements
+        queryClient.invalidateQueries({ queryKey: ["/api/addons/tenant"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/billing/entitlements"] });
+      }
+    },
+  });
+  
+  // Check for pending payments on mount
+  useEffect(() => {
+    if (installedAddons.length > 0) {
+      installedAddons.forEach((item) => {
+        const addon = item.addon;
+        const installation = item.installation;
+        // If status is disabled/expired but subscription is pending, verify payment
+        if (addon && (installation.status === "disabled" || installation.subscriptionStatus === "pending")) {
+          verifyPaymentMutation.mutate(addon.slug);
+        }
+      });
+    }
+  }, [installedAddons.length]);
   
   // Fail-closed: if entitlements loading or error, treat as not entitled
   const isAddonEntitled = (slug: string): boolean => {
