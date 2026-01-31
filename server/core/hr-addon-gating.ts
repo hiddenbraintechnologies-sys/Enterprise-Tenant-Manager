@@ -75,56 +75,56 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
   let hadPayrollPreviously = false;
 
   try {
-    // Use entitlement service for proper date-based checks
-    const payrollEntitlement = await getTenantAddonEntitlement(tenantId, "payroll", { checkDependencies: false });
-    const hrmsEntitlement = await getTenantAddonEntitlement(tenantId, "hrms", { checkDependencies: false });
+    // Check entitlements for base AND country-specific variants
+    // Payroll variants: payroll, payroll-india, payroll-malaysia, payroll-uk
+    const payrollVariants = ["payroll", "payroll-india", "payroll-malaysia", "payroll-uk"];
+    const hrmsVariants = ["hrms", "hrms-india", "hrms-malaysia", "hrms-uk"];
     
-    // Check payroll entitlement
-    if (payrollEntitlement.entitled) {
-      result.hasPayrollAddon = true;
-      result.hasPayrollAccess = true;
-      if (payrollEntitlement.state === "trial") {
-        result.isTrialing = true;
-        result.trialEndsAt = payrollEntitlement.validUntil;
-        result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
-      } else {
-        result.employeeLimit = -1; // Unlimited for active paid subscriptions
+    // Check all payroll variants - any entitled one grants access
+    for (const variant of payrollVariants) {
+      const entitlement = await getTenantAddonEntitlement(tenantId, variant, { checkDependencies: false });
+      if (entitlement.entitled) {
+        result.hasPayrollAddon = true;
+        result.hasPayrollAccess = true;
+        if (entitlement.state === "trial") {
+          result.isTrialing = true;
+          result.trialEndsAt = entitlement.validUntil;
+          result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
+        } else {
+          // Any entitled non-trial state (active, grace) gets unlimited employees
+          result.employeeLimit = -1;
+        }
+        break; // Found valid payroll entitlement
+      } else if (entitlement.state === "expired" || entitlement.state === "cancelled") {
+        hadPayrollPreviously = true;
       }
-    } else if (payrollEntitlement.state === "expired" || payrollEntitlement.state === "cancelled") {
-      hadPayrollPreviously = true;
     }
     
-    // Check HRMS entitlement
-    if (hrmsEntitlement.entitled) {
-      result.hasHrmsAddon = true;
+    // Check all HRMS variants - any entitled one grants access
+    for (const variant of hrmsVariants) {
+      const entitlement = await getTenantAddonEntitlement(tenantId, variant, { checkDependencies: false });
+      if (entitlement.entitled) {
+        result.hasHrmsAddon = true;
+        break; // Found valid HRMS entitlement
+      }
     }
 
-    // Also check legacy tenantPayrollAddon table
-    const [legacyPayroll] = await db
-      .select()
-      .from(tenantPayrollAddon)
-      .where(
-        and(
-          eq(tenantPayrollAddon.tenantId, tenantId),
-          eq(tenantPayrollAddon.enabled, true)
+    // Legacy tenantPayrollAddon only used for tier-based limits if entitlement service already granted access
+    // This ensures entitlement expiry is source of truth but tier limits are preserved
+    if (result.hasPayrollAddon) {
+      const [legacyPayroll] = await db
+        .select()
+        .from(tenantPayrollAddon)
+        .where(
+          and(
+            eq(tenantPayrollAddon.tenantId, tenantId),
+            eq(tenantPayrollAddon.enabled, true)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
-    if (legacyPayroll) {
-      result.hasPayrollAddon = true;
-      result.hasPayrollAccess = true;
-      result.payrollTierId = legacyPayroll.tierId || undefined;
-      result.trialEndsAt = legacyPayroll.trialEndsAt;
-      
-      // Check if trialing
-      if (legacyPayroll.trialEndsAt && new Date(legacyPayroll.trialEndsAt) > new Date()) {
-        result.isTrialing = true;
-        result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
-      }
-      
-      // Get employee limit from tier if not trialing
-      if (legacyPayroll.tierId && !result.isTrialing) {
+      if (legacyPayroll?.tierId && !result.isTrialing) {
+        result.payrollTierId = legacyPayroll.tierId;
         const [tier] = await db
           .select({ maxEmployees: payrollAddonTiers.maxEmployees, tierName: payrollAddonTiers.tierName })
           .from(payrollAddonTiers)
