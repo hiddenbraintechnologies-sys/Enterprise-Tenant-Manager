@@ -38,20 +38,35 @@ export function useI18nLanguage(tenantId?: string) {
     if (tenantSettings?.language) {
       targetLang = tenantSettings.language;
     } else if (typeof window !== "undefined") {
+      // Check tenant-specific storage first
       targetLang = window.localStorage.getItem(key);
+      
+      // If no tenant-specific language and we have a tenantId, 
+      // fall back to app-level language for consistency
+      if (!targetLang && tenantId) {
+        const appLang = window.localStorage.getItem("app:lang");
+        if (appLang) {
+          targetLang = appLang;
+          // Also sync it to tenant-specific storage for future use
+          window.localStorage.setItem(key, appLang);
+        }
+      }
     }
 
     if (targetLang && targetLang !== i18n.language) {
       i18n.changeLanguage(targetLang);
     }
-  }, [tenantSettings, i18n, key]);
+  }, [tenantSettings, i18n, key, tenantId]);
 
   const setLanguage = useCallback(
     (lang: SupportedLanguage) => {
       i18n.changeLanguage(lang);
       
       if (typeof window !== "undefined") {
+        // Always store to the current key (tenant or app level)
         window.localStorage.setItem(key, lang);
+        // Also always sync to app-level for consistency across flows
+        window.localStorage.setItem("app:lang", lang);
       }
 
       if (tenantId) {
