@@ -222,6 +222,72 @@ export async function updateSubscription(
   return razorpay.subscriptions.update(subscriptionId, params) as Promise<RazorpaySubscription>;
 }
 
+// Payment Links - simpler alternative that works on all accounts
+export interface CreatePaymentLinkParams {
+  amount: number;
+  currency: string;
+  description: string;
+  customer?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  notify?: {
+    sms?: boolean;
+    email?: boolean;
+  };
+  callback_url?: string;
+  callback_method?: "get";
+  reference_id?: string;
+  notes?: Record<string, string>;
+}
+
+export interface RazorpayPaymentLink {
+  id: string;
+  amount: number;
+  currency: string;
+  status: "created" | "partially_paid" | "paid" | "cancelled" | "expired";
+  description: string;
+  short_url: string;
+  reference_id?: string;
+  notes: Record<string, string>;
+  created_at: number;
+}
+
+export async function createPaymentLink(params: CreatePaymentLinkParams): Promise<RazorpayPaymentLink> {
+  const razorpay = getRazorpayInstance();
+  
+  const linkParams: any = {
+    amount: params.amount,
+    currency: params.currency,
+    description: params.description,
+    notes: params.notes || {},
+  };
+  
+  if (params.customer) {
+    linkParams.customer = params.customer;
+  }
+  if (params.notify) {
+    linkParams.notify = params.notify;
+  }
+  if (params.callback_url) {
+    linkParams.callback_url = params.callback_url;
+    linkParams.callback_method = params.callback_method || "get";
+  }
+  if (params.reference_id) {
+    linkParams.reference_id = params.reference_id;
+  }
+  
+  // Use the paymentLink API
+  const link = await (razorpay as any).paymentLink.create(linkParams);
+  return link as RazorpayPaymentLink;
+}
+
+export async function fetchPaymentLink(linkId: string): Promise<RazorpayPaymentLink> {
+  const razorpay = getRazorpayInstance();
+  return (razorpay as any).paymentLink.fetch(linkId) as Promise<RazorpayPaymentLink>;
+}
+
 export const razorpayService = {
   isConfigured: isRazorpayConfigured,
   getKeyId: getRazorpayKeyId,
@@ -239,4 +305,7 @@ export const razorpayService = {
   pauseSubscription,
   resumeSubscription,
   updateSubscription,
+  // Payment Links
+  createPaymentLink,
+  fetchPaymentLink,
 };

@@ -226,30 +226,19 @@ router.post("/:addonCode/checkout", async (req, res) => {
     }
     
     try {
-      const razorpayPeriod = billingPeriod === "yearly" ? "yearly" : "monthly";
-      const plan = await razorpayService.createPlan({
-        period: razorpayPeriod,
-        interval: 1,
-        item: {
-          name: `${addon.name} - ${action === "renew" ? "Renewal" : "Subscription"}`,
-          amount: Math.round(price * 100),
-          currency: currency,
-          description: addon.shortDescription || addon.name,
-        },
-        notes: {
-          addon_id: addon.id,
-          addon_slug: addonCode,
-          tenant_id: tenantId,
-          action: action,
-        },
-      });
+      // Generate unique reference ID for this payment
+      const referenceId = `addon_${addonCode}_${tenantId}_${Date.now()}`;
       
-      const totalCount = billingPeriod === "yearly" ? 5 : 60;
-      const subscription = await razorpayService.createSubscription({
-        plan_id: plan.id,
-        total_count: totalCount,
-        quantity: 1,
-        customer_notify: 1,
+      // Use Payment Links API - works on all Razorpay accounts
+      const paymentLink = await razorpayService.createPaymentLink({
+        amount: Math.round(price * 100), // Amount in smallest currency unit (paise for INR)
+        currency: currency,
+        description: `${addon.name} - ${action === "renew" ? "Renewal" : "Subscription"} (${billingPeriod})`,
+        reference_id: referenceId,
+        notify: {
+          sms: false,
+          email: false,
+        },
         notes: {
           tenant_id: tenantId,
           addon: "marketplace",
@@ -264,26 +253,26 @@ router.post("/:addonCode/checkout", async (req, res) => {
       await db
         .update(tenantAddons)
         .set({
-          subscriptionId: subscription.id,
-          providerSubscriptionId: subscription.id,
+          subscriptionId: paymentLink.id,
+          providerSubscriptionId: paymentLink.id,
           subscriptionStatus: "pending",
           updatedAt: new Date(),
         })
         .where(eq(tenantAddons.id, tenantAddon.id));
       
-      console.log(`[entitlements-checkout] Created checkout for addon ${addonCode}, tenant ${tenantId}`);
+      console.log(`[entitlements-checkout] Created payment link for addon ${addonCode}, tenant ${tenantId}, link: ${paymentLink.id}`);
       
       return res.json({
         status: "CHECKOUT_REQUIRED",
-        url: subscription.short_url,
-        checkoutUrl: subscription.short_url,
-        subscriptionId: subscription.id,
+        url: paymentLink.short_url,
+        checkoutUrl: paymentLink.short_url,
+        paymentLinkId: paymentLink.id,
         razorpay: {
           keyId: getRazorpayKeyId(),
-          subscriptionId: subscription.id,
-          shortUrl: subscription.short_url,
-          amount: plan.item.amount,
-          currency: plan.item.currency,
+          paymentLinkId: paymentLink.id,
+          shortUrl: paymentLink.short_url,
+          amount: paymentLink.amount,
+          currency: paymentLink.currency,
           name: addon.name,
           description: addon.shortDescription || addon.name,
         },
