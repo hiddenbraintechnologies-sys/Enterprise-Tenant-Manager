@@ -241,9 +241,10 @@ export async function registerRoutes(
           }
         }
         // One-time fix: Correct UK status if it was incorrectly set to active by previous bootstrap
-        // This fix is safe to run multiple times - it only corrects UK if wrong
+        // This fix catches any case where UK is active (regardless of status field value)
         const [ukPolicy] = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, "GB")).limit(1);
-        if (ukPolicy && ukPolicy.isActive === true && ukPolicy.status === "live") {
+        console.log("[bootstrap] UK policy check:", { isActive: ukPolicy?.isActive, status: ukPolicy?.status });
+        if (ukPolicy && ukPolicy.isActive === true) {
           await db.update(countryRolloutPolicy)
             .set({ isActive: false, status: "coming_soon", updatedAt: new Date(), updatedBy: "bootstrap-fix" })
             .where(eq(countryRolloutPolicy.countryCode, "GB"));
