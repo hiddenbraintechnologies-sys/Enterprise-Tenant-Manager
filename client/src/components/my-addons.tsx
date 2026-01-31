@@ -6,6 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Package, Clock, CheckCircle2, AlertTriangle, ExternalLink, Loader2,
   Users, MessageSquare, BarChart3, Zap, CreditCard, FolderOpen, Settings2, Puzzle
@@ -47,11 +48,29 @@ interface EntitlementInfo {
   daysRemaining?: number;
 }
 
-function getStatusBadgeFromEntitlement(entitlement: EntitlementInfo | undefined) {
-  if (!entitlement) {
+interface BadgeRenderOptions {
+  isLoading?: boolean;
+  isError?: boolean;
+}
+
+function getStatusBadgeFromEntitlement(
+  entitlement: EntitlementInfo | undefined, 
+  options: BadgeRenderOptions = {}
+) {
+  const { isLoading, isError } = options;
+  
+  // Show skeleton while loading - never show "Loading" as text
+  if (isLoading) {
     return (
-      <Badge variant="outline" className="gap-1" data-testid="badge-status-loading">
-        <Clock className="h-3 w-3" />Loading
+      <Skeleton className="h-5 w-16" data-testid="badge-status-skeleton" />
+    );
+  }
+  
+  // On error or missing entitlement, show as expired (fail-closed)
+  if (isError || !entitlement) {
+    return (
+      <Badge variant="destructive" className="gap-1" data-testid="badge-status-expired">
+        <AlertTriangle className="h-3 w-3" />Expired
       </Badge>
     );
   }
@@ -105,9 +124,10 @@ function getStatusBadgeFromEntitlement(entitlement: EntitlementInfo | undefined)
     );
   }
 
+  // Fallback for not_installed or unknown states - show as inactive
   return (
-    <Badge variant="outline" className="gap-1" data-testid="badge-status-other">
-      {state}
+    <Badge variant="outline" className="gap-1" data-testid="badge-status-inactive">
+      <AlertTriangle className="h-3 w-3" />Inactive
     </Badge>
   );
 }
@@ -158,14 +178,18 @@ function getCategoryIcon(category: string) {
 export function MyAddons() {
   const { tenant } = useAuth();
   const tenantId = tenant?.id;
-  const { entitlements } = useEntitlements();
+  const { entitlements, isLoading: entitlementsLoading, isError: entitlementsError } = useEntitlements();
   const { toast } = useToast();
   const [renewingAddon, setRenewingAddon] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery<InstalledAddonsResponse>({
+  const { data, isLoading: addonsLoading, error: addonsError } = useQuery<InstalledAddonsResponse>({
     queryKey: ["/api/addons/tenant", tenantId, "addons"],
     enabled: !!tenantId,
   });
+  
+  // Combined loading/error states
+  const isLoading = addonsLoading;
+  const error = addonsError;
 
   const renewMutation = useMutation({
     mutationFn: async (addonSlug: string) => {
@@ -198,7 +222,11 @@ export function MyAddons() {
 
   const installedAddons = data?.installedAddons || [];
   
+  // Fail-closed: if entitlements loading or error, treat as not entitled
   const isAddonEntitled = (slug: string): boolean => {
+    // Fail-closed until entitlement confirmed
+    if (entitlementsLoading || entitlementsError) return false;
+    
     const ent = entitlements[slug];
     if (ent?.entitled) return true;
     const baseSlug = slug.replace(/-india$|-malaysia$|-uk$|-uae$/, "");
@@ -305,7 +333,10 @@ export function MyAddons() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-medium text-sm" data-testid={`text-addon-name-${addon.slug}`}>{addon.name}</h4>
-                        {getStatusBadgeFromEntitlement(entitlements[addon.slug] || entitlements[addon.slug.replace(/-india$|-malaysia$|-uk$|-uae$/, "")])}
+                        {getStatusBadgeFromEntitlement(
+                          entitlements[addon.slug] || entitlements[addon.slug.replace(/-india$|-malaysia$|-uk$|-uae$/, "")],
+                          { isLoading: entitlementsLoading, isError: entitlementsError }
+                        )}
                       </div>
                       {addon.shortDescription && (
                         <p className="text-xs text-muted-foreground line-clamp-1" data-testid={`text-addon-desc-${addon.slug}`}>

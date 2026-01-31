@@ -107,17 +107,19 @@ export function RequireAddon({
   redirectOnDenied = false,
   showMessage = true,
 }: RequireAddonProps) {
-  const { entitlement, isLoading, isEntitled } = useAddonEntitlement(code);
+  const { entitlement, isLoading, isError, isEntitled } = useAddonEntitlement(code);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   useEffect(() => {
-    if (!isLoading && !isEntitled && redirectOnDenied) {
-      const state = entitlement?.state || "not_installed";
-      let toastMessage = "Add-on access required";
+    // Redirect on error or not entitled (fail-closed)
+    if (!isLoading && (isError || !isEntitled) && redirectOnDenied) {
+      const state = isError ? "expired" : (entitlement?.state || "not_installed");
+      let toastMessage = isError 
+        ? "Unable to verify add-on access. Please try again."
+        : "Add-on access required";
       
       if (state === "expired") {
-        // Distinguish between trial expired and subscription expired
         const isTrialExpired = entitlement?.reasonCode === "ADDON_TRIAL_EXPIRED";
         toastMessage = isTrialExpired 
           ? "Your trial has ended. Please upgrade to continue."
@@ -132,21 +134,31 @@ export function RequireAddon({
         variant: "destructive",
       });
       
-      setLocation("/marketplace");
+      setLocation("/my-add-ons");
     }
-  }, [isLoading, isEntitled, redirectOnDenied, entitlement, setLocation, toast]);
+  }, [isLoading, isError, isEntitled, redirectOnDenied, entitlement, setLocation, toast]);
   
+  // Fail-closed: show skeleton while loading (do NOT render protected content)
   if (isLoading) {
     return <LoadingSkeleton />;
   }
   
-  if (!isEntitled) {
+  // Fail-closed: on error, treat as not entitled
+  if (isError || !isEntitled) {
     if (fallback) {
       return <>{fallback}</>;
     }
     
     if (showMessage) {
-      return <EntitlementDeniedCard addonCode={code} entitlement={entitlement} />;
+      // For errors, show a specific message
+      const errorEntitlement = isError ? {
+        entitled: false,
+        state: "expired" as const,
+        validUntil: null,
+        reasonCode: "ADDON_EXPIRED" as const,
+        message: "Unable to verify add-on access",
+      } : entitlement;
+      return <EntitlementDeniedCard addonCode={code} entitlement={errorEntitlement} />;
     }
     
     return null;
@@ -171,20 +183,31 @@ export function RequireEmployeeDirectory({
   const payroll = useAddonEntitlement("payroll");
   
   const isLoading = hrms.isLoading || payroll.isLoading;
-  const isEntitled = hrms.isEntitled || payroll.isEntitled;
+  const isError = hrms.isError || payroll.isError;
+  // Fail-closed: if loading or error, treat as not entitled
+  const isEntitled = !isLoading && !isError && (hrms.isEntitled || payroll.isEntitled);
   const entitlement = hrms.isEntitled ? hrms.entitlement : payroll.entitlement;
   
+  // Fail-closed: show skeleton while loading
   if (isLoading) {
     return <LoadingSkeleton />;
   }
   
-  if (!isEntitled) {
+  // Fail-closed: on error or not entitled
+  if (isError || !isEntitled) {
     if (props.fallback) {
       return <>{props.fallback}</>;
     }
     
     if (props.showMessage !== false) {
-      return <EntitlementDeniedCard addonCode="hrms" entitlement={entitlement} />;
+      const errorEntitlement = isError ? {
+        entitled: false,
+        state: "expired" as const,
+        validUntil: null,
+        reasonCode: "ADDON_EXPIRED" as const,
+        message: "Unable to verify add-on access",
+      } : entitlement;
+      return <EntitlementDeniedCard addonCode="hrms" entitlement={errorEntitlement} />;
     }
     
     return null;

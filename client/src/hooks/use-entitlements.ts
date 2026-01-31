@@ -39,7 +39,7 @@ export function useEntitlements() {
   const { isAuthenticated, tenant } = useAuth();
   const tenantId = tenant?.id;
 
-  const { data, isLoading, error, refetch } = useQuery<TenantEntitlements>({
+  const { data, isLoading, error, refetch, isError } = useQuery<TenantEntitlements>({
     queryKey: ["/api/billing/entitlements"],
     enabled: Boolean(isAuthenticated && tenantId),
     staleTime: 30000,
@@ -49,13 +49,25 @@ export function useEntitlements() {
   return {
     entitlements: data?.addons || {},
     isLoading,
+    isError,
     error,
     refetch,
   };
 }
 
 export function useAddonEntitlement(addonCode: string) {
-  const { entitlements, isLoading, error } = useEntitlements();
+  const { entitlements, isLoading, isError, error } = useEntitlements();
+  
+  // Fail-closed: if loading or error, treat as not entitled
+  if (isLoading || isError) {
+    return {
+      entitlement: null,
+      isLoading,
+      isError,
+      error,
+      isEntitled: false, // Fail-closed until entitlement confirmed
+    };
+  }
   
   const entitlement = entitlements[addonCode];
   
@@ -68,6 +80,7 @@ export function useAddonEntitlement(addonCode: string) {
         return {
           entitlement: entitlements[variant],
           isLoading,
+          isError,
           error,
           isEntitled: true,
         };
@@ -81,6 +94,7 @@ export function useAddonEntitlement(addonCode: string) {
         return {
           entitlement: entitlements[variant],
           isLoading,
+          isError,
           error,
           isEntitled: true,
         };
@@ -91,6 +105,7 @@ export function useAddonEntitlement(addonCode: string) {
   return {
     entitlement: entitlement || null,
     isLoading,
+    isError,
     error,
     isEntitled: entitlement?.entitled || false,
   };
@@ -108,13 +123,16 @@ export function useEmployeeDirectoryEntitlement() {
   const hrms = useAddonEntitlement("hrms");
   const payroll = useAddonEntitlement("payroll");
   
-  const isEntitled = hrms.isEntitled || payroll.isEntitled;
   const isLoading = hrms.isLoading || payroll.isLoading;
+  const isError = hrms.isError || payroll.isError;
+  // Fail-closed: if loading or error, treat as not entitled
+  const isEntitled = !isLoading && !isError && (hrms.isEntitled || payroll.isEntitled);
   const entitlement = hrms.isEntitled ? hrms.entitlement : payroll.entitlement;
   
   return {
     entitlement,
     isLoading,
+    isError,
     isEntitled,
   };
 }
