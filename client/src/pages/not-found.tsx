@@ -23,14 +23,6 @@ export default function NotFound() {
     return () => clearInterval(timer);
   }, [hasToken]);
 
-  const handleGoHome = () => {
-    window.location.href = "/";
-  };
-
-  const handleGoLogin = () => {
-    window.location.href = "/login";
-  };
-
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -54,30 +46,34 @@ export default function NotFound() {
             </p>
 
             <div className="flex flex-col gap-2 w-full mt-4">
-              <Button 
-                onClick={handleGoHome} 
+              <a 
+                href="/"
                 className="w-full"
-                data-testid="button-go-home"
+                data-testid="link-go-home"
               >
-                <Home className="mr-2 h-4 w-4" />
-                Go to Home
-              </Button>
+                <Button type="button" className="w-full">
+                  <Home className="mr-2 h-4 w-4" />
+                  Go to Home
+                </Button>
+              </a>
               
               {!hasToken && (
-                <Button 
-                  variant="outline" 
-                  onClick={handleGoLogin}
+                <a 
+                  href="/login"
                   className="w-full"
-                  data-testid="button-go-login"
+                  data-testid="link-go-login"
                 >
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Sign In
-                </Button>
+                  <Button type="button" variant="outline" className="w-full">
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Sign In
+                  </Button>
+                </a>
               )}
               
               <Button 
+                type="button"
                 variant="ghost" 
-                onClick={() => window.history.back()}
+                onClick={() => window.history.go(-1)}
                 className="w-full"
                 data-testid="button-go-back"
               >
