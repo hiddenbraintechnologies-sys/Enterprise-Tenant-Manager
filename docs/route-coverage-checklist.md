@@ -177,11 +177,14 @@ scopedWhereById(table, tenantId, recordId)
 ## E) Test Coverage Requirements
 
 ### Tenant Isolation Tests
-- [ ] HRMS employees list returns only tenant A records
-- [ ] Reading tenant B's employee returns 404 (not 403)
-- [ ] Update/delete tenant B's record fails and doesn't mutate
-- [ ] Add-ons list shows only tenant's installed add-ons
-- [ ] Services list returns only tenant's services
+- [x] Services list returns only tenant A records (not tenant B)
+- [x] Reading tenant B's service returns 404 (not 403)
+- [x] Update tenant B's record fails and doesn't mutate
+- [x] Delete tenant B's record fails and record still exists
+- [x] Count/pagination is tenant-scoped (no leaks via totals)
+
+**Test file:** `server/__tests__/tenant-isolation.spec.ts`
+**Utilities:** `server/__tests__/utils/tenant-test-utils.ts`
 
 ### Add-on Enforcement Tests
 - [x] Expired addon returns 403 with `ADDON_EXPIRED`

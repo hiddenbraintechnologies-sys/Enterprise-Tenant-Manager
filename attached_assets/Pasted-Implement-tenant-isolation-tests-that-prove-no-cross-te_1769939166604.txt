@@ -1,0 +1,58 @@
+Implement tenant isolation tests that prove no cross-tenant data leaks.
+
+Context:
+- Express backend + Postgres + Drizzle
+- Tenant context exists (requireTenantContext middleware)
+- We want 404 (preferred) for cross-tenant access to avoid tenant enumeration.
+
+Goal:
+Create a test suite that creates Tenant A and Tenant B, seeds tenant-owned records in both, then verifies:
+- Tenant A list endpoints only return A records
+- Tenant A cannot fetch/update/delete Tenant B record IDs (returns 404 or 403, prefer 404)
+- Totals/pagination are tenant-scoped (no leaks via counts)
+
+Implementation steps:
+
+1) Create test utilities:
+- createTenant() -> tenant record
+- createUserAndLogin(tenant) -> returns auth cookies/headers used by supertest
+- seedTenantData(tenant) -> creates one record per module (employees, attendance, leaves, projects, payroll-run if applicable)
+- requestAs(auth) -> helper to call APIs with correct cookies/headers + tenant context
+
+2) Create tests file:
+server/__tests__/tenant-isolation.spec.ts
+
+3) Choose representative tenant-owned endpoints (must exist and be stable):
+- HRMS employees:
+  - GET /api/hrms/employees
+  - GET /api/hrms/employees/:id
+  - PUT /api/hrms/employees/:id (or PATCH)
+- HRMS attendance/leaves/projects:
+  - GET list endpoints
+  - GET by id if available
+- Furniture module (if tenant-owned):
+  - one list + one detail endpoint
+- Services module (already had tests earlier; add one more if needed)
+
+4) Test cases (minimum):
+A) List isolation:
+- As tenant A: list employees -> does NOT include tenant B record, and count/total does not include B.
+B) Detail isolation:
+- As tenant A: GET employee B by id -> 404 (or 403)
+C) Mutation isolation:
+- As tenant A: update employee B -> 404/403 and DB record unchanged
+- As tenant A: delete employee B -> 404/403 and DB record still exists for tenant B
+D) Pagination isolation:
+- Seed 2 records in each tenant, confirm A totals == 2 only for A, not 4.
+
+5) DB assertions:
+- After mutation attempts, query DB directly using Drizzle to verify B record unchanged.
+
+6) Standardize responses:
+- If current handlers return 403 for cross-tenant: accept 403 temporarily but add TODO to convert to 404.
+- Prefer 404 for “not found” to prevent enumeration.
+
+Deliverables:
+- tenant-isolation.spec.ts passing
+- test utils for tenant/user/auth setup
+- note in docs/route-coverage-checklist.md marking “Tenant isolation tests” as done
