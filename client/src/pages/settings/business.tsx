@@ -115,18 +115,21 @@ export default function BusinessSettings() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button 
-              onClick={handleSave}
-              disabled={isSaving}
-              className="w-full sm:w-auto"
-              data-testid="button-save-business"
-            >
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-          </div>
         </CardContent>
       </Card>
+      
+      <div className="sticky bottom-0 z-10 -mx-4 sm:mx-0 border-t bg-background/80 backdrop-blur px-4 py-3 sm:rounded-b-2xl sm:relative sm:border-0 sm:bg-transparent sm:backdrop-blur-none sm:px-0 sm:py-0 sm:pt-2">
+        <div className="flex justify-end">
+          <Button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="w-full sm:w-auto"
+            data-testid="button-save-business"
+          >
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </div>
     </SettingsLayout>
   );
 }
