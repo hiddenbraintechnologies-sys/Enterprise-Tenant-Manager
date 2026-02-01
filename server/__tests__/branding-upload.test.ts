@@ -1,7 +1,8 @@
 // Unit tests for branding upload validation
 
 // Validation constants matching server/routes/branding-upload.ts
-const ALLOWED_LOGO_TYPES = ["image/png", "image/svg+xml"];
+// PNG only for logo (SVG blocked for security - no script/external ref sanitization)
+const ALLOWED_LOGO_TYPES = ["image/png"];
 const ALLOWED_FAVICON_TYPES = ["image/png", "image/x-icon", "image/vnd.microsoft.icon"];
 const MAX_LOGO_SIZE = 1 * 1024 * 1024; // 1MB
 const MAX_FAVICON_SIZE = 200 * 1024; // 200KB
@@ -15,7 +16,7 @@ function validateUpload(type: "logo" | "favicon", contentType: string, size: num
   }
 
   const allowedTypes = type === "logo" ? ALLOWED_LOGO_TYPES : ALLOWED_FAVICON_TYPES;
-  const allowedTypesLabel = type === "logo" ? "PNG, SVG" : "PNG, ICO";
+  const allowedTypesLabel = type === "logo" ? "PNG" : "PNG, ICO";
   
   if (!allowedTypes.includes(contentType)) {
     return { valid: false, error: `Invalid file type for ${type}. Allowed: ${allowedTypesLabel}` };
@@ -31,16 +32,17 @@ describe("Branding Upload Validation", () => {
       expect(result.valid).toBe(true);
     });
 
-    it("accepts SVG files under 1MB", () => {
+    it("rejects SVG files (security)", () => {
       const result = validateUpload("logo", "image/svg+xml", 100 * 1024);
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Invalid file type");
     });
 
     it("rejects JPEG files", () => {
       const result = validateUpload("logo", "image/jpeg", 100 * 1024);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Invalid file type");
-      expect(result.error).toContain("PNG, SVG");
+      expect(result.error).toContain("PNG");
     });
 
     it("rejects WebP files", () => {

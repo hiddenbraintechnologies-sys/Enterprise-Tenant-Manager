@@ -16,7 +16,8 @@ interface ImageUploaderProps {
   previewClassName?: string;
 }
 
-const ALLOWED_LOGO_TYPES = ["image/png", "image/svg+xml"];
+// PNG only for logo (SVG blocked for security)
+const ALLOWED_LOGO_TYPES = ["image/png"];
 const ALLOWED_FAVICON_TYPES = ["image/png", "image/x-icon", "image/vnd.microsoft.icon"];
 const MAX_LOGO_SIZE = 1 * 1024 * 1024; // 1MB
 const MAX_FAVICON_SIZE = 200 * 1024; // 200KB
@@ -41,7 +42,7 @@ export function ImageUploader({
 
   const validateFile = useCallback((file: File): string | null => {
     if (!allowedTypes.includes(file.type)) {
-      return `Invalid file type. Allowed: ${type === "logo" ? "PNG, SVG" : "PNG, ICO"}`;
+      return `Invalid file type. Allowed: ${type === "logo" ? "PNG" : "PNG, ICO"}`;
     }
     const maxSize = type === "logo" ? MAX_LOGO_SIZE : MAX_FAVICON_SIZE;
     const maxSizeLabel = type === "logo" ? "1MB" : "200KB";

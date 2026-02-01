@@ -13,7 +13,8 @@ const requiredAuth = authenticateHybrid();
 const auditService = new AuditService();
 const objectStorageService = new ObjectStorageService();
 
-const ALLOWED_LOGO_TYPES = ["image/png", "image/svg+xml"];
+// PNG only for logo (SVG blocked for security - no script/external ref sanitization)
+const ALLOWED_LOGO_TYPES = ["image/png"];
 const ALLOWED_FAVICON_TYPES = ["image/png", "image/x-icon", "image/vnd.microsoft.icon"];
 const MAX_LOGO_SIZE = 1 * 1024 * 1024; // 1MB
 const MAX_FAVICON_SIZE = 200 * 1024; // 200KB
@@ -55,7 +56,7 @@ function validateUploadRequest(body: unknown): { valid: boolean; error?: string;
   }
 
   const allowedTypes = type === "logo" ? ALLOWED_LOGO_TYPES : ALLOWED_FAVICON_TYPES;
-  const allowedTypesLabel = type === "logo" ? "PNG, SVG" : "PNG, ICO";
+  const allowedTypesLabel = type === "logo" ? "PNG" : "PNG, ICO";
   if (!allowedTypes.includes(contentType)) {
     return { 
       valid: false, 
@@ -72,7 +73,6 @@ function validateUploadRequest(body: unknown): { valid: boolean; error?: string;
 function getFileExtension(contentType: string): string {
   const typeMap: Record<string, string> = {
     "image/png": "png",
-    "image/svg+xml": "svg",
     "image/x-icon": "ico",
     "image/vnd.microsoft.icon": "ico",
   };

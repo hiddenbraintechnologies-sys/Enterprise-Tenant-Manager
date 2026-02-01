@@ -259,8 +259,8 @@ export default function BrandingSettings() {
                     type="logo"
                     value={formData.logoUrl || null}
                     onChange={(url) => updateField("logoUrl", url)}
-                    acceptTypes="image/png,image/svg+xml"
-                    description="PNG or SVG, max 1MB"
+                    acceptTypes="image/png"
+                    description="PNG only, max 1MB"
                     previewClassName="h-12 max-w-[200px]"
                   />
                   <ImageUploader
