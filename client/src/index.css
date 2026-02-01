@@ -558,6 +558,177 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   animation: fadeIn 0.2s ease-out;
 }
 
+/* ========================================
+   ENHANCED BUTTON & STATE ANIMATIONS
+   ======================================== */
+
+/* Button click feedback - subtle press effect */
+@keyframes buttonPress {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+.btn-press-animate:active {
+  animation: buttonPress 0.15s ease-out;
+}
+
+/* Success state animation - for form submissions, confirmations */
+@keyframes successPop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-success-pop {
+  animation: successPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Error shake animation - for validation errors */
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+.animate-error-shake {
+  animation: errorShake 0.4s ease-out;
+}
+
+/* Gentle pulse for notifications/badges */
+@keyframes gentlePulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+.animate-gentle-pulse {
+  animation: gentlePulse 2s ease-in-out infinite;
+}
+
+/* Slide in from right - for toasts, notifications */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Slide in from bottom - for modals, dialogs */
+@keyframes slideInUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Checkbox/toggle check animation */
+@keyframes checkMark {
+  0% { stroke-dashoffset: 24; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.animate-check {
+  animation: checkMark 0.2s ease-out forwards;
+}
+
+/* Loading dots animation */
+@keyframes loadingDots {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+.loading-dot:nth-child(1) { animation: loadingDots 1.4s ease-in-out infinite; }
+.loading-dot:nth-child(2) { animation: loadingDots 1.4s ease-in-out infinite 0.2s; }
+.loading-dot:nth-child(3) { animation: loadingDots 1.4s ease-in-out infinite 0.4s; }
+
+/* Skeleton loading animation - enhanced */
+@keyframes skeletonWave {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-wave {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted-foreground) / 0.08) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonWave 1.8s ease-in-out infinite;
+}
+
+/* Glow effect for focus states */
+.focus-glow:focus-within {
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+  transition: box-shadow 0.2s ease-out;
+}
+
+/* Smooth color transitions for state changes */
+.state-transition {
+  transition: background-color 0.2s ease-out, 
+              border-color 0.2s ease-out, 
+              color 0.2s ease-out,
+              box-shadow 0.2s ease-out;
+}
+
+/* Icon spin on hover - for refresh/loading icons */
+.hover-spin:hover {
+  animation: spin-slow 1s linear infinite;
+}
+
+/* Subtle float animation for decorative elements */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Progress bar fill animation */
+@keyframes progressFill {
+  from { width: 0%; }
+}
+
+.animate-progress-fill {
+  animation: progressFill 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Tab indicator slide */
+.tab-indicator {
+  transition: left 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              width 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Accordion expand/collapse */
+.accordion-content {
+  transition: height 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.2s ease-out;
+}
+
+/* Dropdown menu animation */
+@keyframes dropdownOpen {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95) translateY(-4px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateY(0); 
+  }
+}
+
+.animate-dropdown-open {
+  animation: dropdownOpen 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+}
+
 /* Reduce motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
   *,

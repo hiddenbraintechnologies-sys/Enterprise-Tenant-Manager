@@ -1,0 +1,236 @@
+A) Zod schema (recommended)
+1) Shared name rule
+// validation/name.ts
+import { z } from "zod";
+
+export const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,49}$/;
+
+export const nameField = (label: string) =>
+  z
+    .string()
+    .trim()
+    .min(2, `${label} must be at least 2 characters`)
+    .max(50, `${label} must be at most 50 characters`)
+    .regex(
+      NAME_REGEX,
+      `${label} can only contain letters, spaces, hyphens (-), or apostrophes (') and must start with a letter`
+    );
+
+2) Registration schema
+// validation/register.schema.ts
+import { z } from "zod";
+import { nameField } from "./name";
+
+export const registerSchema = z.object({
+  firstName: nameField("First name"),
+  lastName: nameField("Last name"),
+  email: z.string().trim().email("Please enter a valid email"),
+  country: z.string().trim().min(2, "Country is required"),
+  businessName: z.string().trim().min(2, "Business name is required").max(100),
+  businessType: z.string().trim().min(2, "Business type is required"),
+  password: z.string().min(8, "Password must be at least 8 characters").max(72),
+  confirmPassword: z.string().min(8).max(72),
+}).superRefine(({ password, confirmPassword }, ctx) => {
+  if (password !== confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["confirmPassword"],
+      message: "Passwords do not match",
+    });
+  }
+});
+
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+3) Backend usage (Express example)
+import { registerSchema } from "../validation/register.schema";
+
+app.post("/api/auth/register", async (req, res) => {
+  const parsed = registerSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    // Return field-level errors in a consistent format
+    const fieldErrors = parsed.error.issues.map((i) => ({
+      field: i.path.join(".") || "form",
+      message: i.message,
+    }));
+
+    return res.status(400).json({
+      error: "VALIDATION_ERROR",
+      fieldErrors,
+    });
+  }
+
+  const data = parsed.data;
+  // Proceed with user + tenant creation...
+  return res.status(201).json({ ok: true });
+});
+
+B) Yup schema (frontend alternative)
+import * as yup from "yup";
+
+const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,49}$/;
+
+export const registerYupSchema = yup.object({
+  firstName: yup
+    .string()
+    .trim()
+    .min(2, "First name must be at least 2 characters")
+    .max(50, "First name must be at most 50 characters")
+    .matches(NAME_REGEX, "First name can only contain letters, spaces, hyphens (-), or apostrophes (')"),
+  lastName: yup
+    .string()
+    .trim()
+    .min(2, "Last name must be at least 2 characters")
+    .max(50, "Last name must be at most 50 characters")
+    .matches(NAME_REGEX, "Last name can only contain letters, spaces, hyphens (-), or apostrophes (')"),
+  email: yup.string().trim().email("Please enter a valid email").required("Email is required"),
+  country: yup.string().trim().required("Country is required"),
+  businessName: yup.string().trim().min(2, "Business name is required").max(100).required(),
+  businessType: yup.string().trim().required("Business type is required"),
+  password: yup.string().min(8, "Password must be at least 8 characters").max(72).required(),
+  confirmPassword: yup
+    .string()
+    .oneOf([yup.ref("password")], "Passwords do not match")
+    .required(),
+});
+
+C) Joi schema (backend alternative)
+import Joi from "joi";
+
+const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,49}$/;
+
+export const registerJoiSchema = Joi.object({
+  firstName: Joi.string()
+    .trim()
+    .min(2)
+    .max(50)
+    .pattern(NAME_REGEX)
+    .required()
+    .messages({
+      "string.pattern.base":
+        "First name can only contain letters, spaces, hyphens (-), or apostrophes (') and must start with a letter",
+    }),
+
+  lastName: Joi.string()
+    .trim()
+    .min(2)
+    .max(50)
+    .pattern(NAME_REGEX)
+    .required()
+    .messages({
+      "string.pattern.base":
+        "Last name can only contain letters, spaces, hyphens (-), or apostrophes (') and must start with a letter",
+    }),
+
+  email: Joi.string().trim().email().required(),
+  country: Joi.string().trim().min(2).required(),
+  businessName: Joi.string().trim().min(2).max(100).required(),
+  businessType: Joi.string().trim().min(2).required(),
+  password: Joi.string().min(8).max(72).required(),
+  confirmPassword: Joi.string().valid(Joi.ref("password")).required().messages({
+    "any.only": "Passwords do not match",
+  }),
+});
+
+
+Express usage:
+
+const { error, value } = registerJoiSchema.validate(req.body, { abortEarly: false });
+
+if (error) {
+  return res.status(400).json({
+    error: "VALIDATION_ERROR",
+    fieldErrors: error.details.map((d) => ({
+      field: d.path.join(".") || "form",
+      message: d.message,
+    })),
+  });
+}
+
+D) Map backend errors to your React form
+✅ Best pattern: backend returns { error:"VALIDATION_ERROR", fieldErrors:[{field,message}] }
+
+Example response:
+
+{
+  "error": "VALIDATION_ERROR",
+  "fieldErrors": [
+    { "field": "firstName", "message": "First name can only contain letters..." },
+    { "field": "confirmPassword", "message": "Passwords do not match" }
+  ]
+}
+
+D1) React Hook Form mapping (recommended)
+import type { UseFormSetError } from "react-hook-form";
+
+type ApiFieldError = { field: string; message: string };
+type ApiError = {
+  error: string;
+  message?: string;
+  fieldErrors?: ApiFieldError[];
+};
+
+export function applyApiErrorsToRHF<TFieldValues>(
+  apiError: ApiError,
+  setError: UseFormSetError<TFieldValues>
+) {
+  if (apiError?.fieldErrors?.length) {
+    for (const fe of apiError.fieldErrors) {
+      // RHF expects field name keys that match your form fields
+      setError(fe.field as any, { type: "server", message: fe.message });
+    }
+    return true;
+  }
+
+  // Generic fallback (form-level)
+  if (apiError?.message) {
+    setError("root" as any, { type: "server", message: apiError.message });
+    return true;
+  }
+
+  return false;
+}
+
+
+Usage in submit handler:
+
+const onSubmit = async (values: FormValues) => {
+  try {
+    await api.register(values);
+    // success flow
+  } catch (e: any) {
+    const data = e?.response?.data ?? e; // axios style
+    const handled = applyApiErrorsToRHF<FormValues>(data, setError);
+    if (!handled) toast.error("Something went wrong. Please try again.");
+  }
+};
+
+D2) If you’re NOT using React Hook Form
+
+Store errors in state keyed by field:
+
+type FieldErrors = Record<string, string>;
+
+function mapApiErrorsToState(err: any): { fieldErrors: FieldErrors; formError?: string } {
+  const data = err?.response?.data ?? err;
+  const out: FieldErrors = {};
+
+  if (data?.fieldErrors?.length) {
+    for (const fe of data.fieldErrors) out[fe.field] = fe.message;
+    return { fieldErrors: out };
+  }
+
+  return { fieldErrors: out, formError: data?.message || "Something went wrong" };
+}
+
+
+Then render:
+
+{errors.firstName && <p className="text-sm text-red-600">{errors.firstName}</p>}
+
+One important UX note
+
+If you validate on frontend (Zod/Yup) and backend (Zod/Joi), keep the same regex + message so the user sees consistent errors.
+
+If you tell me what you’re using in the app right now (React Hook Form? Zod already? shadcn Form?), I’ll tailor the exact integration snippet to your current components (including <FormMessage /> mapping).
