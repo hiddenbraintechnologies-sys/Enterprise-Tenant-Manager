@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,9 @@ function ColorPicker({
 }
 
 function BrandPreview({ branding }: { branding: Partial<TenantBranding> }) {
+  // Stable cache-buster: only changes when logoUrl changes
+  const logoCacheBuster = useMemo(() => Date.now(), [branding.logoUrl]);
+  
   return (
     <div className="border rounded-lg p-4 bg-background" data-testid="section-brand-preview">
       <p className="text-sm font-medium text-muted-foreground mb-3">Live Preview</p>
@@ -65,7 +68,7 @@ function BrandPreview({ branding }: { branding: Partial<TenantBranding> }) {
         <div className="flex items-center gap-3">
           {branding.logoUrl ? (
             <img 
-              src={`${branding.logoUrl}?v=${Date.now()}`} 
+              src={`${branding.logoUrl}?v=${logoCacheBuster}`} 
               alt="Logo" 
               className="h-10 w-auto object-contain"
               data-testid="img-preview-logo"

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,9 @@ export function ImageUploader({
   const [manualUrl, setManualUrl] = useState(value || "");
 
   const allowedTypes = type === "logo" ? ALLOWED_LOGO_TYPES : ALLOWED_FAVICON_TYPES;
+  
+  // Stable cache-buster: only changes when value changes, not on every render
+  const cacheBuster = useMemo(() => Date.now(), [value]);
 
   const validateFile = useCallback((file: File): string | null => {
     if (!allowedTypes.includes(file.type)) {
@@ -163,7 +166,7 @@ export function ImageUploader({
         {value ? (
           <div className="border rounded-lg p-3 bg-muted/50 flex items-center gap-3">
             <img 
-              src={`${value}?v=${Date.now()}`} 
+              src={`${value}?v=${cacheBuster}`} 
               alt={`${label} preview`}
               className={`object-contain ${previewClassName}`}
               onError={(e) => {
