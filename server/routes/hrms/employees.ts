@@ -10,7 +10,9 @@
  * - PUT  /:id - Update employee (manager+)
  * - DELETE /:id - Delete employee (admin only)
  * 
- * Security: Requires manager role for read, admin for delete
+ * Security: 
+ * - Requires manager role for read, admin for delete
+ * - Cross-tenant access returns 404 (not 403) to prevent enumeration
  * 
  * @module server/routes/hrms/employees
  */
@@ -19,6 +21,11 @@ import { Router } from "express";
 import { requireMinimumRole, auditService, checkEmployeeLimit } from "../../core";
 import EmployeeService from "../../services/hrms/employeeService";
 import { ZodError } from "zod";
+import { 
+  assertTenantOwnedOr404, 
+  assertMutationSucceededOr404,
+  TenantResourceNotFoundError 
+} from "../../utils/assert-tenant-owned";
 
 const router = Router();
 
@@ -41,11 +48,12 @@ router.get("/:id", async (req, res) => {
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
     
     const employee = await EmployeeService.getEmployee(tenantId, req.params.id);
-    if (!employee) {
-      return res.status(404).json({ error: "Employee not found" });
-    }
+    assertTenantOwnedOr404(employee, { resourceName: "Employee", id: req.params.id });
     res.json(employee);
   } catch (error) {
+    if (error instanceof TenantResourceNotFoundError) {
+      return res.status(404).json({ error: error.message, code: error.code });
+    }
     console.error("[employees] GET /:id error:", error);
     res.status(500).json({ error: "Failed to fetch employee" });
   }
@@ -106,8 +114,12 @@ router.put("/:id", async (req, res) => {
     }
     
     const employee = await EmployeeService.updateEmployee(tenantId, req.params.id, req.body);
+    assertMutationSucceededOr404(employee, { resourceName: "Employee", id: req.params.id });
     res.json(employee);
   } catch (error) {
+    if (error instanceof TenantResourceNotFoundError) {
+      return res.status(404).json({ error: error.message, code: error.code });
+    }
     if (error instanceof ZodError) {
       return res.status(400).json({ error: "Validation failed", details: error.errors });
     }
@@ -131,9 +143,13 @@ router.delete("/:id", requireMinimumRole("admin"), async (req, res) => {
       });
     }
     
-    await EmployeeService.deleteEmployee(tenantId, req.params.id);
+    const deleted = await EmployeeService.deleteEmployee(tenantId, req.params.id);
+    assertMutationSucceededOr404(deleted, { resourceName: "Employee", id: req.params.id });
     res.json({ success: true });
   } catch (error) {
+    if (error instanceof TenantResourceNotFoundError) {
+      return res.status(404).json({ error: error.message, code: error.code });
+    }
     console.error("[employees] DELETE /:id error:", error);
     res.status(500).json({ error: "Failed to delete employee" });
   }
