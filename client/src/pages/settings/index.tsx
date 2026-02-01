@@ -32,7 +32,7 @@ const settingsSections = [
   { 
     href: "/settings/branding", 
     label: "Branding", 
-    description: "Logo, colors, and email branding",
+    description: "Logo, colors, and communication identity",
     icon: Brush 
   },
   { 

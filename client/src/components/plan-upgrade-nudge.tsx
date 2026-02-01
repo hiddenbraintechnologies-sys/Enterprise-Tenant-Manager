@@ -30,8 +30,10 @@ interface SubscriptionStatusResponse {
 }
 
 export function PlanUpgradeNudge() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { tenant } = useAuth();
+  
+  const isSettingsPage = location.startsWith("/settings");
   
   const lang: Lang = (typeof window !== "undefined" && 
     (localStorage.getItem("i18nextLng") || "en").substring(0, 2)) as Lang || "en";
@@ -56,7 +58,7 @@ export function PlanUpgradeNudge() {
     }
   }, [currentTier]);
 
-  if (dismissed || !upgradePath || currentTier === "pro" || currentTier === "enterprise") {
+  if (dismissed || !upgradePath || currentTier === "pro" || currentTier === "enterprise" || isSettingsPage) {
     return null;
   }
 

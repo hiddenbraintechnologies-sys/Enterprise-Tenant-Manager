@@ -212,8 +212,8 @@ export default function BrandingSettings() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Company Branding</h1>
-            <p className="text-muted-foreground">Customize your business identity across the platform</p>
+            <h1 className="text-2xl font-bold">Branding</h1>
+            <p className="text-muted-foreground">Logo, colors, and communication identity</p>
           </div>
           <div className="flex items-center gap-2">
             <Button 
