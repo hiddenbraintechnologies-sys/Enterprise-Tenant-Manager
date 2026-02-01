@@ -93,9 +93,9 @@ const GATED_FIELD_TO_FEATURE = {
   customCss: "custom_css",
 } as const;
 
-import { tenantVerifiedDomains } from "@shared/schema";
+import { tenantVerifiedDomains, tenants } from "@shared/schema";
 
-// Helper to check if a domain is verified for a tenant
+// Helper to check if a domain is verified for a tenant (case-insensitive)
 async function isEmailDomainVerified(tenantId: string, domain: string): Promise<boolean> {
   const verified = await db
     .select()
@@ -103,33 +103,72 @@ async function isEmailDomainVerified(tenantId: string, domain: string): Promise<
     .where(eq(tenantVerifiedDomains.tenantId, tenantId))
     .limit(100);
   
-  // If no verified domains configured, allow all (for backward compatibility)
+  // If no verified domains configured, allow all (for backward compatibility during rollout)
+  // This is intentional - tenants can configure verified domains to enforce strict mode
   if (verified.length === 0) {
     return true;
   }
   
-  // Check if domain is verified
-  return verified.some(v => v.domain === domain && v.status === "verified");
+  // Case-insensitive domain comparison (normalize both sides)
+  const normalizedDomain = domain.toLowerCase().trim();
+  return verified.some(v => 
+    v.domain.toLowerCase().trim() === normalizedDomain && v.status === "verified"
+  );
 }
 
-// Check if tenant has feature access (stub - integrate with plan system)
+// Tenant plan cache for feature checks (5 min TTL)
+const planCache = new Map<string, { plan: string; expiresAt: number }>();
+const PLAN_CACHE_TTL = 5 * 60 * 1000;
+
+// Plans that have access to gated branding features
+const PRO_PLANS = new Set(["pro", "business", "enterprise", "whitelabel"]);
+
+// Check if tenant has feature access based on their plan
+async function hasBrandingFeatureAsync(tenantId: string, feature: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = planCache.get(tenantId);
+  
+  let planTier: string;
+  
+  if (cached && now < cached.expiresAt) {
+    planTier = cached.plan;
+  } else {
+    // Fetch tenant plan from database
+    const tenant = await db
+      .select({ planTier: tenants.planTier })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    
+    planTier = tenant[0]?.planTier || "starter";
+    planCache.set(tenantId, { plan: planTier, expiresAt: now + PLAN_CACHE_TTL });
+  }
+  
+  // All gated branding features require Pro or higher plan
+  return PRO_PLANS.has(planTier.toLowerCase());
+}
+
+// Synchronous version for immediate checks (uses cache only, returns false if not cached)
 function hasBrandingFeature(tenantId: string, feature: string): boolean {
-  // TODO: Integrate with plan/feature flags system
-  // For now, block all gated fields in V1
-  return false;
+  const cached = planCache.get(tenantId);
+  if (!cached || Date.now() >= cached.expiresAt) {
+    return false; // Fail-closed when cache miss
+  }
+  return PRO_PLANS.has(cached.plan.toLowerCase());
 }
 
 // Branding features for API response
-function getBrandingFeatures(tenantId: string): Record<string, boolean> {
+async function getBrandingFeaturesAsync(tenantId: string): Promise<Record<string, boolean>> {
+  const hasProFeatures = await hasBrandingFeatureAsync(tenantId, "email_templates");
   return {
     "branding.basic": true,
     "branding.assets": true,
     "branding.colors": true,
     "branding.fonts": true,
-    "branding.email_templates": hasBrandingFeature(tenantId, "email_templates"),
-    "branding.custom_css": hasBrandingFeature(tenantId, "custom_css"),
-    "whitelabel.subdomain": hasBrandingFeature(tenantId, "subdomain"),
-    "whitelabel.remove_platform_branding": hasBrandingFeature(tenantId, "remove_branding"),
+    "branding.email_templates": hasProFeatures,
+    "branding.custom_css": hasProFeatures,
+    "whitelabel.subdomain": hasProFeatures,
+    "whitelabel.remove_platform_branding": hasProFeatures,
   };
 }
 
@@ -302,9 +341,10 @@ router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
           ...BRANDING_DEFAULTS,
         })
         .returning();
+      const features = await getBrandingFeaturesAsync(tenantId);
       return res.json({
         branding: newBranding,
-        features: getBrandingFeatures(tenantId),
+        features,
       });
     }
 
@@ -318,16 +358,18 @@ router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
         .set({ ...healingUpdates, updatedAt: new Date() })
         .where(eq(tenantBranding.tenantId, tenantId))
         .returning();
+      const features = await getBrandingFeaturesAsync(tenantId);
       return res.json({
         branding: updated,
-        features: getBrandingFeatures(tenantId),
+        features,
       });
     }
 
     // Return branding with features for frontend gating
+    const features = await getBrandingFeaturesAsync(tenantId);
     res.json({
       branding: branding[0],
-      features: getBrandingFeatures(tenantId),
+      features,
     });
   } catch (error) {
     console.error("[tenant-branding] Error fetching branding:", error);
@@ -372,10 +414,11 @@ router.put("/api/tenant/branding", brandingPayloadLimit, requiredAuth, async (re
     // Stronger enforcement: reject ENTIRE request if ANY forbidden field is present
     const attemptedGatedFields = Object.keys(parsed.data).filter(k => GATED_FIELDS.has(k));
     if (attemptedGatedFields.length > 0) {
-      // Check each gated field and reject on first forbidden one
+      // Check each gated field and reject on first forbidden one (async plan check)
       for (const field of attemptedGatedFields) {
         const featureKey = GATED_FIELD_TO_FEATURE[field as keyof typeof GATED_FIELD_TO_FEATURE];
-        if (!hasBrandingFeature(tenantId, featureKey)) {
+        const hasAccess = await hasBrandingFeatureAsync(tenantId, featureKey);
+        if (!hasAccess) {
           return res.status(403).json({
             error: "Feature not available on your plan",
             code: "FEATURE_NOT_ALLOWED",
