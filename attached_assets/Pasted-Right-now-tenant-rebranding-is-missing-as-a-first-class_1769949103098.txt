@@ -1,0 +1,187 @@
+Right now, tenant rebranding is missing as a first-class feature, which is why you don’t see it in Settings. This is not a user mistake; it’s a product gap 👍
+
+Let me break it down clearly and then give you a clean, SaaS-correct way to implement tenant rebranding without breaking your architecture.
+
+What “Tenant Rebranding” should mean (proper SaaS definition)
+
+A tenant should be able to customize only their own brand layer, not the product behavior.
+
+✅ Allowed to customize
+
+Company name
+
+Logo (light & dark)
+
+Favicon
+
+Primary / secondary brand colors
+
+Invoice / payslip branding
+
+Email header/footer branding
+
+Optional: subdomain (company.mybizstream.com)
+
+❌ NOT allowed
+
+Core UI structure
+
+Feature visibility (RBAC controls that)
+
+Global platform colors (super-admin only)
+
+Why you don’t see it now (root cause)
+
+From your current setup:
+
+Settings mostly cover account / security / billing
+
+No Brand / Appearance / Company Profile module exists
+
+No tenant-level branding table or config is wired to UI
+
+Frontend theme is static (Tailwind + shadcn defaults)
+
+So tenants cannot rebrand even if they want to.
+
+This is expected at MVP stage.
+
+Correct UX placement (what tenants expect)
+
+Add this in Settings → Company → Branding
+
+Settings
+ └── Company
+     ├── Profile
+     ├── Branding   ← (NEW)
+     ├── Locations
+     ├── Business Hours
+     └── Compliance
+
+What the Branding screen should contain (V1 – practical)
+1️⃣ Company Identity
+
+Company Name (display name)
+
+Legal Name (for invoices)
+
+Upload Logo (PNG/SVG)
+
+Upload Favicon (32×32)
+
+2️⃣ Theme Colors
+
+Primary color (buttons, highlights)
+
+Secondary color (badges, accents)
+
+Preview panel (live)
+
+⚠️ Restrict palette to avoid ugly UIs
+(eg: allow only HEX, validate contrast)
+
+3️⃣ Document Branding
+
+Invoice header logo
+
+Payslip footer note
+
+Address + registration number
+
+4️⃣ Email Branding
+
+Email header logo
+
+Footer text
+
+Support email
+
+Backend design (important – multi-tenant safe)
+Table: tenant_branding
+tenant_id (PK, FK)
+company_name
+logo_url
+favicon_url
+primary_color
+secondary_color
+invoice_logo_url
+email_logo_url
+created_at
+updated_at
+
+
+✔ One row per tenant
+✔ Loaded on login + cached
+
+Frontend implementation (Tailwind + shadcn friendly)
+Theme injection approach (safe)
+
+On tenant login → fetch /api/tenant/branding
+
+Store in global store (Zustand / Context)
+
+Inject CSS variables dynamically:
+
+:root {
+  --brand-primary: #2563eb;
+  --brand-secondary: #0ea5e9;
+}
+
+
+Use in Tailwind:
+
+colors: {
+  brand: {
+    primary: "var(--brand-primary)",
+    secondary: "var(--brand-secondary)",
+  }
+}
+
+
+This avoids rebuilding Tailwind per tenant ❗
+
+Super Admin vs Tenant control (important)
+Feature	Tenant	Super Admin
+Logo	✅	❌
+Colors	✅	❌
+Company Name	✅	❌
+Platform Name	❌	✅
+Default Theme	❌	✅
+Marketplace Branding	❌	✅
+Why this matters for your product
+
+Without tenant rebranding:
+
+Product feels generic
+
+Enterprises will reject it
+
+Invoices/payslips look unprofessional
+
+White-label upsell becomes impossible
+
+With rebranding:
+
+You unlock White-Label plan
+
+Higher ARPU
+
+Stronger tenant ownership feeling
+
+Minimal Replit master prompt (you can copy-paste)
+
+Implement tenant rebranding in MyBizStream:
+
+Add Settings → Company → Branding page
+
+Create tenant_branding table (1 row per tenant)
+
+APIs: GET/PUT /api/tenant/branding
+
+Support logo, favicon, primary & secondary colors
+
+Inject branding via CSS variables (no Tailwind rebuild)
+
+Apply branding to sidebar, buttons, invoices, payslips, and emails
+
+Ensure strict tenant isolation

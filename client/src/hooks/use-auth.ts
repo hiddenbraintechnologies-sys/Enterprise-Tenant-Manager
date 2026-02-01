@@ -69,6 +69,14 @@ async function fetchUser(): Promise<AuthUser | null> {
         }
       }
       
+      console.log("[useAuth] Tenant locale values from /api/auth/me:", {
+        countryCode: tenant?.country,
+        currency: tenant?.currency,
+        timezone: tenant?.timezone,
+        region: tenant?.region,
+        source: "JWT auth via /api/auth/me"
+      });
+      
       return {
         id: data.user?.id,
         email: data.user?.email,
@@ -189,6 +197,14 @@ async function fetchUser(): Promise<AuthUser | null> {
           currency: tokens.tenant.currency,
           timezone: tokens.tenant.timezone,
         } : userData.tenant;
+        
+        console.log("[useAuth] Tenant locale values from session exchange:", {
+          countryCode: tenant?.country,
+          currency: tenant?.currency,
+          timezone: tenant?.timezone,
+          region: tenant?.region,
+          source: "session exchange via /api/auth/session/exchange"
+        });
         
         // Calculate dashboard route from authoritative tenant data
         const businessType = tenant?.businessType || "service";

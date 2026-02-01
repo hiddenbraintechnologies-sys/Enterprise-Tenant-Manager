@@ -268,6 +268,18 @@ export function CountryProvider({ children }: { children: ReactNode }) {
       // If tenant is locked to a country, always use that country
       if (tenantCountryCode) {
         const tenantConfig = supportedCountries.find(c => c.code === tenantCountryCode);
+        
+        console.log("[CountryContext] Region selector state:", {
+          tenantCountryRaw: tenant?.country,
+          tenantCountryCode: tenantCountryCode,
+          tenantCurrency: tenant?.currency,
+          tenantTimezone: tenant?.timezone,
+          regionSelectorCountry: tenantConfig?.code,
+          regionSelectorCurrency: tenantConfig?.currency?.code,
+          isLocked: true,
+          source: "tenant-locked sync"
+        });
+        
         if (tenantConfig && tenantConfig.code !== country.code) {
           setCountryState(tenantConfig);
         }
