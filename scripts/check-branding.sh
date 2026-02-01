@@ -13,6 +13,7 @@ SCAN_PATHS=(
   "client/src/components"
   "client/src/lib"
   "client/src/hooks"
+  "client/src/i18n"
 )
 
 # Allowlist patterns (internal/infrastructure files)
