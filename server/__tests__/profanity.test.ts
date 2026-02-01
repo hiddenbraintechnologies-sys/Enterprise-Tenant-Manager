@@ -79,6 +79,31 @@ describe("Profanity Detection", () => {
       const result = containsProfanity("sh!t-services");
       expect(result.hit).toBe(true);
     });
+
+    test("should detect dot-separated obfuscation (f.u.c.k industries)", () => {
+      const result = containsProfanity("f.u.c.k industries");
+      expect(result.hit).toBe(true);
+    });
+
+    test("should detect space-separated obfuscation (F U C K)", () => {
+      const result = containsProfanity("F U C K");
+      expect(result.hit).toBe(true);
+    });
+
+    test("should NOT block Sheet Metal Works (substring trap)", () => {
+      const result = containsProfanity("Sheet Metal Works");
+      expect(result.hit).toBe(false);
+    });
+
+    test("should NOT block Scunthorpe (classic false positive)", () => {
+      const result = containsProfanity("Scunthorpe");
+      expect(result.hit).toBe(false);
+    });
+
+    test("should NOT block Cockburn (place name false positive)", () => {
+      const result = containsProfanity("Cockburn Industries");
+      expect(result.hit).toBe(false);
+    });
   });
 
   describe("validateBusinessName", () => {
