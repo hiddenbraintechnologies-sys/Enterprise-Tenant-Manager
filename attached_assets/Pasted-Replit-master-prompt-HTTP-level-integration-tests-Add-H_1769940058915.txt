@@ -1,0 +1,111 @@
+Replit master prompt (HTTP-level integration tests)
+Add HTTP-level tenant isolation integration tests for HRMS routes mounted at /api/hr.
+
+Existing DB-layer tests are good; add supertest integration tests to verify:
+- middleware order (requireAuth + requireTenantContext) actually applies
+- handlers never leak cross-tenant records via HTTP
+- dashboard totals are tenant-scoped
+
+Create server/__tests__/tenant-isolation.http.spec.ts with:
+
+Setup:
+1) Create Tenant A and Tenant B
+2) Create User A (tenant A) and User B (tenant B)
+3) Login each user using the existing auth helper to obtain cookies/headers (HttpOnly cookie auth)
+4) Seed:
+   - 2 employees for tenant A, 2 employees for tenant B
+   - 1 department each tenant
+Use existing Drizzle factories/seed helpers if present.
+
+Tests:
+A) Employees list isolation
+- As User A: GET /api/hr/employees
+  - response does not include B employee ids
+  - if response includes total/count, ensure equals A count only
+B) Employees detail isolation
+- As User A: GET /api/hr/employees/:id (B employee id)
+  - expect 404 (preferred) or 403
+C) Employees mutation isolation
+- As User A: PATCH/PUT /api/hr/employees/:id (B employee id)
+  - expect 404/403
+  - verify via DB query that B record unchanged
+- If DELETE exists: attempt delete B employee -> 404/403 and DB record still exists
+D) Departments isolation
+- Same pattern for /api/hr/departments and /api/hr/departments/:id
+E) Dashboard isolation
+- As User A: GET /api/hr/dashboard
+  - any counts (employees, departments, leaves, etc.) match ONLY tenant A seeded values
+
+Implementation notes:
+- Use supertest(app) against the real Express app.
+- Ensure requests include cookies from login (set-cookie).
+- If tenant context relies on a header (x-tenant-id), use the same helper that production calls use.
+- Accept 403 temporarily but add TODO to standardize 404 for cross-tenant IDs.
+Deliverables:
+- tenant-isolation.http.spec.ts passing
+- Update docs/route-coverage-checklist.md: mark tenant isolation tests as done
+
+Practical code snippets (you can paste into your test file)
+1) Supertest with cookie session
+import request from "supertest";
+import { app } from "../app"; // adjust path to your express app
+
+async function loginAndGetCookie(email: string, password: string) {
+  const res = await request(app)
+    .post("/api/auth/login")
+    .send({ email, password })
+    .expect(200);
+
+  const cookies = res.headers["set-cookie"];
+  if (!cookies?.length) throw new Error("No auth cookie set");
+  return cookies;
+}
+
+
+Use it:
+
+const cookieA = await loginAndGetCookie(userA.email, "Password123!");
+await request(app).get("/api/hr/employees").set("Cookie", cookieA).expect(200);
+
+2) Assert list doesn’t include B IDs
+const res = await request(app)
+  .get("/api/hr/employees")
+  .set("Cookie", cookieA)
+  .expect(200);
+
+const ids = res.body?.data?.map((x: any) => x.id) ?? [];
+expect(ids).toEqual(expect.arrayContaining([empA1.id, empA2.id]));
+expect(ids).not.toEqual(expect.arrayContaining([empB1.id, empB2.id]));
+
+3) Accept 404 or 403 for cross-tenant detail
+const r = await request(app)
+  .get(`/api/hr/employees/${empB1.id}`)
+  .set("Cookie", cookieA);
+
+expect([403, 404]).toContain(r.status);
+
+4) Verify DB unchanged after failed mutation
+await request(app)
+  .patch(`/api/hr/employees/${empB1.id}`)
+  .set("Cookie", cookieA)
+  .send({ firstName: "Hacked" });
+
+const fresh = await db.query.employees.findFirst({
+  where: (t, { eq, and }) => and(eq(t.id, empB1.id), eq(t.tenantId, tenantB.id)),
+});
+expect(fresh?.firstName).not.toBe("Hacked");
+
+Why you still want HTTP tests even with DB tests
+
+DB-level tests prove your storage layer is scoped.
+HTTP-level tests prove:
+
+middleware is present and in the right order
+
+route handlers actually use the scoped storage methods
+
+totals/analytics don’t leak via aggregation queries
+
+“ID-based endpoints” aren’t accidentally global
+
+That’s the gap that usually causes real production leaks.

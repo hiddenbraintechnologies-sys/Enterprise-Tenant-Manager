@@ -176,15 +176,28 @@ scopedWhereById(table, tenantId, recordId)
 
 ## E) Test Coverage Requirements
 
-### Tenant Isolation Tests
-- [x] Services list returns only tenant A records (not tenant B)
-- [x] Reading tenant B's service returns 404 (not 403)
+### Tenant Isolation Tests (DB Layer)
+- [x] HRMS employees list returns only tenant A records (not tenant B)
+- [x] Reading tenant B's employee returns undefined (→ API returns 404)
 - [x] Update tenant B's record fails and doesn't mutate
 - [x] Delete tenant B's record fails and record still exists
 - [x] Count/pagination is tenant-scoped (no leaks via totals)
+- [x] Services list isolation (secondary resource)
 
-**Test file:** `server/__tests__/tenant-isolation.spec.ts`
+**Test file:** `server/__tests__/tenant-isolation.test.ts`
 **Utilities:** `server/__tests__/utils/tenant-test-utils.ts`
+
+### Tenant Isolation Tests (HTTP Layer)
+- [x] GET /api/hr/employees only returns tenant A employees
+- [x] GET /api/hr/employees/:id with tenant B ID returns 404/403
+- [x] PUT /api/hr/employees/:id with tenant B ID returns 404/403 and DB unchanged
+- [x] DELETE /api/hr/employees/:id with tenant B ID returns 404/403 and record exists
+- [x] GET /api/hr/departments isolation verified
+- [x] GET /api/hr/dashboard counts are tenant-scoped
+- [x] Cross-check: User B cannot access tenant A data
+
+**Test file:** `server/__tests__/tenant-isolation-http.test.ts`
+**Note:** Requires running server (uses http://localhost:5000)
 
 ### Add-on Enforcement Tests
 - [x] Expired addon returns 403 with `ADDON_EXPIRED`
@@ -211,7 +224,8 @@ scopedWhereById(table, tenantId, recordId)
 
 ### Priority Order
 1. ✅ HRMS add-on enforcement (COMPLETED)
-2. ⬜ Tenant-scoped route audit (HIGH)
-3. ⬜ Billing routes audit (HIGH)
-4. ⬜ Platform/admin routes audit (MEDIUM)
-5. ⬜ Tenant isolation tests (MEDIUM)
+2. ✅ Tenant isolation tests - DB layer (COMPLETED)
+3. ✅ Tenant isolation tests - HTTP layer (COMPLETED)
+4. ⬜ Tenant-scoped route audit (HIGH)
+5. ⬜ Billing routes audit (HIGH)
+6. ⬜ Platform/admin routes audit (MEDIUM)

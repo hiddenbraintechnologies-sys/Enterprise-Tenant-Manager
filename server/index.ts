@@ -39,6 +39,7 @@ enforceEnvironmentValidation();
 logRateLimitStatus();
 
 const app = express();
+export { app }; // Export for testing
 const httpServer = createServer(app);
 
 declare module "http" {
