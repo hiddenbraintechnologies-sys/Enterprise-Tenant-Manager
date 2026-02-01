@@ -115,7 +115,7 @@ export function PlanUpgradeNudge() {
           <Button
             variant="ghost"
             size="icon"
-            className="shrink-0 h-6 w-6"
+            className="shrink-0"
             onClick={handleDismiss}
             data-testid="button-dismiss-upgrade-nudge"
           >
