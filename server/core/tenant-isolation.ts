@@ -240,7 +240,7 @@ export class TenantIsolation {
     }
     
     if (record.tenantId !== this.tenantId) {
-      throw new TenantIsolationError("Cross-tenant access denied", 403);
+      throw new TenantIsolationError("Record not found", 404);
     }
   }
 

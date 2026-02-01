@@ -174,6 +174,32 @@ When creating new tenant-scoped endpoints:
    // Record is guaranteed to belong to this tenant
    ```
 
+## Security Response Patterns
+
+### Cross-Tenant Access Attempts
+
+**CRITICAL:** Always return `404 Not Found` for cross-tenant access attempts, NOT `403 Forbidden`.
+
+Returning 403 reveals that the resource exists but belongs to another tenant, which is an information leak. Return 404 to make cross-tenant access indistinguishable from non-existent resources.
+
+```typescript
+// CORRECT: Return 404 for cross-tenant access
+if (!record || record.tenantId !== tenantId) {
+  return res.status(404).json({ error: "Not found" });
+}
+
+// WRONG: Leaks information about resource existence
+if (record.tenantId !== tenantId) {
+  return res.status(403).json({ error: "Access denied" });
+}
+```
+
+### Missing Tenant Context
+
+For requests missing tenant context entirely (auth failure or configuration error), return:
+- `401 Unauthorized` - if user is not authenticated
+- `403 Forbidden` - if user is authenticated but has no tenant context
+
 ## Banned Patterns
 
 These patterns are PROHIBITED as they can lead to data leaks:
@@ -185,6 +211,7 @@ These patterns are PROHIBITED as they can lead to data leaks:
 | `update().where(eq(id))` | Could update another tenant's record |
 | `delete().where(eq(id))` | Could delete another tenant's record |
 | Trusting `tenantId` from request body | User could spoof tenant ID |
+| Returning 403 for cross-tenant access | Leaks resource existence information |
 
 ## Testing Requirements
 

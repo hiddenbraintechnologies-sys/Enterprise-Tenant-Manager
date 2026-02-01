@@ -1,6 +1,7 @@
 import { eq, and, SQL } from "drizzle-orm";
 import type { PgTable, PgColumn } from "drizzle-orm/pg-core";
 import type { Request } from "express";
+import { TenantIsolationError } from "../core/tenant-isolation";
 
 export function scopedWhere<T extends PgTable>(
   table: T,
@@ -55,7 +56,7 @@ export function getTenantIdFromRequest(req: Request): string {
   const tenantId = req.context?.tenant?.id || (req as any).tenantId;
   
   if (!tenantId) {
-    throw new Error("Tenant ID not available in request context");
+    throw new TenantIsolationError("Tenant context required", 403);
   }
   
   return tenantId;
@@ -66,17 +67,11 @@ export function validateRecordBelongsToTenant(
   tenantId: string
 ): void {
   if (!record) {
-    const error = new Error("Record not found") as any;
-    error.statusCode = 404;
-    error.code = "NOT_FOUND";
-    throw error;
+    throw new TenantIsolationError("Record not found", 404);
   }
   
   if (record.tenantId !== tenantId) {
-    const error = new Error("Access denied") as any;
-    error.statusCode = 404;
-    error.code = "NOT_FOUND";
-    throw error;
+    throw new TenantIsolationError("Record not found", 404);
   }
 }
 

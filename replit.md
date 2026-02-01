@@ -111,3 +111,29 @@ Baseline security headers are configured via `server/middleware/security-headers
 
 ### Audit Logging
 Key security events logged: USER_REGISTERED, TENANT_CREATED, ADDON_RENEW_STARTED, ADDON_RENEW_SUCCEEDED, ADDON_RENEW_FAILED
+
+### Tenant Isolation
+Multi-tenant data isolation is enforced through middleware and scoping helpers:
+
+**Infrastructure:**
+- `TenantResolver` class: Multi-strategy tenant resolution (subdomain, header, JWT claim, path, user default)
+- `TenantIsolation` class: Provides scoping helpers (`scopeCondition`, `validateOwnership`, `scopedInsert`)
+- `tenantIsolationMiddleware()`: Validates tenant context and user access
+- `requireTenantContext()`: Consolidated tenant context middleware
+
+**Scoping Helpers:**
+- `scopedWhere()`: Adds tenant filter to SELECT queries
+- `scopedWhereById()`: Adds tenant + ID filter for single-record queries
+- `scopedInsert()`: Ensures tenantId is added to INSERT data
+- `validateRecordBelongsToTenant()`: Validates record ownership with proper 404 response
+
+**Security Patterns:**
+- **Fail-closed**: Missing tenant context results in 403 Forbidden
+- **404 for cross-tenant access**: Returns 404 (not 403) for cross-tenant access to avoid information leakage
+- **Tenant-owned tables**: 23+ tables require tenantId in all queries (employees, invoices, bookings, etc.)
+
+**Key Files:**
+- `server/core/tenant-isolation.ts`: Main isolation infrastructure
+- `server/middleware/tenant-context.ts`: Request context middleware
+- `server/lib/tenant-scope.ts`: Scoping helper functions
+- `docs/tenant-scope-checklist.md`: Developer guidelines and patterns
