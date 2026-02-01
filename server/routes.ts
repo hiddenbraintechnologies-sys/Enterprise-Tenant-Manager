@@ -672,9 +672,13 @@ export async function registerRoutes(
   // ==================== AUTH ROUTES ====================
   
   const authRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
+  // Stricter rate limit for registration: 10 per 15 minutes per IP
+  const registrationRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, maxRequests: 10 });
 
   // Use shared validation from @shared/validation
   const { nameField } = await import("@shared/validation/name");
+  const { businessNameField } = await import("@shared/validation/business");
+  const { validateEmailMx, isMxValidationEnabled, isMxValidationStrict } = await import("./utils/email-mx");
   
   const registrationSchema = z.object({
     firstName: nameField("First name"),
@@ -686,7 +690,7 @@ export async function registerRoutes(
       .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
-    businessName: z.string().trim().min(2, "Business name is required").max(200),
+    businessName: businessNameField("Business name"),
     businessType: z.enum([
       "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
       "coworking", "service", "real_estate", "tourism", "education", "education_institute",
@@ -694,11 +698,24 @@ export async function registerRoutes(
       "software_services", "consulting", "digital_agency", "retail_store"
     ]),
     countryCode: z.string().trim().min(2, "Country is required").max(5),
+    // Honeypot field - should always be empty (bots often fill hidden fields)
+    companyWebsite: z.string().max(0).optional(),
   });
 
-  app.post("/api/auth/register", authRateLimit, async (req, res) => {
+  app.post("/api/auth/register", registrationRateLimit, async (req, res) => {
     try {
       console.log("[register] Step 1: Validating input");
+      
+      // Check honeypot field first - bots often fill hidden fields
+      if (req.body.companyWebsite && req.body.companyWebsite.length > 0) {
+        console.log("[register] Bot detected: honeypot field filled");
+        // Return generic error to avoid tipping off bots
+        return res.status(400).json({ 
+          error: "VALIDATION_ERROR",
+          message: "Registration failed. Please try again."
+        });
+      }
+      
       const parsed = registrationSchema.safeParse(req.body);
       if (!parsed.success) {
         // Return field-level errors in the recommended format
@@ -715,6 +732,21 @@ export async function registerRoutes(
       }
 
       const { firstName, lastName, email, password, businessName, businessType, countryCode } = parsed.data;
+      
+      // Optional MX email validation (best-effort)
+      if (isMxValidationEnabled()) {
+        console.log("[register] Step 1b: Checking email MX records");
+        const mxResult = await validateEmailMx(email, isMxValidationStrict());
+        if (!mxResult.valid) {
+          console.log("[register] MX validation failed:", mxResult.error);
+          return res.status(400).json({
+            error: "VALIDATION_ERROR",
+            fieldErrors: [{ field: "email", message: mxResult.error || "Invalid email domain" }],
+            message: mxResult.error || "Invalid email domain"
+          });
+        }
+      }
+      
       console.log("[register] Step 2: Checking existing user for email:", email);
 
       const [existingUser] = await db.select().from(users).where(eq(users.email, email));
@@ -853,12 +885,28 @@ export async function registerRoutes(
         }
       );
 
+      // Log TENANT_CREATED audit event
+      auditService.logAsync({
+        tenantId: newTenant.id,
+        userId: newUser.id,
+        action: "create",
+        resource: "tenant",
+        resourceId: newTenant.id,
+        newValue: { name: businessName, businessType, country: tenantCountry },
+        metadata: { event: "TENANT_CREATED" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      
+      // Log USER_REGISTERED audit event
       auditService.logAsync({
         tenantId: newTenant.id,
         userId: newUser.id,
         action: "create",
         resource: "user",
-        metadata: { method: "registration", businessType },
+        resourceId: newUser.id,
+        newValue: { email, firstName, lastName },
+        metadata: { event: "USER_REGISTERED", method: "registration", businessType },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
       });
