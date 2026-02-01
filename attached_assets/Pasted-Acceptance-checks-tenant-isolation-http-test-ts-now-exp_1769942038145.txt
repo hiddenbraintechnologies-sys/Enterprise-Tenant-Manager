@@ -1,0 +1,73 @@
+Acceptance checks
+
+tenant-isolation-http.test.ts now expects 404 only for cross-tenant ID access
+
+No endpoint returns “forbidden” for cross-tenant record IDs
+
+Update/delete attempts against other tenant affect 0 rows and return 404
+
+#3 Platform/Admin route audit (admin + super-admin)
+What to implement
+
+A clear separation:
+
+Tenant routes: requireAuth + requireTenantContext
+
+Admin routes: requireAuth + requirePlatformAdmin
+
+Super-admin routes: requireAuth + requireSuperAdmin
+
+…and tests proving tenant users can’t hit admin endpoints.
+
+Replit master prompt
+Audit and harden all platform/admin routes so they are not accessible to normal tenant users.
+
+Scope:
+- server/routes/admin/*
+- server/routes/super-admin/*
+- server/routes/admin-billing-offers.ts
+- server/routes/admin-billing-plans.ts
+- server/routes/admin/... (all)
+
+Tasks:
+1) Identify the admin guard middlewares already present (e.g. requireAdmin / requireSuperAdmin).
+   - If missing, implement:
+     - requirePlatformAdmin
+     - requireSuperAdmin
+   These should check the authenticated user role/claims and return 403 if not allowed.
+
+2) Ensure every admin/super-admin router mounts:
+   requireAuth -> requirePlatformAdmin/superAdmin -> handler
+   No tenant context is required unless the admin route explicitly operates on a specific tenant.
+
+3) Review queries inside admin routes:
+   - If route is global analytics, ensure it aggregates safely and does not expose raw tenant data unnecessarily.
+   - If route reads/modifies tenant-owned data:
+     - require explicit tenantId param
+     - always scope by that tenantId
+     - log audit event for admin actions (optional but recommended)
+
+4) Add HTTP-level tests:
+   - As a normal tenant user:
+     - hitting any /api/admin/* endpoint returns 403
+     - hitting any /api/super-admin/* endpoint returns 403
+   - As an admin user:
+     - endpoints return 200
+   If creating an admin user in tests is hard, at least cover the denial cases robustly.
+
+5) Update docs/route-coverage-checklist.md:
+   - Mark admin routes audited
+   - Document required middleware for each admin route file
+
+Deliverables:
+- consistent guards across all admin routes
+- new test suite admin-route-guards.http.spec.ts
+- docs updated with status ✅
+
+Acceptance checks
+
+Tenant users always get 403 on any admin/super-admin endpoint
+
+Admin endpoints never accidentally depend on tenant context
+
+Any tenant-targeting admin action requires an explicit tenantId and is auditable

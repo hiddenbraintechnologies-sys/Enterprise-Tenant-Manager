@@ -36,17 +36,26 @@ assertTenantOwnedOr404(employee, { resourceName: "Employee" });
 #### 1. Platform-Level (Super-Admin/Admin Scoped)
 These routes require platform admin auth, NOT tenant context.
 
+**Audited 2026-02-01:** All admin/super-admin routes verified to block tenant users (403).
+Test file: `server/__tests__/admin-route-guards.test.ts` (27 tests passing)
+
 | Route File | Scope | Required Middleware | Status |
 |------------|-------|---------------------|--------|
-| `server/routes/admin/addons.ts` | Platform | `requireAuth` → `requirePlatformAdmin` | ⬜ Audit |
-| `server/routes/admin/countries.ts` | Platform | `requireAuth` → `requirePlatformAdmin` | ⬜ Audit |
-| `server/routes/admin/marketplace-revenue.ts` | Platform | `requireAuth` → `requirePlatformAdmin` | ⬜ Audit |
-| `server/routes/admin/payroll-analytics.ts` | Platform | `requireAuth` → `requirePlatformAdmin` | ⬜ Audit |
-| `server/routes/admin/promos.ts` | Platform | `requireAuth` → `requirePlatformAdmin` | ⬜ Audit |
-| `server/routes/admin-billing-offers.ts` | Platform | `requireAuth` → `requirePlatformAdmin` | ⬜ Audit |
-| `server/routes/admin-billing-plans.ts` | Platform | `requireAuth` → `requirePlatformAdmin` | ⬜ Audit |
-| `server/routes/super-admin/marketplace-analytics.ts` | Platform | `requireAuth` → `requireSuperAdmin` | ⬜ Audit |
-| `server/routes/super-admin/marketplace-management.ts` | Platform | `requireAuth` → `requireSuperAdmin` | ⬜ Audit |
+| `server/routes/admin/addons.ts` | Platform | `authenticateJWT` → `requirePlatformAdmin()` | ✅ Verified |
+| `server/routes/admin/countries.ts` | Platform | `authenticateJWT` → `requirePlatformAdmin()` | ✅ Verified |
+| `server/routes/admin/marketplace-revenue.ts` | Platform | `authenticateJWT` → `requirePermission(PLATFORM_ADMIN)` | ✅ Verified |
+| `server/routes/admin/payroll-analytics.ts` | Platform | Mount-level: `requirePlatformAdmin("SUPER_ADMIN")` | ✅ Verified |
+| `server/routes/admin/promos.ts` | Platform | Mount-level: `requirePlatformAdmin("SUPER_ADMIN")` | ✅ Verified |
+| `server/routes/admin-billing-offers.ts` | Platform | `authenticateJWT` → `requirePlatformAdmin()` → `requirePermission` | ✅ Verified |
+| `server/routes/admin-billing-plans.ts` | Platform | `authenticateJWT` → `requirePlatformAdmin()` | ✅ Verified |
+| `server/routes/super-admin/marketplace-analytics.ts` | Platform | `authenticateJWT` → `requireSuperAdminOnly()` | ✅ Verified |
+| `server/routes/super-admin/marketplace-management.ts` | Platform | `authenticateJWT` → `requireSuperAdminOnly()` | ✅ Verified |
+
+**Guard Middleware Summary:**
+- `requirePlatformAdmin()` - Returns 403 `NOT_PLATFORM_ADMIN` for tenant users
+- `requirePlatformAdmin("SUPER_ADMIN")` - Returns 403 for non-super-admins
+- `requireSuperAdminOnly()` - Returns 403 `FORBIDDEN_SUPER_ADMIN_ONLY` for non-super-admins
+- `requirePermission(Permissions.X)` - Returns 403 if missing permission
 
 #### 2. Webhooks (External Callbacks)
 Tenant context differs; requires signature verification.
