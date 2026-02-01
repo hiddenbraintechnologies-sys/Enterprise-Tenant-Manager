@@ -1,0 +1,59 @@
+BUG: Selecting Country=Malaysia during signup still results in India settings (INR, Asia/Kolkata, India indicator).
+
+Goal:
+Country selection must propagate to tenant locale settings so currency/timezone/country-dependent behavior matches Malaysia:
+- currency: MYR
+- timezone: Asia/Kuala_Lumpur
+- countryCode: MY
+
+Tasks:
+
+A) Normalize country input
+1) Identify where signup/onboarding receives country.
+2) Normalize to a canonical countryCode (ISO-3166-1 alpha-2):
+   - "Malaysia" -> "MY"
+   - "India" -> "IN"
+   - Handle casing and variants safely.
+3) Store this countryCode on the TENANT (not only the user).
+
+B) Create locale defaults mapping (single source of truth)
+1) Create shared/locale/country-defaults.ts:
+   export const COUNTRY_DEFAULTS = {
+     MY: { currency:"MYR", timezone:"Asia/Kuala_Lumpur", locale:"en-MY" },
+     IN: { currency:"INR", timezone:"Asia/Kolkata", locale:"en-IN" },
+     ...
+   }
+2) Add helper getTenantDefaults(countryCode) with fallback to MY/IN only if unknown, but never silently set India when Malaysia was chosen.
+
+C) Fix tenant creation / onboarding seeding
+1) Find tenant creation code (createTenant / seedTenantSettings / onboarding completion).
+2) Replace any hardcoded defaults (INR, Asia/Kolkata, IN) with getTenantDefaults(countryCode).
+3) Ensure tenant_settings (or tenant table) is updated atomically at creation time:
+   - tenant.countryCode
+   - tenant.currency
+   - tenant.timezone
+   - tenant.locale (optional)
+
+D) Fix frontend display + behavior
+1) Settings → Business screen must read values from tenant settings API (not hardcoded constants).
+2) Currency formatting must use tenant.currency (Intl.NumberFormat or existing formatter).
+3) Timezone shown must use tenant.timezone.
+4) Country indicator must use tenant.countryCode.
+
+E) Fix existing tenants (repair script)
+1) Add a one-time script or admin-only endpoint:
+   - For tenants with countryCode="MY" but currency="INR" or timezone="Asia/Kolkata":
+     update to MY defaults.
+2) Log changes.
+
+F) Tests
+1) Create tenant with country=Malaysia => tenant settings saved as MY/MYR/Asia/Kuala_Lumpur
+2) Settings → Business API returns MY values
+3) Regression: India tenants still get INR/Asia/Kolkata
+
+Deliverables:
+- Mapping file for country defaults
+- Updated tenant creation seeding
+- Updated settings UI to read tenant settings
+- Repair script for existing tenants
+- Tests passing

@@ -60,6 +60,27 @@ The platform includes an enhanced Booking Dialog with alerts for missing data an
 ### Internationalization (i18n)
 The platform supports 8 languages via `react-i18next`: English, Hindi, Telugu, Tamil, Kannada, Malayalam, Malay, and Chinese Simplified. It features country-driven language selection with defined language lists for India, Malaysia, UK, UAE, and Singapore. Language and country preferences are persisted, with automatic language switching if the current language is invalid for a selected country.
 
+### Country Locale Defaults
+A centralized country defaults system ensures correct locale settings during tenant creation:
+
+**Supported Countries:**
+- `MY` (Malaysia): MYR, Asia/Kuala_Lumpur, SST 6%
+- `IN` (India): INR, Asia/Kolkata, GST 18%
+- `SG` (Singapore): SGD, Asia/Singapore, GST 9%
+- `AE` (UAE): AED, Asia/Dubai, VAT 5%
+- `GB` (UK): GBP, Europe/London, VAT 20%
+- `US` (USA): USD, America/New_York, SalesTax 0%
+
+**Key Files:**
+- `shared/locale/country-defaults.ts`: Single source of truth for country defaults
+- `server/services/region-lock.ts`: Region config seeding with correct defaults
+- `platform_region_configs` table: Database source for registration flow
+
+**Helper Functions:**
+- `getCountryDefaults(countryCode)`: Returns defaults with MY fallback
+- `normalizeCountryCode(country)`: Converts country names to ISO codes
+- `needsRepair(countryCode, currency, timezone)`: Checks if tenant needs fixing
+
 ### Progressive Web App (PWA)
 The platform offers PWA features including an installable app with manifest and icons, an offline fallback page (dark theme), and a smart install prompt. A service worker provides safe caching for static assets (cache-first) while strictly avoiding caching of API requests or requests with authentication/tenant headers.
 
