@@ -729,6 +729,207 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   transform-origin: top center;
 }
 
+/* ========================================
+   BUTTON CLICK FEEDBACK
+   ======================================== */
+
+/* Enhanced click feedback - use on elements that don't use hover-elevate */
+.btn-click-feedback {
+  position: relative;
+}
+
+.btn-click-feedback::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: hsl(var(--foreground) / 0);
+  transition: background-color 0.15s ease-out;
+}
+
+.btn-click-feedback:active::after {
+  background-color: hsl(var(--foreground) / 0.06);
+}
+
+/* ========================================
+   FOCUS RING ANIMATIONS
+   ======================================== */
+
+/* Animated focus ring that grows outward */
+.focus-ring-animate {
+  position: relative;
+}
+
+.focus-ring-animate::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out, border-color 0.15s ease-out;
+  pointer-events: none;
+}
+
+.focus-ring-animate:focus-visible::before {
+  opacity: 1;
+  transform: scale(1);
+  border-color: hsl(var(--ring));
+}
+
+/* ========================================
+   INTERACTIVE ELEMENT HOVER GLOW
+   ======================================== */
+
+/* Subtle glow on hover for interactive elements */
+.hover-glow {
+  transition: box-shadow 0.2s ease-out;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.08);
+}
+
+/* ========================================
+   LIST ITEM TRANSITIONS
+   ======================================== */
+
+/* Smooth background transition for list items */
+.list-item-hover {
+  transition: background-color 0.15s ease-out;
+}
+
+.list-item-hover:hover {
+  background-color: hsl(var(--accent) / 0.5);
+}
+
+/* ========================================
+   ICON ANIMATIONS
+   ======================================== */
+
+/* Icon rotation on hover - subtle 15deg rotation */
+.icon-rotate-hover {
+  transition: transform 0.2s ease-out;
+}
+
+.icon-rotate-hover:hover {
+  transform: rotate(15deg);
+}
+
+/* Icon opacity change on hover - non-size-changing alternative */
+.icon-hover-bright {
+  transition: opacity 0.15s ease-out;
+  opacity: 0.7;
+}
+
+.icon-hover-bright:hover {
+  opacity: 1;
+}
+
+/* ========================================
+   NOTIFICATION DOT ANIMATION
+   ======================================== */
+
+@keyframes notificationPing {
+  0% { transform: scale(1); opacity: 1; }
+  75% { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.notification-dot {
+  position: relative;
+}
+
+.notification-dot::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background: hsl(var(--destructive));
+  border-radius: 50%;
+  animation: notificationPing 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ========================================
+   TOOLTIP ENTRANCE ANIMATION
+   ======================================== */
+
+@keyframes tooltipEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-tooltip-enter {
+  animation: tooltipEnter 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ========================================
+   COUNT BADGE ANIMATION
+   ======================================== */
+
+@keyframes countBadgePop {
+  0% { transform: scale(0.5); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.count-badge-animate {
+  animation: countBadgePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ========================================
+   SMOOTH SCROLL BEHAVIOR
+   ======================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ========================================
+   COLLAPSIBLE CONTENT ANIMATION
+   ======================================== */
+
+.collapsible-content {
+  overflow: hidden;
+  transition: height 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.2s ease-out,
+              padding 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.collapsible-content[data-state="closed"] {
+  opacity: 0;
+}
+
+.collapsible-content[data-state="open"] {
+  opacity: 1;
+}
+
+/* ========================================
+   LOADING STATE OVERLAY
+   ======================================== */
+
+@keyframes loadingOverlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.loading-overlay {
+  animation: loadingOverlayFade 0.2s ease-out;
+  backdrop-filter: blur(2px);
+}
+
 /* Reduce motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -737,5 +938,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  
+  html {
+    scroll-behavior: auto !important;
   }
 }
