@@ -1,0 +1,50 @@
+BUG: Registration accepts profane/offensive Business Name.
+Expected: reject with 400 or flag for moderation with clear message.
+
+Implement business name profanity moderation with shared utilities and consistent API errors.
+
+Requirements:
+1) Add a profanity check utility in shared/validation/profanity.ts:
+   - export function containsProfanity(input: string): { hit: boolean; match?: string; ruleId?: string }
+   - Use normalized text (NFC, trim, collapse spaces) and lowercase.
+   - Detect common obfuscations:
+     - remove punctuation and spaces for a secondary check
+     - normalize repeated characters (e.g., fuuuck -> fuuck)
+   - Maintain a curated denylist in code (start small, expand later).
+   - Keep list private server-side; frontend should not ship the full list.
+
+2) Integrate into shared/validation/business.ts (businessNameField):
+   - After character/length validation, run profanity check.
+   - If profanity hit:
+     - If STRICT_PROFANITY_BLOCK=true (default true in prod), reject validation with message:
+       "Business name contains inappropriate language."
+     - Else (flag mode), allow but mark for moderation.
+
+3) Backend behavior:
+   - If blocked: return 400 VALIDATION_ERROR with fieldErrors for businessName
+   - If flag mode:
+     - registration succeeds
+     - create tenant with moderation flag (e.g., tenant.moderationStatus='flagged')
+     - return success but include warning field (optional)
+   - Create audit log event on both cases:
+     - TENANT_NAME_PROFANITY_BLOCKED / TENANT_NAME_PROFANITY_FLAGGED
+     - do NOT store raw profane name; store ruleId only.
+
+4) Tests (Jest):
+   - businessName="fuck" -> 400 + fieldErrors businessName (block mode)
+   - businessName obfuscated like "f.u.c.k" -> 400 (block mode)
+   - businessName normal -> passes
+   - If flag mode enabled: returns 201 and tenant moderationStatus='flagged'
+
+5) Frontend:
+   - Use existing applyApiErrorsToForm() to show message under Business Name input.
+   - Do not implement profanity list in client; rely on backend response.
+
+Env/config:
+- STRICT_PROFANITY_BLOCK=true|false
+- ENABLE_PROFANITY_CHECK=true (default true in prod)
+Deliverables:
+- shared/validation/profanity.ts
+- updated business validation
+- backend integration + tests
+- docs update mentioning moderation rule

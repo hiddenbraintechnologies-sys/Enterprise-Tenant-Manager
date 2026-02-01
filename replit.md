@@ -108,6 +108,41 @@ Baseline security headers are configured via `server/middleware/security-headers
 - **Honeypot**: Hidden companyWebsite field catches bots
 - **MX validation**: Optional email domain verification (ENABLE_EMAIL_MX_VALIDATION env var)
 - **Business name validation**: Unicode-safe, rejects special-character-only inputs
+- **Profanity moderation**: Business name content moderation with two modes (see below)
+
+### Business Name Profanity Moderation
+The platform includes a profanity detection system for business name moderation during registration.
+
+**Environment Variables:**
+- `ENABLE_PROFANITY_CHECK`: Set to "true" to enable profanity checking (default: disabled)
+- `STRICT_PROFANITY_BLOCK`: Set to "true" to block registration for profane names (default: flag mode)
+
+**Modes:**
+- **Disabled** (default): No profanity checking, all names allowed
+- **Flag mode**: Profane names are allowed but flagged for admin review (moderationStatus: "flagged")
+- **Strict mode**: Profane names are blocked with 400 error
+
+**Detection Strategies:**
+- Direct word matching against normalized text
+- Obfuscation detection (punctuation/space removal)
+- Character repetition normalization (fuuuck -> fuck)
+- Leet-speak normalization (sh!t -> shit, f@ck -> fack)
+
+**False Positive Prevention:**
+- Allowlist includes common words like "assistant", "classic", "cockpit", "analyst", "Sussex", etc.
+
+**Database Fields (tenants table):**
+- `moderationStatus`: enum ("clear", "flagged", "reviewed", "blocked")
+- `moderationRuleId`: varchar - stores rule ID that triggered flag/block
+
+**Audit Events:**
+- `TENANT_NAME_PROFANITY_BLOCKED`: Logged when registration blocked in strict mode
+- `TENANT_NAME_FLAGGED_FOR_REVIEW`: Logged when tenant created with flagged status
+
+**Key Files:**
+- `shared/validation/profanity.ts`: Detection utility with rules and allowlist
+- `shared/validation/business.ts`: Business name validation with profanity integration
+- `server/__tests__/profanity.test.ts`: Unit tests for profanity detection
 
 ### Audit Logging
 Key security events logged: USER_REGISTERED, TENANT_CREATED, ADDON_RENEW_STARTED, ADDON_RENEW_SUCCEEDED, ADDON_RENEW_FAILED

@@ -46,6 +46,7 @@ export const businessTypeEnum = pgEnum("business_type", [
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout", "access"]);
 export const tenantCountryEnum = pgEnum("tenant_country", ["india", "uae", "uk", "malaysia", "singapore", "other"]);
 export const tenantStatusEnum = pgEnum("tenant_status", ["active", "suspended", "cancelled", "deleted"]);
+export const tenantModerationStatusEnum = pgEnum("tenant_moderation_status", ["clear", "flagged", "reviewed", "blocked"]);
 export const tenantRegionEnum = pgEnum("tenant_region", ["asia_pacific", "middle_east", "europe", "americas", "africa"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp", "push"]);
 export const notificationStatusEnum = pgEnum("notification_status", ["pending", "sent", "delivered", "failed", "retrying"]);
@@ -108,6 +109,9 @@ export const tenants = pgTable("tenants", {
   pinnedVersionId: varchar("pinned_version_id"),
   // Protection flag - prevents accidental deletion by Super Admin
   isProtected: boolean("is_protected").default(false),
+  // Content moderation status for business name
+  moderationStatus: tenantModerationStatusEnum("moderation_status").default("clear"),
+  moderationRuleId: varchar("moderation_rule_id", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),

@@ -70,6 +70,8 @@ import {
   getAdminAuditLogs,
 } from "./core/admin-security";
 import { adminSessions } from "@shared/schema";
+import { validateBusinessName } from "@shared/validation/business";
+import { containsProfanity, isProfanityCheckEnabled, isStrictProfanityBlock } from "./validation/profanity";
 import {
   generateTotpSecret,
   generateOtpAuthUrl,
@@ -789,6 +791,62 @@ export async function registerRoutes(
         });
       }
 
+      // Business name validation
+      console.log("[register] Step 8b: Validating business name");
+      const nameValidation = validateBusinessName(businessName);
+      if (!nameValidation.valid) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          fieldErrors: [{ 
+            field: "businessName", 
+            message: nameValidation.error || "Invalid business name" 
+          }],
+          message: nameValidation.error || "Invalid business name"
+        });
+      }
+      
+      // Profanity check for business name (server-side only)
+      let shouldFlagForModeration = false;
+      let moderationRuleId: string | undefined = undefined;
+      
+      if (isProfanityCheckEnabled()) {
+        console.log("[register] Step 8c: Checking business name for profanity");
+        const profanityResult = containsProfanity(nameValidation.normalized);
+        
+        if (profanityResult.hit) {
+          if (isStrictProfanityBlock()) {
+            console.log("[register] Profanity blocked:", profanityResult.ruleId);
+            
+            // Log audit event (don't store the profane name, only ruleId)
+            auditService.logAsync({
+              action: "create",
+              resource: "tenant",
+              resourceId: "blocked",
+              metadata: { 
+                event: "TENANT_NAME_PROFANITY_BLOCKED", 
+                ruleId: profanityResult.ruleId,
+                countryCode 
+              },
+              ipAddress: req.ip,
+              userAgent: req.headers["user-agent"],
+            });
+            
+            return res.status(400).json({
+              error: "VALIDATION_ERROR",
+              fieldErrors: [{ 
+                field: "businessName", 
+                message: "Business name contains inappropriate language." 
+              }],
+              message: "Business name contains inappropriate language."
+            });
+          } else {
+            // Flag mode: allow but flag for review
+            shouldFlagForModeration = true;
+            moderationRuleId = profanityResult.ruleId;
+          }
+        }
+      }
+
       // Map countryCode to tenant country enum
       const countryCodeToTenantCountry: Record<string, "india" | "uae" | "uk" | "malaysia" | "singapore" | "other"> = {
         "IN": "india",
@@ -832,15 +890,35 @@ export async function registerRoutes(
       const result = await db.transaction(async (tx) => {
         console.log("[register] Step 12: Creating tenant");
         const [newTenant] = await tx.insert(tenants).values({
-          name: businessName,
+          name: nameValidation.normalized,
           businessType: businessType,
           email: email,
           country: tenantCountry,
           region: tenantRegion,
           currency: selectedRegion.defaultCurrency,
           timezone: selectedRegion.defaultTimezone,
+          moderationStatus: shouldFlagForModeration ? "flagged" : "clear",
+          moderationRuleId: shouldFlagForModeration ? moderationRuleId : null,
         }).returning();
         console.log("[register] Step 13: Tenant created:", newTenant?.id);
+        
+        // Log flagged tenant for moderation review
+        if (shouldFlagForModeration) {
+          console.log("[register] Tenant flagged for moderation review:", moderationRuleId);
+          auditService.logAsync({
+            action: "create",
+            resource: "tenant",
+            resourceId: newTenant.id,
+            userId: undefined,
+            tenantId: newTenant.id,
+            metadata: { 
+              event: "TENANT_NAME_FLAGGED_FOR_REVIEW", 
+              ruleId: moderationRuleId 
+            },
+            ipAddress: req.ip,
+            userAgent: req.headers["user-agent"],
+          });
+        }
 
         console.log("[register] Step 14: Creating user");
         const [newUser] = await tx.insert(users).values({
