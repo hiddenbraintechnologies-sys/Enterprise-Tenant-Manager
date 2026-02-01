@@ -31,6 +31,7 @@ import { eq, and, desc, gte, lte } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { rateLimit } from "../core";
+import { getTenantAddonEntitlement, checkDependencyEntitlement } from "../services/entitlement";
 
 const router = Router();
 
@@ -107,13 +108,102 @@ function requireEmployeeAuth() {
   };
 }
 
+function requireEmployeeAddon(addonCode: string, options: { allowGrace?: boolean; allowGraceForReads?: boolean } = {}) {
+  const { allowGrace = true, allowGraceForReads = false } = options;
+  
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = (req as any).employeePortal?.tenantId;
+      
+      if (!tenantId) {
+        return res.status(401).json({ 
+          error: "UNAUTHORIZED", 
+          message: "Employee authentication required" 
+        });
+      }
+
+      const entitlement = await getTenantAddonEntitlement(tenantId, addonCode);
+      
+      (req as any).addonEntitlement = entitlement;
+      
+      const isReadMethod = req.method === "GET" || req.method === "HEAD";
+      const effectiveAllowGrace = allowGraceForReads ? isReadMethod : allowGrace;
+      
+      if (!entitlement.entitled) {
+        if (entitlement.state === "grace" && !effectiveAllowGrace) {
+          return res.status(403).json({
+            error: "ADDON_ACCESS_DENIED",
+            code: "ADDON_EXPIRED",
+            addon: addonCode,
+            validUntil: entitlement.validUntil?.toISOString(),
+            message: entitlement.message || "Add-on subscription has expired",
+            upgradeUrl: "/marketplace",
+          });
+        }
+        
+        if (entitlement.state !== "grace") {
+          let errorCode: string;
+          switch (entitlement.reasonCode) {
+            case "ADDON_TRIAL_EXPIRED":
+              errorCode = "ADDON_TRIAL_EXPIRED";
+              break;
+            case "ADDON_NOT_INSTALLED":
+              errorCode = "ADDON_NOT_INSTALLED";
+              break;
+            case "ADDON_CANCELLED":
+              errorCode = "ADDON_CANCELLED";
+              break;
+            default:
+              errorCode = "ADDON_EXPIRED";
+          }
+          
+          return res.status(403).json({
+            error: "ADDON_ACCESS_DENIED",
+            code: errorCode,
+            addon: addonCode,
+            validUntil: entitlement.validUntil?.toISOString(),
+            message: entitlement.message || "Add-on access denied",
+            upgradeUrl: "/marketplace",
+          });
+        }
+      }
+
+      const depCheck = await checkDependencyEntitlement(tenantId, addonCode, undefined);
+      
+      if (!depCheck.satisfied) {
+        const depCode = depCheck.missingDependency || "unknown";
+        const isExpired = depCheck.dependencyState === "expired";
+        
+        return res.status(403).json({
+          error: "ADDON_ACCESS_DENIED",
+          code: isExpired ? "ADDON_DEPENDENCY_EXPIRED" : "ADDON_DEPENDENCY_MISSING",
+          addon: addonCode,
+          dependency: depCode,
+          message: isExpired 
+            ? `Required add-on '${depCode}' has expired. Please renew it to continue using ${addonCode}.`
+            : `This feature requires '${depCode}' add-on to be installed first.`,
+          upgradeUrl: "/marketplace",
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error("[require-employee-addon] Middleware error:", error);
+      return res.status(500).json({
+        error: "INTERNAL_ERROR",
+        message: "Failed to verify add-on access",
+      });
+    }
+  };
+}
+
 // ==================== AUTH ENDPOINTS ====================
 
 router.post("/invite", async (req, res) => {
   try {
     const tenantId = req.context?.tenant?.id;
     const userId = req.context?.user?.id;
-    const userRole = req.context?.role;
+    const userRole = typeof req.context?.role === "string" ? req.context.role : req.context?.role?.name;
     
     if (!tenantId || !userId) {
       return res.status(401).json({ error: "UNAUTHORIZED", message: "Admin authentication required" });
@@ -359,7 +449,7 @@ router.get("/profile", requireEmployeeAuth(), async (req, res) => {
   });
 });
 
-router.get("/payslips", requireEmployeeAuth(), async (req, res) => {
+router.get("/payslips", requireEmployeeAuth(), requireEmployeeAddon("payroll", { allowGraceForReads: true }), async (req, res) => {
   try {
     const { employee, tenantId } = (req as any).employeePortal;
 
@@ -397,7 +487,7 @@ router.get("/payslips", requireEmployeeAuth(), async (req, res) => {
   }
 });
 
-router.get("/payslips/:id/pdf", requireEmployeeAuth(), async (req, res) => {
+router.get("/payslips/:id/pdf", requireEmployeeAuth(), requireEmployeeAddon("payroll", { allowGraceForReads: true }), async (req, res) => {
   try {
     const { employee, tenantId } = (req as any).employeePortal;
     const { id } = req.params;
@@ -431,7 +521,7 @@ router.get("/payslips/:id/pdf", requireEmployeeAuth(), async (req, res) => {
   }
 });
 
-router.get("/attendance", requireEmployeeAuth(), async (req, res) => {
+router.get("/attendance", requireEmployeeAuth(), requireEmployeeAddon("hrms", { allowGraceForReads: true }), async (req, res) => {
   try {
     const { employee, tenantId } = (req as any).employeePortal;
     const { startDate, endDate } = req.query;
