@@ -247,7 +247,7 @@ export default function Settings() {
                   <SelectTrigger data-testid="select-timezone">
                     <SelectValue placeholder="Select timezone" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom">
                     <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
                     <SelectItem value="America/New_York">America/New York (EST)</SelectItem>
                     <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
@@ -269,7 +269,7 @@ export default function Settings() {
                   <SelectTrigger data-testid="select-currency">
                     <SelectValue placeholder="Select currency" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom">
                     <SelectItem value="INR">INR (₹)</SelectItem>
                     <SelectItem value="USD">USD ($)</SelectItem>
                     <SelectItem value="EUR">EUR (€)</SelectItem>
