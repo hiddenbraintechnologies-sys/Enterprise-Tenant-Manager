@@ -180,6 +180,58 @@ curl -X GET "https://<your-domain>/api/hr/payroll/settings" \
 
 ---
 
+### Scenario 6: Renewal Checkout Flow
+
+**Goal:** Verify the renewal path creates checkout session and activates entitlements after payment.
+
+**Steps:**
+
+1. Set an add-on to expired:
+```sql
+UPDATE tenant_addons 
+SET subscription_status = 'expired',
+    status = 'active',
+    current_period_end = NOW() - INTERVAL '5 days',
+    grace_until = NULL
+WHERE id = '<addon-installation-id>';
+```
+
+2. Create checkout session (POST):
+```bash
+curl -X POST "https://<your-domain>/api/billing/entitlements/payroll-india/checkout" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"renew","billingPeriod":"monthly","returnUrl":"https://<your-domain>/my-add-ons"}'
+```
+
+**Expected Result:**
+- HTTP 200 OK
+- Response body: `{"paymentUrl":"https://rzp.io/...","paymentLinkId":"plink_...", ...}`
+
+3. After completing payment on Razorpay, verify payment:
+```bash
+curl -X POST "https://<your-domain>/api/billing/entitlements/payroll-india/verify-payment" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"paymentLinkId":"plink_<from-checkout-response>"}'
+```
+
+**Expected Result:**
+- HTTP 200 OK
+- Response body: `{"status":"ACTIVATED","message":"Payment verified, add-on activated","periodEnd":"..."}`
+
+4. Verify entitlement is now active:
+```bash
+curl -X GET "https://<your-domain>/api/billing/entitlements/payroll-india" \
+  -H "Authorization: Bearer <your-jwt-token>"
+```
+
+**Expected Result:**
+- HTTP 200 OK
+- Response body: `{"entitled":true,"state":"active",...}`
+
+---
+
 ## Cleanup Commands
 
 Reset all test add-ons to active state:
