@@ -178,11 +178,21 @@ async function getBrandingFeaturesAsync(tenantId: string): Promise<Record<string
   };
 }
 
+// URL validator that accepts both absolute URLs and relative paths (for object storage)
+const urlOrPathValidator = z.string().refine(
+  (val) => {
+    if (!val) return true;
+    // Accept absolute URLs (http/https) or relative paths starting with /
+    return val.startsWith("http://") || val.startsWith("https://") || val.startsWith("/");
+  },
+  { message: "Must be a valid URL or relative path starting with /" }
+);
+
 // Strict schema - rejects unknown keys
 const updateBrandingSchema = z.object({
-  logoUrl: z.string().url().optional().nullable(),
-  logoAltUrl: z.string().url().optional().nullable(),
-  faviconUrl: z.string().url().optional().nullable(),
+  logoUrl: urlOrPathValidator.optional().nullable(),
+  logoAltUrl: urlOrPathValidator.optional().nullable(),
+  faviconUrl: urlOrPathValidator.optional().nullable(),
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
   secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
   accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
