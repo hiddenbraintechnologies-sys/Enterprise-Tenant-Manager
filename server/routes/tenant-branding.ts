@@ -1,13 +1,45 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, json } from "express";
 import { db } from "../db";
 import { tenantBranding, insertTenantBrandingSchema } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { authenticateHybrid } from "../core/auth-middleware";
 import { resolveTenantId, logTenantResolution } from "../lib/resolveTenantId";
+import { AuditService } from "../core/audit";
 import { z } from "zod";
 
 const router = Router();
 const requiredAuth = authenticateHybrid();
+const auditService = new AuditService();
+
+// Payload size limit for branding updates (50KB max)
+const brandingPayloadLimit = json({ limit: "50kb" });
+
+// Simple in-memory rate limiter for branding updates
+const brandingRateLimits = new Map<string, { count: number; resetAt: number }>();
+const BRANDING_RATE_LIMIT = 10; // 10 updates per window
+const BRANDING_RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
+
+function checkBrandingRateLimit(key: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const entry = brandingRateLimits.get(key);
+  
+  // Skip rate limiting in development if configured
+  if (process.env.SKIP_RATE_LIMIT === "true" && process.env.NODE_ENV !== "production") {
+    return { allowed: true };
+  }
+  
+  if (!entry || now >= entry.resetAt) {
+    brandingRateLimits.set(key, { count: 1, resetAt: now + BRANDING_RATE_WINDOW });
+    return { allowed: true };
+  }
+  
+  if (entry.count >= BRANDING_RATE_LIMIT) {
+    return { allowed: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  
+  entry.count++;
+  return { allowed: true };
+}
 
 // Allowed font families (safe, web-standard fonts) - exact match required
 const ALLOWED_FONTS = new Set([
@@ -82,6 +114,83 @@ const HEALABLE_COLUMNS = [
   "primaryColor", "secondaryColor", "accentColor", "backgroundColor",
   "foregroundColor", "mutedColor", "borderColor", "fontFamily", "fontFamilyMono",
 ] as const;
+
+// Canonical font name mapping for normalization
+const FONT_CANONICAL: Record<string, string> = {
+  "inter": "Inter",
+  "roboto": "Roboto",
+  "open sans": "Open Sans",
+  "lato": "Lato",
+  "montserrat": "Montserrat",
+  "poppins": "Poppins",
+  "nunito": "Nunito",
+  "raleway": "Raleway",
+  "work sans": "Work Sans",
+  "source sans pro": "Source Sans Pro",
+  "ubuntu": "Ubuntu",
+  "rubik": "Rubik",
+  "mulish": "Mulish",
+  "jetbrains mono": "JetBrains Mono",
+  "fira code": "Fira Code",
+  "source code pro": "Source Code Pro",
+  "ibm plex mono": "IBM Plex Mono",
+  "consolas": "Consolas",
+  "system-ui": "system-ui",
+  "sans-serif": "sans-serif",
+  "serif": "serif",
+  "monospace": "monospace",
+};
+
+// Normalize hex color: lowercase with leading #
+function normalizeHexColor(color: string): string {
+  const normalized = color.toLowerCase().trim();
+  return normalized.startsWith("#") ? normalized : `#${normalized}`;
+}
+
+// Normalize font to canonical name
+function normalizeFontFamily(font: string): string {
+  const key = font.toLowerCase().trim();
+  return FONT_CANONICAL[key] || font;
+}
+
+// Normalize all branding data before storage
+function normalizeBrandingData(data: Record<string, unknown>): Record<string, unknown> {
+  const normalized = { ...data };
+  
+  // Normalize colors
+  const colorFields = ["primaryColor", "secondaryColor", "accentColor", "backgroundColor", 
+                       "foregroundColor", "mutedColor", "borderColor"];
+  for (const field of colorFields) {
+    if (typeof normalized[field] === "string") {
+      normalized[field] = normalizeHexColor(normalized[field] as string);
+    }
+  }
+  
+  // Normalize fonts
+  if (typeof normalized.fontFamily === "string") {
+    normalized.fontFamily = normalizeFontFamily(normalized.fontFamily as string);
+  }
+  if (typeof normalized.fontFamilyHeading === "string") {
+    normalized.fontFamilyHeading = normalizeFontFamily(normalized.fontFamilyHeading as string);
+  }
+  if (typeof normalized.fontFamilyMono === "string") {
+    normalized.fontFamilyMono = normalizeFontFamily(normalized.fontFamilyMono as string);
+  }
+  
+  // Normalize themeTokens brand colors
+  if (normalized.themeTokens && typeof normalized.themeTokens === "object") {
+    const tokens = normalized.themeTokens as Record<string, Record<string, string>>;
+    if (tokens.brand) {
+      for (const key of ["primary", "secondary", "accent"]) {
+        if (typeof tokens.brand[key] === "string") {
+          tokens.brand[key] = normalizeHexColor(tokens.brand[key]);
+        }
+      }
+    }
+  }
+  
+  return normalized;
+}
 
 // Helper: build update object for missing/null fields (self-healing)
 // Only updates specific healable columns to avoid touching immutable fields
@@ -161,7 +270,7 @@ router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
   }
 });
 
-router.put("/api/tenant/branding", requiredAuth, async (req: Request, res: Response) => {
+router.put("/api/tenant/branding", brandingPayloadLimit, requiredAuth, async (req: Request, res: Response) => {
   try {
     const resolution = await resolveTenantId(req);
     logTenantResolution(req, resolution, "PUT /api/tenant/branding");
@@ -174,14 +283,30 @@ router.put("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
     }
 
     const tenantId = resolution.tenantId;
+    const user = (req as any).user;
+    const userId = user?.id || null;
+    
+    // Rate limit check
+    const rateLimitKey = `branding:${tenantId}:${userId || req.ip}`;
+    const rateCheck = checkBrandingRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({ 
+        error: "Too many branding updates", 
+        code: "RATE_LIMIT_EXCEEDED",
+        retryAfter: rateCheck.retryAfter 
+      });
+    }
+    
     const parsed = updateBrandingSchema.safeParse(req.body);
     
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid request body", details: parsed.error.errors });
     }
 
+    // Normalize data before storage
+    const normalizedData = normalizeBrandingData(parsed.data as Record<string, unknown>);
     const updateData = {
-      ...parsed.data,
+      ...normalizedData,
       updatedAt: new Date(),
     };
 
@@ -191,6 +316,9 @@ router.put("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
       .where(eq(tenantBranding.tenantId, tenantId))
       .limit(1);
 
+    const oldValue = existing.length > 0 ? existing[0] : null;
+    
+    let result;
     if (existing.length === 0) {
       const [newBranding] = await db
         .insert(tenantBranding)
@@ -200,16 +328,35 @@ router.put("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
           ...updateData,
         })
         .returning();
-      return res.json(newBranding);
+      result = newBranding;
+    } else {
+      const [updatedBranding] = await db
+        .update(tenantBranding)
+        .set(updateData)
+        .where(eq(tenantBranding.tenantId, tenantId))
+        .returning();
+      result = updatedBranding;
     }
 
-    const [updatedBranding] = await db
-      .update(tenantBranding)
-      .set(updateData)
-      .where(eq(tenantBranding.tenantId, tenantId))
-      .returning();
+    // Audit log the branding change
+    const changedFields = Object.keys(parsed.data);
+    await auditService.log({
+      tenantId,
+      userId,
+      action: oldValue ? "update" : "create",
+      resource: "tenant_branding",
+      resourceId: result.id,
+      oldValue: oldValue ? { ...oldValue } : null,
+      newValue: { fieldsChanged: changedFields },
+      metadata: { 
+        fieldsChanged: changedFields,
+        source: "branding_settings_page"
+      },
+      ipAddress: req.ip || null,
+      userAgent: req.get("user-agent") || null,
+    });
 
-    res.json(updatedBranding);
+    res.json(result);
   } catch (error) {
     console.error("[tenant-branding] Error updating branding:", error);
     res.status(500).json({ error: "Failed to update tenant branding" });

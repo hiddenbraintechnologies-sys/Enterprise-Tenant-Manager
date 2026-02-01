@@ -1,0 +1,115 @@
+1) Final “production-ready” gate checklist
+Security / abuse
+
+Payload size limit on branding PUT (e.g., 50–100 KB max)
+Prevents someone from sending huge themeTokens objects to stress memory/logs.
+
+Rate limit branding updates (even mild)
+Prevents repeated writes + cache thrash.
+
+Audit log entry on branding change (tenantId, userId, fields changed)
+Extremely useful when tenants complain “branding changed by itself”.
+
+Data integrity
+
+DB constraints: ensure tenant_id is PK/unique in tenant_branding.
+
+Color normalization: store lowercase hex, enforce leading #.
+
+Font normalization: store canonical font keys (e.g., "inter", "jetbrains-mono") not arbitrary names.
+
+Rendering consistency
+
+Ensure one source of truth for tokens during runtime:
+
+API → provider sets CSS vars → UI uses Tailwind vars
+Confirm no component still reads raw JSON tokens directly.
+
+2) Must-have regression tests (to lock your claims)
+API tests (fast, high confidence)
+
+Reject unknown keys
+
+PUT { primaryColor:"#000", hacker:"1" } → 400
+
+Reject invalid hex
+
+PUT { primaryColor:"blue" } → 400
+
+Font allowlist exact-match
+
+PUT { fontFamily:"Inter;" } → 400
+
+Self-heal null and undefined
+
+Seed branding row with primaryColor = NULL
+
+GET triggers heal → DB updated only in HEALABLE_COLUMNS
+
+Immutable columns never mutated
+
+Try to PUT { tenantId:"other" } → 400
+
+Tenant isolation
+
+Tenant A token calling Tenant B route → 403/404
+
+UI tests (minimum)
+
+CSS var injection
+
+Set primary color, reload page, assert computed style matches
+
+Token priority works
+
+Provide themeTokens.brand.primary and also primaryColor
+
+Expect UI uses token value
+
+3) The “next production concern”: caching + propagation
+
+If you use caching (common for branding), test these:
+
+Update branding → immediately reflected in UI after Save (cache invalidation)
+
+Update branding → reflected across tabs (invoice/payslip preview)
+
+Update branding → reflected on subdomain as well as root domain context (if enabled)
+
+If you don’t cache yet, you’re safe—but performance can suffer later.
+
+4) Before you ship: hook into White-Label gating + Subdomains
+
+Since you previously wanted these, the branding foundation is now safe enough to extend.
+
+White-label gating (server first)
+
+Return {features} from branding GET
+
+In PUT, reject slug updates unless whitelabel.subdomain = true
+
+Subdomain routing
+
+Middleware: host → slug → tenantId
+
+Branding uses same tenant context (so it “just works”)
+
+5) One question I won’t leave hanging
+
+You said: “All tasks completed.” Good. But don’t rely on self-healing alone for future fields.
+
+Best practice:
+
+Keep DEFAULT_BRANDING in one place
+
+Any new field added later must be included in:
+
+Zod schema (input validation)
+
+Defaults
+
+HEALABLE_COLUMNS (if safe)
+
+Tests (GET for new tenant must include it)
+
+That stops “field drift” across environments.
