@@ -37,7 +37,14 @@ assertTenantOwnedOr404(employee, { resourceName: "Employee" });
 These routes require platform admin auth, NOT tenant context.
 
 **Audited 2026-02-01:** All admin/super-admin routes verified to block tenant users (403).
-Test file: `server/__tests__/admin-route-guards.test.ts` (27 tests passing)
+Test file: `server/__tests__/admin-route-guards.test.ts` (57 tests passing)
+
+**Test Coverage:**
+- 17 admin endpoints tested (GET and POST methods)
+- 9 super-admin endpoints tested (GET and POST methods)
+- Verifies 401 for unauthenticated requests
+- Verifies 403 for tenant user requests
+- Verifies consistent error response format (code + message)
 
 | Route File | Scope | Required Middleware | Status |
 |------------|-------|---------------------|--------|
