@@ -85,3 +85,29 @@ The platform offers PWA features including an installable app with manifest and 
 - **Twilio**: WhatsApp notifications
 - **SendGrid/Resend**: Email notifications
 - **Razorpay**: Subscription management and billing
+- **Helmet**: Security headers middleware
+
+## Security Hardening
+
+### Security Headers (Helmet)
+Baseline security headers are configured via `server/middleware/security-headers.ts`:
+- **X-Content-Type-Options**: nosniff
+- **Referrer-Policy**: strict-origin-when-cross-origin
+- **X-Frame-Options**: DENY (prevents clickjacking)
+- **Permissions-Policy**: camera=(), microphone=(), geolocation=(), payment=(self)
+- **HSTS**: Enabled in production only (31536000 seconds, includeSubDomains, preload)
+- **CSP**: Report-only mode with Razorpay domain exceptions
+
+**CSP Exceptions (Razorpay):**
+- script-src: checkout.razorpay.com, api.razorpay.com
+- connect-src: api.razorpay.com, checkout.razorpay.com
+- frame-src: api.razorpay.com, checkout.razorpay.com
+
+### Registration Anti-Abuse
+- **Rate limiting**: 10 registrations per 15 minutes per IP
+- **Honeypot**: Hidden companyWebsite field catches bots
+- **MX validation**: Optional email domain verification (ENABLE_EMAIL_MX_VALIDATION env var)
+- **Business name validation**: Unicode-safe, rejects special-character-only inputs
+
+### Audit Logging
+Key security events logged: USER_REGISTERED, TENANT_CREATED, ADDON_RENEW_STARTED, ADDON_RENEW_SUCCEEDED, ADDON_RENEW_FAILED
