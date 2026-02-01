@@ -20,6 +20,7 @@ import { validateStartupConfig, logStartupConfig } from "./lib/startup-config";
 import { degradedModeMiddleware } from "./lib/degraded-mode";
 import { performReadinessCheck } from "./lib/health-ready";
 import { logger } from "./lib/structured-logging";
+import { securityHeaders } from "./middleware/security-headers";
 
 // ============================================
 // PRODUCTION STARTUP VALIDATION
@@ -55,6 +56,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Security headers (Helmet + Permissions-Policy)
+securityHeaders.forEach((middleware) => app.use(middleware));
 
 // Request logger with correlation ID (early in the chain)
 app.use(requestLoggerMiddleware);
