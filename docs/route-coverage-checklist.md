@@ -1,5 +1,34 @@
 # Route Coverage Checklist
 
+## Cross-Tenant Access Policy
+
+**Canonical Rule (Implemented 2026-02-01):**
+
+| HTTP Status | Meaning | When to Use |
+|-------------|---------|-------------|
+| **404** | Resource not found | Resource ID doesn't exist OR belongs to another tenant |
+| **403** | Permission denied | User lacks permission WITHIN their own tenant (RBAC failure) |
+
+**Why 404 for cross-tenant access?**
+- Prevents tenant enumeration attacks
+- An attacker cannot distinguish between "ID doesn't exist" and "ID exists but belongs to another tenant"
+- Same response for both cases provides no information leakage
+
+**Helper File:** `server/utils/assert-tenant-owned.ts`
+- `assertTenantOwnedOr404(record, options)` - Throws if record is null/undefined
+- `assertMutationSucceededOr404(result, options)` - Throws if mutation affected 0 rows
+- `TenantResourceNotFoundError` - Error class with `code: "RESOURCE_NOT_FOUND"`
+
+**Usage Pattern:**
+```typescript
+// In route handler
+const employee = await storage.getById(tenantId, id);
+assertTenantOwnedOr404(employee, { resourceName: "Employee" });
+// If we get here, employee is guaranteed non-null
+```
+
+---
+
 ## A) Multi-Tenant Authorization Audit
 
 ### Route Classification

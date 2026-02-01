@@ -290,15 +290,17 @@ describe("HTTP Tenant Isolation Tests", () => {
   });
 
   describe("B) Employees Detail Isolation", () => {
-    it("User A fetching tenant B employee by ID returns 404 or 403", async () => {
+    it("User A fetching tenant B employee by ID returns 404 (not 403)", async () => {
       if (!cookieA) return;
       
       const res = await request(BASE_URL)
         .get(`/api/hr/employees/${empB1.id}`)
         .set("Cookie", cookieA);
       
-      // TODO: Standardize to 404 for cross-tenant IDs
-      expect([403, 404]).toContain(res.status);
+      // Cross-tenant access MUST return 404 to prevent enumeration
+      // 403 would leak that the resource exists in another tenant
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe("RESOURCE_NOT_FOUND");
     });
 
     it("User A can fetch own employee by ID", async () => {
@@ -316,7 +318,7 @@ describe("HTTP Tenant Isolation Tests", () => {
   });
 
   describe("C) Employees Mutation Isolation", () => {
-    it("User A PATCH on tenant B employee returns 404/403 and DB unchanged", async () => {
+    it("User A PUT on tenant B employee returns 404 and DB unchanged", async () => {
       if (!cookieA) return;
       
       const res = await request(BASE_URL)
@@ -324,7 +326,9 @@ describe("HTTP Tenant Isolation Tests", () => {
         .set("Cookie", cookieA)
         .send({ firstName: "HACKED" });
       
-      expect([403, 404]).toContain(res.status);
+      // Cross-tenant mutation MUST return 404
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe("RESOURCE_NOT_FOUND");
       
       // Verify DB unchanged
       const [fresh] = await db
@@ -336,14 +340,16 @@ describe("HTTP Tenant Isolation Tests", () => {
       expect(fresh?.firstName).not.toBe("HACKED");
     });
 
-    it("User A DELETE on tenant B employee returns 404/403 and record still exists", async () => {
+    it("User A DELETE on tenant B employee returns 404 and record still exists", async () => {
       if (!cookieA) return;
       
       const res = await request(BASE_URL)
         .delete(`/api/hr/employees/${empB1.id}`)
         .set("Cookie", cookieA);
       
-      expect([403, 404]).toContain(res.status);
+      // Cross-tenant deletion MUST return 404
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe("RESOURCE_NOT_FOUND");
       
       // Verify record still exists
       const [fresh] = await db
@@ -374,14 +380,16 @@ describe("HTTP Tenant Isolation Tests", () => {
       expect(ids).not.toContain(deptB.id);
     });
 
-    it("User A fetching tenant B department by ID returns 404/403", async () => {
+    it("User A fetching tenant B department by ID returns 404", async () => {
       if (!cookieA) return;
       
       const res = await request(BASE_URL)
         .get(`/api/hr/departments/${deptB.id}`)
         .set("Cookie", cookieA);
       
-      expect([403, 404]).toContain(res.status);
+      // Cross-tenant access MUST return 404
+      // Note: departments/:id route may not exist, so 404 is expected
+      expect(res.status).toBe(404);
     });
   });
 
@@ -413,14 +421,16 @@ describe("HTTP Tenant Isolation Tests", () => {
   });
 
   describe("F) Cross-Check: User B Cannot Access A's Data", () => {
-    it("User B cannot fetch tenant A employee", async () => {
+    it("User B cannot fetch tenant A employee (returns 404)", async () => {
       if (!cookieB) return;
       
       const res = await request(BASE_URL)
         .get(`/api/hr/employees/${empA1.id}`)
         .set("Cookie", cookieB);
       
-      expect([403, 404]).toContain(res.status);
+      // Cross-tenant access MUST return 404
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe("RESOURCE_NOT_FOUND");
     });
 
     it("User B list should not include A's employees", async () => {
