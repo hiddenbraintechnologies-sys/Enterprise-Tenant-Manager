@@ -625,6 +625,32 @@ export const tenantBranding = pgTable("tenant_branding", {
   index("idx_tenant_branding_tenant").on(table.tenantId),
 ]);
 
+// Verified Email Domains for tenant email sending
+export const verifiedDomainStatusEnum = pgEnum("verified_domain_status", [
+  "pending",
+  "verified",
+  "failed",
+  "expired",
+]);
+
+export const tenantVerifiedDomains = pgTable("tenant_verified_domains", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  status: verifiedDomainStatusEnum("status").default("pending").notNull(),
+  verificationToken: varchar("verification_token", { length: 100 }),
+  verifiedAt: timestamp("verified_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_verified_domains_tenant").on(table.tenantId),
+  uniqueIndex("idx_verified_domains_tenant_domain").on(table.tenantId, table.domain),
+]);
+
+export type TenantVerifiedDomain = typeof tenantVerifiedDomains.$inferSelect;
+export type InsertTenantVerifiedDomain = typeof tenantVerifiedDomains.$inferInsert;
+
 // Email Template Types
 export const emailTemplateTypeEnum = pgEnum("email_template_type", [
   "welcome",

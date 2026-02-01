@@ -86,10 +86,31 @@ const GATED_FIELDS = new Set([
   "customCss",
 ]);
 
-// emailFromAddress should only allow verified domains (stub for now)
-const VERIFIED_EMAIL_DOMAINS = new Set<string>([
-  // In production, this would be tenant-specific verified domains
-]);
+// Map gated fields to their feature keys for error responses
+const GATED_FIELD_TO_FEATURE = {
+  emailHeaderHtml: "email_templates",
+  emailFooterHtml: "email_templates",
+  customCss: "custom_css",
+} as const;
+
+import { tenantVerifiedDomains } from "@shared/schema";
+
+// Helper to check if a domain is verified for a tenant
+async function isEmailDomainVerified(tenantId: string, domain: string): Promise<boolean> {
+  const verified = await db
+    .select()
+    .from(tenantVerifiedDomains)
+    .where(eq(tenantVerifiedDomains.tenantId, tenantId))
+    .limit(100);
+  
+  // If no verified domains configured, allow all (for backward compatibility)
+  if (verified.length === 0) {
+    return true;
+  }
+  
+  // Check if domain is verified
+  return verified.some(v => v.domain === domain && v.status === "verified");
+}
 
 // Check if tenant has feature access (stub - integrate with plan system)
 function hasBrandingFeature(tenantId: string, feature: string): boolean {
@@ -348,28 +369,35 @@ router.put("/api/tenant/branding", brandingPayloadLimit, requiredAuth, async (re
     }
 
     // Check for gated fields that require higher plan
+    // Stronger enforcement: reject ENTIRE request if ANY forbidden field is present
     const attemptedGatedFields = Object.keys(parsed.data).filter(k => GATED_FIELDS.has(k));
     if (attemptedGatedFields.length > 0) {
-      const hasAccess = attemptedGatedFields.every(f => hasBrandingFeature(tenantId, f));
-      if (!hasAccess) {
-        return res.status(403).json({
-          error: "Feature not available on your plan",
-          code: "FEATURE_NOT_ALLOWED",
-          fields: attemptedGatedFields,
-          message: "emailHeaderHtml, emailFooterHtml, and customCss require Pro or WhiteLabel plan",
-        });
+      // Check each gated field and reject on first forbidden one
+      for (const field of attemptedGatedFields) {
+        const featureKey = GATED_FIELD_TO_FEATURE[field as keyof typeof GATED_FIELD_TO_FEATURE];
+        if (!hasBrandingFeature(tenantId, featureKey)) {
+          return res.status(403).json({
+            error: "Feature not available on your plan",
+            code: "FEATURE_NOT_ALLOWED",
+            feature: `branding.${featureKey}`,
+            field: field,
+            message: `${field} requires Pro or WhiteLabel plan. Upgrade to unlock this feature.`,
+          });
+        }
       }
     }
     
     // Validate emailFromAddress against verified domains (if provided)
     const emailFromAddress = (parsed.data as any).emailFromAddress;
-    if (emailFromAddress && VERIFIED_EMAIL_DOMAINS.size > 0) {
+    if (emailFromAddress) {
       const domain = emailFromAddress.split("@")[1];
-      if (!VERIFIED_EMAIL_DOMAINS.has(domain)) {
+      const isVerified = await isEmailDomainVerified(tenantId, domain);
+      if (!isVerified) {
         return res.status(400).json({
           error: "Email domain not verified",
           code: "EMAIL_DOMAIN_NOT_VERIFIED",
-          message: "emailFromAddress must use a verified domain",
+          domain: domain,
+          message: "emailFromAddress must use a verified domain. Add and verify this domain first.",
         });
       }
     }

@@ -1,0 +1,111 @@
+This is in a really good place now. The changes you listed close the most common “branding goes sideways in prod” gaps.
+
+To finish the job and make it truly hard to regress, here are the last pieces I’d put in as release gates (no new questions needed — just implement as-is).
+
+1) Must-add regression tests (locks everything you just added)
+API tests
+
+Canonical shape always returned
+
+GET branding → assert themeTokens.brand exists (even empty)
+
+Priority chain
+
+PUT with primaryColor=#2563eb and themeTokens.brand.primary=#111111
+
+GET + computed CSS vars (or returned effective colors) should reflect token value
+
+Gating enforcement
+
+On Basic plan: PUT emailHeaderHtml → 403 with FEATURE_NOT_ALLOWED + correct feature key
+
+On Pro plan: PUT emailHeaderHtml → 200
+
+Verified domain restriction
+
+PUT emailFromAddress=alerts@gmail.com (unverified) → 400/403 (whichever you chose)
+
+PUT emailFromAddress=no-reply@verified-domain.com → 200
+
+Immutable fields ignored/rejected
+
+PUT includes tenantId or createdAt → 400 (preferred) and no DB change
+
+Tenant isolation
+
+Tenant A tries GET/PUT with Tenant B context → 403/404
+
+UI tests
+
+Locked sections render correctly
+
+branding.email_templates=false → email template controls disabled + upgrade CTA visible
+
+Save persists + reload
+
+Change primary color → save → refresh → still applied
+
+If you already have Jest API tests, these are quick additions and will stop regressions.
+
+2) Make “features” authoritative everywhere (single source of truth)
+
+You now return features from GET. Perfect. Two rules:
+
+Frontend must only decide locks/visibility based on features.
+
+Backend must only decide allow/deny based on features.
+
+No duplicated plan logic in UI. If you haven’t already, remove any frontend “plan name checks” and rely entirely on these flags.
+
+3) Stronger enforcement: partial update behavior
+
+Decide and lock this behavior (then test it):
+
+Recommendation: If a payload contains any forbidden field → reject the entire request (403)
+This avoids confusing “some fields saved, some didn’t” behavior.
+
+Also, return a helpful structure:
+
+{ "error":"FEATURE_NOT_ALLOWED", "feature":"branding.custom_css", "field":"customCss" }
+
+4) Subdomain readiness (since you wanted it)
+
+Now that gating is present, you can safely wire subdomains:
+
+Only allow slug/subdomain_enabled updates when whitelabel.subdomain=true
+
+Middleware: resolve tenant by host → attach tenant context → branding GET includes tenant-specific defaults
+
+Add one test:
+
+Host tenantSlug.mybizstream.com resolves tenant and returns correct branding/features
+
+5) “Verified domain” stub: do one tiny safe thing now
+
+Even before SES/SendGrid is integrated, make the stub behave predictably:
+
+Store verified domains per tenant (even a simple config table):
+
+tenant_verified_domains(tenant_id, domain, status)
+
+Validation: emailFromAddress domain must exist and be verified
+
+If none verified:
+
+allow emailFromName and replyTo, but block fromAddress changes with a clear error
+
+That prevents support tickets later.
+
+6) Release checklist (copy/paste for your QA run)
+
+✅ New tenant: Branding GET returns canonical tokens + features
+
+✅ Basic plan: email templates/custom CSS blocked (UI + API)
+
+✅ Pro plan: email templates editable and sanitized
+
+✅ Colors blue-600 / emerald-600 readable on white text
+
+✅ Tenant isolation verified
+
+✅ Tests passing + added coverage above
