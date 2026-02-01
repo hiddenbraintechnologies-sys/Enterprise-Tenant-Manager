@@ -511,10 +511,6 @@ export default function Settings() {
                 </>
               )}
             </div>
-            
-            <div className="flex justify-end pt-4">
-              <Button data-testid="button-save-settings">Save Changes</Button>
-            </div>
           </CardContent>
         </Card>
 
