@@ -16,6 +16,7 @@ import {
 
 export interface RequireAddonOptions {
   allowGrace?: boolean;
+  allowGraceForReads?: boolean;
   dependencies?: string[];
 }
 
@@ -39,7 +40,7 @@ declare global {
 }
 
 export function requireAddonMiddleware(addonCode: string, options: RequireAddonOptions = {}) {
-  const { allowGrace = true, dependencies = [] } = options;
+  const { allowGrace = true, allowGraceForReads = false, dependencies = [] } = options;
   
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -56,8 +57,13 @@ export function requireAddonMiddleware(addonCode: string, options: RequireAddonO
       
       req.addonEntitlement = entitlement;
       
+      // Determine effective allowGrace based on HTTP method
+      // If allowGraceForReads is true, allow grace for GET/HEAD, deny for writes
+      const isReadMethod = req.method === "GET" || req.method === "HEAD";
+      const effectiveAllowGrace = allowGraceForReads ? isReadMethod : allowGrace;
+      
       if (!entitlement.entitled) {
-        if (entitlement.state === "grace" && !allowGrace) {
+        if (entitlement.state === "grace" && !effectiveAllowGrace) {
           const response: AddonAccessDeniedResponse = {
             error: "ADDON_ACCESS_DENIED",
             code: "ADDON_EXPIRED",
@@ -134,11 +140,15 @@ export function requireAddonMiddleware(addonCode: string, options: RequireAddonO
 }
 
 export function requirePayroll(options: Omit<RequireAddonOptions, "dependencies"> = {}) {
-  return requireAddonMiddleware("payroll", { ...options });
+  return requireAddonMiddleware("payroll", { allowGraceForReads: true, ...options });
 }
 
 export function requireHrms(options: Omit<RequireAddonOptions, "dependencies"> = {}) {
-  return requireAddonMiddleware("hrms", { ...options });
+  return requireAddonMiddleware("hrms", { allowGraceForReads: true, ...options });
+}
+
+export function requireAttendance(options: Omit<RequireAddonOptions, "dependencies"> = {}) {
+  return requireAddonMiddleware("hrms", { allowGraceForReads: true, ...options });
 }
 
 export function requireEmployeeDirectory(options: RequireAddonOptions = {}) {

@@ -45,6 +45,9 @@ export interface HRAccessResult {
   // Employees visible but no create/edit allowed
   isEmployeeReadOnly: boolean;
   readOnlyReason?: string;
+  // Grace period tracking - when true, reads allowed but writes blocked
+  payrollInGrace: boolean;
+  hrmsInGrace: boolean;
 }
 
 export interface EmployeeLimitResult {
@@ -69,6 +72,8 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
     employeeLimit: 0,
     isTrialing: false,
     isEmployeeReadOnly: false,
+    payrollInGrace: false,
+    hrmsInGrace: false,
   };
   
   // Track if tenant previously had payroll (expired/cancelled)
@@ -90,8 +95,11 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
           result.isTrialing = true;
           result.trialEndsAt = entitlement.validUntil;
           result.employeeLimit = PAYROLL_TRIAL_EMPLOYEE_LIMIT;
+        } else if (entitlement.state === "grace") {
+          result.payrollInGrace = true;
+          result.employeeLimit = -1;
         } else {
-          // Any entitled non-trial state (active, grace) gets unlimited employees
+          // Any entitled non-trial state (active) gets unlimited employees
           result.employeeLimit = -1;
         }
         break; // Found valid payroll entitlement
@@ -105,6 +113,9 @@ export async function checkHRAccess(tenantId: string): Promise<HRAccessResult> {
       const entitlement = await getTenantAddonEntitlement(tenantId, variant, { checkDependencies: false });
       if (entitlement.entitled) {
         result.hasHrmsAddon = true;
+        if (entitlement.state === "grace") {
+          result.hrmsInGrace = true;
+        }
         break; // Found valid HRMS entitlement
       }
     }
@@ -244,8 +255,9 @@ export async function checkEmployeeLimit(tenantId: string): Promise<EmployeeLimi
 /**
  * Middleware: Require HR Foundation (Employee Directory) access
  * Allows access if tenant has Payroll OR HRMS add-on installed
+ * Supports allowGraceForReads: allow read operations during grace, block writes
  */
-export function requireEmployeeAccess() {
+export function requireEmployeeAccess(options: { allowGraceForReads?: boolean } = { allowGraceForReads: true }) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -254,12 +266,37 @@ export function requireEmployeeAccess() {
 
     const access = await checkHRAccess(tenantId);
     
+    // Check for grace period and read-only access
+    const isReadMethod = req.method === "GET" || req.method === "HEAD";
+    
+    // Block writes during grace period if allowGraceForReads is enabled
+    const isInGrace = access.payrollInGrace || access.hrmsInGrace;
+    if (isInGrace && options.allowGraceForReads && !isReadMethod) {
+      return res.status(403).json({
+        error: "ADDON_ACCESS_DENIED",
+        code: "ADDON_EXPIRED",
+        message: "Subscription is in grace period. Read-only access allowed. Please renew to make changes.",
+        upgradeUrl: "/my-add-ons",
+      });
+    }
+    
+    // If in read-only mode (expired/cancelled) and attempting a write, block it
+    if (access.isEmployeeReadOnly && !isReadMethod) {
+      return res.status(403).json({
+        error: "ADDON_ACCESS_DENIED",
+        code: "ADDON_EXPIRED",
+        message: "Subscription expired. Read-only access. " + access.readOnlyReason,
+        upgradeUrl: "/my-add-ons",
+      });
+    }
+    
     if (!access.hasEmployeeAccess) {
       return res.status(403).json({
-        error: "Employee directory requires Payroll or HRMS add-on",
-        code: "ADDON_REQUIRED",
+        error: "ADDON_ACCESS_DENIED",
+        code: "ADDON_NOT_INSTALLED",
+        message: "Employee directory requires Payroll or HRMS add-on",
         requiredAddons: ["payroll", "hrms"],
-        upgradeUrl: "/marketplace",
+        upgradeUrl: "/my-add-ons",
       });
     }
 
@@ -273,8 +310,9 @@ export function requireEmployeeAccess() {
  * Middleware: Require full HRMS Suite access
  * Only allows access if tenant has HRMS add-on installed
  * Payroll add-on does NOT grant access to HRMS suite features
+ * Supports allowGraceForReads: allow read operations during grace, block writes
  */
-export function requireHrmsSuiteAccess() {
+export function requireHrmsSuiteAccess(options: { allowGraceForReads?: boolean } = { allowGraceForReads: true }) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -283,12 +321,27 @@ export function requireHrmsSuiteAccess() {
 
     const access = await checkHRAccess(tenantId);
     
+    // Check for write operations during grace period
+    const isReadMethod = req.method === "GET" || req.method === "HEAD";
+    
+    // Block writes during grace period if allowGraceForReads is enabled
+    if (access.hrmsInGrace && options.allowGraceForReads && !isReadMethod) {
+      return res.status(403).json({
+        error: "ADDON_ACCESS_DENIED",
+        code: "ADDON_EXPIRED",
+        addon: "hrms",
+        message: "HRMS subscription is in grace period. Read-only access allowed. Please renew to make changes.",
+        upgradeUrl: "/my-add-ons",
+      });
+    }
+    
     if (!access.hasHrmsSuiteAccess) {
       return res.status(403).json({
-        error: "This feature requires the HRMS add-on",
-        code: "HRMS_ADDON_REQUIRED",
+        error: "ADDON_ACCESS_DENIED",
+        code: "ADDON_NOT_INSTALLED",
+        addon: "hrms",
         requiredAddons: ["hrms"],
-        upgradeUrl: "/marketplace",
+        upgradeUrl: "/my-add-ons",
         message: access.hasPayrollAddon 
           ? "Your Payroll add-on includes employee directory. Upgrade to HRMS for attendance, leave, and timesheet management."
           : "Install the HRMS add-on to access attendance, leave, and timesheet management.",
@@ -304,8 +357,10 @@ export function requireHrmsSuiteAccess() {
  * Middleware: Require Payroll add-on access
  * Only allows access if tenant has Payroll add-on installed
  * HRMS add-on alone does NOT grant payroll access
+ * Payroll requires HRMS as a dependency (payroll → hrms)
+ * Supports allowGraceForReads: allow read operations during grace, block writes
  */
-export function requirePayrollAccess() {
+export function requirePayrollAccess(options: { allowGraceForReads?: boolean; checkDependencies?: boolean } = { allowGraceForReads: true, checkDependencies: true }) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) {
@@ -314,12 +369,52 @@ export function requirePayrollAccess() {
 
     const access = await checkHRAccess(tenantId);
     
-    if (!access.hasPayrollAddon) {
+    // Check for write operations during grace period
+    const isReadMethod = req.method === "GET" || req.method === "HEAD";
+    
+    // Check HRMS dependency if enabled (payroll requires hrms)
+    if (options.checkDependencies !== false && access.hasPayrollAccess) {
+      if (!access.hasHrmsAddon) {
+        return res.status(403).json({
+          error: "ADDON_ACCESS_DENIED",
+          code: "ADDON_DEPENDENCY_MISSING",
+          addon: "payroll",
+          missingDependency: "hrms",
+          message: "Payroll requires HRMS add-on to be installed.",
+          upgradeUrl: "/my-add-ons",
+        });
+      }
+      // Check if HRMS is in grace or expired state
+      if (access.hrmsInGrace && !isReadMethod) {
+        return res.status(403).json({
+          error: "ADDON_ACCESS_DENIED",
+          code: "ADDON_DEPENDENCY_EXPIRED",
+          addon: "payroll",
+          expiredDependency: "hrms",
+          message: "HRMS dependency is in grace period. Please renew HRMS to continue using Payroll.",
+          upgradeUrl: "/my-add-ons",
+        });
+      }
+    }
+    
+    // Block writes during grace period if allowGraceForReads is enabled
+    if (access.payrollInGrace && options.allowGraceForReads && !isReadMethod) {
       return res.status(403).json({
-        error: "This feature requires the Payroll add-on",
-        code: "PAYROLL_ADDON_REQUIRED",
+        error: "ADDON_ACCESS_DENIED",
+        code: "ADDON_EXPIRED",
+        addon: "payroll",
+        message: "Payroll subscription is in grace period. Read-only access allowed. Please renew to make changes.",
+        upgradeUrl: "/my-add-ons",
+      });
+    }
+    
+    if (!access.hasPayrollAccess) {
+      return res.status(403).json({
+        error: "ADDON_ACCESS_DENIED",
+        code: "ADDON_NOT_INSTALLED",
+        addon: "payroll",
         requiredAddons: ["payroll"],
-        upgradeUrl: "/marketplace",
+        upgradeUrl: "/my-add-ons",
         message: access.hasHrmsAddon 
           ? "Your HRMS add-on includes employee management. Add the Payroll add-on for payroll processing."
           : "Install the Payroll add-on to access payroll processing features.",

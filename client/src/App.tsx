@@ -146,6 +146,7 @@ import Packages from "@/pages/packages";
 import Checkout from "@/pages/checkout";
 import BillingAddons from "@/pages/billing-addons";
 import { GatedPage } from "@/components/gating/gated-page";
+import { RequireAddon, RequireEmployeeDirectory, RequireHrms, RequirePayroll } from "@/components/gating/require-addon";
 
 function AuthenticatedRoutes() {
   const { dashboardRoute, businessType } = useTenant();
@@ -504,62 +505,78 @@ function AuthenticatedRoutes() {
       
       <Route path="/hr">
         <ModuleGuard moduleId="hrms">
-          <HrDashboard />
+          <RequireEmployeeDirectory redirectOnDenied>
+            <HrDashboard />
+          </RequireEmployeeDirectory>
         </ModuleGuard>
       </Route>
       <Route path="/hr/employees">
         <ModuleGuard moduleId="hrms">
-          <HrEmployees />
+          <RequireEmployeeDirectory redirectOnDenied>
+            <HrEmployees />
+          </RequireEmployeeDirectory>
         </ModuleGuard>
       </Route>
       <Route path="/hr/attendance">
         <ModuleGuard moduleId="hrms">
-          <HrAttendance />
+          <RequireHrms redirectOnDenied>
+            <HrAttendance />
+          </RequireHrms>
         </ModuleGuard>
       </Route>
       <Route path="/hr/leaves">
         <ModuleGuard moduleId="hrms">
-          <HrLeaves />
+          <RequireHrms redirectOnDenied>
+            <HrLeaves />
+          </RequireHrms>
         </ModuleGuard>
       </Route>
       <Route path="/hr/payroll">
         <ModuleGuard moduleId="hrms">
-          <GatedPage featureKey="payroll" addonCode="payroll">
+          <RequirePayroll redirectOnDenied>
             <HrPayroll />
-          </GatedPage>
+          </RequirePayroll>
         </ModuleGuard>
       </Route>
       <Route path="/hr/pay-runs">
         <ModuleGuard moduleId="hrms">
-          <GatedPage featureKey="payroll" addonCode="payroll">
+          <RequirePayroll redirectOnDenied>
             <HrPayRuns />
-          </GatedPage>
+          </RequirePayroll>
         </ModuleGuard>
       </Route>
       <Route path="/hr/projects">
         <ModuleGuard moduleId="hrms">
-          <GatedPage featureKey="hrms_it_extensions">
-            <HrProjects />
-          </GatedPage>
+          <RequireHrms redirectOnDenied>
+            <GatedPage featureKey="hrms_it_extensions">
+              <HrProjects />
+            </GatedPage>
+          </RequireHrms>
         </ModuleGuard>
       </Route>
       <Route path="/hr/timesheets">
         <ModuleGuard moduleId="hrms">
-          <GatedPage featureKey="hrms_it_extensions">
-            <HrTimesheets />
-          </GatedPage>
+          <RequireHrms redirectOnDenied>
+            <GatedPage featureKey="hrms_it_extensions">
+              <HrTimesheets />
+            </GatedPage>
+          </RequireHrms>
         </ModuleGuard>
       </Route>
       <Route path="/hr/allocations">
         <ModuleGuard moduleId="hrms">
-          <GatedPage featureKey="hrms_it_extensions">
-            <HrAllocations />
-          </GatedPage>
+          <RequireHrms redirectOnDenied>
+            <GatedPage featureKey="hrms_it_extensions">
+              <HrAllocations />
+            </GatedPage>
+          </RequireHrms>
         </ModuleGuard>
       </Route>
       <Route path="/hr/billing">
         <ModuleGuard moduleId="hrms">
-          <HrBilling />
+          <RequireEmployeeDirectory>
+            <HrBilling />
+          </RequireEmployeeDirectory>
         </ModuleGuard>
       </Route>
       <Route path="/not-authorized" component={NotAuthorized} />
