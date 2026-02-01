@@ -39,12 +39,14 @@ These routes require platform admin auth, NOT tenant context.
 **Audited 2026-02-01:** All admin/super-admin routes verified to block tenant users (403).
 Test file: `server/__tests__/admin-route-guards.test.ts` (57 tests passing)
 
-**Test Coverage:**
+**Test Coverage (Representative Sample):**
 - 17 admin endpoints tested (GET and POST methods)
 - 9 super-admin endpoints tested (GET and POST methods)
 - Verifies 401 for unauthenticated requests
 - Verifies 403 for tenant user requests
 - Verifies consistent error response format (code + message)
+
+**Note:** Tests cover representative endpoints from each route file. PATCH/PUT/DELETE methods for specific resource IDs are guarded by the same middleware chain and are not individually enumerated. Mount-level guards in `routes.ts` apply to all sub-routes.
 
 | Route File | Scope | Required Middleware | Status |
 |------------|-------|---------------------|--------|
