@@ -1,8 +1,6 @@
 import { SettingsLayout } from "@/components/settings-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { useTheme } from "@/components/theme-provider";
-import { Palette, Monitor, Sun, Moon } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -10,92 +8,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTheme } from "@/components/theme-provider";
 
 export default function AppearanceSettings() {
   const { theme, setTheme } = useTheme();
 
   return (
     <SettingsLayout title="Appearance">
-      <Card>
-        <CardHeader className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            <CardTitle className="text-lg font-semibold">Appearance</CardTitle>
-          </div>
-          <CardDescription>Choose how MyBizStream looks for you</CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="theme" className="text-sm font-medium">Theme</Label>
-              <p className="text-xs text-muted-foreground">
-                Select light, dark, or follow your system
-              </p>
-            </div>
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-xl font-semibold">Appearance</h1>
+          <p className="text-sm text-muted-foreground">
+            Choose how MyBizStream looks for you
+          </p>
+        </header>
+
+        <Separator />
+
+        {/* Theme Section */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Theme</h2>
+          <div className="max-w-xs">
+            <Label htmlFor="theme" className="sr-only">Theme</Label>
             <Select value={theme} onValueChange={setTheme}>
-              <SelectTrigger className="w-40" data-testid="select-theme">
+              <SelectTrigger data-testid="select-theme">
                 <SelectValue placeholder="Select theme" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="light">
-                  <div className="flex items-center gap-2">
-                    <Sun className="h-4 w-4" />
-                    Light
-                  </div>
-                </SelectItem>
-                <SelectItem value="dark">
-                  <div className="flex items-center gap-2">
-                    <Moon className="h-4 w-4" />
-                    Dark
-                  </div>
-                </SelectItem>
-                <SelectItem value="system">
-                  <div className="flex items-center gap-2">
-                    <Monitor className="h-4 w-4" />
-                    System
-                  </div>
-                </SelectItem>
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+                <SelectItem value="system">System</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground mt-2">
+              Select light, dark, or follow your system preference
+            </p>
           </div>
-
-          <div className="grid grid-cols-3 gap-4 pt-2">
-            <button
-              onClick={() => setTheme("light")}
-              className={`p-4 rounded-lg border-2 transition-colors ${
-                theme === "light" ? "border-primary" : "border-border hover-elevate"
-              }`}
-              data-testid="button-theme-light"
-            >
-              <div className="h-16 rounded bg-white border mb-2" />
-              <p className="text-sm font-medium">Light</p>
-            </button>
-            <button
-              onClick={() => setTheme("dark")}
-              className={`p-4 rounded-lg border-2 transition-colors ${
-                theme === "dark" ? "border-primary" : "border-border hover-elevate"
-              }`}
-              data-testid="button-theme-dark"
-            >
-              <div className="h-16 rounded bg-zinc-900 border border-zinc-700 mb-2" />
-              <p className="text-sm font-medium">Dark</p>
-            </button>
-            <button
-              onClick={() => setTheme("system")}
-              className={`p-4 rounded-lg border-2 transition-colors ${
-                theme === "system" ? "border-primary" : "border-border hover-elevate"
-              }`}
-              data-testid="button-theme-system"
-            >
-              <div className="h-16 rounded overflow-hidden border mb-2 flex">
-                <div className="w-1/2 bg-white" />
-                <div className="w-1/2 bg-zinc-900" />
-              </div>
-              <p className="text-sm font-medium">System</p>
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+        </section>
+      </div>
     </SettingsLayout>
   );
 }

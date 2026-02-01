@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { SettingsLayout } from "@/components/settings-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { useTenant } from "@/contexts/tenant-context";
 import { useToast } from "@/hooks/use-toast";
-import { Building2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,7 +24,6 @@ export default function BusinessSettings() {
 
   const handleSave = async () => {
     setIsSaving(true);
-    // Simulate save
     await new Promise(resolve => setTimeout(resolve, 500));
     setIsSaving(false);
     toast({ title: "Business settings saved." });
@@ -33,49 +31,58 @@ export default function BusinessSettings() {
 
   return (
     <SettingsLayout title="Business">
-      <Card className="rounded-2xl">
-        <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            <CardTitle className="text-lg font-semibold">Business</CardTitle>
-          </div>
-          <CardDescription>Manage your company's operational defaults</CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6 space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-xl font-semibold">Business</h1>
+          <p className="text-sm text-muted-foreground">
+            Configure your business settings
+          </p>
+        </header>
+
+        <Separator />
+
+        {/* Business Profile Section */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Business profile</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="businessName" className="text-sm font-medium">Business name</Label>
+              <Label htmlFor="businessName">Business name</Label>
               <Input
                 id="businessName"
                 defaultValue={tenant?.name || "My Business"}
                 placeholder="Business name"
-                className="w-full"
                 data-testid="input-business-name"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="businessType" className="text-sm font-medium">Business type</Label>
+              <Label htmlFor="businessType">Business type</Label>
               <Input
                 id="businessType"
                 value={getBusinessTypeLabel(tenant?.businessType || "service")}
                 disabled
-                className="bg-muted w-full"
+                className="bg-muted"
                 data-testid="input-business-type"
               />
               <p className="text-xs text-muted-foreground">
-                Business type can't be changed after registration.
+                Can't be changed after registration
               </p>
             </div>
           </div>
-          
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        </section>
+
+        <Separator />
+
+        {/* Regional Settings Section */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Regional settings</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="timezone" className="text-sm font-medium">Time zone</Label>
+              <Label htmlFor="timezone">Time zone</Label>
               <Select 
                 defaultValue="Asia/Kolkata"
                 disabled={businessType === "clinic"}
               >
-                <SelectTrigger className="w-full" data-testid="select-timezone">
+                <SelectTrigger data-testid="select-timezone">
                   <SelectValue placeholder="Select time zone" />
                 </SelectTrigger>
                 <SelectContent side="bottom">
@@ -87,17 +94,17 @@ export default function BusinessSettings() {
               </Select>
               {businessType === "clinic" && (
                 <p className="text-xs text-muted-foreground">
-                  Time zone is locked for healthcare businesses.
+                  Locked for healthcare businesses
                 </p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currency" className="text-sm font-medium">Currency</Label>
+              <Label htmlFor="currency">Currency</Label>
               <Select 
                 defaultValue="INR"
                 disabled={businessType === "clinic"}
               >
-                <SelectTrigger className="w-full" data-testid="select-currency">
+                <SelectTrigger data-testid="select-currency">
                   <SelectValue placeholder="Select currency" />
                 </SelectTrigger>
                 <SelectContent side="bottom">
@@ -109,21 +116,19 @@ export default function BusinessSettings() {
               </Select>
               {businessType === "clinic" && (
                 <p className="text-xs text-muted-foreground">
-                  Currency is locked for healthcare businesses.
+                  Locked for healthcare businesses
                 </p>
               )}
             </div>
           </div>
+        </section>
 
-        </CardContent>
-      </Card>
-      
-      <div className="sticky bottom-0 z-10 -mx-4 sm:mx-0 border-t bg-background/80 backdrop-blur px-4 py-3 sm:rounded-b-2xl sm:relative sm:border-0 sm:bg-transparent sm:backdrop-blur-none sm:px-0 sm:py-0 sm:pt-2">
+        <Separator />
+
         <div className="flex justify-end">
           <Button 
             onClick={handleSave}
             disabled={isSaving}
-            className="w-full sm:w-auto"
             data-testid="button-save-business"
           >
             {isSaving ? "Saving..." : "Save"}

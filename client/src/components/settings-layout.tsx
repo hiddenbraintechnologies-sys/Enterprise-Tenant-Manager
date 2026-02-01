@@ -1,7 +1,6 @@
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { 
   Building2, 
   User, 
@@ -10,17 +9,16 @@ import {
   Shield, 
   Brush,
   Bell,
-  Users,
-  Settings
+  Users
 } from "lucide-react";
 
 interface SettingsLayoutProps {
   children: React.ReactNode;
   title: string;
+  subtitle?: string;
 }
 
 const settingsNavItems = [
-  { href: "/settings", label: "Overview", icon: Settings },
   { href: "/settings/profile", label: "Profile", icon: User },
   { href: "/settings/business", label: "Business", icon: Building2 },
   { href: "/settings/branding", label: "Branding", icon: Brush },
@@ -31,46 +29,48 @@ const settingsNavItems = [
   { href: "/settings/security", label: "Security", icon: Shield },
 ];
 
-export function SettingsLayout({ children, title }: SettingsLayoutProps) {
+export function SettingsLayout({ children, title, subtitle }: SettingsLayoutProps) {
   const [location] = useLocation();
 
   return (
     <DashboardLayout 
-      title={title} 
+      title="Settings" 
       breadcrumbs={[
         { label: "Settings", href: "/settings" },
-        ...(location !== "/settings" ? [{ label: title }] : [])
+        { label: title }
       ]}
     >
-      <div className="flex flex-col lg:flex-row gap-6">
-        <aside className="w-full lg:w-56 shrink-0">
-          <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
+      <div className="flex flex-col lg:flex-row min-h-[calc(100vh-180px)]">
+        {/* Left Settings Nav - Zoho-style */}
+        <aside className="w-full lg:w-56 shrink-0 border-b lg:border-b-0 lg:border-r bg-muted/30">
+          <nav className="flex lg:flex-col gap-0.5 p-2 overflow-x-auto lg:overflow-visible">
             {settingsNavItems.map((item) => {
               const isActive = location === item.href || 
-                (item.href !== "/settings" && location.startsWith(item.href));
+                (location.startsWith(item.href) && item.href !== "/settings");
               const Icon = item.icon;
               
               return (
                 <Link key={item.href} href={item.href}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <div
                     className={cn(
-                      "w-full justify-start gap-3 whitespace-nowrap",
-                      isActive && "bg-primary/10 text-primary"
+                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-pointer transition-colors",
+                      isActive 
+                        ? "bg-primary/10 text-primary" 
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                     data-testid={`nav-settings-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
                     <Icon className="h-4 w-4" />
                     {item.label}
-                  </Button>
+                  </div>
                 </Link>
               );
             })}
           </nav>
         </aside>
         
-        <main className="flex-1 min-w-0">
+        {/* Right Content Panel - Zoho-style */}
+        <main className="flex-1 min-w-0 p-4 lg:p-6 max-w-4xl">
           {children}
         </main>
       </div>

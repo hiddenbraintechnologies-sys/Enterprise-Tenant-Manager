@@ -1,6 +1,4 @@
-import { useState } from "react";
 import { SettingsLayout } from "@/components/settings-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +8,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { Users, Copy, RefreshCw, ExternalLink, Link as LinkIcon } from "lucide-react";
+import { Copy, RefreshCw, ExternalLink } from "lucide-react";
 
 interface PortalSettings {
   id: string;
@@ -39,7 +37,7 @@ export default function PortalSettings() {
       apiRequest("PATCH", "/api/customer-portal/settings", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/settings"] });
-      toast({ title: "Settings updated", description: "Customer portal settings saved." });
+      toast({ title: "Settings updated" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update portal settings.", variant: "destructive" });
@@ -50,7 +48,7 @@ export default function PortalSettings() {
     mutationFn: () => apiRequest("POST", "/api/customer-portal/regenerate-token"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/settings"] });
-      toast({ title: "Token regenerated", description: "A new portal link has been created." });
+      toast({ title: "Token regenerated" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to regenerate token.", variant: "destructive" });
@@ -60,75 +58,79 @@ export default function PortalSettings() {
   const copyPortalLink = () => {
     if (portalSettings?.portalUrl) {
       navigator.clipboard.writeText(portalSettings.portalUrl);
-      toast({ title: "Copied!", description: "Portal link copied to clipboard." });
+      toast({ title: "Copied to clipboard" });
     }
   };
 
   return (
     <SettingsLayout title="Customer Portal">
-      <Card className="rounded-2xl">
-        <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              <CardTitle className="text-lg font-semibold">Customer Portal</CardTitle>
-            </div>
-            {portalSettings && (
-              <Switch
-                checked={portalSettings.isEnabled}
-                onCheckedChange={(checked) =>
-                  updatePortalMutation.mutate({ isEnabled: checked })
-                }
-                disabled={updatePortalMutation.isPending}
-                data-testid="switch-portal-enabled"
-              />
-            )}
+      <div className="space-y-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">Customer Portal</h1>
+            <p className="text-sm text-muted-foreground">
+              Allow customers to view their invoices and bookings
+            </p>
           </div>
-          <CardDescription>
-            Allow customers to view their invoices and bookings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6 space-y-4">
-          {isLoading ? (
-            <div className="py-4 text-center text-sm text-muted-foreground">
-              Loading portal settings...
-            </div>
-          ) : portalSettings ? (
-            <>
-              <div className="space-y-2">
-                <Label>Portal Link</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={portalSettings.portalUrl}
-                    readOnly
-                    className="font-mono text-sm"
-                    data-testid="input-portal-url"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={copyPortalLink}
-                    data-testid="button-copy-portal-link"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => window.open(portalSettings.portalUrl, "_blank")}
-                    data-testid="button-open-portal"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </div>
+          {portalSettings && (
+            <Switch
+              checked={portalSettings.isEnabled}
+              onCheckedChange={(checked) =>
+                updatePortalMutation.mutate({ isEnabled: checked })
+              }
+              disabled={updatePortalMutation.isPending}
+              data-testid="switch-portal-enabled"
+            />
+          )}
+        </header>
+
+        <Separator />
+
+        {isLoading ? (
+          <div className="py-4 text-sm text-muted-foreground">
+            Loading portal settings...
+          </div>
+        ) : portalSettings ? (
+          <>
+            {/* Portal Link Section */}
+            <section className="space-y-4">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Portal link</h2>
+              <div className="flex gap-2">
+                <Input
+                  value={portalSettings.portalUrl}
+                  readOnly
+                  className="font-mono text-sm"
+                  data-testid="input-portal-url"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={copyPortalLink}
+                  data-testid="button-copy-portal-link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => window.open(portalSettings.portalUrl, "_blank")}
+                  data-testid="button-open-portal"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
               </div>
+            </section>
 
-              <Separator />
+            <Separator />
 
+            {/* Permissions Section */}
+            <section className="space-y-4">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Permissions</h2>
+              
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Self Registration</p>
+                    <p className="font-medium">Self registration</p>
                     <p className="text-sm text-muted-foreground">
                       Allow customers to create accounts
                     </p>
@@ -145,7 +147,7 @@ export default function PortalSettings() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Profile Editing</p>
+                    <p className="font-medium">Profile editing</p>
                     <p className="text-sm text-muted-foreground">
                       Allow customers to edit their profile
                     </p>
@@ -162,7 +164,7 @@ export default function PortalSettings() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Invoice Viewing</p>
+                    <p className="font-medium">Invoice viewing</p>
                     <p className="text-sm text-muted-foreground">
                       Allow customers to view invoices
                     </p>
@@ -179,7 +181,7 @@ export default function PortalSettings() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Online Payments</p>
+                    <p className="font-medium">Online payments</p>
                     <p className="text-sm text-muted-foreground">
                       Allow customers to pay online
                     </p>
@@ -194,13 +196,16 @@ export default function PortalSettings() {
                   />
                 </div>
               </div>
+            </section>
 
-              <Separator />
+            <Separator />
 
+            {/* Regenerate Section */}
+            <section className="space-y-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm font-medium">Regenerate Portal Link</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="font-medium">Regenerate portal link</p>
+                  <p className="text-sm text-muted-foreground">
                     This will invalidate the current link
                   </p>
                 </div>
@@ -215,14 +220,14 @@ export default function PortalSettings() {
                   Regenerate
                 </Button>
               </div>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Portal settings not available.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            </section>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Portal settings not available.
+          </p>
+        )}
+      </div>
     </SettingsLayout>
   );
 }
