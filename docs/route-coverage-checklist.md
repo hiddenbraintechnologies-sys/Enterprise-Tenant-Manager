@@ -30,6 +30,16 @@
 - All cross-tenant access tests strictly assert 404 + `RESOURCE_NOT_FOUND`
 - Tests use JWT mint helper for deterministic auth (no bcrypt timing issues)
 
+**Add-on Enforcement Outside HRMS:**
+- Employee Portal (`/api/employee-portal/*`) now requires add-on entitlements:
+  - `/payslips`, `/payslips/:id/pdf` → requires `payroll` add-on
+  - `/attendance` → requires `hrms` add-on
+- `requireEmployeeAddon` middleware aligns with `requireAddonMiddleware`:
+  - Checks entitlement state (active/trial/grace)
+  - Checks dependencies (e.g., payroll requires HRMS)
+  - Uses `allowGraceForReads` for read endpoints
+  - Returns standardized error codes and validUntil
+
 **Usage Pattern:**
 ```typescript
 // In route handler
