@@ -1,0 +1,75 @@
+That’s exactly the outcome you want: DB-layer isolation + HTTP-layer enforcement + docs updated. At this point you’ve effectively “locked in” tenant isolation so future changes can’t quietly introduce leaks.
+
+Here are the next tight, high-value follow-ups (no big rewrites), ordered by impact:
+
+1) Standardize cross-tenant behavior to 404 everywhere
+
+Your HTTP tests accept 404/403. Good for now, but to finish the job:
+
+Make the canonical rule:
+
+403 = user lacks permission within the same tenant
+
+404 = resource not found or belongs to another tenant
+
+Quick win
+
+Add a helper like notFound() / assertTenantOwned() used by all “get by id / update / delete” handlers to avoid drift.
+
+2) Add a “tenant scope lint” guardrail (cheap regression prevention)
+
+Tests are great, but a lightweight static guard catches issues earlier:
+
+Grep check in CI for risky patterns:
+
+where: eq(.*\.id without any tenantId
+
+findFirst / findMany on tenant tables without tenant filter
+
+This doesn’t need to be perfect; it just needs to catch obvious mistakes early.
+
+3) Platform/Admin route audit (your checklist shows “pending”)
+
+Now that tenant scope is locked, the next biggest risk is privilege bypass:
+
+What to verify
+
+All server/routes/admin/* and server/routes/super-admin/* require:
+
+requireAuth
+
+requirePlatformAdmin / requireSuperAdmin
+
+No admin endpoint can be accessed by normal tenant roles.
+
+Any admin endpoint that touches tenant-owned tables must:
+
+either aggregate safely, or
+
+accept an explicit tenantId param and enforce it intentionally.
+
+4) Add-on enforcement completeness outside HRMS
+
+You already completed HRMS. Next is ensuring no “back doors” exist in:
+
+server/routes/addons.ts
+
+server/routes/marketplace/tenant-addons.ts
+
+server/routes/billing/payroll-addon.ts
+
+server/routes/billing/marketplace-addon.ts
+
+server/routes/subscriptions.ts
+
+any “dashboard widgets” that query payroll/hrms tables without add-on checks
+
+Goal: If expired, even dashboard counts don’t leak premium features.
+
+5) CI gate: fail PRs if tenant tests fail
+
+Make the tenant tests a required pre-merge step:
+
+run tenant-isolation.test.ts and tenant-isolation-http.test.ts in CI
+
+treat them as “security regression suite”
