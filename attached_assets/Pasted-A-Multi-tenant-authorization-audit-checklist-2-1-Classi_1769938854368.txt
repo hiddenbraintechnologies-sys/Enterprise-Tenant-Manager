@@ -1,0 +1,315 @@
+A) Multi-tenant authorization audit checklist (#2)
+1) Classify routes by scope
+Platform-level (NOT tenant-scoped; must be super-admin/admin scoped)
+
+These should not require tenant context; they should require platform admin auth/role and must be careful not to touch tenant tables without explicit tenant filters.
+
+server/routes/admin/*
+
+server/routes/super-admin/*
+
+server/routes/admin-billing-offers.ts
+
+server/routes/admin-billing-plans.ts
+
+server/routes/webhooks/* (webhooks are external callbacks; tenant context differs)
+
+server/routes/billing/razorpay-webhooks.ts
+
+server/routes/webhooks/razorpay-marketplace.ts
+
+✅ Audit goal here: ensure these routes cannot be called by normal tenant users and any tenant data queries are always explicitly filtered by tenantId passed as a parameter (or platform-level aggregation with strict permission).
+
+Public (no auth; no tenant context)
+
+server/routes/public.ts
+
+✅ Audit goal: ensure public routes never leak tenant data (e.g., “list tenants”, “list users”, etc.).
+
+Tenant-scoped (MUST have requireAuth + requireTenantContext)
+
+These should be treated as tenant-owned operational APIs:
+
+server/routes/dashboard-api.ts
+
+server/routes/employee-portal.ts
+
+server/routes/tenant-settings.ts
+
+server/routes/services/index.ts
+
+server/routes/subscriptions.ts (likely tenant subscription)
+
+server/routes/addons.ts (if tenant-facing list/install/renew/manage)
+
+server/routes/marketplace/tenant-addons.ts
+
+server/routes/hrms/* (all of it)
+
+server/routes/furniture.ts
+
+server/routes/furniture-guardrails.ts
+
+server/routes/business-registry.ts
+
+server/routes/business-version.ts
+
+server/routes/catalog.ts (depends; if tenant-specific catalog, treat as tenant-scoped; if global product catalog, platform/public)
+
+server/routes/phase3-onboarding.ts (likely tenant onboarding)
+
+server/routes/feature-flags.ts (if tenant flags)
+
+server/routes/feature-registry.ts / module-registry.ts (likely platform/global; check usage)
+
+server/routes/region-lock.ts (likely middleware/guard; ensure it doesn’t leak data)
+
+✅ Audit goal: every handler in these files uses ctx.tenantId in all queries against tenant-owned tables.
+
+2) Required middleware order (standardize)
+
+For all tenant-scoped routers/endpoints:
+
+requireAuth → requireTenantContext → (rbac/permissions) → handler
+
+And for platform/admin routers:
+
+requireAuth → requirePlatformAdmin (or super-admin) → handler
+
+✅ Quick action: create a tiny shared “router factory” or “guard wrapper” so new routes can’t accidentally skip tenant scoping.
+
+3) Drizzle scoping rules (what to grep/fix)
+
+In tenant-owned tables, every:
+
+select
+
+update
+
+delete
+
+must include tenantId in WHERE.
+
+Red flags to search for
+
+eq(table.id, id) without eq(table.tenantId, ctx.tenantId)
+
+findFirst / findMany without tenant filters
+
+update/delete by id only
+
+Recommended helper
+
+tenantWhere(table, ctx, extra) returns and(eq(table.tenantId, ctx.tenantId), extra)
+
+4) Tenant isolation tests (what to implement)
+
+Given your tree, pick representative endpoints across modules:
+
+HRMS employees list + get-by-id + update
+
+Add-ons list/entitlements
+
+Furniture module (if tenant-owned)
+
+Services module (already had tenant isolation tests earlier)
+
+Tests must include
+
+list returns only tenant A records
+
+reading tenant B’s record returns 404 (preferred) or 403
+
+update/delete tenant B’s record fails and doesn’t mutate
+
+B) Add-on enforcement coverage checklist (#3)
+
+You already identified the HRMS routes perfectly. Here’s the exact mapping.
+
+Core principle
+
+API is the source of truth: requireAddon() on all module endpoints.
+
+UI fails closed: while entitlements loading, don’t render protected pages.
+
+Add-ons involved
+
+hrms
+
+payroll (depends on hrms)
+
+C) Where to apply requireAddon() in HRMS routes
+1) server/routes/hrms/employees.ts
+
+Requires: hrms OR payroll
+
+Best approach: allow either entitlement.
+
+Middleware: requireAnyAddon(['hrms','payroll'])
+
+Write endpoints (POST/PUT/DELETE):
+
+allowGrace: false
+
+Read endpoints (GET):
+
+optional allowGrace: true if you want read-only grace; otherwise false.
+
+✅ Coverage note: If payroll depends on hrms for employee master data, you might still want:
+
+hrms required for employee creation/updates
+
+payroll alone may allow read-only employee directory
+That’s a product choice. If you want simplest rule: hrms OR payroll for all employees endpoints.
+
+2) server/routes/hrms/attendance.ts
+
+Requires: hrms only
+
+Middleware: requireAddon('hrms')
+
+Split read/write:
+
+GET maybe allowGrace true (optional)
+
+POST/PUT/DELETE allowGrace false
+
+3) server/routes/hrms/leaves.ts
+
+Requires: hrms only
+
+Middleware: requireAddon('hrms')
+
+Same read/write split.
+
+4) server/routes/hrms/projects.ts
+
+Requires: hrms only
+
+Middleware: requireAddon('hrms')
+
+Same read/write split.
+
+5) server/routes/hrms/payroll.ts
+
+Requires: payroll AND dependency hrms
+
+Middleware: requireAddon('payroll', { dependency: ['hrms'] })
+
+Read/write split:
+
+GET reports: optionally allowGrace true
+
+payroll run / generation / submissions: allowGrace false
+
+✅ Strong suggestion:
+
+Never allow payroll write operations in grace.
+
+6) server/routes/hrms/index.ts
+
+This is the perfect place to apply router-level guards so you don’t miss endpoints.
+
+Pattern:
+
+mount per sub-router with the correct middleware once.
+
+Example mapping:
+
+/hrms/employees → requireAnyAddon(['hrms','payroll'])
+
+/hrms/attendance → requireAddon('hrms')
+
+/hrms/leaves → requireAddon('hrms')
+
+/hrms/projects → requireAddon('hrms')
+
+/hrms/payroll → requireAddon('payroll', { dependency:['hrms'] })
+
+D) Outside HRMS: likely add-on enforcement touchpoints
+
+Based on your tree, these are the other places to ensure enforcement is complete:
+
+Tenant-facing add-on management
+
+server/routes/addons.ts
+
+server/routes/marketplace/tenant-addons.ts
+
+server/routes/billing/entitlements.ts (must remain accessible with auth, tenant context)
+
+✅ Ensure these endpoints:
+
+require auth + tenant context
+
+do NOT allow “Open” without entitlement
+
+return correct entitlement states
+
+Billing add-ons (renew/install)
+
+server/routes/billing/payroll-addon.ts
+
+server/routes/billing/marketplace-addon.ts
+
+server/routes/billing/addon-permissions.ts
+
+✅ Ensure:
+
+renew endpoints use tenant context
+
+checkout session creation validates addonCode + region/currency mapping
+
+returns actionable errors (400 if price not configured vs 500 config)
+
+E) UI route coverage (quick checklist)
+
+Even if backend is perfect, UI should be consistent:
+
+Any route/page that renders:
+
+employees
+
+attendance
+
+leaves
+
+projects
+
+payroll
+…must be wrapped in <RequireAddon> (or equivalent) with the same rules.
+
+And:
+
+sidebar items should be hidden or locked consistently (choose one behavior globally)
+
+never show “Loading” as a status badge (use skeleton)
+
+F) One consolidated Replit prompt that uses your exact tree
+Using this route tree, complete:
+(1) multi-tenant authorization audit and (2) add-on enforcement coverage.
+
+Tenant audit:
+- Classify routes: tenant-scoped vs admin/super-admin vs public vs webhooks.
+- Ensure every tenant-scoped route uses middleware order:
+  requireAuth -> requireTenantContext -> (rbac) -> handler.
+- Audit all Drizzle queries in tenant-owned tables:
+  every select/update/delete must include tenantId filter.
+- Add tenant-isolation.spec.ts to verify tenant A cannot read/update/delete tenant B records (404 preferred).
+
+Add-on enforcement (HRMS module):
+- Apply requireAddon/requireAnyAddon based on:
+  hrms/employees.ts => requireAnyAddon(['hrms','payroll'])
+  hrms/attendance.ts => requireAddon('hrms')
+  hrms/leaves.ts => requireAddon('hrms')
+  hrms/projects.ts => requireAddon('hrms')
+  hrms/payroll.ts => requireAddon('payroll', { dependency:['hrms'] })
+- Split read vs write allowGrace:
+  GET may allowGrace=true (optional), all writes allowGrace=false.
+- Implement router-level mounting in hrms/index.ts so no endpoints are missed.
+- Ensure API returns 403 with correct codes for not entitled/dependency missing.
+- Ensure UI guards exist for those pages and fail closed while entitlements load.
+
+Deliverables:
+- A coverage list: each route file + scope + enforced middleware
+- Tests: tenant isolation + addon enforcement tests passing
