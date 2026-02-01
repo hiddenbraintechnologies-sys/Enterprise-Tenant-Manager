@@ -298,14 +298,14 @@ export async function registerRoutes(
       const hasAuthHeader = Boolean(req.headers.authorization?.startsWith("Bearer "));
       const xTenantId = (req.headers["x-tenant-id"] as string) || null;
       
-      // Check both JWT context (req.context) and Replit auth context (req.user)
+      // Check both JWT context (req.context) and SSO auth context (req.user)
       const jwtContext = req.context;
-      const replitUser = req.user;
+      const ssoUser = req.user;
       
-      const userPresent = Boolean(jwtContext?.user || replitUser);
+      const userPresent = Boolean(jwtContext?.user || ssoUser);
       const jwtUserId = jwtContext?.user?.id;
-      const replitUserId = replitUser?.claims?.sub;
-      const userId = jwtUserId || replitUserId;
+      const ssoUserId = ssoUser?.claims?.sub;
+      const userId = jwtUserId || ssoUserId;
       const maskedUserId = userId ? `...${userId.slice(-6)}` : null;
       
       const tenantIdInContext = jwtContext?.tenant?.id || null;
@@ -323,7 +323,7 @@ export async function registerRoutes(
         origin: req.headers.origin || null,
         // Additional debug info
         jwtUserPresent: Boolean(jwtContext?.user),
-        replitUserPresent: Boolean(replitUser),
+        ssoUserPresent: Boolean(ssoUser),
         tokenPayloadPresent: Boolean(req.tokenPayload),
       });
     });
@@ -334,7 +334,7 @@ export async function registerRoutes(
       const isSessionAuth = Boolean(req.isAuthenticated?.() && req.user);
       
       const context = req.context;
-      const replitUser = req.user;
+      const ssoUser = req.user;
       
       res.json({
         path: req.path,
@@ -346,8 +346,8 @@ export async function registerRoutes(
         contextTenantId: context?.tenant?.id ? `...${context.tenant.id.slice(-6)}` : null,
         contextTenantName: context?.tenant?.name || null,
         contextRole: context?.role?.name || null,
-        replitUserId: replitUser?.claims?.sub ? `...${replitUser.claims.sub.slice(-6)}` : null,
-        replitEmail: replitUser?.claims?.email || replitUser?.email || null,
+        ssoUserId: ssoUser?.claims?.sub ? `...${ssoUser.claims.sub.slice(-6)}` : null,
+        ssoEmail: ssoUser?.claims?.email || ssoUser?.email || null,
         featureCount: context?.features?.length || 0,
       });
     });

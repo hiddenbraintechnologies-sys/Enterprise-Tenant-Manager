@@ -312,10 +312,10 @@ export default function Login() {
                   variant="outline" 
                   className="w-full" 
                   onClick={() => window.location.href = "/api/login"}
-                  data-testid="button-replit-login"
+                  data-testid="button-sso-login"
                 >
                   <Building2 className="mr-2 h-4 w-4" />
-                  Continue with Replit
+                  Continue with SSO
                 </Button>
 
                 <div className="relative">

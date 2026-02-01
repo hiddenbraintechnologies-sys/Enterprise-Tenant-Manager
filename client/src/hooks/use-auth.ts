@@ -148,9 +148,9 @@ async function fetchUser(): Promise<AuthUser | null> {
     return null;
   }
 
-  // Replit Auth fallback - only used when no JWT tokens exist
-  // This is for users who haven't registered yet but might have Replit session
-  console.log("[useAuth] No JWT token, falling back to Replit session auth");
+  // SSO session fallback - only used when no JWT tokens exist
+  // This is for users who haven't registered yet but might have SSO session
+  console.log("[useAuth] No JWT token, falling back to SSO session auth");
   const response = await fetch("/api/auth/user", {
     credentials: "include",
   });
@@ -165,10 +165,10 @@ async function fetchUser(): Promise<AuthUser | null> {
 
   const userData = await response.json();
   
-  // If Replit session is valid, exchange it for JWT tokens for subsequent API calls
+  // If SSO session is valid, exchange it for JWT tokens for subsequent API calls
   // This ensures all API calls work properly with the JWT auth flow
   if (userData && userData.id) {
-    console.log("[useAuth] Replit session valid, exchanging for JWT tokens");
+    console.log("[useAuth] SSO session valid, exchanging for JWT tokens");
     try {
       const exchangeResponse = await fetch("/api/auth/session/exchange", {
         method: "POST",

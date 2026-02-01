@@ -30,7 +30,7 @@ const CONFIG_REQUIREMENTS: ConfigRequirement[] = [
   { name: "JWT_ACCESS_SECRET", required: false, requiredInProduction: true, category: "auth", description: "JWT access token signing secret" },
   { name: "JWT_REFRESH_SECRET", required: false, requiredInProduction: true, category: "auth", description: "JWT refresh token signing secret" },
   { name: "SESSION_SECRET", required: false, requiredInProduction: true, category: "auth", description: "Express session secret" },
-  { name: "REPLIT_DOMAINS", required: false, requiredInProduction: false, category: "auth", description: "Replit domains for OIDC" },
+  { name: "REPLIT_DOMAINS", required: false, requiredInProduction: false, category: "auth", description: "SSO domains for OIDC" },
   { name: "ISSUER_URL", required: false, requiredInProduction: false, category: "auth", description: "OIDC issuer URL" },
   { name: "SENDGRID_API_KEY", required: false, requiredInProduction: false, category: "email", description: "SendGrid API key for email notifications" },
   { name: "RESEND_API_KEY", required: false, requiredInProduction: false, category: "email", description: "Resend API key for email notifications" },

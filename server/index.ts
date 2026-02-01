@@ -90,7 +90,7 @@ export function log(message: string, source = "express") {
 // Legacy response logger removed - replaced by requestLoggerMiddleware
 // which provides correlation IDs and avoids logging response bodies (PII risk)
 
-// Health check endpoint - responds immediately for Replit provisioning
+// Health check endpoint - responds immediately for platform provisioning
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -171,7 +171,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // IMPORTANT: Start server FIRST for Replit health check, then run migrations
+  // IMPORTANT: Start server FIRST for platform health check, then run migrations
   // This prevents provisioning timeout on large applications
   
   const port = parseInt(process.env.PORT || "5000", 10);
@@ -328,7 +328,7 @@ app.use((req, res, next) => {
   startAddonEntitlementSync();
   
   // Server is already listening (started at the top of this async block)
-  // This ensures Replit health checks pass immediately
+  // This ensures platform health checks pass immediately
   } catch (error) {
     console.error("[startup] Fatal initialization error:", error);
     // Don't exit - keep server running so health checks pass

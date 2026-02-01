@@ -27,8 +27,8 @@ const ENV_VARS: EnvVarConfig[] = [
   { name: "NODE_ENV", required: false, requiredInProduction: false, sensitive: false, description: "Node environment (development/production)" },
   { name: "PORT", required: false, requiredInProduction: false, sensitive: false, description: "Server port (default: 5000)" },
   
-  // Replit Auth (optional but recommended)
-  { name: "REPLIT_DOMAINS", required: false, requiredInProduction: false, sensitive: false, description: "Replit domain configuration" },
+  // SSO Auth (optional but recommended)
+  { name: "REPLIT_DOMAINS", required: false, requiredInProduction: false, sensitive: false, description: "SSO domain configuration" },
   { name: "ISSUER_URL", required: false, requiredInProduction: false, sensitive: false, description: "OIDC issuer URL" },
 ];
 

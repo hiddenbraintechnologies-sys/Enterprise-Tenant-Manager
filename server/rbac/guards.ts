@@ -85,7 +85,7 @@ export function requireAuth() {
       return next();
     }
 
-    // Check for session-based authentication (Replit Auth / passport)
+    // Check for session-based authentication (SSO / passport)
     if (req.isAuthenticated && req.isAuthenticated() && req.user) {
       return next();
     }

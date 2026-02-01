@@ -520,7 +520,7 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
     console.log(`[auth-hybrid] Session check for ${req.method} ${req.path}: isAuthenticated=${isAuthenticated}, hasReqUser=${!!req.user}, hasContext=${!!req.context?.user}`);
     
     if (isAuthenticated && req.user) {
-      // Session user data from Replit Auth
+      // Session user data from SSO Auth
       const sessionUser = req.user as any;
       console.log(`[auth-hybrid] Session user data:`, JSON.stringify({
         hasEmail: !!sessionUser.email,
@@ -535,7 +535,7 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
         return next();
       }
       
-      // Try to find the user in our database by email or sub (Replit user ID)
+      // Try to find the user in our database by email or sub (SSO user ID)
       const userEmail = sessionUser.email || sessionUser.claims?.email;
       const userSub = sessionUser.claims?.sub;
       console.log(`[auth-hybrid] Looking up user by email=${userEmail}, sub=${userSub}`);
@@ -589,7 +589,7 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
       }
       
       // User is authenticated via session but not found in our DB
-      // This can happen for new Replit users - allow them through for registration flows
+      // This can happen for new SSO users - allow them through for registration flows
       console.log(`[auth-hybrid] Session user not found in DB, email=${userEmail}`);
       if (options.required) {
         return res.status(401).json({ 

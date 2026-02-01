@@ -150,7 +150,7 @@ export default function Settings() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Profile information is managed through your Replit account.
+              Profile information is managed through your account provider.
             </p>
           </CardContent>
         </Card>
@@ -301,7 +301,7 @@ export default function Settings() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Security settings are managed through your Replit account.
+              Security settings are managed through your account provider.
             </p>
           </CardContent>
         </Card>
