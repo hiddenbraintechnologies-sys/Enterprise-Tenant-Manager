@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink, ChevronRight, Save, RotateCcw } from "lucide-react";
+import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink, ChevronRight, ChevronDown, Save, RotateCcw, Mail } from "lucide-react";
 import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ import {
 import { getBusinessTypeLabel } from "@shared/business-types";
 import { ImageUploader } from "@/components/branding/image-uploader";
 import { TenantBranding, DEFAULT_BRANDING } from "@/contexts/branding-context";
+import { Textarea } from "@/components/ui/textarea";
 
 interface PortalSettings {
   id: string;
@@ -50,6 +51,7 @@ export default function Settings() {
   // Branding section state
   const [brandingFormData, setBrandingFormData] = useState<Partial<TenantBranding>>({});
   const [brandingHasChanges, setBrandingHasChanges] = useState(false);
+  const [advancedBrandingExpanded, setAdvancedBrandingExpanded] = useState(false);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -426,31 +428,85 @@ export default function Settings() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between pt-2">
-                    <Link href="/settings/branding" className="text-sm text-primary hover:underline" data-testid="link-advanced-branding">
-                      Advanced branding options →
-                    </Link>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={handleBrandingReset}
-                        disabled={!brandingHasChanges}
-                        data-testid="button-reset-branding"
-                      >
-                        <RotateCcw className="h-4 w-4 mr-1" />
-                        Reset
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        onClick={handleBrandingSave}
-                        disabled={!brandingHasChanges || updateBrandingMutation.isPending}
-                        data-testid="button-save-branding"
-                      >
-                        <Save className="h-4 w-4 mr-1" />
-                        {updateBrandingMutation.isPending ? "Saving..." : "Save"}
-                      </Button>
+                  <div className="space-y-3 pt-2">
+                    <div 
+                      className="flex items-center justify-between p-2 -mx-2 rounded-lg cursor-pointer hover-elevate"
+                      onClick={() => setAdvancedBrandingExpanded(!advancedBrandingExpanded)}
+                      data-testid="button-toggle-advanced-branding"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Advanced branding options</span>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${advancedBrandingExpanded ? "rotate-180" : ""}`} />
                     </div>
+                    
+                    {advancedBrandingExpanded && (
+                      <div className="space-y-4 p-3 border rounded-lg bg-muted/30" data-testid="section-advanced-branding">
+                        <div>
+                          <p className="text-sm font-medium mb-1">Email Branding</p>
+                          <p className="text-xs text-muted-foreground">Customize email notifications sent to your customers</p>
+                        </div>
+                        
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="emailFromName">From Name</Label>
+                            <Input
+                              id="emailFromName"
+                              value={brandingFormData.emailFromName ?? branding?.emailFromName ?? ""}
+                              onChange={(e) => handleBrandingChange("emailFromName", e.target.value || null)}
+                              placeholder="Your Business Name"
+                              data-testid="input-email-from-name"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="supportEmail">Support Email</Label>
+                            <Input
+                              id="supportEmail"
+                              type="email"
+                              value={brandingFormData.supportEmail ?? branding?.supportEmail ?? ""}
+                              onChange={(e) => handleBrandingChange("supportEmail", e.target.value || null)}
+                              placeholder="support@yourbusiness.com"
+                              data-testid="input-support-email"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="emailSignature">Email Signature</Label>
+                          <Textarea
+                            id="emailSignature"
+                            value={brandingFormData.emailSignature ?? branding?.emailSignature ?? ""}
+                            onChange={(e) => handleBrandingChange("emailSignature", e.target.value || null)}
+                            placeholder="Best regards,&#10;Your Business Team"
+                            className="min-h-[80px] resize-none"
+                            data-testid="textarea-email-signature"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleBrandingReset}
+                      disabled={!brandingHasChanges}
+                      data-testid="button-reset-branding"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Reset
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      onClick={handleBrandingSave}
+                      disabled={!brandingHasChanges || updateBrandingMutation.isPending}
+                      data-testid="button-save-branding"
+                    >
+                      <Save className="h-4 w-4 mr-1" />
+                      {updateBrandingMutation.isPending ? "Saving..." : "Save"}
+                    </Button>
                   </div>
                 </>
               )}
