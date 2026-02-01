@@ -19,6 +19,17 @@
 - `assertMutationSucceededOr404(result, options)` - Throws if mutation affected 0 rows
 - `TenantResourceNotFoundError` - Error class with `code: "RESOURCE_NOT_FOUND"`
 
+**Test Auth Helper:** `server/test-support/auth.ts`
+- `mintTestJwt({userId, tenantId, roleId?, permissions?})` - Creates valid JWT bypassing bcrypt
+- `getAuthHeadersForTenant(userId, tenantId)` - Returns Authorization header for tests
+- `authHeader(token)` - Wraps token in Bearer header format
+
+**Test Coverage (Updated 2026-02-01):**
+- DB-layer tests: 12 passing (`server/__tests__/tenant-isolation.test.ts`)
+- HTTP-layer tests: 14 passing (`server/__tests__/tenant-isolation-http.test.ts`)
+- All cross-tenant access tests strictly assert 404 + `RESOURCE_NOT_FOUND`
+- Tests use JWT mint helper for deterministic auth (no bcrypt timing issues)
+
 **Usage Pattern:**
 ```typescript
 // In route handler

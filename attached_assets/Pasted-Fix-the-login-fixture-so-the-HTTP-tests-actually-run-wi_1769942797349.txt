@@ -1,0 +1,140 @@
+Fix the login fixture so the HTTP tests actually run with real credentials. Right now the contract is “theoretically enforced,” but a skipped suite is a gap you don’t want in a security regression pack.
+
+Below is a copy/paste prompt + the 3 most reliable approaches (pick the one that best matches how your auth works today). I’ll bias toward the fastest + most deterministic option: mint a test session/JWT instead of going through password hashing in every test.
+
+Replit master prompt: unskip HTTP isolation tests by fixing auth fixture
+Problem: HTTP tenant isolation tests are skipped because login fixtures are flaky (password hashing timing). We already enforce 404-only and want these tests to run deterministically in CI.
+
+Goal:
+- Make server/__tests__/tenant-isolation-http.test.ts run reliably with real authentication.
+- Avoid depending on bcrypt timing/salt rounds and avoid slow login flows.
+- Keep behavior as close to production as possible.
+
+Implement ONE of the following stable test auth strategies (prefer #1):
+
+1) Test session/JWT mint helper (preferred)
+- Add a test-only helper that creates an authenticated request context without password hashing:
+  - createTestUser({tenantId, role})
+  - mintTestJwt({userId, tenantId, role}) using the same signing secret as production JWT
+- In supertest requests, set header:
+  Authorization: Bearer <token>
+  OR set the same cookie name your app uses for JWT (HttpOnly cookie) by setting it manually in tests.
+- Ensure tenant context middleware reads tenantId from the token claims or normal flow.
+
+2) Lower bcrypt cost in test env (fallback)
+- In test environment, force bcrypt rounds to a low number (e.g., 4) via env var BCRYPT_ROUNDS=4.
+- Ensure user creation uses the same hash function as login verification.
+- Ensure test user creation awaits the hash fully before inserting.
+
+3) Login shortcut endpoint (test-only) (last resort)
+- Add /api/test/login endpoint enabled only when NODE_ENV === "test".
+- It takes userId/tenantId and sets the auth cookie exactly like real login.
+- Never enabled in production builds.
+
+Implementation requirements:
+- Remove any test skips and make tenant-isolation-http.test.ts run in CI.
+- Add a single helper: getAuthHeadersForTenant(tenantId, role?) used by all HTTP tests.
+- Keep the tests asserting 404 + code="RESOURCE_NOT_FOUND" for cross-tenant access.
+
+Deliverables:
+- Updated auth fixture (server/test-support/auth.ts)
+- tenant-isolation-http.test.ts runs and passes locally + in CI
+- No skipped tests remain
+
+The most reliable solution (recommended): mint token/cookie directly
+If you use Bearer JWT
+
+Create helper:
+
+// server/test-support/auth.ts
+import jwt from "jsonwebtoken";
+
+export function mintTestJwt(payload: { userId: string; tenantId: string; role?: string }) {
+  const secret = process.env.JWT_SECRET!;
+  return jwt.sign(
+    {
+      sub: payload.userId,
+      tenantId: payload.tenantId,
+      role: payload.role ?? "tenant_user",
+    },
+    secret,
+    { expiresIn: "1h" }
+  );
+}
+
+export function authHeader(token: string) {
+  return { Authorization: `Bearer ${token}` };
+}
+
+
+Use in tests:
+
+const tokenA = mintTestJwt({ userId: userA.id, tenantId: tenantA.id });
+await request(app).get("/api/hr/employees").set(authHeader(tokenA)).expect(200);
+
+If you use HttpOnly cookie JWT
+
+Set cookie manually:
+
+export function authCookie(token: string) {
+  const cookieName = process.env.AUTH_COOKIE_NAME ?? "auth";
+  return `${cookieName}=${token}; Path=/; HttpOnly`;
+}
+
+
+Use:
+
+await request(app)
+  .get("/api/hr/employees")
+  .set("Cookie", authCookie(tokenA))
+  .expect(200);
+
+
+This bypasses bcrypt entirely while still exercising:
+
+auth middleware
+
+tenant context middleware
+
+routing + handlers
+
+DB scoping
+
+If you truly need “real credentials” login flow
+
+Then do bcrypt rounds override in tests:
+
+In test env:
+
+BCRYPT_ROUNDS=4 (or 1–4)
+
+Ensure user factory does:
+
+await hash(password, rounds) before insert
+
+Ensure login endpoint uses the same compare function.
+
+This keeps login “real” but can still be slower and sometimes flaky if you’re racing DB inserts.
+
+Strengthening the contract (once fixtures are fixed)
+
+After HTTP tests run, add one more test that catches a very common leak:
+
+✅ dashboard totals isolation
+
+seed 2 employees in tenant A, 5 in tenant B
+
+/api/hr/dashboard for A must show 2 only
+
+You already said you test dashboard; just make sure totals are asserted (not just status).
+
+My call: do the token/cookie mint helper
+
+It’s the cleanest and turns your tenant isolation HTTP suite into a true CI security gate.
+
+If you tell me whether your middleware expects:
+
+Authorization: Bearer ... or
+
+a cookie name (what it’s called),
+I’ll tailor the helper exactly to your codebase pattern (but the above is usually enough to implement immediately).
