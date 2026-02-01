@@ -272,53 +272,6 @@ export default function Settings() {
               </div>
             </div>
             
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="timezone">Timezone</Label>
-                <Select 
-                  defaultValue="Asia/Kolkata"
-                  disabled={businessType === "clinic"}
-                >
-                  <SelectTrigger data-testid="select-timezone">
-                    <SelectValue placeholder="Select timezone" />
-                  </SelectTrigger>
-                  <SelectContent side="bottom">
-                    <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
-                    <SelectItem value="America/New_York">America/New York (EST)</SelectItem>
-                    <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
-                    <SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {businessType === "clinic" && (
-                  <p className="text-xs text-muted-foreground">
-                    Timezone is locked after registration for Clinic/Healthcare.
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="currency">Currency</Label>
-                <Select 
-                  defaultValue="INR"
-                  disabled={businessType === "clinic"}
-                >
-                  <SelectTrigger data-testid="select-currency">
-                    <SelectValue placeholder="Select currency" />
-                  </SelectTrigger>
-                  <SelectContent side="bottom">
-                    <SelectItem value="INR">INR (₹)</SelectItem>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="EUR">EUR (€)</SelectItem>
-                    <SelectItem value="GBP">GBP (£)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {businessType === "clinic" && (
-                  <p className="text-xs text-muted-foreground">
-                    Currency is locked after registration for Clinic/Healthcare.
-                  </p>
-                )}
-              </div>
-            </div>
-            
             <div className="space-y-3">
               <div 
                 className="flex items-center justify-between p-3 -mx-3 rounded-lg cursor-pointer hover-elevate"
@@ -468,6 +421,52 @@ export default function Settings() {
               )}
             </div>
             
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select 
+                  defaultValue="Asia/Kolkata"
+                  disabled={businessType === "clinic"}
+                >
+                  <SelectTrigger data-testid="select-timezone">
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent side="bottom">
+                    <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
+                    <SelectItem value="America/New_York">America/New York (EST)</SelectItem>
+                    <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
+                    <SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {businessType === "clinic" && (
+                  <p className="text-xs text-muted-foreground">
+                    Timezone is locked after registration for Clinic/Healthcare.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Select 
+                  defaultValue="INR"
+                  disabled={businessType === "clinic"}
+                >
+                  <SelectTrigger data-testid="select-currency">
+                    <SelectValue placeholder="Select currency" />
+                  </SelectTrigger>
+                  <SelectContent side="bottom">
+                    <SelectItem value="INR">INR (₹)</SelectItem>
+                    <SelectItem value="USD">USD ($)</SelectItem>
+                    <SelectItem value="EUR">EUR (€)</SelectItem>
+                    <SelectItem value="GBP">GBP (£)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {businessType === "clinic" && (
+                  <p className="text-xs text-muted-foreground">
+                    Currency is locked after registration for Clinic/Healthcare.
+                  </p>
+                )}
+              </div>
+            </div>
             <div className="flex justify-end pt-4">
               <Button data-testid="button-save-settings">Save Changes</Button>
             </div>
