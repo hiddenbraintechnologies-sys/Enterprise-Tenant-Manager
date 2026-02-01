@@ -13,6 +13,7 @@ import type { Request, Response, NextFunction } from "express";
 import { db } from "../db";
 import { platformAdmins, platformAdminCountryAssignments, tenants } from "@shared/schema";
 import { eq, inArray } from "drizzle-orm";
+import { auditDeniedAccessFromReq } from "../core/denied-access-audit";
 import {
   Permissions,
   ROLE_DEFINITIONS,
@@ -111,6 +112,7 @@ export function requirePermission(permission: Permission) {
 
       // Check if role has the required permission
       if (!hasPermission(role, permission)) {
+        auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "INSUFFICIENT_PERMISSIONS");
         return res.status(403).json({ 
           message: "Insufficient permissions",
           code: "FORBIDDEN",
@@ -134,6 +136,7 @@ export function requirePermission(permission: Permission) {
         return next();
       }
 
+      auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "INSUFFICIENT_PERMISSIONS");
       return res.status(403).json({ 
         message: "Insufficient permissions",
         code: "FORBIDDEN",
@@ -142,6 +145,7 @@ export function requirePermission(permission: Permission) {
     }
 
     // No authenticated context
+    auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "NOT_AUTHENTICATED");
     return res.status(403).json({ 
       message: "Authentication required",
       code: "NOT_AUTHENTICATED"
@@ -188,6 +192,7 @@ export function requireAnyPermission(...permissions: Permission[]) {
       const hasAny = permissions.some(perm => hasPermission(role, perm));
 
       if (!hasAny) {
+        auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "INSUFFICIENT_PERMISSIONS");
         return res.status(403).json({ 
           message: "Insufficient permissions",
           code: "FORBIDDEN",
@@ -214,6 +219,7 @@ export function requireAnyPermission(...permissions: Permission[]) {
         return next();
       }
 
+      auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "INSUFFICIENT_PERMISSIONS");
       return res.status(403).json({ 
         message: "Insufficient permissions",
         code: "FORBIDDEN",
@@ -221,6 +227,7 @@ export function requireAnyPermission(...permissions: Permission[]) {
       });
     }
 
+    auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "NOT_AUTHENTICATED");
     return res.status(403).json({ 
       message: "Authentication required",
       code: "NOT_AUTHENTICATED"
@@ -246,6 +253,7 @@ export function requireSuperAdminOnly() {
 
     // Only PLATFORM_SUPER_ADMIN role passes
     if (role !== PLATFORM_ROLES.SUPER_ADMIN) {
+      auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "SUPER_ADMIN_ONLY");
       return res.status(403).json({ 
         message: "Super admin access required",
         code: "FORBIDDEN_SUPER_ADMIN_ONLY"
@@ -275,6 +283,7 @@ export function requireTenantAdmin() {
     const isAdmin = ["admin", "owner", "tenant_admin"].includes(roleName);
 
     if (!isAdmin) {
+      auditDeniedAccessFromReq("ACCESS_DENIED_ADMIN", req, "TENANT_ADMIN_REQUIRED");
       return res.status(403).json({ 
         message: "Tenant admin access required",
         code: "TENANT_ADMIN_REQUIRED"

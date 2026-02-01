@@ -13,6 +13,7 @@ import {
   checkDependencyEntitlement,
   type AddonEntitlement 
 } from "../services/entitlement";
+import { auditDeniedAccessFromReq } from "../core/denied-access-audit";
 
 export interface RequireAddonOptions {
   allowGrace?: boolean;
@@ -74,6 +75,7 @@ export function requireAddonMiddleware(addonCode: string, options: RequireAddonO
           };
           
           console.log(`[require-addon] Access denied for tenant ${tenantId}, addon ${addonCode}: grace period not allowed`);
+          auditDeniedAccessFromReq("ACCESS_DENIED_ADDON", req, "ADDON_EXPIRED", { addonCode });
           return res.status(403).json(response);
         }
         
@@ -103,6 +105,7 @@ export function requireAddonMiddleware(addonCode: string, options: RequireAddonO
         };
         
         console.log(`[require-addon] Access denied for tenant ${tenantId}, addon ${addonCode}: ${entitlement.reasonCode}`);
+        auditDeniedAccessFromReq("ACCESS_DENIED_ADDON", req, errorCode, { addonCode });
         return res.status(403).json(response);
       }
       
@@ -125,6 +128,7 @@ export function requireAddonMiddleware(addonCode: string, options: RequireAddonO
         };
         
         console.log(`[require-addon] Access denied for tenant ${tenantId}: dependency ${depCode} not satisfied`);
+        auditDeniedAccessFromReq("ACCESS_DENIED_ADDON", req, response.code, { addonCode, dependency: depCode });
         return res.status(403).json(response);
       }
       
@@ -180,6 +184,7 @@ export function requireEmployeeDirectory(options: RequireAddonOptions = {}) {
       };
       
       console.log(`[require-addon] Employee directory access denied for tenant ${tenantId}`);
+      auditDeniedAccessFromReq("ACCESS_DENIED_ADDON", req, "ADDON_NOT_INSTALLED", { addonCode: "hrms" });
       return res.status(403).json(response);
     } catch (error) {
       console.error("[require-addon] Employee directory middleware error:", error);

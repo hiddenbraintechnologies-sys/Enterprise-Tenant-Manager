@@ -11,7 +11,8 @@
  * @module server/utils/assert-tenant-owned
  */
 
-import { Response } from "express";
+import { Request, Response } from "express";
+import { auditDeniedAccessFromReq } from "../core/denied-access-audit";
 
 export interface NotFoundOptions {
   resourceName?: string;
@@ -104,11 +105,14 @@ export function sendNotFound(res: Response, resourceName?: string): void {
  */
 export function handleTenantNotFoundError(
   err: Error,
-  _req: any,
+  req: Request,
   res: Response,
   next: any
 ): void {
   if (err instanceof TenantResourceNotFoundError) {
+    auditDeniedAccessFromReq("ACCESS_DENIED_TENANT", req, "RESOURCE_NOT_FOUND", {
+      resourceType: err.message,
+    });
     res.status(404).json({
       error: err.message,
       code: err.code

@@ -1,0 +1,115 @@
+That’s a seriously strong security posture now. You’ve covered the big three risk surfaces (tenant isolation, admin boundaries, entitlement gating) and you’ve backed them with tests and guardrails.
+
+Given your “optional hardening” list, here’s the order I’d do them in, with copy/paste prompts you can run immediately:
+
+Wire the lint script into CI as a required check (fastest, biggest leverage)
+
+Audit logs for denied access (useful for incident response + spotting abuse)
+
+Mutation fuzz tests (great regression net, but optional once CI gate is tight)
+
+1) Wire lint-tenant-isolation.sh into CI (required)
+What “good” looks like
+
+Script runs on every PR/commit
+
+Fails the build if it finds high-confidence risky patterns
+
+Outputs a clear list of file+line matches
+
+Prompt (copy/paste)
+Wire scripts/lint-tenant-isolation.sh into CI as a required check.
+
+Tasks:
+1) Add a package.json script:
+   "lint:tenant-isolation": "bash ./scripts/lint-tenant-isolation.sh"
+
+2) Add CI step before tests:
+   - Run lint:tenant-isolation
+   - If it exits non-zero, fail CI
+
+3) Improve script behavior:
+   - Exit 1 if matches found (unless explicitly in allowlist)
+   - Print file:line:match format
+   - Add an allowlist mechanism (optional):
+     - scripts/tenant-isolation-allowlist.txt
+     - ignore matches in explicitly approved lines/files
+
+Deliverables:
+- CI updated (GitHub Actions / your pipeline)
+- Clear failure output
+- Document in docs/security.md
+
+
+Tip: keep the script strict on tenant-owned tables only (which you already do).
+
+2) Audit logs for denied cross-tenant/admin/add-on attempts
+Why this is worth it
+
+You’ll see early signs of probing / IDOR attempts
+
+Helps debugging “why did I get blocked?”
+
+Supports compliance narratives later
+
+Minimal, safe logging policy
+
+Log metadata only (no sensitive payloads):
+
+eventType: ACCESS_DENIED_TENANT, ACCESS_DENIED_ADDON, ACCESS_DENIED_ADMIN
+
+tenantId, userId
+
+route, method, resourceType, resourceId (if present)
+
+reasonCode (RESOURCE_NOT_FOUND, ADDON_EXPIRED, etc.)
+
+ip, userAgent
+
+timestamp
+
+Add rate limiting (avoid log spam): e.g., 1 per user per minute per route.
+
+Prompt (copy/paste)
+Add audit logging for denied access attempts (tenant isolation, addon gating, admin guard).
+
+Tasks:
+1) Implement auditLogDeniedAccess(ctx, req, details) using existing audit_logs table.
+2) Hook points:
+   - TenantResourceNotFoundError thrown due to tenant-scoped lookup => log ACCESS_DENIED_TENANT (rate-limited)
+   - requireAddon middleware failures => log ACCESS_DENIED_ADDON with addonCode + dependency
+   - admin/super-admin guard failures => log ACCESS_DENIED_ADMIN
+3) Ensure logs are safe:
+   - no request body stored
+   - only ids, route, reason codes
+4) Add tests:
+   - one test verifying an addon denial inserts audit log row
+   - one test verifying admin denial inserts row
+5) Add config:
+   - ENABLE_DENIED_ACCESS_AUDIT_LOGS=true (default on in prod, off in local dev)
+
+3) Mutation fuzz tests (random tenant/id combinations)
+How to do it without making tests flaky
+
+Use a seeded RNG so runs are deterministic
+
+Only target a small set of canonical endpoints (employees/departments + one premium route)
+
+Run 50–200 iterations; keep it quick
+
+Prompt (copy/paste)
+Add deterministic mutation fuzz tests for tenant isolation and entitlement enforcement.
+
+Tasks:
+1) Create server/__tests__/security-fuzz.test.ts
+2) Seed:
+   - Tenant A and B
+   - 5 employees each
+   - 2 departments each
+3) Use seeded RNG (fixed seed) to generate random operations:
+   - GET /api/hr/employees/:id using mixed tenant/id pairs
+   - PATCH/DELETE on ids not belonging to requester tenant
+4) Assert:
+   - Always 404 (RESOURCE_NOT_FOUND) for cross-tenant
+   - DB unchanged after denied mutations
+5) Keep runtime < 3 seconds

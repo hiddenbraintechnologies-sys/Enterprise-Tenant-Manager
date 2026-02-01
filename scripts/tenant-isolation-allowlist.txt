@@ -1,0 +1,121 @@
+# Tenant Isolation Allowlist
+#
+# Add patterns here to exclude from lint checks.
+# Format: file:line or file: (to exclude entire file)
+#
+# Lines starting with # are comments
+
+# ============================================
+# Employee Portal Routes
+# ============================================
+# These routes validate tenantId via session/JWT before accessing records
+# The employeeId comes from the validated session, not user input
+server/routes/employee-portal.ts:76
+server/routes/employee-portal.ts:225
+server/routes/employee-portal.ts:301
+
+# ============================================
+# Billing/Marketplace Addon Routes  
+# ============================================
+# These update by primary key AFTER fetching with tenantId scoping
+# Pattern: fetch with tenantId -> get ID -> update by ID
+server/routes/billing/marketplace-addon.ts:189
+server/routes/billing/marketplace-addon.ts:235
+server/routes/billing/marketplace-addon.ts:284
+server/routes/billing/marketplace-addon.ts:322
+server/routes/billing/marketplace-addon.ts:367
+server/routes/billing/marketplace-addon.ts:417
+server/routes/billing/marketplace-addon.ts:492
+server/routes/billing/marketplace-addon.ts:511
+server/routes/billing/marketplace-addon.ts:574
+
+# ============================================
+# Razorpay Webhooks
+# ============================================
+# Webhooks lookup subscription by Razorpay ID (which includes tenant context)
+# then update the matching tenantAddon record by its primary key
+server/routes/billing/razorpay-webhooks.ts:193
+server/routes/billing/razorpay-webhooks.ts:262
+server/routes/billing/razorpay-webhooks.ts:350
+server/routes/billing/razorpay-webhooks.ts:399
+
+# ============================================
+# Entitlements Routes
+# ============================================
+# Entitlement sync jobs lookup by tenantId first, then update by primary key
+server/routes/billing/entitlements.ts:220
+server/routes/billing/entitlements.ts:263
+server/routes/billing/entitlements.ts:446
+
+# ============================================
+# Razorpay Marketplace Webhooks
+# ============================================
+# Webhook handlers validate subscription ownership before updating
+server/routes/webhooks/razorpay-marketplace.ts:132
+server/routes/webhooks/razorpay-marketplace.ts:152
+server/routes/webhooks/razorpay-marketplace.ts:165
+server/routes/webhooks/razorpay-marketplace.ts:180
+server/routes/webhooks/razorpay-marketplace.ts:194
+server/routes/webhooks/razorpay-marketplace.ts:218
+server/routes/webhooks/razorpay-marketplace.ts:264
+
+# ============================================
+# Subscription Service
+# ============================================
+# Internal service that fetches by tenantId first, then updates by ID
+server/services/subscription.ts:316
+server/services/subscription.ts:365
+
+# ============================================
+# Billing Routes - Subscription Updates
+# ============================================
+# These routes are protected by requireTenantContext middleware
+# and fetch subscription with tenantId before updating by ID
+server/routes/billing.ts:
+
+# ============================================
+# Registry Routes (Platform Admin Only)
+# ============================================
+# These are platform-level registries, not tenant-scoped
+# Protected by super-admin middleware
+server/routes/business-registry.ts:
+server/routes/module-registry.ts:
+server/routes/feature-registry.ts:
+
+# ============================================
+# Furniture Module Routes
+# ============================================
+# Protected by requireTenantContext, fetch with tenantId before mutations
+server/routes/furniture.ts:
+
+# ============================================
+# Services Module Routes
+# ============================================
+# Protected by requireTenantContext middleware
+server/routes/services/index.ts:
+
+# ============================================
+# Marketplace Tenant Addons Routes
+# ============================================
+# These routes are protected by requireTenantContext
+# and fetch addons with tenantId before updating by ID
+server/routes/marketplace/tenant-addons.ts:
+
+# ============================================
+# Addon Lifecycle Service
+# ============================================
+# Internal service that receives tenantId in function params
+# and fetches with tenantId before updating by ID
+server/services/addon-lifecycle.ts:
+
+# ============================================
+# Entitlement Service
+# ============================================
+# Internal service that fetches by tenantId, then updates by primary key
+server/services/entitlement.ts:
+
+# ============================================
+# Payroll Addon Routes
+# ============================================
+# Protected by requireTenantContext, fetches with tenantId first
+server/routes/billing/payroll-addon.ts:
