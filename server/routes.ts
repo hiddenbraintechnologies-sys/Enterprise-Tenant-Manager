@@ -1007,6 +1007,9 @@ export async function registerRoutes(
           slug: newTenant.slug,
           businessType: newTenant.businessType,
           country: newTenant.country,
+          region: newTenant.region,
+          currency: newTenant.currency,
+          timezone: newTenant.timezone,
         },
       });
     } catch (error: any) {
@@ -1591,8 +1594,12 @@ export async function registerRoutes(
             name: t.name, 
             slug: t.slug,
             country: t.country,
+            region: t.region,
+            currency: t.currency,
+            timezone: t.timezone,
             businessType: t.businessType,
             isDefault: ut.isDefault,
+            onboardingCompleted: t.onboardingCompleted,
           } : null;
         })
       );
