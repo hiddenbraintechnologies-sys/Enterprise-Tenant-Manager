@@ -309,8 +309,6 @@ export default function Settings() {
                     <SelectItem value="USD">USD ($)</SelectItem>
                     <SelectItem value="EUR">EUR (€)</SelectItem>
                     <SelectItem value="GBP">GBP (£)</SelectItem>
-                    <SelectItem value="AED">AED (د.إ)</SelectItem>
-                    <SelectItem value="MYR">MYR (RM)</SelectItem>
                   </SelectContent>
                 </Select>
                 {businessType === "clinic" && (
@@ -469,6 +467,7 @@ export default function Settings() {
                 </div>
               )}
             </div>
+            
             <div className="flex justify-end pt-4">
               <Button data-testid="button-save-settings">Save Changes</Button>
             </div>
