@@ -95,7 +95,15 @@ const GATED_FIELD_TO_FEATURE = {
 
 import { tenantVerifiedDomains, tenants } from "@shared/schema";
 
-// Helper to check if a domain is verified for a tenant (case-insensitive)
+/**
+ * Email Domain Verification
+ * 
+ * DESIGN DECISION: Fail-open when no verified domains configured
+ * - This is intentional for backward compatibility during feature rollout
+ * - Tenants can opt into strict mode by adding verified domains
+ * - Once ANY verified domain exists, strict mode is enforced for that tenant
+ * - Enterprise customers can require this via onboarding checklist
+ */
 async function isEmailDomainVerified(tenantId: string, domain: string): Promise<boolean> {
   const verified = await db
     .select()
@@ -103,8 +111,8 @@ async function isEmailDomainVerified(tenantId: string, domain: string): Promise<
     .where(eq(tenantVerifiedDomains.tenantId, tenantId))
     .limit(100);
   
-  // If no verified domains configured, allow all (for backward compatibility during rollout)
-  // This is intentional - tenants can configure verified domains to enforce strict mode
+  // Fail-open when no domains configured (backward compatibility)
+  // Strict mode is automatically enabled when tenant adds first verified domain
   if (verified.length === 0) {
     return true;
   }
@@ -116,14 +124,21 @@ async function isEmailDomainVerified(tenantId: string, domain: string): Promise<
   );
 }
 
-// Tenant plan cache for feature checks (5 min TTL)
+/**
+ * Plan-Based Feature Gating
+ * 
+ * DESIGN DECISION: Simple plan tier check with caching
+ * - Pro, Business, Enterprise, WhiteLabel plans get all gated branding features
+ * - Cache with 5-min TTL reduces database load
+ * - Always uses async path (no sync fail-closed fallback)
+ * - Future: integrate with feature flags for per-feature granularity
+ */
 const planCache = new Map<string, { plan: string; expiresAt: number }>();
 const PLAN_CACHE_TTL = 5 * 60 * 1000;
 
 // Plans that have access to gated branding features
 const PRO_PLANS = new Set(["pro", "business", "enterprise", "whitelabel"]);
 
-// Check if tenant has feature access based on their plan
 async function hasBrandingFeatureAsync(tenantId: string, feature: string): Promise<boolean> {
   const now = Date.now();
   const cached = planCache.get(tenantId);
@@ -133,7 +148,7 @@ async function hasBrandingFeatureAsync(tenantId: string, feature: string): Promi
   if (cached && now < cached.expiresAt) {
     planTier = cached.plan;
   } else {
-    // Fetch tenant plan from database
+    // Always fetch from database when cache miss (no fail-closed)
     const tenant = await db
       .select({ planTier: tenants.planTier })
       .from(tenants)
@@ -146,15 +161,6 @@ async function hasBrandingFeatureAsync(tenantId: string, feature: string): Promi
   
   // All gated branding features require Pro or higher plan
   return PRO_PLANS.has(planTier.toLowerCase());
-}
-
-// Synchronous version for immediate checks (uses cache only, returns false if not cached)
-function hasBrandingFeature(tenantId: string, feature: string): boolean {
-  const cached = planCache.get(tenantId);
-  if (!cached || Date.now() >= cached.expiresAt) {
-    return false; // Fail-closed when cache miss
-  }
-  return PRO_PLANS.has(cached.plan.toLowerCase());
 }
 
 // Branding features for API response
