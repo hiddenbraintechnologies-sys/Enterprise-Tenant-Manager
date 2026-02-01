@@ -17,19 +17,19 @@ export default function AppearanceSettings() {
   return (
     <SettingsLayout title="Appearance">
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-1">
           <div className="flex items-center gap-2">
             <Palette className="h-5 w-5" />
-            <CardTitle className="text-lg font-medium">Appearance</CardTitle>
+            <CardTitle className="text-lg font-semibold">Appearance</CardTitle>
           </div>
-          <CardDescription>Customize how MyBizStream looks</CardDescription>
+          <CardDescription>Choose how MyBizStream looks for you</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="theme">Theme</Label>
-              <p className="text-sm text-muted-foreground">
-                Choose your preferred color scheme
+            <div className="space-y-1">
+              <Label htmlFor="theme" className="text-sm font-medium">Theme</Label>
+              <p className="text-xs text-muted-foreground">
+                Select light, dark, or follow your system
               </p>
             </div>
             <Select value={theme} onValueChange={setTheme}>
@@ -59,7 +59,7 @@ export default function AppearanceSettings() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 pt-4">
+          <div className="grid grid-cols-3 gap-4 pt-2">
             <button
               onClick={() => setTheme("light")}
               className={`p-4 rounded-lg border-2 transition-colors ${

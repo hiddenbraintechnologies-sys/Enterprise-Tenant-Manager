@@ -210,10 +210,10 @@ export default function BrandingSettings() {
   return (
     <SettingsLayout title="Branding">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
             <h1 className="text-2xl font-bold">Branding</h1>
-            <p className="text-muted-foreground">Logo, colors, and communication identity</p>
+            <p className="text-sm text-muted-foreground">Customize your company identity across the platform</p>
           </div>
           <div className="flex items-center gap-2">
             <Button 
@@ -230,31 +230,30 @@ export default function BrandingSettings() {
               disabled={!hasChanges || updateMutation.isPending}
               data-testid="button-save-branding"
             >
-              <Save className="h-4 w-4 mr-2" />
-              {updateMutation.isPending ? "Saving..." : "Save Changes"}
+              {updateMutation.isPending ? "Saving..." : "Save"}
             </Button>
           </div>
         </div>
         
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
+            <Card className="rounded-2xl">
+              <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
                 <div className="flex items-center gap-2">
                   <Image className="h-5 w-5" />
-                  <CardTitle className="text-lg font-medium">Company Identity</CardTitle>
+                  <CardTitle className="text-lg font-semibold">Logo & icon</CardTitle>
                 </div>
-                <CardDescription>Upload your logo and favicon</CardDescription>
+                <CardDescription>Upload a logo and favicon for your workspace</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-6 sm:grid-cols-2">
+              <CardContent className="p-4 sm:p-6 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ImageUploader
                     label="Logo"
                     type="logo"
                     value={formData.logoUrl || null}
                     onChange={(url) => updateField("logoUrl", url)}
                     acceptTypes="image/png"
-                    description="PNG only, max 1MB"
+                    description="PNG • up to 1 MB • recommended 200×50+"
                     previewClassName="h-12 max-w-[200px]"
                   />
                   <ImageUploader
@@ -263,40 +262,37 @@ export default function BrandingSettings() {
                     value={formData.faviconUrl || null}
                     onChange={(url) => updateField("faviconUrl", url)}
                     acceptTypes="image/png,image/x-icon,image/vnd.microsoft.icon"
-                    description="PNG or ICO, max 200KB"
+                    description="PNG/ICO • up to 200 KB • recommended 32×32"
                     previewClassName="h-8 w-8"
                   />
                 </div>
               </CardContent>
             </Card>
             
-            <Card>
-              <CardHeader>
+            <Card className="rounded-2xl">
+              <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
                 <div className="flex items-center gap-2">
                   <Palette className="h-5 w-5" />
-                  <CardTitle className="text-lg font-medium">Brand Colors</CardTitle>
+                  <CardTitle className="text-lg font-semibold">Brand colors</CardTitle>
                 </div>
-                <CardDescription>Define your brand color palette</CardDescription>
+                <CardDescription>Used in buttons, highlights, and emails</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="p-4 sm:p-6 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <ColorPicker
-                    label="Primary Color"
+                    label="Primary"
                     value={formData.primaryColor || DEFAULT_BRANDING.primaryColor!}
                     onChange={(val) => updateField("primaryColor", val)}
-                    description="Main brand color for buttons and links"
                   />
                   <ColorPicker
-                    label="Secondary Color"
+                    label="Secondary"
                     value={formData.secondaryColor || DEFAULT_BRANDING.secondaryColor!}
                     onChange={(val) => updateField("secondaryColor", val)}
-                    description="Complementary color for highlights"
                   />
                   <ColorPicker
-                    label="Accent Color"
+                    label="Accent"
                     value={formData.accentColor || DEFAULT_BRANDING.accentColor!}
                     onChange={(val) => updateField("accentColor", val)}
-                    description="Used for badges and accents"
                   />
                 </div>
                 
@@ -309,21 +305,21 @@ export default function BrandingSettings() {
                     onClick={handleResetToDefaults}
                     data-testid="button-reset-colors"
                   >
-                    Reset to Default Colors
+                    Reset to defaults
                   </Button>
                 </div>
               </CardContent>
             </Card>
             
-            <Card>
-              <CardHeader>
+            <Card className="rounded-2xl">
+              <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
                 <div className="flex items-center gap-2">
                   <Mail className="h-5 w-5" />
-                  <CardTitle className="text-lg font-medium">Email Branding</CardTitle>
+                  <CardTitle className="text-lg font-semibold">Email branding</CardTitle>
                 </div>
-                <CardDescription>Customize email notifications sent to your customers</CardDescription>
+                <CardDescription>Customize notifications sent to your customers</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-4 sm:p-6 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="emailFromName">From Name</Label>
@@ -365,16 +361,17 @@ Your Business Team"
           </div>
           
           <div className="space-y-6">
-            <Card className="sticky top-4">
-              <CardHeader>
+            <Card className="sticky top-4 rounded-2xl">
+              <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
                 <div className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
-                  <CardTitle className="text-lg font-medium">Preview</CardTitle>
+                  <CardTitle className="text-lg font-semibold">Preview</CardTitle>
                 </div>
                 <CardDescription>See how your branding looks</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 <BrandPreview branding={formData} />
+                <p className="text-xs text-muted-foreground mt-3">Changes save per workspace</p>
               </CardContent>
             </Card>
           </div>

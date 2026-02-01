@@ -1,0 +1,266 @@
+1) Exact copy/text tweaks
+Settings page sections
+
+Appearance
+
+Title: Appearance
+
+Description: Choose how MyBizStream looks for you
+
+Theme label: Theme
+
+Helper: Select light, dark, or follow your system
+
+Business
+
+Title: Business
+
+Description: Manage your company’s operational defaults
+
+Fields copy tweaks
+
+Business Name → Business name
+
+Business Type → Business type
+Helper: Business type can’t be changed after registration.
+
+Timezone → Time zone
+
+Currency → Currency
+
+Save button: Save (shorter feels more modern)
+
+Success toast: Business settings saved.
+
+Error toast: Couldn’t save settings. Try again.
+
+Branding entry row (if on Settings home)
+
+Title: Branding
+
+Description: Logo, favicon, colors, and email identity
+
+CTA chevron is fine; or add secondary text: Manage →
+
+Branding page
+
+Page title: Branding
+Subtitle: Customize your company identity across the platform
+
+Company Identity card
+
+Title: Logo & icon
+
+Subtitle: Upload a logo and favicon for your workspace
+
+Logo block:
+
+Label: Logo
+
+Helper: PNG • up to 1 MB • recommended 200×50+
+
+Empty state: No logo yet
+
+Button: Upload logo
+
+Favicon block:
+
+Label: Favicon
+
+Helper: PNG/ICO • up to 200 KB • recommended 32×32
+
+Empty state: No favicon yet
+
+Button: Upload favicon
+
+Manual URL accordion:
+
+Title: Advanced
+
+Toggle text: Use a URL instead
+
+Helper: Paste a direct image URL
+
+Colors card
+
+Title: Brand colors
+
+Subtitle: Used in buttons, highlights, and emails
+
+Labels: Primary, Secondary, Accent
+
+Preview card
+
+Title: Preview
+
+Subtitle: See how your branding looks
+
+Add one extra line: Changes save per workspace
+
+Remove “Replit” wording (neutral)
+
+Replace any “managed through your Replit account” with:
+
+Profile is managed through your account provider.
+or (if you want it even simpler)
+
+Profile is managed externally.
+
+2) Tailwind spacing rules to tighten layout (clean + consistent)
+
+Use these as your “design tokens”:
+
+Page layout
+
+Outer container: max-w-6xl mx-auto px-4 sm:px-6 lg:px-8
+
+Vertical rhythm: space-y-6 (desktop) / space-y-4 (mobile)
+
+Section card spacing
+
+Card: rounded-2xl border bg-background
+
+Card padding: p-4 sm:p-6
+
+Card header spacing: space-y-1
+
+Card title: text-lg font-semibold
+
+Card description: text-sm text-muted-foreground
+
+Form grid (Business)
+
+Use a 2x2 grid on desktop, stack on mobile:
+
+<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  ...
+</div>
+
+Field spacing
+
+Between label and input: space-y-2
+
+Labels: text-sm font-medium
+
+Helper text: text-xs text-muted-foreground
+
+Reduce “big empty padding” feel
+
+Avoid large py-10 blocks; keep py-6
+
+Don’t nest too many space-y-8; use space-y-4/6
+
+Primary action alignment
+
+For settings forms:
+
+Action row: flex items-center justify-end gap-2 pt-2
+
+On mobile, make button full width:
+
+w-full sm:w-auto
+
+Optional “sticky save” (very SaaS):
+
+<div className="sticky bottom-0 z-10 -mx-4 sm:mx-0 border-t bg-background/80 backdrop-blur px-4 py-3 sm:rounded-b-2xl">
+  <div className="flex justify-end">
+    <Button className="w-full sm:w-auto">Save</Button>
+  </div>
+</div>
+
+3) Mobile layout rules (so it feels premium)
+Rule A — no 2-column forms on small screens
+
+Everything stacks to 1 column under sm
+
+Inputs use w-full
+
+Rule B — avoid long scroll with collapsible groups
+
+On mobile, Settings home should be:
+
+Profile summary (compact)
+
+List of tiles (Business / Branding / Billing / Security / Appearance)
+Each tile goes to its own page.
+
+Rule C — sticky save on forms
+
+On mobile, users hate scrolling back to find “Save”.
+Make save bar sticky bottom (as above).
+
+Rule D — upload blocks become stacked
+
+Branding uploads should be:
+
+Logo upload block
+
+Favicon upload block
+
+Preview collapses into an accordion or moves below
+
+Example:
+
+Desktop: upload left, preview right
+
+Mobile: preview below, or hidden behind “Preview” accordion
+
+Rule E — reduce top banners on mobile
+
+Upsell banner should be:
+
+hidden on mobile or collapsed by default
+
+or moved to Billing/Add-ons page only
+
+4) Compare with Zoho / FreshBooks / Stripe patterns (what to copy)
+Stripe
+
+Settings is a hub (short list)
+
+Each item opens a dedicated page
+
+Forms are tight: 1–2 cards max
+
+Actions are always visible (sticky footer patterns)
+Copy: hub + dedicated pages + tight cards
+
+Zoho (Zoho Books/CRM)
+
+Lots of settings, but left-side settings nav
+
+Grouped sections with clear headers
+
+Deep pages for each setting
+Copy: grouped nav + sections, avoid long single-page scroll
+
+FreshBooks
+
+Simple settings hub
+
+Focus on a small number of key business settings
+
+Friendly copy and minimal clutter
+Copy: minimalism + clear business-first labels
+
+What your app should emulate (best mix)
+
+Stripe’s “hub + dedicated pages”
+
+Zoho’s grouping when you add many settings later
+
+FreshBooks’ copy tone and simplicity
+
+Quick “professional” checklist you can use
+
+Settings home fits on one screen ✅
+
+Each settings page has max 2 cards ✅
+
+Save button always visible (sticky or near bottom) ✅
+
+No upsell banner interrupting settings ✅
+
+Mobile: stacked layout + sticky save ✅
+
+Labels are consistent: “Time zone”, “Business name”, etc. ✅

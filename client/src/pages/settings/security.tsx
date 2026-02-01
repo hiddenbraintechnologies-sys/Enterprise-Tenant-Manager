@@ -7,15 +7,15 @@ import { Separator } from "@/components/ui/separator";
 export default function SecuritySettings() {
   return (
     <SettingsLayout title="Security">
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl">
+        <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            <CardTitle className="text-lg font-medium">Security</CardTitle>
+            <CardTitle className="text-lg font-semibold">Security</CardTitle>
           </div>
           <CardDescription>Manage your account security settings</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-muted">
@@ -24,7 +24,7 @@ export default function SecuritySettings() {
               <div>
                 <p className="font-medium">Password</p>
                 <p className="text-sm text-muted-foreground">
-                  Managed through your account provider
+                  Managed externally
                 </p>
               </div>
             </div>
@@ -71,9 +71,9 @@ export default function SecuritySettings() {
             </Button>
           </div>
 
-          <div className="rounded-lg bg-muted/50 p-4 mt-4">
+          <div className="rounded-lg bg-muted/50 p-4">
             <p className="text-sm text-muted-foreground">
-              Security settings are managed through your account provider. Contact support if you need to make changes to your security settings.
+              Security settings are managed externally. Contact support if you need assistance.
             </p>
           </div>
         </CardContent>

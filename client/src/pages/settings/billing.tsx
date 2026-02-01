@@ -21,15 +21,15 @@ export default function BillingSettings() {
   return (
     <SettingsLayout title="Billing">
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
+        <Card className="rounded-2xl">
+          <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
             <div className="flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
-              <CardTitle className="text-lg font-medium">Subscription</CardTitle>
+              <CardTitle className="text-lg font-semibold">Subscription</CardTitle>
             </div>
             <CardDescription>Manage your subscription and billing</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 sm:p-6 space-y-4">
             {isLoading ? (
               <div className="py-4 text-center text-sm text-muted-foreground">
                 Loading subscription...

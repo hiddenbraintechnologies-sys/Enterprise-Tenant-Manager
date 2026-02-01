@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { SettingsLayout } from "@/components/settings-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -5,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useTenant } from "@/contexts/tenant-context";
-import { Building2, Save } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Building2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,52 +20,63 @@ import { getBusinessTypeLabel } from "@shared/business-types";
 export default function BusinessSettings() {
   const { tenant } = useAuth();
   const { businessType } = useTenant();
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    // Simulate save
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setIsSaving(false);
+    toast({ title: "Business settings saved." });
+  };
 
   return (
     <SettingsLayout title="Business">
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl">
+        <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            <CardTitle className="text-lg font-medium">Business Settings</CardTitle>
+            <CardTitle className="text-lg font-semibold">Business</CardTitle>
           </div>
-          <CardDescription>Configure your business information</CardDescription>
+          <CardDescription>Manage your company's operational defaults</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="businessName">Business Name</Label>
+              <Label htmlFor="businessName" className="text-sm font-medium">Business name</Label>
               <Input
                 id="businessName"
                 defaultValue={tenant?.name || "My Business"}
                 placeholder="Business name"
+                className="w-full"
                 data-testid="input-business-name"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="businessType">Business Type</Label>
+              <Label htmlFor="businessType" className="text-sm font-medium">Business type</Label>
               <Input
                 id="businessType"
                 value={getBusinessTypeLabel(tenant?.businessType || "service")}
                 disabled
-                className="bg-muted"
+                className="bg-muted w-full"
                 data-testid="input-business-type"
               />
               <p className="text-xs text-muted-foreground">
-                Business type cannot be changed after registration
+                Business type can't be changed after registration.
               </p>
             </div>
           </div>
           
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="timezone">Timezone</Label>
+              <Label htmlFor="timezone" className="text-sm font-medium">Time zone</Label>
               <Select 
                 defaultValue="Asia/Kolkata"
                 disabled={businessType === "clinic"}
               >
-                <SelectTrigger data-testid="select-timezone">
-                  <SelectValue placeholder="Select timezone" />
+                <SelectTrigger className="w-full" data-testid="select-timezone">
+                  <SelectValue placeholder="Select time zone" />
                 </SelectTrigger>
                 <SelectContent side="bottom">
                   <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
@@ -74,17 +87,17 @@ export default function BusinessSettings() {
               </Select>
               {businessType === "clinic" && (
                 <p className="text-xs text-muted-foreground">
-                  Timezone is locked after registration for Clinic/Healthcare.
+                  Time zone is locked for healthcare businesses.
                 </p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
+              <Label htmlFor="currency" className="text-sm font-medium">Currency</Label>
               <Select 
                 defaultValue="INR"
                 disabled={businessType === "clinic"}
               >
-                <SelectTrigger data-testid="select-currency">
+                <SelectTrigger className="w-full" data-testid="select-currency">
                   <SelectValue placeholder="Select currency" />
                 </SelectTrigger>
                 <SelectContent side="bottom">
@@ -96,16 +109,20 @@ export default function BusinessSettings() {
               </Select>
               {businessType === "clinic" && (
                 <p className="text-xs text-muted-foreground">
-                  Currency is locked after registration for Clinic/Healthcare.
+                  Currency is locked for healthcare businesses.
                 </p>
               )}
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <Button data-testid="button-save-business">
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full sm:w-auto"
+              data-testid="button-save-business"
+            >
+              {isSaving ? "Saving..." : "Save"}
             </Button>
           </div>
         </CardContent>

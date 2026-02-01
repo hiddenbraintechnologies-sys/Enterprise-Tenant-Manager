@@ -18,15 +18,15 @@ export default function ProfileSettings() {
 
   return (
     <SettingsLayout title="Profile">
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl">
+        <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
           <div className="flex items-center gap-2">
             <User className="h-5 w-5" />
-            <CardTitle className="text-lg font-medium">Profile</CardTitle>
+            <CardTitle className="text-lg font-semibold">Profile</CardTitle>
           </div>
           <CardDescription>Your personal account information</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-6">
             <Avatar className="h-20 w-20">
               <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />

@@ -32,7 +32,7 @@ const settingsSections = [
   { 
     href: "/settings/branding", 
     label: "Branding", 
-    description: "Logo, colors, and communication identity",
+    description: "Logo, favicon, colors, and email identity",
     icon: Brush 
   },
   { 
@@ -79,8 +79,8 @@ export default function SettingsHome() {
   return (
     <SettingsLayout title="Settings">
       <div className="space-y-6">
-        <Card>
-          <CardContent className="flex items-center gap-4 py-6">
+        <Card className="rounded-2xl">
+          <CardContent className="flex items-center gap-4 p-4 sm:p-6">
             <Avatar className="h-16 w-16">
               <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
               <AvatarFallback className="text-lg">
@@ -108,8 +108,8 @@ export default function SettingsHome() {
             const Icon = section.icon;
             return (
               <Link key={section.href} href={section.href}>
-                <Card className="h-full cursor-pointer hover-elevate transition-colors" data-testid={`tile-${section.label.toLowerCase()}`}>
-                  <CardContent className="flex items-start gap-4 py-5">
+                <Card className="h-full cursor-pointer hover-elevate transition-colors rounded-2xl" data-testid={`tile-${section.label.toLowerCase()}`}>
+                  <CardContent className="flex items-start gap-4 p-4">
                     <div className="p-2 rounded-lg bg-primary/10">
                       <Icon className="h-5 w-5 text-primary" />
                     </div>

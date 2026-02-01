@@ -66,12 +66,12 @@ export default function PortalSettings() {
 
   return (
     <SettingsLayout title="Customer Portal">
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl">
+        <CardHeader className="space-y-1 p-4 sm:p-6 pb-0 sm:pb-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              <CardTitle className="text-lg font-medium">Customer Portal</CardTitle>
+              <CardTitle className="text-lg font-semibold">Customer Portal</CardTitle>
             </div>
             {portalSettings && (
               <Switch
@@ -88,7 +88,7 @@ export default function PortalSettings() {
             Allow customers to view their invoices and bookings
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           {isLoading ? (
             <div className="py-4 text-center text-sm text-muted-foreground">
               Loading portal settings...
