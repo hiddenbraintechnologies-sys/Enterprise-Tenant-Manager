@@ -64,19 +64,53 @@ const themeTokensSchema = z.object({
 }).partial().optional();
 
 // Default branding values for self-healing
+// Using slightly darker shades for better contrast on white text
 const BRANDING_DEFAULTS = {
-  primaryColor: "#3B82F6",
-  secondaryColor: "#1E40AF",
-  accentColor: "#10B981",
-  backgroundColor: "#FFFFFF",
-  foregroundColor: "#111827",
-  mutedColor: "#6B7280",
-  borderColor: "#E5E7EB",
+  primaryColor: "#2563eb",      // blue-600 (better contrast for white text)
+  secondaryColor: "#1e40af",    // blue-800
+  accentColor: "#059669",       // emerald-600 (better contrast for white text)
+  backgroundColor: "#ffffff",
+  foregroundColor: "#111827",   // gray-900
+  mutedColor: "#6b7280",        // gray-500
+  borderColor: "#e5e7eb",       // gray-200
   fontFamily: "Inter",
   fontFamilyMono: "JetBrains Mono",
-  themeTokens: {},
+  themeTokens: { brand: {} },   // Normalized canonical shape
   socialLinks: {},
 };
+
+// Fields that require Pro/WhiteLabel plan (dangerous without sanitization)
+const GATED_FIELDS = new Set([
+  "emailHeaderHtml",
+  "emailFooterHtml", 
+  "customCss",
+]);
+
+// emailFromAddress should only allow verified domains (stub for now)
+const VERIFIED_EMAIL_DOMAINS = new Set<string>([
+  // In production, this would be tenant-specific verified domains
+]);
+
+// Check if tenant has feature access (stub - integrate with plan system)
+function hasBrandingFeature(tenantId: string, feature: string): boolean {
+  // TODO: Integrate with plan/feature flags system
+  // For now, block all gated fields in V1
+  return false;
+}
+
+// Branding features for API response
+function getBrandingFeatures(tenantId: string): Record<string, boolean> {
+  return {
+    "branding.basic": true,
+    "branding.assets": true,
+    "branding.colors": true,
+    "branding.fonts": true,
+    "branding.email_templates": hasBrandingFeature(tenantId, "email_templates"),
+    "branding.custom_css": hasBrandingFeature(tenantId, "custom_css"),
+    "whitelabel.subdomain": hasBrandingFeature(tenantId, "subdomain"),
+    "whitelabel.remove_platform_branding": hasBrandingFeature(tenantId, "remove_branding"),
+  };
+}
 
 // Strict schema - rejects unknown keys
 const updateBrandingSchema = z.object({
@@ -247,7 +281,10 @@ router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
           ...BRANDING_DEFAULTS,
         })
         .returning();
-      return res.json(newBranding);
+      return res.json({
+        branding: newBranding,
+        features: getBrandingFeatures(tenantId),
+      });
     }
 
     // Self-healing: check for null/undefined fields that need defaults
@@ -260,10 +297,17 @@ router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
         .set({ ...healingUpdates, updatedAt: new Date() })
         .where(eq(tenantBranding.tenantId, tenantId))
         .returning();
-      return res.json(updated);
+      return res.json({
+        branding: updated,
+        features: getBrandingFeatures(tenantId),
+      });
     }
 
-    res.json(branding[0]);
+    // Return branding with features for frontend gating
+    res.json({
+      branding: branding[0],
+      features: getBrandingFeatures(tenantId),
+    });
   } catch (error) {
     console.error("[tenant-branding] Error fetching branding:", error);
     res.status(500).json({ error: "Failed to fetch tenant branding" });
@@ -301,6 +345,33 @@ router.put("/api/tenant/branding", brandingPayloadLimit, requiredAuth, async (re
     
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid request body", details: parsed.error.errors });
+    }
+
+    // Check for gated fields that require higher plan
+    const attemptedGatedFields = Object.keys(parsed.data).filter(k => GATED_FIELDS.has(k));
+    if (attemptedGatedFields.length > 0) {
+      const hasAccess = attemptedGatedFields.every(f => hasBrandingFeature(tenantId, f));
+      if (!hasAccess) {
+        return res.status(403).json({
+          error: "Feature not available on your plan",
+          code: "FEATURE_NOT_ALLOWED",
+          fields: attemptedGatedFields,
+          message: "emailHeaderHtml, emailFooterHtml, and customCss require Pro or WhiteLabel plan",
+        });
+      }
+    }
+    
+    // Validate emailFromAddress against verified domains (if provided)
+    const emailFromAddress = (parsed.data as any).emailFromAddress;
+    if (emailFromAddress && VERIFIED_EMAIL_DOMAINS.size > 0) {
+      const domain = emailFromAddress.split("@")[1];
+      if (!VERIFIED_EMAIL_DOMAINS.has(domain)) {
+        return res.status(400).json({
+          error: "Email domain not verified",
+          code: "EMAIL_DOMAIN_NOT_VERIFIED",
+          message: "emailFromAddress must use a verified domain",
+        });
+      }
     }
 
     // Normalize data before storage

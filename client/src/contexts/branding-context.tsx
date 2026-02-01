@@ -44,20 +44,36 @@ export interface TenantBranding {
  * 
  * This ensures tenant customizations always take precedence over defaults,
  * while themeTokens allow for advanced theming scenarios.
+ * 
+ * Color choices use slightly darker shades for WCAG contrast compliance:
+ * - blue-600 instead of blue-500 for primary (better white text contrast)
+ * - emerald-600 instead of emerald-500 for accent (better white text contrast)
  */
 export const DEFAULT_BRANDING: Partial<TenantBranding> = {
-  primaryColor: "#3B82F6",
-  secondaryColor: "#1E40AF",
-  accentColor: "#10B981",
-  backgroundColor: "#FFFFFF",
-  foregroundColor: "#111827",
-  mutedColor: "#6B7280",
-  borderColor: "#E5E7EB",
+  primaryColor: "#2563eb",      // blue-600 (better contrast)
+  secondaryColor: "#1e40af",    // blue-800
+  accentColor: "#059669",       // emerald-600 (better contrast)
+  backgroundColor: "#ffffff",
+  foregroundColor: "#111827",   // gray-900
+  mutedColor: "#6b7280",        // gray-500
+  borderColor: "#e5e7eb",       // gray-200
   fontFamily: "Inter",
   fontFamilyMono: "JetBrains Mono",
-  themeTokens: {},
+  themeTokens: { brand: {} },   // Normalized canonical shape
   socialLinks: {},
 };
+
+// Feature flags returned by API
+export interface BrandingFeatures {
+  "branding.basic": boolean;
+  "branding.assets": boolean;
+  "branding.colors": boolean;
+  "branding.fonts": boolean;
+  "branding.email_templates": boolean;
+  "branding.custom_css": boolean;
+  "whitelabel.subdomain": boolean;
+  "whitelabel.remove_platform_branding": boolean;
+}
 
 function hexToHSL(hex: string): string {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -142,8 +158,15 @@ function removeBrandingCSS() {
 
 interface BrandingContextType {
   branding: TenantBranding | null;
+  features: BrandingFeatures | null;
   isLoading: boolean;
   refetch: () => void;
+}
+
+// API response structure
+interface BrandingApiResponse {
+  branding: TenantBranding;
+  features: BrandingFeatures;
 }
 
 const BrandingContext = createContext<BrandingContextType | undefined>(undefined);
@@ -151,12 +174,15 @@ const BrandingContext = createContext<BrandingContextType | undefined>(undefined
 export function BrandingProvider({ children }: { children: ReactNode }) {
   const { tenant } = useAuth();
   
-  const { data: branding, isLoading, refetch } = useQuery<TenantBranding>({
+  const { data, isLoading, refetch } = useQuery<BrandingApiResponse>({
     queryKey: ["/api/tenant/branding"],
     enabled: !!tenant,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
+  
+  const branding = data?.branding || null;
+  const features = data?.features || null;
   
   useEffect(() => {
     if (branding) {
@@ -165,6 +191,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
         secondaryColor: branding.secondaryColor,
         accentColor: branding.accentColor,
         logoUrl: branding.logoUrl,
+        features,
       });
       injectBrandingCSS(branding);
     } else {
@@ -174,10 +201,10 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     return () => {
       removeBrandingCSS();
     };
-  }, [branding]);
+  }, [branding, features]);
   
   return (
-    <BrandingContext.Provider value={{ branding: branding || null, isLoading, refetch }}>
+    <BrandingContext.Provider value={{ branding, features, isLoading, refetch }}>
       {children}
     </BrandingContext.Provider>
   );

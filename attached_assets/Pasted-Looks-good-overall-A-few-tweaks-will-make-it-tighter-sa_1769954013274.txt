@@ -1,0 +1,117 @@
+Looks good overall. A few tweaks will make it tighter + safer, especially around editability boundaries, token priority, and contrast.
+
+1) Token priority sanity check
+
+Your response has themeTokens: {} right now, so the effective chain is:
+
+themeTokens.brand.* → primaryColor → CSS fallback
+
+That’s fine, but make sure you enforce these two rules:
+
+If themeTokens.brand.primary exists, it must override primaryColor everywhere (preview + actual UI). No mixed behavior.
+
+Normalize tokens to one canonical shape in the API response (even if empty), so the UI doesn’t branch too much.
+
+Recommended minimum token schema (even if you keep it optional):
+
+themeTokens.brand.primary
+
+themeTokens.brand.secondary
+
+themeTokens.brand.accent
+
+If you allow more tokens later, keep them in a themeTokens.ui.* namespace to avoid letting tenants affect unexpected surfaces.
+
+2) Editability review (what tenants should/shouldn’t edit)
+
+Right now your GET includes several fields that are risky to expose as tenant-editable unless you explicitly gate them:
+
+✅ Safe to let tenant edit (common)
+
+logoUrl, logoAltUrl, faviconUrl
+
+primaryColor, secondaryColor, accentColor
+
+backgroundColor, foregroundColor, mutedColor, borderColor (optional, but ok)
+
+fontFamily, fontFamilyHeading, fontFamilyMono
+
+supportEmail, supportPhone, supportUrl
+
+socialLinks
+
+termsOfServiceUrl, privacyPolicyUrl
+
+⚠️ Needs plan gating + sanitization
+
+emailHeaderHtml, emailFooterHtml
+HTML fields are a classic source of XSS/injection. Even if you sanitize, I’d gate this to Pro/WhiteLabel and run a strict HTML sanitizer (allowlist tags/attrs).
+
+customCss
+Even worse than HTML. If you keep it, WhiteLabel only, and sanitize heavily (or disable entirely in V1). CSS can still do nasty UI tricks (phishing-like overlays).
+
+❌ Should not be tenant-editable / should not be client-controlled
+
+id, tenantId, createdBy, createdAt, updatedAt
+(These can be returned, but never accepted in PUT — you said you already block immutable columns 👍)
+
+Email sender fields (depends on your email architecture)
+
+emailFromName, emailFromAddress, emailReplyTo
+If your system uses verified sending domains (SES/SendGrid), tenants shouldn’t freely set emailFromAddress unless you validate allowed domains or verified identities. Otherwise emails will fail SPF/DKIM/DMARC or get spoofed.
+
+Good approach: allow emailFromName + replyTo, but restrict fromAddress to verified domains only.
+
+3) Contrast safety of your defaults
+
+Your default palette is basically Tailwind’s standard — generally safe. Quick practical checks:
+
+Foreground #111827 on Background #FFFFFF: very strong contrast ✅
+
+Muted #6B7280 on white: usually readable for secondary text ✅ (but avoid using it for small text <12px)
+
+Border #E5E7EB on white: subtle but fine ✅
+
+Primary #3B82F6:
+
+As a button background with white text, it’s usually okay, but can be borderline depending on exact luminance. If you want zero surprises:
+
+Use blue-600 for button fills (slightly darker), or
+
+Keep blue-500 but ensure button text is font-medium and size not too small.
+
+Secondary #1E40AF: very safe as background with white text ✅
+
+Accent #10B981: often okay, but as a filled button with white text it can be borderline; better for outlines/badges or use a darker emerald for fills.
+
+Suggested “safe defaults” tweak (optional)
+
+If your accent is used as filled CTA with white text, consider emerald-600 instead of emerald-500. Otherwise leave as-is.
+
+4) One structural recommendation: separate “branding” vs “email template”
+
+Right now all lives in one object. That’s fine short-term, but long-term:
+
+tenant_branding (colors/fonts/logos/support links)
+
+tenant_email_branding (fromName/replyTo/signature/header/footer) — gated
+
+This reduces blast radius if you later add more powerful templating.
+
+5) Tiny API response improvement
+
+Return features along with branding (even if you haven’t enabled gating yet). Example:
+
+{
+  "branding": { ... },
+  "features": {
+    "branding.basic": true,
+    "branding.assets": true,
+    "branding.documents": false,
+    "whitelabel.subdomain": false,
+    "whitelabel.remove_platform_branding": false
+  }
+}
+
+
+It makes the frontend deterministic and prevents “UI says locked but API allows” drift.
