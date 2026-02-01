@@ -9,18 +9,27 @@ import { z } from "zod";
 const router = Router();
 const requiredAuth = authenticateHybrid();
 
-// Allowed font families (safe, web-standard fonts)
-const ALLOWED_FONTS = [
-  "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins", "Nunito",
-  "Raleway", "Work Sans", "Source Sans Pro", "Ubuntu", "Rubik", "Mulish",
-  "JetBrains Mono", "Fira Code", "Source Code Pro", "IBM Plex Mono", "Consolas",
+// Allowed font families (safe, web-standard fonts) - exact match required
+const ALLOWED_FONTS = new Set([
+  "inter", "roboto", "open sans", "lato", "montserrat", "poppins", "nunito",
+  "raleway", "work sans", "source sans pro", "ubuntu", "rubik", "mulish",
+  "jetbrains mono", "fira code", "source code pro", "ibm plex mono", "consolas",
   "system-ui", "sans-serif", "serif", "monospace",
-];
+]);
 
 const fontValidator = z.string().max(100).refine(
-  (val) => ALLOWED_FONTS.some(f => val.toLowerCase().includes(f.toLowerCase())),
-  { message: "Font family not in allowed list" }
+  (val) => ALLOWED_FONTS.has(val.toLowerCase().trim()),
+  { message: "Font family not in allowed list. Allowed: Inter, Roboto, Open Sans, Lato, Montserrat, Poppins, etc." }
 );
+
+// Validated themeTokens schema for brand colors
+const themeTokensSchema = z.object({
+  brand: z.object({
+    primary: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
+    secondary: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
+    accent: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
+  }).partial().optional(),
+}).partial().optional();
 
 // Default branding values for self-healing
 const BRANDING_DEFAULTS = {
@@ -65,18 +74,40 @@ const updateBrandingSchema = z.object({
   supportUrl: z.string().url().optional().nullable(),
   socialLinks: z.record(z.string()).optional(),
   customCss: z.string().max(50000).optional().nullable(),
-  themeTokens: z.record(z.any()).optional(),
+  themeTokens: themeTokensSchema,
 }).strict(); // Reject unknown keys
 
-// Helper: merge defaults for missing fields (self-healing)
-function mergeWithDefaults(branding: Record<string, unknown>): Record<string, unknown> {
-  const merged = { ...branding };
-  for (const [key, defaultValue] of Object.entries(BRANDING_DEFAULTS)) {
-    if (merged[key] === null || merged[key] === undefined) {
-      merged[key] = defaultValue;
+// Columns that can be safely healed with defaults
+const HEALABLE_COLUMNS = [
+  "primaryColor", "secondaryColor", "accentColor", "backgroundColor",
+  "foregroundColor", "mutedColor", "borderColor", "fontFamily", "fontFamilyMono",
+] as const;
+
+// Helper: build update object for missing/null fields (self-healing)
+// Only updates specific healable columns to avoid touching immutable fields
+function getHealingUpdates(branding: Record<string, unknown>): Record<string, unknown> | null {
+  const updates: Record<string, unknown> = {};
+  let hasUpdates = false;
+  
+  for (const key of HEALABLE_COLUMNS) {
+    const currentValue = branding[key];
+    const defaultValue = BRANDING_DEFAULTS[key as keyof typeof BRANDING_DEFAULTS];
+    
+    if ((currentValue === null || currentValue === undefined) && defaultValue !== undefined) {
+      updates[key] = defaultValue;
+      hasUpdates = true;
     }
   }
-  return merged;
+  
+  // Handle JSON columns separately
+  if (!branding.themeTokens || (typeof branding.themeTokens === 'object' && Object.keys(branding.themeTokens as object).length === 0)) {
+    // Don't overwrite existing themeTokens
+  }
+  if (!branding.socialLinks || (typeof branding.socialLinks === 'object' && Object.keys(branding.socialLinks as object).length === 0)) {
+    // Don't overwrite existing socialLinks  
+  }
+  
+  return hasUpdates ? updates : null;
 }
 
 router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Response) => {
@@ -110,19 +141,14 @@ router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
       return res.json(newBranding);
     }
 
-    // Self-healing: merge defaults for any missing fields (future schema evolution)
-    const healedBranding = mergeWithDefaults(branding[0] as Record<string, unknown>);
+    // Self-healing: check for null/undefined fields that need defaults
+    const healingUpdates = getHealingUpdates(branding[0] as Record<string, unknown>);
     
-    // If any fields were healed, update the record
-    const hasHealedFields = Object.keys(BRANDING_DEFAULTS).some(
-      key => branding[0][key as keyof typeof branding[0]] === null && 
-             healedBranding[key] !== null
-    );
-    
-    if (hasHealedFields) {
+    if (healingUpdates) {
+      // Only update the specific columns that need healing
       const [updated] = await db
         .update(tenantBranding)
-        .set(healedBranding)
+        .set({ ...healingUpdates, updatedAt: new Date() })
         .where(eq(tenantBranding.tenantId, tenantId))
         .returning();
       return res.json(updated);
