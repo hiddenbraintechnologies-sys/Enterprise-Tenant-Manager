@@ -673,34 +673,27 @@ export async function registerRoutes(
   
   const authRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
 
-  // Name validation regex: Must start with a letter (A-Z or international letters),
-  // followed by letters, spaces, hyphens, or apostrophes only. Length 2-50 chars.
-  const NAME_VALIDATION_REGEX = /^[A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F][A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\s'-]{0,49}$/;
-  const NAME_VALIDATION_MESSAGE = "Name must start with a letter and contain only letters, spaces, hyphens, or apostrophes";
-
+  // Use shared validation from @shared/validation
+  const { nameField } = await import("@shared/validation/name");
+  
   const registrationSchema = z.object({
-    firstName: z.string()
-      .min(1, "First name is required")
-      .max(50, "First name must be 50 characters or less")
-      .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
-    lastName: z.string()
-      .min(1, "Last name is required")
-      .max(50, "Last name must be 50 characters or less")
-      .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
-    email: z.string().email("Invalid email format"),
+    firstName: nameField("First name"),
+    lastName: nameField("Last name"),
+    email: z.string().trim().email("Please enter a valid email"),
     password: z.string()
       .min(8, "Password must be at least 8 characters")
+      .max(72, "Password must be at most 72 characters")
       .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
-    businessName: z.string().min(1, "Business name is required").max(200),
+    businessName: z.string().trim().min(2, "Business name is required").max(200),
     businessType: z.enum([
       "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
       "coworking", "service", "real_estate", "tourism", "education", "education_institute",
       "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
       "software_services", "consulting", "digital_agency", "retail_store"
     ]),
-    countryCode: z.string().min(1, "Country is required").max(5),
+    countryCode: z.string().trim().min(2, "Country is required").max(5),
   });
 
   app.post("/api/auth/register", authRateLimit, async (req, res) => {
@@ -708,16 +701,16 @@ export async function registerRoutes(
       console.log("[register] Step 1: Validating input");
       const parsed = registrationSchema.safeParse(req.body);
       if (!parsed.success) {
-        // Return structured field-specific errors for frontend mapping
-        const fieldErrors = parsed.error.flatten().fieldErrors;
-        const firstErrorField = Object.keys(fieldErrors)[0];
-        const firstErrorMessage = fieldErrors[firstErrorField as keyof typeof fieldErrors]?.[0];
+        // Return field-level errors in the recommended format
+        const fieldErrors = parsed.error.issues.map((issue) => ({
+          field: issue.path.join(".") || "form",
+          message: issue.message,
+        }));
         
         return res.status(400).json({ 
           error: "VALIDATION_ERROR",
-          field: firstErrorField,
-          message: firstErrorMessage || "Validation failed",
-          errors: fieldErrors
+          fieldErrors,
+          message: fieldErrors[0]?.message || "Validation failed"
         });
       }
 

@@ -38,37 +38,37 @@ interface RegionConfig {
   defaultTimezone: string;
 }
 
-// Name validation: Must start with letter, contain only letters/spaces/hyphens/apostrophes
-const NAME_VALIDATION_REGEX = /^[A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F][A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\s'-]{0,49}$/;
-const NAME_VALIDATION_MESSAGE = "Name must start with a letter and contain only letters, spaces, hyphens, or apostrophes";
+// Use shared name validation
+import { nameField } from "@shared/validation/name";
+import { applyApiErrorsToForm, extractApiError } from "@/lib/form-errors";
 
 const registrationSchema = z.object({
-  firstName: z.string()
-    .min(1, "First name is required")
-    .max(50, "First name must be 50 characters or less")
-    .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
-  lastName: z.string()
-    .min(1, "Last name is required")
-    .max(50, "Last name must be 50 characters or less")
-    .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
-  email: z.string().email("Invalid email format"),
+  firstName: nameField("First name"),
+  lastName: nameField("Last name"),
+  email: z.string().trim().email("Please enter a valid email"),
   password: z.string()
     .min(8, "Password must be at least 8 characters")
+    .max(72, "Password must be at most 72 characters")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
-  confirmPassword: z.string(),
-  countryCode: z.string().min(1, "Please select your country"),
-  businessName: z.string().min(1, "Business name is required").max(200),
+  confirmPassword: z.string().min(8).max(72),
+  countryCode: z.string().trim().min(2, "Please select your country"),
+  businessName: z.string().trim().min(2, "Business name is required").max(200),
   businessType: z.enum([
     "pg_hostel", "consulting", "software_services", "clinic_healthcare",
     "legal", "digital_agency", "retail_store", "salon_spa", 
     "furniture_manufacturing", "logistics_fleet", "education_institute",
     "tourism", "real_estate"
   ]),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
+}).superRefine(({ password, confirmPassword }, ctx) => {
+  if (password !== confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["confirmPassword"],
+      message: "Passwords do not match",
+    });
+  }
 });
 
 type RegistrationForm = z.infer<typeof registrationSchema>;
@@ -183,18 +183,13 @@ export default function Register() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        // Return structured error for field-specific mapping
-        if (error.error === "VALIDATION_ERROR" && error.field) {
-          const validationError = new Error(error.message || "Validation failed") as Error & { 
-            field?: string; 
-            errors?: Record<string, string[]> 
-          };
-          validationError.field = error.field;
-          validationError.errors = error.errors;
-          throw validationError;
-        }
-        throw new Error(error.message || "Registration failed");
+        const errorData = await response.json();
+        // Attach the full error data for the onError handler
+        const error = new Error(errorData.message || "Registration failed") as Error & { 
+          apiError?: typeof errorData 
+        };
+        error.apiError = errorData;
+        throw error;
       }
 
       return response.json();
@@ -231,18 +226,11 @@ export default function Register() {
       // 4. Navigate to packages - queries will be fresh with new tokens
       setLocation("/packages");
     },
-    onError: (error: Error & { field?: string; errors?: Record<string, string[]> }) => {
-      // Map field-specific errors to form fields
-      if (error.field && error.errors) {
-        Object.entries(error.errors).forEach(([field, messages]) => {
-          if (field in form.getValues() && messages.length > 0) {
-            form.setError(field as keyof RegistrationForm, { 
-              type: "server", 
-              message: messages[0] 
-            });
-          }
-        });
-      }
+    onError: (error: Error & { apiError?: unknown }) => {
+      // Map API errors to form fields using the utility
+      const apiError = extractApiError(error.apiError);
+      const handled = applyApiErrorsToForm(apiError, form.setError);
+      
       toast({
         title: "Registration failed",
         description: error.message,
