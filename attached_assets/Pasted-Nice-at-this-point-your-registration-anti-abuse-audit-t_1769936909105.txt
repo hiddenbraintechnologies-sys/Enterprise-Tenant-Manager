@@ -1,0 +1,96 @@
+Nice — at this point your registration + anti-abuse + audit trail is in really solid shape. If you want the highest ROI next, here are the next 10 things I’d harden in a multi-tenant SaaS like yours (ordered by impact). Pick any and I’ll give you a ready-to-run prompt + tests like we did before.
+
+1) Email verification + risk-based onboarding gate
+
+Even with MX warn/flag, you’ll still get real spam. Add:
+
+verify email link (token + expiry)
+
+allow login but block tenant activation / billing checkout until verified (or “limited mode”)
+
+2) Password policy + breach checking
+
+enforce minimum entropy (not just length)
+
+optional: check against known breached passwords (k-anonymity API or local list)
+
+rate-limit login separately + lockout/backoff
+
+3) Session security
+
+rotate session on login
+
+set cookie flags: HttpOnly, Secure, SameSite=Lax/Strict
+
+CSRF protection if you use cookies + state-changing endpoints
+
+shorten session TTL + refresh tokens if needed
+
+4) Multi-tenant authorization audit
+
+Do a sweep to ensure every tenant-scoped route has:
+
+requireAuth
+
+requireTenantContext
+
+tenantId scoping on every DB query (no “findFirst without tenant filter”)
+Add a test harness to catch future leaks.
+
+5) Add-on enforcement completeness
+
+You already started this. Next steps:
+
+enforce server-side on every module API route (payroll/hrms/attendance/etc.)
+
+add “fail closed” UI gating everywhere
+
+add grace = read-only vs write blocks (GET allowed, POST blocked)
+
+6) Stripe/payment hardening (since you had PAYMENT_SETUP_FAILED earlier)
+
+strict env validation on boot
+
+price mapping per region/currency
+
+webhook idempotency (dedupe events)
+
+reconcile job: compare Stripe subscription status vs DB entitlements
+
+7) Logging hygiene
+
+redact PII/secrets (email, tokens, password fields)
+
+structured logs with request id, tenant id, user id
+
+store audit logs but keep them lean (avoid storing sensitive raw payloads)
+
+8) File upload + XSS/HTML safety (if you allow logos, docs, etc.)
+
+content-type checking
+
+size limits
+
+virus scan (later)
+
+sanitize any user-provided HTML; escape by default
+
+9) Input validation consistency across all endpoints
+
+You fixed registration; repeat pattern across:
+
+profile update
+
+tenant name / business profile
+
+employee creation (names, IC/passport formats)
+
+address fields
+
+10) Security headers + dependency scanning
+
+Helmet headers
+
+CSP (even a basic one helps)
+
+npm audit + dependabot-like process
