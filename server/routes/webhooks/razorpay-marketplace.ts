@@ -7,6 +7,7 @@ import {
   type InsertMarketplaceEvent,
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { auditService } from "../../core";
 
 const router = Router();
 
@@ -265,6 +266,52 @@ async function processEvent(
     console.log(
       `[razorpay-marketplace] Payment link ${paymentLinkId} paid, addon activated until ${periodEnd.toISOString()}`
     );
+    
+    // Log ADDON_RENEW_SUCCEEDED audit event
+    auditService.logAsync({
+      tenantId: tenantAddon.tenantId,
+      action: "update",
+      resource: "addon_renewal",
+      resourceId: notes.addon_slug || tenantAddon.id,
+      metadata: {
+        event: "ADDON_RENEW_SUCCEEDED",
+        addonSlug: notes.addon_slug,
+        addonId: notes.addon_id,
+        billingPeriod,
+        paymentLinkId,
+        periodEnd: periodEnd.toISOString(),
+      },
+    });
+  } else if (eventType === "payment_link.expired" || eventType === "payment_link.cancelled") {
+    // Handle payment link failures
+    const paymentLink = payload.payload.payment_link?.entity;
+    if (!paymentLink) return;
+
+    const paymentLinkId = paymentLink.id;
+    const notes = paymentLink.notes || {};
+    
+    const tenantAddon = await findTenantAddonBySubscription(paymentLinkId);
+    
+    if (tenantAddon) {
+      // Log ADDON_RENEW_FAILED audit event
+      auditService.logAsync({
+        tenantId: tenantAddon.tenantId,
+        action: "update",
+        resource: "addon_renewal",
+        resourceId: notes.addon_slug || tenantAddon.id,
+        metadata: {
+          event: "ADDON_RENEW_FAILED",
+          addonSlug: notes.addon_slug,
+          addonId: notes.addon_id,
+          paymentLinkId,
+          reason: eventType === "payment_link.expired" ? "expired" : "cancelled",
+        },
+      });
+      
+      console.log(
+        `[razorpay-marketplace] Payment link ${paymentLinkId} ${eventType}, logged failure`
+      );
+    }
   }
 }
 

@@ -12,7 +12,7 @@ import { eq, and } from "drizzle-orm";
 import { getAllTenantEntitlements, getTenantAddonEntitlement, checkDependencyEntitlement } from "../../services/entitlement";
 import { isRazorpayConfigured, razorpayService, getRazorpayKeyId } from "../../services/razorpay";
 import { authenticateHybrid } from "../../core/auth-middleware";
-import { tenantIsolationMiddleware, tenantResolutionMiddleware } from "../../core";
+import { tenantIsolationMiddleware, tenantResolutionMiddleware, auditService } from "../../core";
 
 const router = Router();
 
@@ -263,6 +263,26 @@ router.post("/:addonCode/checkout", async (req, res) => {
         .where(eq(tenantAddons.id, tenantAddon.id));
       
       console.log(`[entitlements-checkout] Created payment link for addon ${addonCode}, tenant ${tenantId}, link: ${paymentLink.id}`);
+      
+      // Log ADDON_RENEW_STARTED audit event
+      auditService.logAsync({
+        tenantId,
+        action: "create",
+        resource: "addon_renewal",
+        resourceId: addonCode,
+        metadata: { 
+          event: "ADDON_RENEW_STARTED",
+          addonCode,
+          addonName: addon.name,
+          billingPeriod,
+          action,
+          price,
+          currency,
+          paymentLinkId: paymentLink.id,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
       
       return res.json({
         status: "CHECKOUT_REQUIRED",

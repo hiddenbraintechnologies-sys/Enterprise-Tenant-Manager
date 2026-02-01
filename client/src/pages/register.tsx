@@ -38,8 +38,9 @@ interface RegionConfig {
   defaultTimezone: string;
 }
 
-// Use shared name validation
+// Use shared validation
 import { nameField } from "@shared/validation/name";
+import { businessNameField } from "@shared/validation/business";
 import { applyApiErrorsToForm, extractApiError } from "@/lib/form-errors";
 
 const registrationSchema = z.object({
@@ -54,13 +55,15 @@ const registrationSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number"),
   confirmPassword: z.string().min(8).max(72),
   countryCode: z.string().trim().min(2, "Please select your country"),
-  businessName: z.string().trim().min(2, "Business name is required").max(200),
+  businessName: businessNameField("Business name"),
   businessType: z.enum([
     "pg_hostel", "consulting", "software_services", "clinic_healthcare",
     "legal", "digital_agency", "retail_store", "salon_spa", 
     "furniture_manufacturing", "logistics_fleet", "education_institute",
     "tourism", "real_estate"
   ]),
+  // Honeypot field - should always be empty
+  companyWebsite: z.string().max(0).optional(),
 }).superRefine(({ password, confirmPassword }, ctx) => {
   if (password !== confirmPassword) {
     ctx.addIssue({
@@ -162,6 +165,7 @@ export default function Register() {
       countryCode: "",
       businessName: "",
       businessType: undefined,
+      companyWebsite: "", // Honeypot - always empty
     },
   });
 
@@ -179,6 +183,7 @@ export default function Register() {
           countryCode: data.countryCode,
           businessName: data.businessName,
           businessType: data.businessType,
+          companyWebsite: data.companyWebsite, // Honeypot field
         }),
       });
 
@@ -451,6 +456,23 @@ export default function Register() {
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                {/* Honeypot field - hidden from users, catches bots that fill all fields */}
+                <input
+                  type="text"
+                  {...form.register("companyWebsite")}
+                  autoComplete="off"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  style={{ 
+                    position: "absolute", 
+                    left: "-9999px", 
+                    opacity: 0, 
+                    height: 0, 
+                    width: 0,
+                    pointerEvents: "none"
+                  }}
                 />
 
                 <Button 
