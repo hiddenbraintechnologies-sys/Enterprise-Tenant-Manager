@@ -239,7 +239,21 @@ router.post("/api/branding/confirm-upload", requiredAuth, async (req: Request, r
       userAgent: req.get("user-agent") || null,
     });
 
-    res.json({ success: true, [urlField]: publicUrl, objectKey });
+    // Fetch updated branding to return full state (already camelCase from Drizzle)
+    const updatedBranding = await db
+      .select()
+      .from(tenantBranding)
+      .where(eq(tenantBranding.tenantId, tenantId))
+      .limit(1);
+
+    const brandingData = updatedBranding[0] || null;
+
+    res.json({ 
+      success: true, 
+      [urlField]: publicUrl, 
+      objectKey,
+      branding: brandingData 
+    });
   } catch (error) {
     console.error("[branding-upload] Error confirming upload:", error);
     res.status(500).json({ error: "Failed to confirm upload" });

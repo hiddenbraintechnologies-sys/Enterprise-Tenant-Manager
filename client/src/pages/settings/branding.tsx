@@ -65,7 +65,7 @@ function BrandPreview({ branding }: { branding: Partial<TenantBranding> }) {
         <div className="flex items-center gap-3">
           {branding.logoUrl ? (
             <img 
-              src={branding.logoUrl} 
+              src={`${branding.logoUrl}?v=${Date.now()}`} 
               alt="Logo" 
               className="h-10 w-auto object-contain"
               data-testid="img-preview-logo"

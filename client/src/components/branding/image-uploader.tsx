@@ -101,20 +101,31 @@ export function ImageUploader({
         xhr.send(file);
       });
 
-      await apiRequest("POST", "/api/branding/confirm-upload", {
+      const confirmResponse = await apiRequest("POST", "/api/branding/confirm-upload", {
         type,
         objectKey,
         publicUrl,
       });
 
+      const confirmData = await confirmResponse.json();
+      
+      if (!confirmData.success) {
+        throw new Error("Failed to confirm upload");
+      }
+
       setUploadProgress(100);
       
-      // Store clean URL without cache-busting (cache-busting applied in branding context)
+      // Update query cache immediately with returned branding data (single source of truth)
+      if (confirmData.branding) {
+        queryClient.setQueryData(["/api/tenant/branding"], confirmData.branding);
+      }
+      
+      // Also invalidate to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/tenant/branding"] });
+      
+      // Update local state for immediate preview (matches query cache)
       onChange(publicUrl);
       setManualUrl(publicUrl);
-      
-      // Invalidate branding cache to update sidebar logo and favicon immediately
-      queryClient.invalidateQueries({ queryKey: ["/api/tenant/branding"] });
       
       toast({ title: "Upload complete", description: `${label} has been updated.` });
     } catch (err) {
@@ -152,7 +163,7 @@ export function ImageUploader({
         {value ? (
           <div className="border rounded-lg p-3 bg-muted/50 flex items-center gap-3">
             <img 
-              src={value} 
+              src={`${value}?v=${Date.now()}`} 
               alt={`${label} preview`}
               className={`object-contain ${previewClassName}`}
               onError={(e) => {

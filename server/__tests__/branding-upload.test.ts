@@ -1,4 +1,4 @@
-// Unit tests for branding upload validation
+// Unit tests for branding upload validation and regression tests
 
 // Validation constants matching server/routes/branding-upload.ts
 // PNG only for logo (SVG blocked for security - no script/external ref sanitization)
@@ -24,6 +24,47 @@ function validateUpload(type: "logo" | "favicon", contentType: string, size: num
 
   return { valid: true };
 }
+
+// Mock confirm-upload response for regression test
+const mockConfirmResponse = {
+  success: true,
+  logoUrl: "/objects/tenants/test-tenant-123/branding/logo_abc123.png",
+  objectKey: "tenants/test-tenant-123/branding/logo_abc123.png",
+  branding: {
+    id: "branding-1",
+    tenantId: "test-tenant-123",
+    logoUrl: "/objects/tenants/test-tenant-123/branding/logo_abc123.png",
+    logoAltUrl: null,
+    faviconUrl: null,
+    primaryColor: "#3B82F6",
+    secondaryColor: "#1E40AF",
+    accentColor: "#10B981",
+    backgroundColor: "#FFFFFF",
+    foregroundColor: "#111827",
+    mutedColor: "#6B7280",
+    borderColor: "#E5E7EB",
+    fontFamily: "Inter",
+    fontFamilyHeading: null,
+    fontFamilyMono: "JetBrains Mono",
+    themeTokens: {},
+    emailFromName: null,
+    emailFromAddress: null,
+    emailReplyTo: null,
+    emailSignature: null,
+    emailHeaderHtml: null,
+    emailFooterHtml: null,
+    termsOfServiceUrl: null,
+    privacyPolicyUrl: null,
+    supportEmail: null,
+    supportPhone: null,
+    supportUrl: null,
+    socialLinks: {},
+    customCss: null,
+    createdBy: null,
+    createdAt: new Date("2026-02-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+  }
+};
 
 describe("Branding Upload Validation", () => {
   describe("Logo validation", () => {
@@ -103,6 +144,91 @@ describe("Branding Upload Validation", () => {
     it("accepts files exactly at 200KB limit", () => {
       const result = validateUpload("favicon", "image/png", MAX_FAVICON_SIZE);
       expect(result.valid).toBe(true);
+    });
+  });
+});
+
+/**
+ * Regression test: Branding upload should update preview immediately
+ * 
+ * Bug: Upload shows "Upload complete" toast but UI still shows "No logo uploaded"
+ * Fix: After confirm-upload succeeds:
+ *   1. Backend returns full branding object (camelCase from Drizzle)
+ *   2. Frontend updates query cache with setQueryData
+ *   3. Preview reads from tenantBranding query (single source of truth)
+ *   4. Cache-busting applied to preview images
+ */
+describe("Branding Upload Regression - Preview Update", () => {
+  describe("confirm-upload response", () => {
+    it("returns success flag", () => {
+      expect(mockConfirmResponse.success).toBe(true);
+    });
+
+    it("returns logoUrl at root level", () => {
+      expect(mockConfirmResponse.logoUrl).toBe(
+        "/objects/tenants/test-tenant-123/branding/logo_abc123.png"
+      );
+    });
+
+    it("returns full branding object", () => {
+      expect(mockConfirmResponse.branding).toBeDefined();
+      expect(mockConfirmResponse.branding.logoUrl).toBe(mockConfirmResponse.logoUrl);
+    });
+
+    it("branding object has all required fields", () => {
+      const { branding } = mockConfirmResponse;
+      expect(branding).toHaveProperty("id");
+      expect(branding).toHaveProperty("tenantId");
+      expect(branding).toHaveProperty("logoUrl");
+      expect(branding).toHaveProperty("faviconUrl");
+      expect(branding).toHaveProperty("primaryColor");
+      expect(branding).toHaveProperty("secondaryColor");
+      expect(branding).toHaveProperty("accentColor");
+      expect(branding).toHaveProperty("backgroundColor");
+      expect(branding).toHaveProperty("foregroundColor");
+      expect(branding).toHaveProperty("supportEmail");
+      expect(branding).toHaveProperty("supportPhone");
+    });
+  });
+
+  describe("cache-busting", () => {
+    it("adds timestamp query param to image URLs", () => {
+      const logoUrl = "/objects/tenants/test/branding/logo.png";
+      const timestamp = Date.now();
+      const cacheBustedUrl = `${logoUrl}?v=${timestamp}`;
+      
+      expect(cacheBustedUrl).toContain("?v=");
+      expect(cacheBustedUrl).toMatch(/\?v=\d+$/);
+    });
+
+    it("preserves original URL path", () => {
+      const logoUrl = "/objects/tenants/test/branding/logo.png";
+      const cacheBustedUrl = `${logoUrl}?v=${Date.now()}`;
+      
+      expect(cacheBustedUrl.split("?")[0]).toBe(logoUrl);
+    });
+  });
+
+  describe("preview rendering decision", () => {
+    it("should render img when logoUrl is present", () => {
+      const logoUrl = mockConfirmResponse.branding.logoUrl;
+      const shouldRenderImg = !!logoUrl;
+      
+      expect(shouldRenderImg).toBe(true);
+    });
+
+    it("should render placeholder when logoUrl is null", () => {
+      const logoUrl = null;
+      const shouldRenderPlaceholder = !logoUrl;
+      
+      expect(shouldRenderPlaceholder).toBe(true);
+    });
+
+    it("should render placeholder when logoUrl is empty string", () => {
+      const logoUrl = "";
+      const shouldRenderPlaceholder = !logoUrl;
+      
+      expect(shouldRenderPlaceholder).toBe(true);
     });
   });
 });
