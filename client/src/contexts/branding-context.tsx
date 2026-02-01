@@ -141,7 +141,11 @@ function injectBrandingCSS(branding: Partial<TenantBranding>) {
   if (branding.faviconUrl) {
     const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
     if (link) {
-      link.href = branding.faviconUrl;
+      // Add cache-busting timestamp to force browser refresh
+      const cacheBustedUrl = branding.faviconUrl.includes('?') 
+        ? `${branding.faviconUrl}&v=${Date.now()}` 
+        : `${branding.faviconUrl}?v=${Date.now()}`;
+      link.href = cacheBustedUrl;
     }
   }
 }

@@ -71,13 +71,13 @@ export function ImageUploader({
         size: file.size,
       });
 
-      const { uploadURL, objectPath } = await uploadResponse.json();
+      const { putUrl, objectKey, publicUrl } = await uploadResponse.json();
       setUploadProgress(20);
 
       // Upload with progress tracking using XMLHttpRequest
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadURL);
+        xhr.open("PUT", putUrl);
         xhr.setRequestHeader("Content-Type", file.type);
         
         xhr.upload.onprogress = (e) => {
@@ -102,15 +102,15 @@ export function ImageUploader({
 
       await apiRequest("POST", "/api/branding/confirm-upload", {
         type,
-        objectPath,
+        objectKey,
+        publicUrl,
       });
 
       setUploadProgress(100);
       
-      // Add cache-busting for favicon
-      const finalPath = type === "favicon" ? `${objectPath}?v=${Date.now()}` : objectPath;
-      onChange(finalPath);
-      setManualUrl(objectPath);
+      // Store clean URL without cache-busting (cache-busting applied in branding context)
+      onChange(publicUrl);
+      setManualUrl(publicUrl);
       
       // Invalidate branding cache to update sidebar logo and favicon immediately
       queryClient.invalidateQueries({ queryKey: ["/api/tenant/branding"] });

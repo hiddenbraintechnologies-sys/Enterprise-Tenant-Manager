@@ -115,7 +115,8 @@ router.post("/api/branding/upload", requiredAuth, async (req: Request, res: Resp
       ttlSec: 900,
     });
 
-    const publicUrl = `/objects/tenants/${tenantId}/branding/${type}_${objectId}.${ext}`;
+    const objectKey = `tenants/${tenantId}/branding/${type}_${objectId}.${ext}`;
+    const publicUrl = `/objects/${objectKey}`;
 
     await auditService.log({
       tenantId,
@@ -135,8 +136,9 @@ router.post("/api/branding/upload", requiredAuth, async (req: Request, res: Resp
     });
 
     res.json({
-      uploadURL,
-      objectPath: publicUrl,
+      objectKey,
+      putUrl: uploadURL,
+      publicUrl,
       type,
       filename,
     });
@@ -162,27 +164,32 @@ router.post("/api/branding/confirm-upload", requiredAuth, async (req: Request, r
     const user = (req as any).user;
     const userId = user?.id || null;
 
-    const { type, objectPath } = req.body;
+    const { type, objectKey, publicUrl } = req.body;
 
     if (!type || (type !== "logo" && type !== "favicon")) {
       return res.status(400).json({ error: "Invalid type", code: "VALIDATION_ERROR" });
     }
 
-    if (!objectPath || typeof objectPath !== "string") {
-      return res.status(400).json({ error: "Missing objectPath", code: "VALIDATION_ERROR" });
+    if (!objectKey || typeof objectKey !== "string") {
+      return res.status(400).json({ error: "Missing objectKey", code: "VALIDATION_ERROR" });
     }
 
-    if (!objectPath.includes(`/tenants/${tenantId}/`)) {
+    if (!publicUrl || typeof publicUrl !== "string") {
+      return res.status(400).json({ error: "Missing publicUrl", code: "VALIDATION_ERROR" });
+    }
+
+    if (!objectKey.includes(`tenants/${tenantId}/`)) {
       return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
     }
 
-    // Verify object exists via HEAD request
+    // Verify object exists via HEAD request on publicUrl
     try {
-      const headResponse = await fetch(`${process.env.REPL_SLUG ? '' : 'http://localhost:5000'}${objectPath}`, {
+      const baseUrl = process.env.REPL_SLUG ? '' : 'http://localhost:5000';
+      const headResponse = await fetch(`${baseUrl}${publicUrl}`, {
         method: "HEAD",
       });
       if (!headResponse.ok) {
-        console.warn(`[branding-upload] Object not found at ${objectPath}, status: ${headResponse.status}`);
+        console.warn(`[branding-upload] Object not found at ${publicUrl}, status: ${headResponse.status}`);
         // Continue anyway - object may still be propagating
       }
     } catch (headError) {
@@ -204,13 +211,13 @@ router.post("/api/branding/confirm-upload", requiredAuth, async (req: Request, r
         .insert(tenantBranding)
         .values({
           tenantId,
-          [urlField]: objectPath,
+          [urlField]: publicUrl,
         });
     } else {
       await db
         .update(tenantBranding)
         .set({
-          [urlField]: objectPath,
+          [urlField]: publicUrl,
           updatedAt: new Date(),
         })
         .where(eq(tenantBranding.tenantId, tenantId));
@@ -223,7 +230,7 @@ router.post("/api/branding/confirm-upload", requiredAuth, async (req: Request, r
       resource: "tenant_branding",
       resourceId: tenantId,
       oldValue: oldValue ? { [urlField]: (oldValue as any)[urlField] } : null,
-      newValue: { [urlField]: objectPath },
+      newValue: { [urlField]: publicUrl, objectKey },
       metadata: { 
         uploadType: type,
         source: "branding_upload_confirm"
@@ -232,7 +239,7 @@ router.post("/api/branding/confirm-upload", requiredAuth, async (req: Request, r
       userAgent: req.get("user-agent") || null,
     });
 
-    res.json({ success: true, [urlField]: objectPath });
+    res.json({ success: true, [urlField]: publicUrl, objectKey });
   } catch (error) {
     console.error("[branding-upload] Error confirming upload:", error);
     res.status(500).json({ error: "Failed to confirm upload" });
