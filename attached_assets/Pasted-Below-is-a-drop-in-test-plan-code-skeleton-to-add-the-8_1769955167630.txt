@@ -1,0 +1,351 @@
+Below is a drop-in test plan + code skeleton to add the 8 tests (6 API + 2 UI) using the pattern you already have (Jest + your createServicesTestApp-style helper). Adjust import paths to match your repo.
+
+A) API tests (Jest + supertest)
+Create file
+
+server/routes/tenant/__tests__/branding.api.test.ts
+
+What these tests assume
+
+You have an express test app helper like createServicesTestApp() that:
+
+mounts real routes
+
+supports injecting tenantId + user auth context
+
+Branding endpoint:
+
+GET /api/tenant/branding → { branding, features }
+
+PUT /api/tenant/branding → { branding, features } (or just branding)
+
+Feature gating returns:
+
+403 { error: "FEATURE_NOT_ALLOWED", feature: "branding.email_templates" } (example)
+
+You have a way to simulate plan features per tenant (mock/stub hasBrandingFeature() or getTenantFeatures())
+
+Code skeleton
+import request from "supertest";
+// adjust these imports to your repo
+import { createServicesTestApp } from "../../../test-support/createServicesTestApp";
+
+// If you have a central features module, mock it here.
+// Example:
+jest.mock("../../../core/billing/features", () => {
+  const actual = jest.requireActual("../../../core/billing/features");
+  return {
+    ...actual,
+    getTenantFeatures: jest.fn(),
+  };
+});
+
+import { getTenantFeatures } from "../../../core/billing/features";
+
+type Features = Record<string, boolean>;
+
+function featuresBasic(): Features {
+  return {
+    "branding.basic": true,
+    "branding.assets": true,
+    "branding.colors": true,
+    "branding.fonts": true,
+    "branding.email_templates": false,
+    "branding.custom_css": false,
+    "whitelabel.subdomain": false,
+    "whitelabel.remove_platform_branding": false,
+  };
+}
+
+function featuresPro(): Features {
+  return { ...featuresBasic(), "branding.email_templates": true };
+}
+
+describe("Tenant Branding API", () => {
+  const tenantA = "11111111-1111-1111-1111-111111111111";
+  const tenantB = "22222222-2222-2222-2222-222222222222";
+
+  // If your test helper supports auth/tenant injection, wire it here:
+  // You might have something like createServicesTestApp({ tenantId, userId, role })
+  const userId = "99999999-9999-9999-9999-999999999999";
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  test("1) Canonical shape always returned: themeTokens.brand exists", async () => {
+    (getTenantFeatures as jest.Mock).mockResolvedValue(featuresBasic());
+
+    const app = await createServicesTestApp({
+      tenantId: tenantA,
+      userId,
+      role: "tenant_admin",
+    });
+
+    const res = await request(app).get("/api/tenant/branding").expect(200);
+
+    expect(res.body).toHaveProperty("branding");
+    expect(res.body.branding).toHaveProperty("themeTokens");
+    expect(res.body.branding.themeTokens).toHaveProperty("brand");
+    expect(typeof res.body.branding.themeTokens.brand).toBe("object");
+  });
+
+  test("2) Priority chain: themeTokens.brand.primary overrides primaryColor (effective CSS vars or returned effective)", async () => {
+    (getTenantFeatures as jest.Mock).mockResolvedValue(featuresBasic());
+
+    const app = await createServicesTestApp({
+      tenantId: tenantA,
+      userId,
+      role: "tenant_admin",
+    });
+
+    // set both
+    await request(app)
+      .put("/api/tenant/branding")
+      .send({
+        primaryColor: "#2563eb",
+        themeTokens: { brand: { primary: "#111111" } },
+      })
+      .expect(200);
+
+    const res = await request(app).get("/api/tenant/branding").expect(200);
+
+    // Option A: your API returns effective colors
+    if (res.body.branding?.effectiveColors?.primary) {
+      expect(res.body.branding.effectiveColors.primary).toBe("#111111");
+    } else {
+      // Option B: assert stored + priority contract (token present)
+      expect(res.body.branding.themeTokens.brand.primary).toBe("#111111");
+      expect(res.body.branding.primaryColor).toBe("#2563eb");
+      // If you expose a computed CSS var map, assert that instead:
+      // expect(res.body.branding.cssVars["--brand-primary"]).toBe("#111111");
+    }
+  });
+
+  test("3) Gating: Basic plan cannot set emailHeaderHtml (403 FEATURE_NOT_ALLOWED)", async () => {
+    (getTenantFeatures as jest.Mock).mockResolvedValue(featuresBasic());
+
+    const app = await createServicesTestApp({
+      tenantId: tenantA,
+      userId,
+      role: "tenant_admin",
+    });
+
+    const res = await request(app)
+      .put("/api/tenant/branding")
+      .send({ emailHeaderHtml: "<div>Hello</div>" })
+      .expect(403);
+
+    expect(res.body).toMatchObject({
+      error: "FEATURE_NOT_ALLOWED",
+      feature: "branding.email_templates",
+    });
+  });
+
+  test("4) Allowed: Pro plan can set emailHeaderHtml (200)", async () => {
+    (getTenantFeatures as jest.Mock).mockResolvedValue(featuresPro());
+
+    const app = await createServicesTestApp({
+      tenantId: tenantA,
+      userId,
+      role: "tenant_admin",
+    });
+
+    await request(app)
+      .put("/api/tenant/branding")
+      .send({ emailHeaderHtml: "<div>Hello</div>" })
+      .expect(200);
+
+    const res = await request(app).get("/api/tenant/branding").expect(200);
+    expect(res.body.branding.emailHeaderHtml).toContain("Hello");
+  });
+
+  test("5) Immutable fields rejected: tenantId/createdAt cannot be updated", async () => {
+    (getTenantFeatures as jest.Mock).mockResolvedValue(featuresBasic());
+
+    const app = await createServicesTestApp({
+      tenantId: tenantA,
+      userId,
+      role: "tenant_admin",
+    });
+
+    // prefer 400 for invalid payload
+    const res = await request(app)
+      .put("/api/tenant/branding")
+      .send({ tenantId: tenantB, createdAt: "2020-01-01T00:00:00Z" })
+      .expect(400);
+
+    expect(res.body.error).toBeDefined();
+
+    // Ensure it didn't change
+    const after = await request(app).get("/api/tenant/branding").expect(200);
+    expect(after.body.branding.tenantId).toBe(tenantA);
+  });
+
+  test("6) Tenant isolation: tenant A cannot access tenant B branding", async () => {
+    (getTenantFeatures as jest.Mock).mockResolvedValue(featuresBasic());
+
+    const appA = await createServicesTestApp({
+      tenantId: tenantA,
+      userId,
+      role: "tenant_admin",
+    });
+
+    // If your API is strictly tenant-scoped, there might be no way to request another tenant.
+    // Use whatever route you have that includes tenant id OR simulate host/subdomain if supported.
+    // Example (if you have /api/admin/tenants/:tenantId/branding, it should block):
+    const res = await request(appA)
+      .get(`/api/admin/tenants/${tenantB}/branding`)
+      .expect((r) => {
+        expect([403, 404]).toContain(r.status);
+      });
+
+    // If that route doesn't exist, instead assert that resolveTenantId ignores a spoofed tenant header/query.
+    // Example:
+    // await request(appA).get("/api/tenant/branding").set("x-tenant-id", tenantB).expect(200);
+  });
+});
+
+
+Notes:
+
+Test (2) depends on whether you expose an “effective” field. I coded a safe fallback: at minimum it validates tokens exist alongside colors. If you do expose effectiveColors or cssVars, assert the computed primary is #111111.
+
+Test (6) depends on your routing model. If there’s no “branding by tenantId” route (good!), verify spoof attempts don’t work (header/param ignored) or that “admin” routes are blocked.
+
+B) UI tests (React Testing Library)
+Create file
+
+client/pages/settings/__tests__/branding.ui.test.tsx (or wherever your tests live)
+
+Assumptions
+
+Branding page reads from /api/tenant/branding
+
+You have data-testid on:
+
+Settings nav link → e.g. data-testid="settings-branding-link"
+
+Preview elements → e.g. data-testid="brand-preview", brand-preview-logo, brand-preview-business-name
+
+You’re using MSW or a fetch mock.
+
+Example with MSW-style mock (or you can mock global.fetch)
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+// adjust import
+import { BrandingPage } from "../BrandingPage";
+
+function mockFetchOnce(data: any, ok = true, status = 200) {
+  (global.fetch as any) = jest.fn().mockResolvedValue({
+    ok,
+    status,
+    json: async () => data,
+  });
+}
+
+describe("Branding UI", () => {
+  test("7) Locked sections render when branding.email_templates=false", async () => {
+    mockFetchOnce({
+      branding: {
+        primaryColor: "#2563eb",
+        themeTokens: { brand: {} },
+      },
+      features: {
+        "branding.email_templates": false,
+        "branding.custom_css": false,
+        "branding.colors": true,
+        "branding.fonts": true,
+      },
+    });
+
+    render(<BrandingPage />);
+
+    // wait for page to load
+    await waitFor(() => {
+      expect(screen.getByTestId("brand-preview")).toBeInTheDocument();
+    });
+
+    // Example assertions (adjust testids/text to your UI)
+    expect(screen.getByText(/Upgrade to unlock/i)).toBeInTheDocument();
+    // If you have an email templates section:
+    expect(screen.getByTestId("email-templates-section")).toHaveAttribute("data-locked", "true");
+  });
+
+  test("8) Save persists + reload: PUT called and GET shows updated primary color", async () => {
+    // First GET
+    (global.fetch as any) = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          branding: { primaryColor: "#2563eb", themeTokens: { brand: {} } },
+          features: { "branding.colors": true },
+        }),
+      })
+      // PUT response
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          branding: { primaryColor: "#111111", themeTokens: { brand: {} } },
+          features: { "branding.colors": true },
+        }),
+      })
+      // Second GET (reload)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          branding: { primaryColor: "#111111", themeTokens: { brand: {} } },
+          features: { "branding.colors": true },
+        }),
+      });
+
+    const { rerender } = render(<BrandingPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("brand-preview")).toBeInTheDocument();
+    });
+
+    // Change primary color input (adjust selector/testid)
+    const primaryInput = screen.getByTestId("primary-color-input");
+    fireEvent.change(primaryInput, { target: { value: "#111111" } });
+
+    fireEvent.click(screen.getByTestId("branding-save"));
+
+    await waitFor(() => {
+      expect((global.fetch as any).mock.calls.some((c: any[]) => c[0].includes("/api/tenant/branding"))).toBe(true);
+    });
+
+    // Simulate "reload" by rerendering, which should trigger GET again
+    rerender(<BrandingPage />);
+
+    await waitFor(() => {
+      expect((screen.getByTestId("primary-color-input") as HTMLInputElement).value).toBe("#111111");
+    });
+  });
+});
+
+C) Minimal config notes (if tests fail to run)
+
+Ensure global.fetch is available in Jest env:
+
+In jest.setup.ts:
+
+import "whatwg-fetch";
+
+
+Or set testEnvironment: "jsdom" for UI tests.
+
+If your UI uses react-router, wrap with MemoryRouter.
+
+D) What to change if your endpoint names/testids differ
+
+Tell me (or just update locally):
+
+Branding route path (/api/tenant/branding)
+
+Feature keys (e.g. branding.email_templates)
+
+Your existing data-testid strings

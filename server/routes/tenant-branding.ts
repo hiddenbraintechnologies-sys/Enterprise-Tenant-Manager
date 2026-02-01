@@ -150,12 +150,12 @@ async function hasBrandingFeatureAsync(tenantId: string, feature: string): Promi
   } else {
     // Always fetch from database when cache miss (no fail-closed)
     const tenant = await db
-      .select({ planTier: tenants.planTier })
+      .select({ subscriptionTier: tenants.subscriptionTier })
       .from(tenants)
       .where(eq(tenants.id, tenantId))
       .limit(1);
     
-    planTier = tenant[0]?.planTier || "starter";
+    planTier = tenant[0]?.subscriptionTier || "starter";
     planCache.set(tenantId, { plan: planTier, expiresAt: now + PLAN_CACHE_TTL });
   }
   
@@ -308,12 +308,16 @@ function getHealingUpdates(branding: Record<string, unknown>): Record<string, un
     }
   }
   
-  // Handle JSON columns separately
-  if (!branding.themeTokens || (typeof branding.themeTokens === 'object' && Object.keys(branding.themeTokens as object).length === 0)) {
-    // Don't overwrite existing themeTokens
+  // Handle JSON columns separately - heal if null/undefined or missing required structure
+  const themeTokens = branding.themeTokens as Record<string, unknown> | null | undefined;
+  if (!themeTokens || !themeTokens.brand) {
+    updates.themeTokens = BRANDING_DEFAULTS.themeTokens;
+    hasUpdates = true;
   }
-  if (!branding.socialLinks || (typeof branding.socialLinks === 'object' && Object.keys(branding.socialLinks as object).length === 0)) {
-    // Don't overwrite existing socialLinks  
+  
+  if (!branding.socialLinks) {
+    updates.socialLinks = BRANDING_DEFAULTS.socialLinks;
+    hasUpdates = true;
   }
   
   return hasUpdates ? updates : null;
