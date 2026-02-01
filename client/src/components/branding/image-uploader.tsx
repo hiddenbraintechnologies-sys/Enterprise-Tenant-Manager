@@ -119,8 +119,12 @@ export function ImageUploader({
       setUploadProgress(100);
       
       // Update query cache immediately with returned branding data (single source of truth)
+      // API returns wrapped response: { branding, features }
       if (confirmData.branding) {
-        queryClient.setQueryData(["/api/tenant/branding"], confirmData.branding);
+        queryClient.setQueryData(["/api/tenant/branding"], (old: any) => ({
+          ...old,
+          branding: confirmData.branding,
+        }));
       }
       
       // Also invalidate to ensure fresh data

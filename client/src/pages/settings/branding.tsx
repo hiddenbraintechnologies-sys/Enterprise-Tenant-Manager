@@ -147,9 +147,12 @@ export default function BrandingSettings() {
   const [formData, setFormData] = useState<Partial<TenantBranding>>({});
   const [hasChanges, setHasChanges] = useState(false);
   
-  const { data: branding, isLoading } = useQuery<TenantBranding>({
+  const { data: brandingResponse, isLoading } = useQuery<{ branding: TenantBranding; features: Record<string, boolean> }>({
     queryKey: ["/api/tenant/branding"],
   });
+  
+  // Extract branding from wrapped response
+  const branding = brandingResponse?.branding;
   
   useEffect(() => {
     if (branding) {
