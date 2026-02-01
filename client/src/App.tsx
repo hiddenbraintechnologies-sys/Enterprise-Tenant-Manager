@@ -87,8 +87,15 @@ import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
 import Invoices from "@/pages/invoices";
 import Analytics from "@/pages/analytics";
-import Settings from "@/pages/settings";
+import SettingsHome from "@/pages/settings/index";
+import ProfileSettings from "@/pages/settings/profile";
+import BusinessSettings from "@/pages/settings/business";
 import BrandingSettings from "@/pages/settings/branding";
+import AppearanceSettings from "@/pages/settings/appearance";
+import NotificationsSettings from "@/pages/settings/notifications";
+import BillingSettings from "@/pages/settings/billing";
+import PortalSettings from "@/pages/settings/portal";
+import SecuritySettings from "@/pages/settings/security";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 import NotAuthorized from "@/pages/not-authorized";
@@ -497,8 +504,15 @@ function AuthenticatedRoutes() {
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/my-addons" component={MyAddonsPage} />
       <Route path="/ai-permissions" component={AiPermissions} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/settings" component={SettingsHome} />
+      <Route path="/settings/profile" component={ProfileSettings} />
+      <Route path="/settings/business" component={BusinessSettings} />
       <Route path="/settings/branding" component={BrandingSettings} />
+      <Route path="/settings/appearance" component={AppearanceSettings} />
+      <Route path="/settings/notifications" component={NotificationsSettings} />
+      <Route path="/settings/billing" component={BillingSettings} />
+      <Route path="/settings/portal" component={PortalSettings} />
+      <Route path="/settings/security" component={SecuritySettings} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />

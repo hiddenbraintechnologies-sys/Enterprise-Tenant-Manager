@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { DashboardLayout } from "@/components/dashboard-layout";
+import { SettingsLayout } from "@/components/settings-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,28 +199,16 @@ export default function BrandingSettings() {
   
   if (isLoading) {
     return (
-      <DashboardLayout 
-        title="Branding" 
-        breadcrumbs={[
-          { label: "Settings", href: "/settings" },
-          { label: "Branding" }
-        ]}
-      >
+      <SettingsLayout title="Branding">
         <div className="space-y-6">
           <Skeleton className="h-[400px] w-full" />
         </div>
-      </DashboardLayout>
+      </SettingsLayout>
     );
   }
   
   return (
-    <DashboardLayout 
-      title="Branding" 
-      breadcrumbs={[
-        { label: "Settings", href: "/settings" },
-        { label: "Branding" }
-      ]}
-    >
+    <SettingsLayout title="Branding">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -392,6 +380,6 @@ Your Business Team"
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </SettingsLayout>
   );
 }
