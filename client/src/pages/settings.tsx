@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { NotificationPreferences } from "@/components/notification-preferences";
 import { MyAddons } from "@/components/my-addons";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink, ChevronRight } from "lucide-react";
+import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink, ChevronRight, ChevronDown, Save, RotateCcw } from "lucide-react";
 import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -24,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getBusinessTypeLabel } from "@shared/business-types";
+import { ImageUploader } from "@/components/branding/image-uploader";
+import { TenantBranding, DEFAULT_BRANDING } from "@/contexts/branding-context";
 
 interface PortalSettings {
   id: string;
@@ -43,11 +46,55 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { businessType } = useTenant();
   const { toast } = useToast();
+  
+  // Branding section state
+  const [brandingExpanded, setBrandingExpanded] = useState(false);
+  const [brandingFormData, setBrandingFormData] = useState<Partial<TenantBranding>>({});
+  const [brandingHasChanges, setBrandingHasChanges] = useState(false);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
     const last = lastName?.charAt(0) || "";
     return (first + last).toUpperCase() || "U";
+  };
+
+  // Tenant branding query
+  const { data: brandingResponse, isLoading: brandingLoading } = useQuery<{ branding: TenantBranding; features: Record<string, boolean> }>({
+    queryKey: ["/api/tenant/branding"],
+    enabled: !!tenant,
+  });
+  
+  const branding = brandingResponse?.branding;
+  
+  // Stable cache-buster for logo preview
+  const logoCacheBuster = useMemo(() => Date.now(), [branding?.logoUrl]);
+
+  // Update branding mutation
+  const updateBrandingMutation = useMutation({
+    mutationFn: (data: Partial<TenantBranding>) =>
+      apiRequest("PUT", "/api/tenant/branding", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenant/branding"] });
+      setBrandingHasChanges(false);
+      toast({ title: "Branding updated", description: "Your branding settings have been saved." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update branding.", variant: "destructive" });
+    },
+  });
+
+  const handleBrandingChange = (field: keyof TenantBranding, value: string | null) => {
+    setBrandingFormData(prev => ({ ...prev, [field]: value }));
+    setBrandingHasChanges(true);
+  };
+
+  const handleBrandingSave = () => {
+    updateBrandingMutation.mutate(brandingFormData);
+  };
+
+  const handleBrandingReset = () => {
+    setBrandingFormData({});
+    setBrandingHasChanges(false);
   };
 
   // Customer Portal settings
@@ -225,17 +272,154 @@ export default function Settings() {
               </div>
             </div>
             
-            <Link href="/settings/branding" data-testid="link-company-branding">
-              <div className="flex items-center justify-between p-3 -mx-3 rounded-lg cursor-pointer hover-elevate">
+            <div className="space-y-3">
+              <div 
+                className="flex items-center justify-between p-3 -mx-3 rounded-lg cursor-pointer hover-elevate"
+                onClick={() => setBrandingExpanded(!brandingExpanded)}
+                data-testid="button-toggle-branding"
+              >
                 <div>
                   <p className="font-medium">Company Branding</p>
                   <p className="text-sm text-muted-foreground">
                     Customize logo, colors, and email branding
                   </p>
                 </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${brandingExpanded ? "rotate-180" : ""}`} />
               </div>
-            </Link>
+              
+              {brandingExpanded && (
+                <div className="pl-3 pr-3 pb-3 space-y-4 border rounded-lg bg-muted/30" data-testid="section-branding-expanded">
+                  {brandingLoading ? (
+                    <div className="py-4 text-center text-sm text-muted-foreground">Loading branding settings...</div>
+                  ) : (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2 pt-4">
+                        <ImageUploader
+                          label="Logo"
+                          type="logo"
+                          value={brandingFormData.logoUrl ?? branding?.logoUrl ?? null}
+                          onChange={(url: string | null) => handleBrandingChange("logoUrl", url)}
+                          acceptTypes="image/png"
+                          description="PNG only, max 1MB"
+                        />
+                        <ImageUploader
+                          label="Favicon"
+                          type="favicon"
+                          value={brandingFormData.faviconUrl ?? branding?.faviconUrl ?? null}
+                          onChange={(url: string | null) => handleBrandingChange("faviconUrl", url)}
+                          acceptTypes="image/png,image/x-icon"
+                          description="PNG or ICO, max 200KB"
+                        />
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label>Primary Color</Label>
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
+                              style={{ backgroundColor: brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor }}
+                            >
+                              <input
+                                type="color"
+                                value={brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor}
+                                onChange={(e) => handleBrandingChange("primaryColor", e.target.value)}
+                                className="w-full h-full opacity-0 cursor-pointer"
+                                data-testid="color-primary"
+                              />
+                            </div>
+                            <Input
+                              value={brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor}
+                              onChange={(e) => handleBrandingChange("primaryColor", e.target.value)}
+                              className="w-24 font-mono text-sm"
+                              maxLength={7}
+                              data-testid="input-primary-color"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Secondary Color</Label>
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
+                              style={{ backgroundColor: brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor }}
+                            >
+                              <input
+                                type="color"
+                                value={brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor}
+                                onChange={(e) => handleBrandingChange("secondaryColor", e.target.value)}
+                                className="w-full h-full opacity-0 cursor-pointer"
+                                data-testid="color-secondary"
+                              />
+                            </div>
+                            <Input
+                              value={brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor}
+                              onChange={(e) => handleBrandingChange("secondaryColor", e.target.value)}
+                              className="w-24 font-mono text-sm"
+                              maxLength={7}
+                              data-testid="input-secondary-color"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Accent Color</Label>
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
+                              style={{ backgroundColor: brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor }}
+                            >
+                              <input
+                                type="color"
+                                value={brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor}
+                                onChange={(e) => handleBrandingChange("accentColor", e.target.value)}
+                                className="w-full h-full opacity-0 cursor-pointer"
+                                data-testid="color-accent"
+                              />
+                            </div>
+                            <Input
+                              value={brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor}
+                              onChange={(e) => handleBrandingChange("accentColor", e.target.value)}
+                              className="w-24 font-mono text-sm"
+                              maxLength={7}
+                              data-testid="input-accent-color"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between pt-2">
+                        <Link href="/settings/branding" className="text-sm text-primary hover:underline" data-testid="link-advanced-branding">
+                          Advanced branding options →
+                        </Link>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleBrandingReset}
+                            disabled={!brandingHasChanges}
+                            data-testid="button-reset-branding"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Reset
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={handleBrandingSave}
+                            disabled={!brandingHasChanges || updateBrandingMutation.isPending}
+                            data-testid="button-save-branding"
+                          >
+                            <Save className="h-4 w-4 mr-1" />
+                            {updateBrandingMutation.isPending ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
