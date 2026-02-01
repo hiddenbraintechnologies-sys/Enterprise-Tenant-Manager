@@ -122,6 +122,8 @@ import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
 import tenantSettingsRoutes from "./routes/tenant-settings";
 import tenantBrandingRoutes from "./routes/tenant-branding";
+import brandingUploadRoutes from "./routes/branding-upload";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
@@ -457,6 +459,10 @@ export async function registerRoutes(
   
   // Tenant branding (logo, colors, theme customization)
   app.use(tenantBrandingRoutes);
+  app.use(brandingUploadRoutes);
+  
+  // Object storage routes (file serving)
+  registerObjectStorageRoutes(app);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
   app.use('/api/feature-flags', authenticateHybrid(), enforceTenantBoundary(), featureFlagsRoutes);

@@ -8,10 +8,11 @@ import { Separator } from "@/components/ui/separator";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, Upload, Eye, Save, RotateCcw, Image, Mail } from "lucide-react";
+import { Palette, Eye, Save, RotateCcw, Image, Mail } from "lucide-react";
 import { TenantBranding, DEFAULT_BRANDING } from "@/contexts/branding-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { ImageUploader } from "@/components/branding/image-uploader";
 
 function ColorPicker({ 
   label, 
@@ -251,49 +252,27 @@ export default function BrandingSettings() {
                 </div>
                 <CardDescription>Upload your logo and favicon</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="logoUrl">Logo URL</Label>
-                    <Input
-                      id="logoUrl"
-                      value={formData.logoUrl || ""}
-                      onChange={(e) => updateField("logoUrl", e.target.value || null)}
-                      placeholder="https://example.com/logo.png"
-                      data-testid="input-logo-url"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Recommended: PNG or SVG, minimum 200x50px
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="faviconUrl">Favicon URL</Label>
-                    <Input
-                      id="faviconUrl"
-                      value={formData.faviconUrl || ""}
-                      onChange={(e) => updateField("faviconUrl", e.target.value || null)}
-                      placeholder="https://example.com/favicon.ico"
-                      data-testid="input-favicon-url"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      32x32px PNG or ICO format
-                    </p>
-                  </div>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <ImageUploader
+                    label="Logo"
+                    type="logo"
+                    value={formData.logoUrl || null}
+                    onChange={(url) => updateField("logoUrl", url)}
+                    acceptTypes="image/png,image/svg+xml,image/jpeg,image/webp"
+                    description="PNG or SVG recommended, minimum 200x50px"
+                    previewClassName="h-12 max-w-[200px]"
+                  />
+                  <ImageUploader
+                    label="Favicon"
+                    type="favicon"
+                    value={formData.faviconUrl || null}
+                    onChange={(url) => updateField("faviconUrl", url)}
+                    acceptTypes="image/png,image/x-icon,image/vnd.microsoft.icon"
+                    description="32x32px PNG or ICO format"
+                    previewClassName="h-8 w-8"
+                  />
                 </div>
-                
-                {formData.logoUrl && (
-                  <div className="border rounded-lg p-4 bg-muted/50">
-                    <p className="text-sm font-medium mb-2">Logo Preview</p>
-                    <img 
-                      src={formData.logoUrl} 
-                      alt="Logo preview" 
-                      className="max-h-16 object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  </div>
-                )}
               </CardContent>
             </Card>
             
