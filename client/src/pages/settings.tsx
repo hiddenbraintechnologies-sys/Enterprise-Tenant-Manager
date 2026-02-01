@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink } from "lucide-react";
+import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink, ChevronRight } from "lucide-react";
+import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -185,6 +186,20 @@ export default function Settings() {
                 </SelectContent>
               </Select>
             </div>
+            
+            <Separator />
+            
+            <Link href="/settings/branding" data-testid="link-company-branding">
+              <div className="flex items-center justify-between p-3 -mx-3 rounded-lg cursor-pointer hover-elevate">
+                <div>
+                  <p className="font-medium">Company Branding</p>
+                  <p className="text-sm text-muted-foreground">
+                    Customize logo, colors, and email branding
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </Link>
           </CardContent>
         </Card>
 

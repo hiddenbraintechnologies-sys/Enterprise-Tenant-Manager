@@ -9,6 +9,7 @@ import { TenantProvider, DashboardGuard, ModuleGuard, FeatureGuard, useTenant, O
 import { TourProvider } from "@/contexts/tour-context";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { CountryProvider } from "@/contexts/country-context";
+import { BrandingProvider } from "@/contexts/branding-context";
 import { OfflineBanner } from "@/components/pwa/offline-banner";
 import { InstallBanner } from "@/components/pwa/install-prompt";
 
@@ -87,6 +88,7 @@ import Bookings from "@/pages/bookings";
 import Invoices from "@/pages/invoices";
 import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
+import BrandingSettings from "@/pages/settings/branding";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 import NotAuthorized from "@/pages/not-authorized";
@@ -496,6 +498,7 @@ function AuthenticatedRoutes() {
       <Route path="/my-addons" component={MyAddonsPage} />
       <Route path="/ai-permissions" component={AiPermissions} />
       <Route path="/settings" component={Settings} />
+      <Route path="/settings/branding" component={BrandingSettings} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />
@@ -907,13 +910,15 @@ function AppRouter() {
 
   return (
     <TenantProvider>
-      <OnboardingGuard>
-        <Switch>
-          <Route path="/packages" component={Packages} />
-          <Route path="/checkout" component={Checkout} />
-          <Route component={AuthenticatedRoutes} />
-        </Switch>
-      </OnboardingGuard>
+      <BrandingProvider>
+        <OnboardingGuard>
+          <Switch>
+            <Route path="/packages" component={Packages} />
+            <Route path="/checkout" component={Checkout} />
+            <Route component={AuthenticatedRoutes} />
+          </Switch>
+        </OnboardingGuard>
+      </BrandingProvider>
     </TenantProvider>
   );
 }

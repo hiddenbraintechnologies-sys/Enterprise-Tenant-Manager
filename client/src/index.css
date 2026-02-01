@@ -58,6 +58,14 @@
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
+  /* Tenant branding defaults (can be overridden at runtime) */
+  --brand-primary: #3B82F6;
+  --brand-primary-hsl: 217 91% 60%;
+  --brand-secondary: #1E40AF;
+  --brand-secondary-hsl: 224 76% 40%;
+  --brand-accent: #10B981;
+  --brand-accent-hsl: 160 84% 39%;
+
 /* Fallback for older browsers */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);

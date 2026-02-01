@@ -121,6 +121,7 @@ import employeePortalRoutes from "./routes/employee-portal";
 import phase3OnboardingRoutes from "./routes/phase3-onboarding";
 import dashboardApiRoutes from "./routes/dashboard-api";
 import tenantSettingsRoutes from "./routes/tenant-settings";
+import tenantBrandingRoutes from "./routes/tenant-branding";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
 import { db } from "./db";
@@ -453,6 +454,9 @@ export async function registerRoutes(
 
   // Tenant settings (language preference, etc.)
   app.use(tenantSettingsRoutes);
+  
+  // Tenant branding (logo, colors, theme customization)
+  app.use(tenantBrandingRoutes);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
   app.use('/api/feature-flags', authenticateHybrid(), enforceTenantBoundary(), featureFlagsRoutes);
