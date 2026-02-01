@@ -200,20 +200,6 @@ export default function Settings() {
             <CardDescription>Configure your business settings</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Link href="/settings/branding" data-testid="link-company-branding">
-              <div className="flex items-center justify-between p-3 -mx-3 rounded-lg cursor-pointer hover-elevate">
-                <div>
-                  <p className="font-medium">Company Branding</p>
-                  <p className="text-sm text-muted-foreground">
-                    Customize logo, colors, and email branding
-                  </p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </div>
-            </Link>
-            
-            <Separator />
-            
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="businessName">Business Name</Label>
@@ -237,6 +223,21 @@ export default function Settings() {
                   Business type cannot be changed after registration
                 </p>
               </div>
+            </div>
+            
+            <Link href="/settings/branding" data-testid="link-company-branding">
+              <div className="flex items-center justify-between p-3 -mx-3 rounded-lg cursor-pointer hover-elevate">
+                <div>
+                  <p className="font-medium">Company Branding</p>
+                  <p className="text-sm text-muted-foreground">
+                    Customize logo, colors, and email branding
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </Link>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="timezone">Timezone</Label>
                 <Select 
