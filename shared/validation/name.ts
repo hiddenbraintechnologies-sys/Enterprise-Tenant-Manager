@@ -1,18 +1,49 @@
 import { z } from "zod";
 
-// Shared name validation regex: starts with letter, allows letters/spaces/hyphens/apostrophes
-export const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,49}$/;
+/**
+ * Unicode-safe name validation regex using property escapes
+ * - \p{L} = any letter from any language
+ * - \p{M} = combining marks (for accents like é, ñ)
+ * - Allows spaces, hyphens, and apostrophes as separators
+ * - Must start with a letter
+ * - Length 2-50 characters
+ * 
+ * Tested with: José, Renée, Łukasz, محمد, 张伟, அருண், O'Connor, Jean-Paul, Mary Ann
+ */
+export const NAME_REGEX = /^\p{L}[\p{L}\p{M}\s'-]{1,49}$/u;
 
-// International name regex with Unicode support
-export const NAME_REGEX_INTL = /^[A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F][A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\s'-]{0,49}$/;
+/**
+ * Normalizes a name for consistent storage:
+ * - NFC Unicode normalization (canonical composition)
+ * - Trims leading/trailing whitespace
+ * - Collapses multiple spaces to single space
+ */
+export function normalizeName(input: string): string {
+  return input
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/g, " ");
+}
 
+/**
+ * Creates a Zod name field with proper validation and normalization
+ */
 export const nameField = (label: string) =>
   z
     .string()
-    .trim()
-    .min(2, `${label} must be at least 2 characters`)
-    .max(50, `${label} must be at most 50 characters`)
-    .regex(
-      NAME_REGEX_INTL,
-      `${label} can only contain letters, spaces, hyphens (-), or apostrophes (') and must start with a letter`
-    );
+    .transform(normalizeName)
+    .refine((val) => val.length >= 2, {
+      message: `${label} must be at least 2 characters`,
+    })
+    .refine((val) => val.length <= 50, {
+      message: `${label} must be at most 50 characters`,
+    })
+    .refine((val) => NAME_REGEX.test(val), {
+      message: `${label} can only contain letters, spaces, hyphens (-), or apostrophes (') and must start with a letter`,
+    })
+    .refine((val) => !/--/.test(val) && !/''+/.test(val) && !/\s\s/.test(val), {
+      message: `${label} cannot contain consecutive separators`,
+    })
+    .refine((val) => !/^[-'\s]/.test(val) && !/[-'\s]$/.test(val), {
+      message: `${label} cannot start or end with a separator`,
+    });

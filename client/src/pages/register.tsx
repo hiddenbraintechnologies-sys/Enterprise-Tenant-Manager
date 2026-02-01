@@ -231,9 +231,10 @@ export default function Register() {
       const apiError = extractApiError(error.apiError);
       const handled = applyApiErrorsToForm(apiError, form.setError);
       
+      // Show short toast - detailed errors are shown inline on fields
       toast({
         title: "Registration failed",
-        description: error.message,
+        description: handled ? "Please fix the highlighted fields" : error.message,
         variant: "destructive",
       });
     },

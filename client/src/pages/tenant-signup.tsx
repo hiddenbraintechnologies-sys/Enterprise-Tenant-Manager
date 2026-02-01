@@ -154,11 +154,12 @@ export default function TenantSignupPage() {
     onError: (error: Error & { apiError?: unknown }) => {
       // Map API errors to form fields using the utility
       const apiError = extractApiError(error.apiError);
-      applyApiErrorsToForm(apiError, form.setError);
+      const handled = applyApiErrorsToForm(apiError, form.setError);
       
+      // Show short toast - detailed errors are shown inline on fields
       toast({
         title: "Signup failed",
-        description: error.message,
+        description: handled ? "Please fix the highlighted fields" : error.message,
         variant: "destructive",
       });
     },

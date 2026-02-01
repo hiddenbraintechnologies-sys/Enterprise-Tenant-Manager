@@ -1,0 +1,133 @@
+1) Validate the Unicode name rule is really safe
+
+You said “international Unicode support” in shared/validation/name.ts. That’s good, but only if it’s implemented with Unicode property escapes and you’ve prevented weird edge cases.
+
+A solid Unicode-friendly pattern is usually:
+
+allow letters from any language: \p{L}
+
+allow combining marks: \p{M} (for accents)
+
+allow separators: space, hyphen, apostrophe
+
+must start with a letter
+
+must contain at least one letter (prevents “---” or “ ’ ’ ”)
+
+Example (works in modern Node with the u flag):
+
+export const NAME_REGEX = /^\p{L}[\p{L}\p{M}\s'-]{1,49}$/u;
+
+
+Quick edge cases to test:
+
+✅ José, Renée, Łukasz, محمد, 张伟, அருண்
+
+✅ O'Connor, Jean-Paul, Mary Ann
+
+❌ !@#$, 1234, ---, ' ', 🙂
+
+❌ Leading space: " John" (should be trimmed first)
+
+❌ Double separators: "John--Paul" (optional: allow or reject)
+
+❌ Multiple spaces: "Mary Ann" (optional: normalize)
+
+If you want to be strict: normalize spaces/hyphens before validation.
+
+2) Confirm backend trims and normalizes before saving
+
+Even with trim(), you should ensure you store a clean version:
+
+Collapse multiple spaces: Mary Ann → Mary Ann
+
+Remove leading/trailing separators: -John or John- reject
+
+Optionally normalize Unicode: NFC (prevents weird duplicates)
+
+Suggested normalization function:
+
+export function normalizeName(input: string) {
+  return input
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+
+Use it before DB insert (backend), and optionally in frontend too.
+
+3) Ensure the API error shape is consistent everywhere
+
+Your response includes both:
+
+fieldErrors[]
+
+and message
+
+That’s fine, but make sure the rule is consistent:
+
+If fieldErrors exists → show field messages
+
+message is only a fallback (toast / root error)
+
+Make sure message isn’t contradictory (e.g., message says “Invalid email” but fieldErrors says name).
+
+4) React Hook Form mapping: handle root + nested fields safely
+
+In client/src/lib/form-errors.ts, ensure:
+
+Unknown fields map to root
+
+Supports nested fields if you ever add them (company.address.line1)
+
+Suggested behavior:
+
+If field doesn’t exist in form: setError("root", ...)
+
+Also: dedupe repeated errors.
+
+5) Add tests (these are the minimum that catch regressions)
+Backend tests (Jest)
+
+firstName="!@#$%" → 400 with fieldErrors[0].field === "firstName"
+
+Unicode valid name passes: firstName="José" → 201
+
+firstName="张伟" passes
+
+firstName="---" fails
+
+Frontend (optional)
+
+Submit invalid name → inline error shows without toast
+
+Submit valid → proceeds
+
+6) Quick UX improvement (tiny but important)
+
+Instead of showing the full long message in the toast, keep toast short:
+
+Toast: “Please fix the highlighted fields”
+
+Field message stays detailed
+
+This prevents noisy error popups.
+
+If you want one final “QA confirmation script”
+
+Use this checklist:
+
+Try !@#$ in first name → blocked UI + 400 from API
+
+Try 张伟 → accepted
+
+Try Jean-Paul → accepted
+
+Try O'Connor → accepted
+
+Try " Mary Ann " → saved as Mary Ann (if normalization added)
+
+Confirm DB contains normalized string
+
+If you paste your current shared/validation/name.ts content (just that file), I’ll sanity-check the Unicode regex and suggest any small tweaks to avoid false positives/negatives.
