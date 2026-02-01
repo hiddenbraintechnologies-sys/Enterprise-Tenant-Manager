@@ -36,6 +36,9 @@ jobs:
       - name: Run ESLint
         run: echo "Linting skipped - add ESLint when needed"
 
+      - name: Run Tenant Isolation Lint
+        run: bash scripts/lint-tenant-isolation.sh
+
   # ===========================================
   # Unit Tests
   # ===========================================
