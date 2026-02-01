@@ -16,9 +16,10 @@ interface ImageUploaderProps {
   previewClassName?: string;
 }
 
-const ALLOWED_LOGO_TYPES = ["image/png", "image/svg+xml", "image/jpeg", "image/webp"];
+const ALLOWED_LOGO_TYPES = ["image/png", "image/svg+xml"];
 const ALLOWED_FAVICON_TYPES = ["image/png", "image/x-icon", "image/vnd.microsoft.icon"];
-const MAX_FILE_SIZE = 2 * 1024 * 1024;
+const MAX_LOGO_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_FAVICON_SIZE = 200 * 1024; // 200KB
 
 export function ImageUploader({
   label,
@@ -32,6 +33,7 @@ export function ImageUploader({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [manualUrl, setManualUrl] = useState(value || "");
 
@@ -39,10 +41,12 @@ export function ImageUploader({
 
   const validateFile = useCallback((file: File): string | null => {
     if (!allowedTypes.includes(file.type)) {
-      return `Invalid file type. Allowed: ${type === "logo" ? "PNG, SVG, JPG, WebP" : "PNG, ICO"}`;
+      return `Invalid file type. Allowed: ${type === "logo" ? "PNG, SVG" : "PNG, ICO"}`;
     }
-    if (file.size > MAX_FILE_SIZE) {
-      return `File too large. Maximum size is 2MB`;
+    const maxSize = type === "logo" ? MAX_LOGO_SIZE : MAX_FAVICON_SIZE;
+    const maxSizeLabel = type === "logo" ? "1MB" : "200KB";
+    if (file.size > maxSize) {
+      return `File too large. Maximum size is ${maxSizeLabel}`;
     }
     return null;
   }, [type, allowedTypes]);
@@ -58,6 +62,7 @@ export function ImageUploader({
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
     try {
       const uploadResponse = await apiRequest("POST", "/api/branding/upload", {
         type,
@@ -67,11 +72,32 @@ export function ImageUploader({
       });
 
       const { uploadURL, objectPath } = await uploadResponse.json();
+      setUploadProgress(20);
 
-      await fetch(uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
+      // Upload with progress tracking using XMLHttpRequest
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadURL);
+        xhr.setRequestHeader("Content-Type", file.type);
+        
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = 20 + Math.round((e.loaded / e.total) * 60);
+            setUploadProgress(percent);
+          }
+        };
+        
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress(85);
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
+          }
+        };
+        
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.send(file);
       });
 
       await apiRequest("POST", "/api/branding/confirm-upload", {
@@ -79,7 +105,11 @@ export function ImageUploader({
         objectPath,
       });
 
-      onChange(objectPath);
+      setUploadProgress(100);
+      
+      // Add cache-busting for favicon
+      const finalPath = type === "favicon" ? `${objectPath}?v=${Date.now()}` : objectPath;
+      onChange(finalPath);
       setManualUrl(objectPath);
       
       // Invalidate branding cache to update sidebar logo and favicon immediately
@@ -95,6 +125,7 @@ export function ImageUploader({
       });
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -158,26 +189,37 @@ export function ImageUploader({
             className="hidden"
             data-testid={`input-file-${type}`}
           />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="flex-1"
-            data-testid={`button-upload-${type}`}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload {label}
-              </>
+          <div className="flex-1 space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="w-full"
+              data-testid={`button-upload-${type}`}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading... {uploadProgress}%
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload {label}
+                </>
+              )}
+            </Button>
+            {isUploading && (
+              <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className="bg-primary h-full transition-all duration-300 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                  data-testid={`progress-${type}`}
+                />
+              </div>
             )}
-          </Button>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground">{description}</p>

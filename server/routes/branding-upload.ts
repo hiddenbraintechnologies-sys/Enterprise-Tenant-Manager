@@ -13,12 +13,10 @@ const requiredAuth = authenticateHybrid();
 const auditService = new AuditService();
 const objectStorageService = new ObjectStorageService();
 
-const ALLOWED_LOGO_TYPES = ["image/png", "image/svg+xml", "image/jpeg", "image/webp"];
-const ALLOWED_FAVICON_TYPES = ["image/png", "image/x-icon", "image/vnd.microsoft.icon", "image/ico"];
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
-const MIN_LOGO_WIDTH = 200;
-const MIN_LOGO_HEIGHT = 50;
-const FAVICON_SIZE = 32;
+const ALLOWED_LOGO_TYPES = ["image/png", "image/svg+xml"];
+const ALLOWED_FAVICON_TYPES = ["image/png", "image/x-icon", "image/vnd.microsoft.icon"];
+const MAX_LOGO_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_FAVICON_SIZE = 200 * 1024; // 200KB
 
 interface UploadRequest {
   type: "logo" | "favicon";
@@ -50,15 +48,18 @@ function validateUploadRequest(body: unknown): { valid: boolean; error?: string;
     return { valid: false, error: "Invalid file size" };
   }
 
-  if (size > MAX_FILE_SIZE) {
-    return { valid: false, error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` };
+  const maxSize = type === "logo" ? MAX_LOGO_SIZE : MAX_FAVICON_SIZE;
+  const maxSizeLabel = type === "logo" ? "1MB" : "200KB";
+  if (size > maxSize) {
+    return { valid: false, error: `File too large. Maximum size for ${type} is ${maxSizeLabel}` };
   }
 
   const allowedTypes = type === "logo" ? ALLOWED_LOGO_TYPES : ALLOWED_FAVICON_TYPES;
+  const allowedTypesLabel = type === "logo" ? "PNG, SVG" : "PNG, ICO";
   if (!allowedTypes.includes(contentType)) {
     return { 
       valid: false, 
-      error: `Invalid file type for ${type}. Allowed types: ${allowedTypes.join(", ")}` 
+      error: `Invalid file type for ${type}. Allowed: ${allowedTypesLabel}` 
     };
   }
 
@@ -72,11 +73,8 @@ function getFileExtension(contentType: string): string {
   const typeMap: Record<string, string> = {
     "image/png": "png",
     "image/svg+xml": "svg",
-    "image/jpeg": "jpg",
-    "image/webp": "webp",
     "image/x-icon": "ico",
     "image/vnd.microsoft.icon": "ico",
-    "image/ico": "ico",
   };
   return typeMap[contentType] || "png";
 }
@@ -176,6 +174,19 @@ router.post("/api/branding/confirm-upload", requiredAuth, async (req: Request, r
 
     if (!objectPath.includes(`/tenants/${tenantId}/`)) {
       return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+    }
+
+    // Verify object exists via HEAD request
+    try {
+      const headResponse = await fetch(`${process.env.REPL_SLUG ? '' : 'http://localhost:5000'}${objectPath}`, {
+        method: "HEAD",
+      });
+      if (!headResponse.ok) {
+        console.warn(`[branding-upload] Object not found at ${objectPath}, status: ${headResponse.status}`);
+        // Continue anyway - object may still be propagating
+      }
+    } catch (headError) {
+      console.warn("[branding-upload] HEAD check failed, continuing:", headError);
     }
 
     const urlField = type === "logo" ? "logoUrl" : "faviconUrl";

@@ -259,8 +259,8 @@ export default function BrandingSettings() {
                     type="logo"
                     value={formData.logoUrl || null}
                     onChange={(url) => updateField("logoUrl", url)}
-                    acceptTypes="image/png,image/svg+xml,image/jpeg,image/webp"
-                    description="PNG or SVG recommended, minimum 200x50px"
+                    acceptTypes="image/png,image/svg+xml"
+                    description="PNG or SVG, max 1MB"
                     previewClassName="h-12 max-w-[200px]"
                   />
                   <ImageUploader
@@ -269,7 +269,7 @@ export default function BrandingSettings() {
                     value={formData.faviconUrl || null}
                     onChange={(url) => updateField("faviconUrl", url)}
                     acceptTypes="image/png,image/x-icon,image/vnd.microsoft.icon"
-                    description="32x32px PNG or ICO format"
+                    description="PNG or ICO, max 200KB"
                     previewClassName="h-8 w-8"
                   />
                 </div>
