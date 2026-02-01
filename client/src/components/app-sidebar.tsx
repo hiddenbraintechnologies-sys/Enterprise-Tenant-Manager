@@ -50,6 +50,7 @@ import { useFeatureGate, isDismissed, setDismissed } from "@/hooks/use-feature-g
 import { InstallButton } from "@/components/pwa/install-prompt";
 import type { BusinessType } from "@/contexts/tenant-context";
 import type { GateReason } from "@/hooks/use-feature-gate";
+import { useBranding } from "@/contexts/branding-context";
 
 interface NavItem {
   title: string;
@@ -301,6 +302,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const { user, logout, isLoggingOut, businessType: authBusinessType, tenant } = useAuth();
   const { canAccessModule, getModuleAccessInfo, isFreePlan } = useModuleAccess();
   const { hasPayrollAccess, isPayrollTrialing, countryCode, isLoading: isPayrollLoading } = usePayrollAddon();
+  const { branding } = useBranding();
 
   const [lockedModal, setLockedModal] = useState<LockedModalState>({
     open: false,
@@ -421,11 +423,26 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <Link href={dashboardRoute} className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Building2 className="h-5 w-5" />
-          </div>
+          {branding?.logoUrl ? (
+            <img 
+              src={branding.logoUrl} 
+              alt={(tenant as any)?.businessName || "Company Logo"}
+              className="h-9 w-auto max-w-[140px] object-contain"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+                (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
+              }}
+              data-testid="img-sidebar-logo"
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Building2 className="h-5 w-5" />
+            </div>
+          )}
           <div className="flex flex-col">
-            <span className="text-base font-semibold" data-testid="text-app-name">MyBizStream</span>
+            <span className="text-base font-semibold" data-testid="text-app-name">
+              {(tenant as any)?.businessName || "MyBizStream"}
+            </span>
             <span className="text-xs text-muted-foreground">Business Manager</span>
           </div>
         </Link>
