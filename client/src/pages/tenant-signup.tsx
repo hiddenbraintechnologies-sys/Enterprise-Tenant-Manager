@@ -28,6 +28,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Building2, ArrowLeft, Loader2, CheckCircle, ArrowRight } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
+// Name validation: Must start with letter, contain only letters/spaces/hyphens/apostrophes
+const NAME_VALIDATION_REGEX = /^[A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F][A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\s'-]{0,49}$/;
+const NAME_VALIDATION_MESSAGE = "Name must start with a letter and contain only letters, spaces, hyphens, or apostrophes";
+
 const tenantSignupSchema = z.object({
   tenantName: z.string().min(1, "Business name is required").max(200),
   subdomain: z.string().min(2, "Subdomain must be at least 2 characters").max(50).regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed").optional().or(z.literal("")),
@@ -36,8 +40,14 @@ const tenantSignupSchema = z.object({
     "real_estate", "tourism", "education", "logistics",
     "legal", "furniture_manufacturing", "software_services", "consulting"
   ]),
-  adminFirstName: z.string().min(1, "First name is required").max(100),
-  adminLastName: z.string().min(1, "Last name is required").max(100),
+  adminFirstName: z.string()
+    .min(1, "First name is required")
+    .max(50, "First name must be 50 characters or less")
+    .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
+  adminLastName: z.string()
+    .min(1, "Last name is required")
+    .max(50, "Last name must be 50 characters or less")
+    .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
   adminEmail: z.string().email("Invalid email format"),
   adminPassword: z.string()
     .min(8, "Password must be at least 8 characters")
@@ -120,6 +130,16 @@ export default function TenantSignupPage() {
 
       if (!response.ok) {
         const error = await response.json();
+        // Return structured error for field-specific mapping
+        if (error.error === "VALIDATION_ERROR" && error.field) {
+          const validationError = new Error(error.message || "Validation failed") as Error & { 
+            field?: string; 
+            errors?: Record<string, string[]> 
+          };
+          validationError.field = error.field;
+          validationError.errors = error.errors;
+          throw validationError;
+        }
         throw new Error(error.error || error.message || "Signup failed");
       }
 
@@ -143,7 +163,18 @@ export default function TenantSignupPage() {
         setLocation("/packages");
       }, 100);
     },
-    onError: (error: Error) => {
+    onError: (error: Error & { field?: string; errors?: Record<string, string[]> }) => {
+      // Map field-specific errors to form fields
+      if (error.field && error.errors) {
+        Object.entries(error.errors).forEach(([field, messages]) => {
+          if (field in form.getValues() && messages.length > 0) {
+            form.setError(field as keyof TenantSignupForm, { 
+              type: "server", 
+              message: messages[0] 
+            });
+          }
+        });
+      }
       toast({
         title: "Signup failed",
         description: error.message,

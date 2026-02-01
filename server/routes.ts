@@ -673,15 +673,20 @@ export async function registerRoutes(
   
   const authRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
 
+  // Name validation regex: Must start with a letter (A-Z or international letters),
+  // followed by letters, spaces, hyphens, or apostrophes only. Length 2-50 chars.
+  const NAME_VALIDATION_REGEX = /^[A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F][A-Za-z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\s'-]{0,49}$/;
+  const NAME_VALIDATION_MESSAGE = "Name must start with a letter and contain only letters, spaces, hyphens, or apostrophes";
+
   const registrationSchema = z.object({
     firstName: z.string()
       .min(1, "First name is required")
-      .max(100)
-      .regex(/[a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/, "First name must contain at least one letter"),
+      .max(50, "First name must be 50 characters or less")
+      .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
     lastName: z.string()
       .min(1, "Last name is required")
-      .max(100)
-      .regex(/[a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/, "Last name must contain at least one letter"),
+      .max(50, "Last name must be 50 characters or less")
+      .regex(NAME_VALIDATION_REGEX, NAME_VALIDATION_MESSAGE),
     email: z.string().email("Invalid email format"),
     password: z.string()
       .min(8, "Password must be at least 8 characters")
@@ -703,9 +708,16 @@ export async function registerRoutes(
       console.log("[register] Step 1: Validating input");
       const parsed = registrationSchema.safeParse(req.body);
       if (!parsed.success) {
+        // Return structured field-specific errors for frontend mapping
+        const fieldErrors = parsed.error.flatten().fieldErrors;
+        const firstErrorField = Object.keys(fieldErrors)[0];
+        const firstErrorMessage = fieldErrors[firstErrorField as keyof typeof fieldErrors]?.[0];
+        
         return res.status(400).json({ 
-          message: "Validation failed", 
-          errors: parsed.error.flatten().fieldErrors 
+          error: "VALIDATION_ERROR",
+          field: firstErrorField,
+          message: firstErrorMessage || "Validation failed",
+          errors: fieldErrors
         });
       }
 
