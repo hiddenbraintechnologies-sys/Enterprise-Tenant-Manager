@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Upload, X, Link as LinkIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface ImageUploaderProps {
   label: string;
@@ -81,6 +81,10 @@ export function ImageUploader({
 
       onChange(objectPath);
       setManualUrl(objectPath);
+      
+      // Invalidate branding cache to update sidebar logo and favicon immediately
+      queryClient.invalidateQueries({ queryKey: ["/api/tenant/branding"] });
+      
       toast({ title: "Upload complete", description: `${label} has been updated.` });
     } catch (err) {
       console.error("Upload error:", err);
