@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink, ChevronRight, ChevronDown, Save, RotateCcw } from "lucide-react";
+import { Building2, User, Bell, Shield, Palette, Users, Copy, RefreshCw, ExternalLink, ChevronRight, Save, RotateCcw } from "lucide-react";
 import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -48,7 +48,6 @@ export default function Settings() {
   const { toast } = useToast();
   
   // Branding section state
-  const [brandingExpanded, setBrandingExpanded] = useState(false);
   const [brandingFormData, setBrandingFormData] = useState<Partial<TenantBranding>>({});
   const [brandingHasChanges, setBrandingHasChanges] = useState(false);
 
@@ -319,152 +318,141 @@ export default function Settings() {
               </div>
             </div>
             
-            <div className="space-y-3">
-              <div 
-                className="flex items-center justify-between p-3 -mx-3 rounded-lg cursor-pointer hover-elevate"
-                onClick={() => setBrandingExpanded(!brandingExpanded)}
-                data-testid="button-toggle-branding"
-              >
-                <div>
-                  <p className="font-medium">Company Branding</p>
-                  <p className="text-sm text-muted-foreground">
-                    Customize logo, colors, and email branding
-                  </p>
-                </div>
-                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${brandingExpanded ? "rotate-180" : ""}`} />
+            <Separator />
+            
+            <div className="space-y-4" data-testid="section-branding">
+              <div>
+                <p className="font-medium">Company Branding</p>
+                <p className="text-sm text-muted-foreground">
+                  Customize logo, colors, and email branding
+                </p>
               </div>
               
-              {brandingExpanded && (
-                <div className="pl-3 pr-3 pb-3 space-y-4 border rounded-lg bg-muted/30" data-testid="section-branding-expanded">
-                  {brandingLoading ? (
-                    <div className="py-4 text-center text-sm text-muted-foreground">Loading branding settings...</div>
-                  ) : (
-                    <>
-                      <div className="grid gap-4 sm:grid-cols-2 pt-4">
-                        <ImageUploader
-                          label="Logo"
-                          type="logo"
-                          value={brandingFormData.logoUrl ?? branding?.logoUrl ?? null}
-                          onChange={(url: string | null) => handleBrandingChange("logoUrl", url)}
-                          acceptTypes="image/png"
-                          description="PNG only, max 1MB"
+              {brandingLoading ? (
+                <div className="py-4 text-center text-sm text-muted-foreground">Loading branding settings...</div>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <ImageUploader
+                      label="Logo"
+                      type="logo"
+                      value={brandingFormData.logoUrl ?? branding?.logoUrl ?? null}
+                      onChange={(url: string | null) => handleBrandingChange("logoUrl", url)}
+                      acceptTypes="image/png"
+                      description="PNG only, max 1MB"
+                    />
+                    <ImageUploader
+                      label="Favicon"
+                      type="favicon"
+                      value={brandingFormData.faviconUrl ?? branding?.faviconUrl ?? null}
+                      onChange={(url: string | null) => handleBrandingChange("faviconUrl", url)}
+                      acceptTypes="image/png,image/x-icon"
+                      description="PNG or ICO, max 200KB"
+                    />
+                  </div>
+                  
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>Primary Color</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
+                          style={{ backgroundColor: brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor }}
+                        >
+                          <input
+                            type="color"
+                            value={brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor}
+                            onChange={(e) => handleBrandingChange("primaryColor", e.target.value)}
+                            className="w-full h-full opacity-0 cursor-pointer"
+                            data-testid="color-primary"
+                          />
+                        </div>
+                        <Input
+                          value={brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor}
+                          onChange={(e) => handleBrandingChange("primaryColor", e.target.value)}
+                          className="w-24 font-mono text-sm"
+                          maxLength={7}
+                          data-testid="input-primary-color"
                         />
-                        <ImageUploader
-                          label="Favicon"
-                          type="favicon"
-                          value={brandingFormData.faviconUrl ?? branding?.faviconUrl ?? null}
-                          onChange={(url: string | null) => handleBrandingChange("faviconUrl", url)}
-                          acceptTypes="image/png,image/x-icon"
-                          description="PNG or ICO, max 200KB"
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Secondary Color</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
+                          style={{ backgroundColor: brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor }}
+                        >
+                          <input
+                            type="color"
+                            value={brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor}
+                            onChange={(e) => handleBrandingChange("secondaryColor", e.target.value)}
+                            className="w-full h-full opacity-0 cursor-pointer"
+                            data-testid="color-secondary"
+                          />
+                        </div>
+                        <Input
+                          value={brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor}
+                          onChange={(e) => handleBrandingChange("secondaryColor", e.target.value)}
+                          className="w-24 font-mono text-sm"
+                          maxLength={7}
+                          data-testid="input-secondary-color"
                         />
                       </div>
-                      
-                      <Separator />
-                      
-                      <div className="grid gap-4 sm:grid-cols-3">
-                        <div className="space-y-2">
-                          <Label>Primary Color</Label>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
-                              style={{ backgroundColor: brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor }}
-                            >
-                              <input
-                                type="color"
-                                value={brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor}
-                                onChange={(e) => handleBrandingChange("primaryColor", e.target.value)}
-                                className="w-full h-full opacity-0 cursor-pointer"
-                                data-testid="color-primary"
-                              />
-                            </div>
-                            <Input
-                              value={brandingFormData.primaryColor ?? branding?.primaryColor ?? DEFAULT_BRANDING.primaryColor}
-                              onChange={(e) => handleBrandingChange("primaryColor", e.target.value)}
-                              className="w-24 font-mono text-sm"
-                              maxLength={7}
-                              data-testid="input-primary-color"
-                            />
-                          </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Accent Color</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
+                          style={{ backgroundColor: brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor }}
+                        >
+                          <input
+                            type="color"
+                            value={brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor}
+                            onChange={(e) => handleBrandingChange("accentColor", e.target.value)}
+                            className="w-full h-full opacity-0 cursor-pointer"
+                            data-testid="color-accent"
+                          />
                         </div>
-                        <div className="space-y-2">
-                          <Label>Secondary Color</Label>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
-                              style={{ backgroundColor: brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor }}
-                            >
-                              <input
-                                type="color"
-                                value={brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor}
-                                onChange={(e) => handleBrandingChange("secondaryColor", e.target.value)}
-                                className="w-full h-full opacity-0 cursor-pointer"
-                                data-testid="color-secondary"
-                              />
-                            </div>
-                            <Input
-                              value={brandingFormData.secondaryColor ?? branding?.secondaryColor ?? DEFAULT_BRANDING.secondaryColor}
-                              onChange={(e) => handleBrandingChange("secondaryColor", e.target.value)}
-                              className="w-24 font-mono text-sm"
-                              maxLength={7}
-                              data-testid="input-secondary-color"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Accent Color</Label>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-10 h-10 rounded-md border cursor-pointer overflow-hidden"
-                              style={{ backgroundColor: brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor }}
-                            >
-                              <input
-                                type="color"
-                                value={brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor}
-                                onChange={(e) => handleBrandingChange("accentColor", e.target.value)}
-                                className="w-full h-full opacity-0 cursor-pointer"
-                                data-testid="color-accent"
-                              />
-                            </div>
-                            <Input
-                              value={brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor}
-                              onChange={(e) => handleBrandingChange("accentColor", e.target.value)}
-                              className="w-24 font-mono text-sm"
-                              maxLength={7}
-                              data-testid="input-accent-color"
-                            />
-                          </div>
-                        </div>
+                        <Input
+                          value={brandingFormData.accentColor ?? branding?.accentColor ?? DEFAULT_BRANDING.accentColor}
+                          onChange={(e) => handleBrandingChange("accentColor", e.target.value)}
+                          className="w-24 font-mono text-sm"
+                          maxLength={7}
+                          data-testid="input-accent-color"
+                        />
                       </div>
-                      
-                      <div className="flex items-center justify-between pt-2">
-                        <Link href="/settings/branding" className="text-sm text-primary hover:underline" data-testid="link-advanced-branding">
-                          Advanced branding options →
-                        </Link>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={handleBrandingReset}
-                            disabled={!brandingHasChanges}
-                            data-testid="button-reset-branding"
-                          >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Reset
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            onClick={handleBrandingSave}
-                            disabled={!brandingHasChanges || updateBrandingMutation.isPending}
-                            data-testid="button-save-branding"
-                          >
-                            <Save className="h-4 w-4 mr-1" />
-                            {updateBrandingMutation.isPending ? "Saving..." : "Save"}
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between pt-2">
+                    <Link href="/settings/branding" className="text-sm text-primary hover:underline" data-testid="link-advanced-branding">
+                      Advanced branding options →
+                    </Link>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleBrandingReset}
+                        disabled={!brandingHasChanges}
+                        data-testid="button-reset-branding"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Reset
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={handleBrandingSave}
+                        disabled={!brandingHasChanges || updateBrandingMutation.isPending}
+                        data-testid="button-save-branding"
+                      >
+                        <Save className="h-4 w-4 mr-1" />
+                        {updateBrandingMutation.isPending ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
             
