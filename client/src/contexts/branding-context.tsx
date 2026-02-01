@@ -34,7 +34,18 @@ export interface TenantBranding {
   updatedAt: string;
 }
 
-const DEFAULT_BRANDING: Partial<TenantBranding> = {
+/**
+ * Default branding values - fallback when tenant branding is not loaded.
+ * 
+ * Priority order for brand colors (CSS variable resolution):
+ * 1. themeTokens.brand.primary (if defined) - highest priority
+ * 2. primaryColor (from tenant branding) - tenant customization
+ * 3. DEFAULT_BRANDING.primaryColor - fallback default
+ * 
+ * This ensures tenant customizations always take precedence over defaults,
+ * while themeTokens allow for advanced theming scenarios.
+ */
+export const DEFAULT_BRANDING: Partial<TenantBranding> = {
   primaryColor: "#3B82F6",
   secondaryColor: "#1E40AF",
   accentColor: "#10B981",
@@ -44,6 +55,8 @@ const DEFAULT_BRANDING: Partial<TenantBranding> = {
   borderColor: "#E5E7EB",
   fontFamily: "Inter",
   fontFamilyMono: "JetBrains Mono",
+  themeTokens: {},
+  socialLinks: {},
 };
 
 function hexToHSL(hex: string): string {
@@ -73,20 +86,40 @@ function hexToHSL(hex: string): string {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
+/**
+ * Injects tenant branding as CSS variables for runtime theming.
+ * 
+ * Priority order (highest to lowest):
+ * 1. themeTokens.brand.* - advanced theme overrides
+ * 2. Direct color fields (primaryColor, etc.) - tenant customization
+ * 3. CSS fallback defaults in index.css
+ */
 function injectBrandingCSS(branding: Partial<TenantBranding>) {
   const root = document.documentElement;
   
-  if (branding.primaryColor) {
-    root.style.setProperty("--brand-primary", branding.primaryColor);
-    root.style.setProperty("--brand-primary-hsl", hexToHSL(branding.primaryColor));
+  // Check themeTokens for advanced overrides first
+  const tokens = branding.themeTokens as Record<string, Record<string, string>> | undefined;
+  const brandTokens = tokens?.brand;
+  
+  // Primary color: themeTokens.brand.primary → primaryColor → default
+  const primaryColor = brandTokens?.primary || branding.primaryColor;
+  if (primaryColor) {
+    root.style.setProperty("--brand-primary", primaryColor);
+    root.style.setProperty("--brand-primary-hsl", hexToHSL(primaryColor));
   }
-  if (branding.secondaryColor) {
-    root.style.setProperty("--brand-secondary", branding.secondaryColor);
-    root.style.setProperty("--brand-secondary-hsl", hexToHSL(branding.secondaryColor));
+  
+  // Secondary color: themeTokens.brand.secondary → secondaryColor → default
+  const secondaryColor = brandTokens?.secondary || branding.secondaryColor;
+  if (secondaryColor) {
+    root.style.setProperty("--brand-secondary", secondaryColor);
+    root.style.setProperty("--brand-secondary-hsl", hexToHSL(secondaryColor));
   }
-  if (branding.accentColor) {
-    root.style.setProperty("--brand-accent", branding.accentColor);
-    root.style.setProperty("--brand-accent-hsl", hexToHSL(branding.accentColor));
+  
+  // Accent color: themeTokens.brand.accent → accentColor → default
+  const accentColor = brandTokens?.accent || branding.accentColor;
+  if (accentColor) {
+    root.style.setProperty("--brand-accent", accentColor);
+    root.style.setProperty("--brand-accent-hsl", hexToHSL(accentColor));
   }
   
   if (branding.faviconUrl) {
@@ -157,5 +190,3 @@ export function useBranding() {
   }
   return context;
 }
-
-export { DEFAULT_BRANDING };

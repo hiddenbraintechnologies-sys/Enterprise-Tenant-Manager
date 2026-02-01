@@ -9,6 +9,35 @@ import { z } from "zod";
 const router = Router();
 const requiredAuth = authenticateHybrid();
 
+// Allowed font families (safe, web-standard fonts)
+const ALLOWED_FONTS = [
+  "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins", "Nunito",
+  "Raleway", "Work Sans", "Source Sans Pro", "Ubuntu", "Rubik", "Mulish",
+  "JetBrains Mono", "Fira Code", "Source Code Pro", "IBM Plex Mono", "Consolas",
+  "system-ui", "sans-serif", "serif", "monospace",
+];
+
+const fontValidator = z.string().max(100).refine(
+  (val) => ALLOWED_FONTS.some(f => val.toLowerCase().includes(f.toLowerCase())),
+  { message: "Font family not in allowed list" }
+);
+
+// Default branding values for self-healing
+const BRANDING_DEFAULTS = {
+  primaryColor: "#3B82F6",
+  secondaryColor: "#1E40AF",
+  accentColor: "#10B981",
+  backgroundColor: "#FFFFFF",
+  foregroundColor: "#111827",
+  mutedColor: "#6B7280",
+  borderColor: "#E5E7EB",
+  fontFamily: "Inter",
+  fontFamilyMono: "JetBrains Mono",
+  themeTokens: {},
+  socialLinks: {},
+};
+
+// Strict schema - rejects unknown keys
 const updateBrandingSchema = z.object({
   logoUrl: z.string().url().optional().nullable(),
   logoAltUrl: z.string().url().optional().nullable(),
@@ -20,9 +49,9 @@ const updateBrandingSchema = z.object({
   foregroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
   mutedColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
   borderColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional(),
-  fontFamily: z.string().max(100).optional(),
-  fontFamilyHeading: z.string().max(100).optional().nullable(),
-  fontFamilyMono: z.string().max(100).optional(),
+  fontFamily: fontValidator.optional(),
+  fontFamilyHeading: fontValidator.optional().nullable(),
+  fontFamilyMono: fontValidator.optional(),
   emailFromName: z.string().max(100).optional().nullable(),
   emailFromAddress: z.string().email().optional().nullable(),
   emailReplyTo: z.string().email().optional().nullable(),
@@ -37,7 +66,18 @@ const updateBrandingSchema = z.object({
   socialLinks: z.record(z.string()).optional(),
   customCss: z.string().max(50000).optional().nullable(),
   themeTokens: z.record(z.any()).optional(),
-});
+}).strict(); // Reject unknown keys
+
+// Helper: merge defaults for missing fields (self-healing)
+function mergeWithDefaults(branding: Record<string, unknown>): Record<string, unknown> {
+  const merged = { ...branding };
+  for (const [key, defaultValue] of Object.entries(BRANDING_DEFAULTS)) {
+    if (merged[key] === null || merged[key] === undefined) {
+      merged[key] = defaultValue;
+    }
+  }
+  return merged;
+}
 
 router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Response) => {
   try {
@@ -64,20 +104,28 @@ router.get("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
         .insert(tenantBranding)
         .values({ 
           tenantId,
-          primaryColor: "#3B82F6",
-          secondaryColor: "#1E40AF",
-          accentColor: "#10B981",
-          backgroundColor: "#FFFFFF",
-          foregroundColor: "#111827",
-          mutedColor: "#6B7280",
-          borderColor: "#E5E7EB",
-          fontFamily: "Inter",
-          fontFamilyMono: "JetBrains Mono",
-          themeTokens: {},
-          socialLinks: {},
+          ...BRANDING_DEFAULTS,
         })
         .returning();
       return res.json(newBranding);
+    }
+
+    // Self-healing: merge defaults for any missing fields (future schema evolution)
+    const healedBranding = mergeWithDefaults(branding[0] as Record<string, unknown>);
+    
+    // If any fields were healed, update the record
+    const hasHealedFields = Object.keys(BRANDING_DEFAULTS).some(
+      key => branding[0][key as keyof typeof branding[0]] === null && 
+             healedBranding[key] !== null
+    );
+    
+    if (hasHealedFields) {
+      const [updated] = await db
+        .update(tenantBranding)
+        .set(healedBranding)
+        .where(eq(tenantBranding.tenantId, tenantId))
+        .returning();
+      return res.json(updated);
     }
 
     res.json(branding[0]);
@@ -122,17 +170,7 @@ router.put("/api/tenant/branding", requiredAuth, async (req: Request, res: Respo
         .insert(tenantBranding)
         .values({ 
           tenantId,
-          primaryColor: "#3B82F6",
-          secondaryColor: "#1E40AF",
-          accentColor: "#10B981",
-          backgroundColor: "#FFFFFF",
-          foregroundColor: "#111827",
-          mutedColor: "#6B7280",
-          borderColor: "#E5E7EB",
-          fontFamily: "Inter",
-          fontFamilyMono: "JetBrains Mono",
-          themeTokens: {},
-          socialLinks: {},
+          ...BRANDING_DEFAULTS,
           ...updateData,
         })
         .returning();

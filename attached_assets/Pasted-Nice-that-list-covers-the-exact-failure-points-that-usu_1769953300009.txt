@@ -1,0 +1,139 @@
+Nice — that list covers the exact failure points that usually bite tenant-branding (null defaults, inconsistent components, missing test hooks, and CSS var plumbing). To make sure it stays solid as you roll this into white-label/subdomains and documents, here’s what I’d do next (concrete, QA-friendly).
+
+1) Quick verification checklist (manual smoke)
+
+Run these in order to confirm the “fully functional” claim matches real behavior:
+
+Branding creation + defaults
+
+Create a new tenant → open Branding page immediately
+
+✅ No crashes / no “null” styling
+
+✅ All colors/fonts have sensible defaults populated
+
+Save without changing anything
+
+✅ PUT succeeds (no constraint errors)
+
+Refresh page / logout-login
+
+✅ Values persist and render the same
+
+Live preview + CSS variables
+
+Change primaryColor / secondaryColor / accentColor
+
+✅ Buttons, badges, active nav, etc. reflect changes
+
+✅ Tailwind brand-primary, brand-secondary, brand-accent classes still work
+
+Set very light colors
+
+✅ Text remains readable (or you show warning/auto-adjust)
+
+Accessibility sanity
+
+Keyboard-only: Tab through inputs, upload buttons, save/cancel
+
+✅ Focus ring visible
+
+Screen reader labels for color inputs + uploads
+
+✅ No unlabeled controls
+
+Testability
+
+Confirm every key interactive element has stable data-testid
+
+✅ Settings link
+
+✅ Preview tabs/buttons
+
+✅ Logo / business name nodes
+
+✅ Save/Cancel, upload/remove
+
+2) Add/lock the missing “hard” protections (if not already)
+
+Even if UI looks perfect, these are the places things break later:
+
+Server-side field whitelisting (security)
+
+Make sure the PUT endpoint:
+
+Only allows known fields (reject unknown keys)
+
+Validates hex colors + font names
+
+Doesn’t allow a tenant to set “platform-level” tokens if that’s a future feature
+
+Idempotent initialization
+
+If branding record exists but some new fields are missing later (schema evolves), your GET should:
+
+Merge defaults without overwriting tenant customizations
+
+Optionally “self-heal” by updating missing columns
+
+This prevents future migrations from causing half-null records.
+
+3) Regression tests you should add now (high value)
+
+Since you already added test IDs, these are quick wins:
+
+API tests
+
+GET branding for brand-new tenant
+
+Expect every required field is present (no nulls)
+
+PUT branding rejects invalid hex
+
+PUT branding ignores/rejects unknown keys
+
+Tenant isolation
+
+Tenant A cannot read/write Tenant B branding
+
+UI tests (Playwright/Cypress or RTL)
+
+Preview updates on color change
+
+Save persists after refresh
+
+Textarea renders shadcn component (basic snapshot or role query)
+
+Branding link exists in Settings nav (testid)
+
+4) What to do next (so this doesn’t stall)
+
+Based on your earlier scope, you’re now ready for the next 3 “platform” steps:
+
+A) White-label plan gating (must be server-side)
+
+Return features from branding GET
+
+Lock UI sections + API reject forbidden updates with:
+
+403 { error: "FEATURE_NOT_ALLOWED", feature: "whitelabel.subdomain" }
+
+B) Subdomains (tenant resolution)
+
+Middleware resolves tenant by host (slug.domain.com)
+
+Must handle “tenant mismatch login” cleanly
+
+Cache slug resolution
+
+C) Documents / Email templates
+
+Apply branding to invoice/payslip/email generators
+
+On downgrade: keep branding stored, but do not apply disallowed parts
+
+5) One thing I’d like you to sanity-check
+
+You added a lot of tokens (themeTokens, multiple colors, fonts). That’s good — but confirm you’re not mixing “token-driven themes” and “explicit colors” in a way that can conflict (e.g., brand-primary uses one source while preview uses another). If both exist, define a single priority order like:
+
+themeTokens.brand.primary → 2) primaryColor → 3) default.
