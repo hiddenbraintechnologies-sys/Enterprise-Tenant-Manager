@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAdmin, AdminGuard, PermissionGuard } from "@/contexts/admin-context";
 import { useLocation } from "wouter";
 import { useState } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
@@ -147,6 +148,7 @@ function TenantsContent() {
   const { isSuperAdmin, hasPermission } = useAdmin();
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -196,7 +198,7 @@ function TenantsContent() {
     if (regionFilter !== "all") params.set("region", regionFilter);
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (businessTypeFilter !== "all") params.set("businessType", businessTypeFilter);
-    if (searchQuery) params.set("search", searchQuery);
+    if (debouncedSearch) params.set("search", debouncedSearch);
     const queryString = params.toString();
     return queryString ? `/api/platform-admin/tenants?${queryString}` : "/api/platform-admin/tenants";
   };
