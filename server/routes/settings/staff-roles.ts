@@ -1,9 +1,14 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
+import crypto from "crypto";
 import { storage } from "../../storage";
 import { requireTenantPermission } from "../../middleware/tenant-permission";
 import { Permissions, PERMISSION_GROUPS, DEFAULT_TENANT_ROLES } from "@shared/rbac/permissions";
 import { insertTenantRoleSchema, insertTenantStaffSchema } from "@shared/schema";
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 const router = Router();
 
@@ -372,26 +377,71 @@ router.post("/staff/:id/invite",
         return res.status(404).json({ error: "Staff member not found" });
       }
 
-      // Generate invite token
-      const inviteToken = crypto.randomUUID();
-      const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      // Revoke any existing pending invites for this staff member
+      await storage.revokeStaffInvite(member.id);
 
-      await storage.updateTenantStaff(req.params.id, context.tenantId, {
-        inviteToken,
-        inviteExpiresAt,
+      // Generate secure invite token
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const tokenHash = hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      // Create invite record
+      const invite = await storage.createStaffInvite({
+        tenantId: context.tenantId,
+        staffId: member.id,
+        tokenHash,
+        email: member.email,
+        expiresAt,
+        invitedBy: context.userId,
+      });
+
+      // Update staff status to pending_invite
+      await storage.updateTenantStaff(member.id, context.tenantId, {
         status: "pending_invite",
       });
 
+      // Build invite URL
+      const baseUrl = process.env.APP_URL || `https://${req.get("host")}`;
+      const inviteUrl = `${baseUrl}/invite/${rawToken}`;
+
       // TODO: Send invite email here
-      // For now, just return the token for testing
       return res.json({ 
         success: true, 
         message: "Invite sent",
-        inviteToken: process.env.NODE_ENV === "development" ? inviteToken : undefined,
+        inviteId: invite.id,
+        inviteUrl: process.env.NODE_ENV === "development" ? inviteUrl : undefined,
       });
     } catch (error) {
       console.error("[settings/staff] Error sending invite:", error);
       return res.status(500).json({ error: "Failed to send invite" });
+    }
+  }
+);
+
+router.post("/staff/:id/revoke-invite", 
+  requireTenantPermission(Permissions.STAFF_INVITE),
+  async (req: Request, res: Response) => {
+    const context = (req as any).context;
+    if (!context?.tenantId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const member = await storage.getTenantStaffMember(req.params.id, context.tenantId);
+      if (!member) {
+        return res.status(404).json({ error: "Staff member not found" });
+      }
+
+      await storage.revokeStaffInvite(member.id);
+      
+      await storage.updateTenantStaff(member.id, context.tenantId, {
+        status: "inactive",
+      });
+
+      return res.json({ success: true, message: "Invite revoked" });
+    } catch (error) {
+      console.error("[settings/staff] Error revoking invite:", error);
+      return res.status(500).json({ error: "Failed to revoke invite" });
     }
   }
 );

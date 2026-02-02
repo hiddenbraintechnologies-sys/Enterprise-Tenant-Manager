@@ -1,8 +1,14 @@
 import { Router, Request, Response } from "express";
+import crypto from "crypto";
 import { db } from "../db";
-import { waitlist, insertWaitlistSchema, countryRolloutPolicy } from "@shared/schema";
+import { waitlist, insertWaitlistSchema, countryRolloutPolicy, tenantStaffInvites, tenantStaff, tenants } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { storage } from "../storage";
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 const router = Router();
 
@@ -147,6 +153,130 @@ router.get("/rollouts", async (_req: Request, res: Response) => {
       console.error("[public/rollouts] Error fetching rollouts:", error);
     }
     res.status(500).json({ error: "Failed to fetch rollouts", updatedAt: new Date().toISOString() });
+  }
+});
+
+// ==================== STAFF INVITE ENDPOINTS ====================
+
+router.get("/invites/:token/lookup", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const tokenHash = hashToken(token);
+
+    const invite = await storage.getStaffInviteByToken(tokenHash);
+    if (!invite) {
+      return res.status(404).json({ error: "Invite not found or expired" });
+    }
+
+    // Check if expired
+    if (new Date() > invite.expiresAt) {
+      await storage.updateStaffInvite(invite.id, { status: "expired" });
+      return res.status(410).json({ error: "Invite has expired" });
+    }
+
+    // Check if already accepted or revoked
+    if (invite.status === "accepted") {
+      return res.status(410).json({ error: "Invite has already been accepted" });
+    }
+    if (invite.status === "revoked") {
+      return res.status(410).json({ error: "Invite has been revoked" });
+    }
+    if (invite.status === "expired") {
+      return res.status(410).json({ error: "Invite has expired" });
+    }
+
+    // Get tenant info
+    const [tenant] = await db.select({
+      id: tenants.id,
+      name: tenants.name,
+    }).from(tenants).where(eq(tenants.id, invite.tenantId));
+
+    return res.json({
+      email: invite.email,
+      tenantName: tenant?.name || "Unknown",
+      expiresAt: invite.expiresAt,
+    });
+  } catch (error) {
+    console.error("[public/invites] Lookup error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/invites/:token/accept", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const tokenHash = hashToken(token);
+
+    // User must be authenticated
+    const user = (req as any).user;
+    if (!user?.id) {
+      return res.status(401).json({ 
+        error: "Authentication required",
+        code: "AUTH_REQUIRED"
+      });
+    }
+
+    const invite = await storage.getStaffInviteByToken(tokenHash);
+    if (!invite) {
+      return res.status(404).json({ error: "Invite not found" });
+    }
+
+    // Validate invite status
+    if (new Date() > invite.expiresAt) {
+      await storage.updateStaffInvite(invite.id, { status: "expired" });
+      return res.status(410).json({ error: "Invite has expired" });
+    }
+    if (invite.status !== "pending") {
+      return res.status(410).json({ error: `Invite is ${invite.status}` });
+    }
+
+    // Validate email match
+    const userEmail = user.email?.toLowerCase();
+    const inviteEmail = invite.email?.toLowerCase();
+    if (userEmail !== inviteEmail) {
+      return res.status(403).json({ 
+        error: "Email mismatch. Please sign in with the invited email address.",
+        code: "EMAIL_MISMATCH"
+      });
+    }
+
+    // Get staff record
+    const staffMember = await storage.getTenantStaffMember(invite.staffId, invite.tenantId);
+    if (!staffMember) {
+      return res.status(404).json({ error: "Staff record not found" });
+    }
+
+    // Update invite to accepted
+    await storage.updateStaffInvite(invite.id, {
+      status: "accepted",
+      acceptedAt: new Date(),
+    });
+
+    // Link user to staff and activate
+    await storage.updateTenantStaff(staffMember.id, invite.tenantId, {
+      userId: user.id,
+      status: "active",
+    });
+
+    // Get tenant info
+    const [tenant] = await db.select({
+      id: tenants.id,
+      name: tenants.name,
+      subdomain: tenants.subdomain,
+    }).from(tenants).where(eq(tenants.id, invite.tenantId));
+
+    return res.json({
+      success: true,
+      message: "Invite accepted successfully",
+      tenant: {
+        id: tenant?.id,
+        name: tenant?.name,
+        subdomain: tenant?.subdomain,
+      },
+    });
+  } catch (error) {
+    console.error("[public/invites] Accept error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 

@@ -16,7 +16,7 @@ import {
   billOfMaterials, bomComponents, productionOrders, productionStages,
   deliveryOrders, deliveryOrderItems, installationOrders,
   furnitureSalesOrders, furnitureSalesOrderItems,
-  tenantRoles, tenantRolePermissions, tenantStaff,
+  tenantRoles, tenantRolePermissions, tenantStaff, tenantStaffInvites,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
@@ -26,6 +26,7 @@ import {
   type TenantRole, type InsertTenantRole,
   type TenantRolePermission, type InsertTenantRolePermission,
   type TenantStaff, type InsertTenantStaff,
+  type TenantStaffInvite, type InsertTenantStaffInvite,
   type NotificationTemplate, type InsertNotificationTemplate,
   type NotificationLog, type InsertNotificationLog,
   type Invoice, type InsertInvoice,
@@ -505,6 +506,13 @@ export interface IStorage {
   createTenantStaff(staff: InsertTenantStaff): Promise<TenantStaff>;
   updateTenantStaff(id: string, tenantId: string, staff: Partial<InsertTenantStaff>): Promise<TenantStaff | undefined>;
   deleteTenantStaff(id: string, tenantId: string): Promise<void>;
+
+  // Tenant staff invites
+  createStaffInvite(invite: InsertTenantStaffInvite): Promise<TenantStaffInvite>;
+  getStaffInviteByToken(tokenHash: string): Promise<TenantStaffInvite | undefined>;
+  getActiveInviteForStaff(staffId: string): Promise<TenantStaffInvite | undefined>;
+  updateStaffInvite(id: string, data: Partial<TenantStaffInvite>): Promise<TenantStaffInvite | undefined>;
+  revokeStaffInvite(staffId: string): Promise<void>;
 
   // Seed default roles for a tenant
   seedDefaultRolesForTenant(tenantId: string): Promise<void>;
@@ -2780,6 +2788,44 @@ export class DatabaseStorage implements IStorage {
   async deleteTenantStaff(id: string, tenantId: string): Promise<void> {
     await db.delete(tenantStaff)
       .where(and(eq(tenantStaff.id, id), eq(tenantStaff.tenantId, tenantId)));
+  }
+
+  // ==================== TENANT STAFF INVITES ====================
+  async createStaffInvite(invite: InsertTenantStaffInvite): Promise<TenantStaffInvite> {
+    const [created] = await db.insert(tenantStaffInvites).values(invite).returning();
+    return created;
+  }
+
+  async getStaffInviteByToken(tokenHash: string): Promise<TenantStaffInvite | undefined> {
+    const [invite] = await db.select().from(tenantStaffInvites)
+      .where(eq(tenantStaffInvites.tokenHash, tokenHash));
+    return invite;
+  }
+
+  async getActiveInviteForStaff(staffId: string): Promise<TenantStaffInvite | undefined> {
+    const [invite] = await db.select().from(tenantStaffInvites)
+      .where(and(
+        eq(tenantStaffInvites.staffId, staffId),
+        eq(tenantStaffInvites.status, "pending")
+      ));
+    return invite;
+  }
+
+  async updateStaffInvite(id: string, data: Partial<TenantStaffInvite>): Promise<TenantStaffInvite | undefined> {
+    const [updated] = await db.update(tenantStaffInvites)
+      .set(data)
+      .where(eq(tenantStaffInvites.id, id))
+      .returning();
+    return updated;
+  }
+
+  async revokeStaffInvite(staffId: string): Promise<void> {
+    await db.update(tenantStaffInvites)
+      .set({ status: "revoked", revokedAt: new Date() })
+      .where(and(
+        eq(tenantStaffInvites.staffId, staffId),
+        eq(tenantStaffInvites.status, "pending")
+      ));
   }
 
   // ==================== SEED DEFAULT ROLES ====================
