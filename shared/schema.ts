@@ -881,6 +881,7 @@ export const customers = pgTable("customers", {
   totalSpent: decimal("total_spent", { precision: 12, scale: 2 }).default("0"),
   visitCount: integer("visit_count").default(0),
   lastVisitAt: timestamp("last_visit_at"),
+  metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -889,6 +890,38 @@ export const customers = pgTable("customers", {
   index("idx_customers_tenant").on(table.tenantId),
   index("idx_customers_email").on(table.tenantId, table.email),
   index("idx_customers_phone").on(table.tenantId, table.phone),
+]);
+
+export const patientDocuments = pgTable("patient_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  objectPath: text("object_path").notNull(),
+  contentType: varchar("content_type", { length: 100 }),
+  size: integer("size"),
+  category: varchar("category", { length: 50 }),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  uploadSource: varchar("upload_source", { length: 20 }).default("staff"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_patient_documents_tenant").on(table.tenantId),
+  index("idx_patient_documents_customer").on(table.customerId),
+]);
+
+export const documentShareLinks = pgTable("document_share_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  token: varchar("token", { length: 100 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_document_share_links_token").on(table.token),
+  index("idx_document_share_links_customer").on(table.customerId),
 ]);
 
 // ============================================
@@ -2415,6 +2448,8 @@ export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({ id: tru
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).omit({ id: true, createdAt: true });
 export const insertStaffSchema = createInsertSchema(staff).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPatientDocumentSchema = createInsertSchema(patientDocuments).omit({ id: true, createdAt: true });
+export const insertDocumentShareLinkSchema = createInsertSchema(documentShareLinks).omit({ id: true, createdAt: true });
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true, createdAt: true, updatedAt: true });
 

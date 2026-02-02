@@ -13,7 +13,7 @@ import {
   insertSpaceSchema, insertDeskBookingSchema,
   tenants, userTenants, users, roles, refreshTokens, customers, staff, tenantFeatures, auditLogs,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates, globalPricingPlans,
-  services, bookings, invoices, payments, projects, deleteJobs, timesheets,
+  services, bookings, invoices, payments, projects, deleteJobs, timesheets, patientDocuments, documentShareLinks,
   insertInvoiceTemplateSchema,
   insertNotificationPreferencesSchema,
   dsarRequests, gstConfigurations, ukVatConfigurations,
@@ -6995,6 +6995,130 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting customer:", error);
       res.status(500).json({ message: "Failed to delete customer" });
+    }
+  });
+
+  // Patient Documents API
+  app.get("/api/customers/:id/documents", authenticateHybrid(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      
+      // Validate customer belongs to tenant
+      const customer = await storage.getCustomer(req.params.id, tenantId);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      
+      const documents = await db.select()
+        .from(patientDocuments)
+        .where(and(
+          eq(patientDocuments.tenantId, tenantId),
+          eq(patientDocuments.customerId, req.params.id)
+        ))
+        .orderBy(desc(patientDocuments.createdAt));
+      
+      const docsWithUrls = documents.map(doc => ({
+        id: doc.id,
+        name: doc.name,
+        type: doc.contentType,
+        size: doc.size,
+        url: `/api/patient-documents/${doc.id}/download`,
+        uploadedAt: doc.createdAt,
+        uploadedBy: doc.uploadedBy,
+      }));
+      
+      res.json(docsWithUrls);
+    } catch (error) {
+      console.error("Error fetching patient documents:", error);
+      res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+
+  app.delete("/api/customers/:customerId/documents/:docId", authenticateHybrid(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      await db.delete(patientDocuments)
+        .where(and(
+          eq(patientDocuments.tenantId, tenantId),
+          eq(patientDocuments.id, req.params.docId)
+        ));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      res.status(500).json({ message: "Failed to delete document" });
+    }
+  });
+
+  app.post("/api/customers/:id/document-share-link", authenticateHybrid(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      
+      // Validate customer belongs to tenant
+      const customer = await storage.getCustomer(req.params.id, tenantId);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      
+      const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      
+      await db.insert(documentShareLinks).values({
+        tenantId,
+        customerId: req.params.id,
+        token,
+        expiresAt,
+        createdBy: getUserId(req),
+      });
+      
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const shareUrl = `${baseUrl}/upload-documents/${token}`;
+      
+      res.json({ shareUrl, expiresAt });
+    } catch (error) {
+      console.error("Error creating share link:", error);
+      res.status(500).json({ message: "Failed to create share link" });
+    }
+  });
+  
+  // Patient document download
+  app.get("/api/patient-documents/:id/download", authenticateHybrid(), async (req, res) => {
+    try {
+      const tenantId = getTenantId(req);
+      if (!tenantId) {
+        return res.status(403).json({ message: "No tenant access" });
+      }
+      
+      const [doc] = await db.select()
+        .from(patientDocuments)
+        .where(and(
+          eq(patientDocuments.id, req.params.id),
+          eq(patientDocuments.tenantId, tenantId)
+        ))
+        .limit(1);
+      
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Stream the file via object storage
+      const { ObjectStorageService } = await import("./replit_integrations/object_storage");
+      const objectStorage = new ObjectStorageService();
+      const file = await objectStorage.getObjectEntityFile(doc.objectPath);
+      await objectStorage.downloadObject(file, res);
+    } catch (error) {
+      console.error("Error downloading document:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Failed to download document" });
+      }
     }
   });
 

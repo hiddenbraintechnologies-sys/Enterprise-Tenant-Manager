@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTenant } from "@/contexts/tenant-context";
 import {
   Table,
   TableBody,
@@ -319,6 +320,9 @@ interface PortalSettings {
   portalUrl: string;
 }
 
+// Helper to determine if business type is clinic-related
+const CLINIC_BUSINESS_TYPES = ["clinic", "clinic_healthcare", "hospital", "diagnostics"];
+
 export default function Customers() {
   const [, setLocation] = useLocation();
   const searchParams = useSearch();
@@ -329,6 +333,12 @@ export default function Customers() {
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { businessType } = useTenant();
+  
+  // Dynamic labels based on business type
+  const isClinic = CLINIC_BUSINESS_TYPES.includes(businessType || "");
+  const entityLabel = isClinic ? "Patient" : "Customer";
+  const entityLabelPlural = isClinic ? "Patients" : "Customers";
 
   // Auto-open dialog if action=new is in query params
   useEffect(() => {
@@ -353,7 +363,7 @@ export default function Customers() {
       return apiRequest("DELETE", `/api/customers/${id}`);
     },
     onSuccess: () => {
-      toast({ title: "Customer deleted" });
+      toast({ title: `${entityLabel} deleted` });
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
     },
     onError: (error: Error) => {
@@ -437,13 +447,13 @@ export default function Customers() {
   };
 
   return (
-    <DashboardLayout title="Customers" breadcrumbs={[{ label: "Customers" }]}>
+    <DashboardLayout title={entityLabelPlural} breadcrumbs={[{ label: entityLabelPlural }]}>
       <Card>
         <CardHeader className="flex flex-col gap-4 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search customers..."
+              placeholder={`Search ${entityLabelPlural.toLowerCase()}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -452,7 +462,7 @@ export default function Customers() {
           </div>
           <Button onClick={handleAdd} className="w-full sm:w-auto" data-testid="button-add-customer">
             <Plus className="mr-2 h-4 w-4" />
-            Add Customer
+            Add {entityLabel}
           </Button>
         </CardHeader>
         <CardContent>
@@ -475,8 +485,9 @@ export default function Customers() {
                 {filteredCustomers.map((customer) => (
                   <div
                     key={customer.id}
-                    className="rounded-md border p-4"
+                    className="rounded-md border p-4 cursor-pointer hover-elevate"
                     data-testid={`customer-card-${customer.id}`}
+                    onClick={() => setLocation(`/customers/${customer.id}`)}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
@@ -494,7 +505,7 @@ export default function Customers() {
                           </p>
                         )}
                       </div>
-                      <div className="flex shrink-0 items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" data-testid={`button-actions-${customer.id}`}>
@@ -550,7 +561,12 @@ export default function Customers() {
                   </TableHeader>
                   <TableBody>
                     {filteredCustomers.map((customer) => (
-                      <TableRow key={customer.id} data-testid={`customer-row-${customer.id}`}>
+                      <TableRow
+                        key={customer.id}
+                        data-testid={`customer-row-${customer.id}`}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setLocation(`/customers/${customer.id}`)}
+                      >
                         <TableCell className="font-medium">{customer.name}</TableCell>
                         <TableCell>
                           {customer.email ? (
@@ -575,7 +591,7 @@ export default function Customers() {
                         <TableCell className="text-muted-foreground">
                           {customer.createdAt ? format(new Date(customer.createdAt), "MMM d, yyyy") : "-"}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             <Button
                               variant="ghost"

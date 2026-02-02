@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCountry } from "@/contexts/country-context";
+import { useTenant } from "@/contexts/tenant-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +53,7 @@ const serviceFormSchema = z.object({
 
 type ServiceFormValues = z.infer<typeof serviceFormSchema>;
 
-const categories = [
+const DEFAULT_CATEGORIES = [
   "General",
   "Premium",
   "Package",
@@ -61,16 +62,33 @@ const categories = [
   "Other",
 ];
 
+const CLINIC_CATEGORIES = [
+  "Consultation",
+  "Examination",
+  "Treatment",
+  "Procedure",
+  "Laboratory",
+  "Imaging",
+  "Therapy",
+  "Vaccination",
+  "Health Screening",
+  "Other",
+];
+
+const CLINIC_BUSINESS_TYPES = ["clinic", "clinic_healthcare", "hospital", "diagnostics"];
+
 function ServiceDialog({
   service,
   open,
   onOpenChange,
   onSuccess,
+  categories,
 }: {
   service?: Service;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  categories: string[];
 }) {
   const { toast } = useToast();
   const { country } = useCountry();
@@ -317,6 +335,11 @@ export default function Services() {
   const [editingService, setEditingService] = useState<Service | undefined>();
   const { toast } = useToast();
   const { formatCurrency, country } = useCountry();
+  const { businessType } = useTenant();
+  
+  // Dynamic categories based on business type
+  const isClinic = CLINIC_BUSINESS_TYPES.includes(businessType || "");
+  const categories = isClinic ? CLINIC_CATEGORIES : DEFAULT_CATEGORIES;
 
   // Auto-open dialog if action=new is in query params
   useEffect(() => {
@@ -431,6 +454,7 @@ export default function Services() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSuccess={() => setEditingService(undefined)}
+        categories={categories}
       />
     </DashboardLayout>
   );

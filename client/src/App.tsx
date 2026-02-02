@@ -84,6 +84,7 @@ import EmployeePortalLogin from "@/pages/employee-portal/login";
 import EmployeePayslips from "@/pages/employee-portal/payslips";
 import EmployeeAttendance from "@/pages/employee-portal/attendance";
 import Customers from "@/pages/customers";
+import CustomerDetail from "@/pages/customer-detail";
 import Services from "@/pages/services";
 import Bookings from "@/pages/bookings";
 import Invoices from "@/pages/invoices";
@@ -475,12 +476,22 @@ function AuthenticatedRoutes() {
           <Customers />
         </ModuleGuard>
       </Route>
+      <Route path="/customers/:id">
+        <ModuleGuard moduleId="customers">
+          <CustomerDetail />
+        </ModuleGuard>
+      </Route>
       <Route path="/services">
         <ModuleGuard moduleId="services">
           <Services />
         </ModuleGuard>
       </Route>
       <Route path="/services/new">
+        <ModuleGuard moduleId="services">
+          <Services />
+        </ModuleGuard>
+      </Route>
+      <Route path="/clinic/services">
         <ModuleGuard moduleId="services">
           <Services />
         </ModuleGuard>

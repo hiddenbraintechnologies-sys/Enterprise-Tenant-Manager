@@ -73,6 +73,7 @@ const TITLE_TO_KEY: Record<string, string> = {
   "Timesheets": "sidebar.timesheets",
   "Clients": "sidebar.clients",
   "Customers": "sidebar.clients",
+  "Patients": "sidebar.patients",
   "Invoices": "sidebar.invoices",
   "Analytics": "sidebar.analytics",
   "My Add-ons": "sidebar.myAddons",
@@ -122,8 +123,8 @@ const TITLE_TO_KEY: Record<string, string> = {
 const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   clinic: [
     { title: "Dashboard", url: "/dashboard/clinic", icon: LayoutDashboard },
-    { title: "Customers", url: "/customers", icon: Users },
-    { title: "Services", url: "/services", icon: Stethoscope },
+    { title: "Patients", url: "/customers", icon: Users },
+    { title: "Services", url: "/clinic/services", icon: Stethoscope },
     { title: "Bookings", url: "/bookings", icon: Calendar },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
@@ -250,8 +251,8 @@ const NAV_ITEMS_BY_BUSINESS_TYPE: Record<BusinessType, NavItem[]> = {
   // Alias entries
   clinic_healthcare: [
     { title: "Dashboard", url: "/dashboard/clinic", icon: LayoutDashboard },
-    { title: "Customers", url: "/customers", icon: Users },
-    { title: "Services", url: "/services", icon: Stethoscope },
+    { title: "Patients", url: "/customers", icon: Users },
+    { title: "Services", url: "/clinic/services", icon: Stethoscope },
     { title: "Bookings", url: "/bookings", icon: Calendar },
     { title: "Analytics", url: "/analytics", icon: BarChart3 },
   ],
