@@ -323,6 +323,7 @@ const settingsNavItems: NavItem[] = [
   { title: "Billing", url: "/settings/billing", icon: CreditCard },
   { title: "Customer Portal", url: "/settings/portal", icon: Users },
   { title: "Security", url: "/settings/security", icon: Shield },
+  { title: "Users & Roles", url: "/settings/users-roles", icon: Users },
 ];
 
 // HR Core items (Payroll OR HRMS add-on) - Employee Directory

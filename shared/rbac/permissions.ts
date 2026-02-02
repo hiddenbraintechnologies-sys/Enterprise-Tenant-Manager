@@ -99,6 +99,37 @@ export const Permissions = {
   MARKETPLACE_BROWSE: "MARKETPLACE_BROWSE", // View marketplace list and details
   MARKETPLACE_PURCHASE: "MARKETPLACE_PURCHASE", // Start trial / purchase add-on
   MARKETPLACE_MANAGE_BILLING: "MARKETPLACE_MANAGE_BILLING", // View invoices, update payment method
+
+  // Tenant Staff & Roles permissions (Zoho-style)
+  STAFF_VIEW: "STAFF_VIEW", // View staff list
+  STAFF_CREATE: "STAFF_CREATE", // Add new staff members
+  STAFF_EDIT: "STAFF_EDIT", // Edit staff details
+  STAFF_DELETE: "STAFF_DELETE", // Remove staff members
+  STAFF_INVITE: "STAFF_INVITE", // Send invite to staff
+  ROLES_VIEW: "ROLES_VIEW", // View roles list
+  ROLES_CREATE: "ROLES_CREATE", // Create custom roles
+  ROLES_EDIT: "ROLES_EDIT", // Edit role permissions
+  ROLES_DELETE: "ROLES_DELETE", // Delete custom roles
+
+  // Business module permissions
+  CUSTOMERS_VIEW: "CUSTOMERS_VIEW",
+  CUSTOMERS_CREATE: "CUSTOMERS_CREATE",
+  CUSTOMERS_EDIT: "CUSTOMERS_EDIT",
+  CUSTOMERS_DELETE: "CUSTOMERS_DELETE",
+  SERVICES_VIEW: "SERVICES_VIEW",
+  SERVICES_CREATE: "SERVICES_CREATE",
+  SERVICES_EDIT: "SERVICES_EDIT",
+  SERVICES_DELETE: "SERVICES_DELETE",
+  BOOKINGS_VIEW: "BOOKINGS_VIEW",
+  BOOKINGS_CREATE: "BOOKINGS_CREATE",
+  BOOKINGS_EDIT: "BOOKINGS_EDIT",
+  BOOKINGS_DELETE: "BOOKINGS_DELETE",
+  INVOICES_CREATE: "INVOICES_CREATE",
+  INVOICES_EDIT: "INVOICES_EDIT",
+  INVOICES_DELETE: "INVOICES_DELETE",
+  PAYMENTS_CREATE: "PAYMENTS_CREATE",
+  SETTINGS_VIEW: "SETTINGS_VIEW",
+  SETTINGS_EDIT: "SETTINGS_EDIT",
 } as const;
 
 export type Permission = (typeof Permissions)[keyof typeof Permissions];
@@ -525,6 +556,91 @@ export const ISO_TO_TENANT_COUNTRY: Record<string, string> = {
   "CN": "china",
   "SA": "saudi_arabia",
 };
+
+// ==================== DEFAULT TENANT ROLES ====================
+// These are seeded when a tenant is created
+
+export const DEFAULT_TENANT_ROLES = {
+  ADMIN: {
+    name: "Admin",
+    description: "Full access to all features and settings",
+    isDefault: true,
+    isSystem: true,
+    permissions: [
+      Permissions.STAFF_VIEW, Permissions.STAFF_CREATE, Permissions.STAFF_EDIT, Permissions.STAFF_DELETE, Permissions.STAFF_INVITE,
+      Permissions.ROLES_VIEW, Permissions.ROLES_CREATE, Permissions.ROLES_EDIT, Permissions.ROLES_DELETE,
+      Permissions.CUSTOMERS_VIEW, Permissions.CUSTOMERS_CREATE, Permissions.CUSTOMERS_EDIT, Permissions.CUSTOMERS_DELETE,
+      Permissions.SERVICES_VIEW, Permissions.SERVICES_CREATE, Permissions.SERVICES_EDIT, Permissions.SERVICES_DELETE,
+      Permissions.BOOKINGS_VIEW, Permissions.BOOKINGS_CREATE, Permissions.BOOKINGS_EDIT, Permissions.BOOKINGS_DELETE,
+      Permissions.VIEW_INVOICES, Permissions.INVOICES_CREATE, Permissions.INVOICES_EDIT, Permissions.INVOICES_DELETE,
+      Permissions.PAYMENTS_CREATE, Permissions.RECORD_PAYMENTS,
+      Permissions.VIEW_DASHBOARD, Permissions.VIEW_ANALYTICS,
+      Permissions.SETTINGS_VIEW, Permissions.SETTINGS_EDIT, Permissions.MANAGE_SETTINGS,
+      Permissions.SUBSCRIPTION_VIEW, Permissions.SUBSCRIPTION_CHANGE,
+      Permissions.MARKETPLACE_BROWSE, Permissions.MARKETPLACE_PURCHASE, Permissions.MARKETPLACE_MANAGE_BILLING,
+    ],
+  },
+  STAFF: {
+    name: "Staff",
+    description: "Standard access for day-to-day operations",
+    isDefault: false,
+    isSystem: true,
+    permissions: [
+      Permissions.CUSTOMERS_VIEW, Permissions.CUSTOMERS_CREATE, Permissions.CUSTOMERS_EDIT,
+      Permissions.SERVICES_VIEW,
+      Permissions.BOOKINGS_VIEW, Permissions.BOOKINGS_CREATE, Permissions.BOOKINGS_EDIT,
+      Permissions.VIEW_INVOICES, Permissions.INVOICES_CREATE,
+      Permissions.PAYMENTS_CREATE, Permissions.RECORD_PAYMENTS,
+      Permissions.VIEW_DASHBOARD,
+      Permissions.SETTINGS_VIEW,
+    ],
+  },
+  VIEWER: {
+    name: "Viewer",
+    description: "Read-only access to view data",
+    isDefault: false,
+    isSystem: true,
+    permissions: [
+      Permissions.CUSTOMERS_VIEW,
+      Permissions.SERVICES_VIEW,
+      Permissions.BOOKINGS_VIEW,
+      Permissions.VIEW_INVOICES,
+      Permissions.VIEW_DASHBOARD,
+      Permissions.SETTINGS_VIEW,
+    ],
+  },
+} as const;
+
+// Permission groups for UI organization
+export const PERMISSION_GROUPS = {
+  "Staff & Roles": [
+    Permissions.STAFF_VIEW, Permissions.STAFF_CREATE, Permissions.STAFF_EDIT, Permissions.STAFF_DELETE, Permissions.STAFF_INVITE,
+    Permissions.ROLES_VIEW, Permissions.ROLES_CREATE, Permissions.ROLES_EDIT, Permissions.ROLES_DELETE,
+  ],
+  "Customers": [
+    Permissions.CUSTOMERS_VIEW, Permissions.CUSTOMERS_CREATE, Permissions.CUSTOMERS_EDIT, Permissions.CUSTOMERS_DELETE,
+  ],
+  "Services": [
+    Permissions.SERVICES_VIEW, Permissions.SERVICES_CREATE, Permissions.SERVICES_EDIT, Permissions.SERVICES_DELETE,
+  ],
+  "Bookings": [
+    Permissions.BOOKINGS_VIEW, Permissions.BOOKINGS_CREATE, Permissions.BOOKINGS_EDIT, Permissions.BOOKINGS_DELETE,
+  ],
+  "Invoices & Payments": [
+    Permissions.VIEW_INVOICES, Permissions.INVOICES_CREATE, Permissions.INVOICES_EDIT, Permissions.INVOICES_DELETE,
+    Permissions.PAYMENTS_CREATE, Permissions.RECORD_PAYMENTS,
+  ],
+  "Analytics & Dashboard": [
+    Permissions.VIEW_DASHBOARD, Permissions.VIEW_ANALYTICS,
+  ],
+  "Settings": [
+    Permissions.SETTINGS_VIEW, Permissions.SETTINGS_EDIT, Permissions.MANAGE_SETTINGS,
+  ],
+  "Subscription & Marketplace": [
+    Permissions.SUBSCRIPTION_VIEW, Permissions.SUBSCRIPTION_CHANGE,
+    Permissions.MARKETPLACE_BROWSE, Permissions.MARKETPLACE_PURCHASE, Permissions.MARKETPLACE_MANAGE_BILLING,
+  ],
+} as const;
 
 export const TENANT_COUNTRY_TO_ISO: Record<string, string> = Object.fromEntries(
   Object.entries(ISO_TO_TENANT_COUNTRY).map(([iso, tenant]) => [tenant, iso])

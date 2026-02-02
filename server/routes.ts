@@ -57,6 +57,7 @@ import indiaComplianceRoutes from "./core/india-compliance/india-compliance-rout
 import uaeComplianceRoutes from "./core/uae-compliance/uae-compliance-routes";
 import ukComplianceRoutes from "./core/uk-compliance/uk-compliance-routes";
 import { aiRouter } from "./core/ai-routes";
+import staffRolesRoutes from "./routes/settings/staff-roles";
 import {
   adminIpRestriction,
   adminRateLimit,
@@ -300,8 +301,12 @@ export async function registerRoutes(
         console.log("[bootstrap] Marketplace add-ons seeding skipped:", err);
       }
       
-      await tenantService.getOrCreateDefaultTenant();
+      const defaultTenant = await tenantService.getOrCreateDefaultTenant();
       console.log("[bootstrap] Default tenant ready");
+      
+      // Seed default roles for existing tenants (Admin, Staff, Viewer)
+      await storage.seedDefaultRolesForTenant(defaultTenant.id);
+      console.log("[bootstrap] Default tenant roles seeded");
       await initializeWhatsappProviders();
       console.log("[bootstrap] WhatsApp providers initialized");
       
@@ -490,6 +495,9 @@ export async function registerRoutes(
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
   app.use('/api/feature-flags', authenticateHybrid(), enforceTenantBoundary(), featureFlagsRoutes);
+
+  // Settings routes for staff and roles management
+  app.use('/api/settings', authenticateHybrid({ required: true }), enforceTenantBoundary(), staffRolesRoutes);
 
   // Register Business Version management routes (SuperAdmin only)
   app.use('/api/business-versions', authenticateJWT({ required: true }), businessVersionRoutes);

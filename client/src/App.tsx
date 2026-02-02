@@ -98,6 +98,7 @@ import NotificationsSettings from "@/pages/settings/notifications";
 import BillingSettings from "@/pages/settings/billing";
 import PortalSettings from "@/pages/settings/portal";
 import SecuritySettings from "@/pages/settings/security";
+import StaffRolesSettings from "@/pages/settings/staff-roles";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 import NotAuthorized from "@/pages/not-authorized";
@@ -524,6 +525,7 @@ function AuthenticatedRoutes() {
       <Route path="/settings/billing" component={BillingSettings} />
       <Route path="/settings/portal" component={PortalSettings} />
       <Route path="/settings/security" component={SecuritySettings} />
+      <Route path="/settings/users-roles" component={StaffRolesSettings} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/reseller" component={ResellerDashboard} />

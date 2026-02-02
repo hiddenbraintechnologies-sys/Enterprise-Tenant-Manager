@@ -66,6 +66,9 @@ export const membershipStatusEnum = pgEnum("membership_status", ["active", "expi
 export const appointmentTypeEnum = pgEnum("appointment_type", ["walk_in", "online", "phone"]);
 export const patientGenderEnum = pgEnum("patient_gender", ["male", "female", "other"]);
 
+// Tenant Staff/Roles enums
+export const tenantStaffStatusEnum = pgEnum("tenant_staff_status", ["active", "inactive", "pending_invite", "suspended"]);
+
 // Reseller/White-label enums
 export const tenantTypeEnum = pgEnum("tenant_type", ["platform", "reseller", "direct"]);
 export const resellerStatusEnum = pgEnum("reseller_status", ["active", "suspended", "pending_approval", "terminated"]);
@@ -860,6 +863,57 @@ export const staff = pgTable("staff", {
   createdBy: varchar("created_by").references(() => users.id),
 }, (table) => [
   index("idx_staff_tenant").on(table.tenantId),
+]);
+
+// ============================================
+// TENANT ROLES & STAFF (Zoho-style)
+// ============================================
+
+export const tenantRoles = pgTable("tenant_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isSystem: boolean("is_system").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_roles_tenant").on(table.tenantId),
+  uniqueIndex("idx_tenant_roles_name").on(table.tenantId, table.name),
+]);
+
+export const tenantRolePermissions = pgTable("tenant_role_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantRoleId: varchar("tenant_role_id").notNull().references(() => tenantRoles.id, { onDelete: "cascade" }),
+  permission: varchar("permission", { length: 100 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_role_permissions_role").on(table.tenantRoleId),
+  uniqueIndex("idx_tenant_role_permissions_unique").on(table.tenantRoleId, table.permission),
+]);
+
+export const tenantStaff = pgTable("tenant_staff", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id),
+  email: varchar("email", { length: 255 }).notNull(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  aliasName: varchar("alias_name", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  jobTitle: varchar("job_title", { length: 100 }),
+  tenantRoleId: varchar("tenant_role_id").references(() => tenantRoles.id, { onDelete: "set null" }),
+  status: tenantStaffStatusEnum("status").default("active"),
+  inviteToken: varchar("invite_token", { length: 100 }),
+  inviteExpiresAt: timestamp("invite_expires_at"),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tenant_staff_tenant").on(table.tenantId),
+  index("idx_tenant_staff_user").on(table.userId),
+  index("idx_tenant_staff_role").on(table.tenantRoleId),
+  uniqueIndex("idx_tenant_staff_email").on(table.tenantId, table.email),
 ]);
 
 // ============================================
@@ -2447,6 +2501,9 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: tru
 export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({ id: true, createdAt: true });
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).omit({ id: true, createdAt: true });
 export const insertStaffSchema = createInsertSchema(staff).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantRoleSchema = createInsertSchema(tenantRoles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantRolePermissionSchema = createInsertSchema(tenantRolePermissions).omit({ id: true, createdAt: true });
+export const insertTenantStaffSchema = createInsertSchema(tenantStaff).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPatientDocumentSchema = createInsertSchema(patientDocuments).omit({ id: true, createdAt: true });
 export const insertDocumentShareLinkSchema = createInsertSchema(documentShareLinks).omit({ id: true, createdAt: true });
@@ -2567,6 +2624,15 @@ export type InsertRefreshToken = z.infer<typeof insertRefreshTokenSchema>;
 
 export type Staff = typeof staff.$inferSelect;
 export type InsertStaff = z.infer<typeof insertStaffSchema>;
+
+export type TenantRole = typeof tenantRoles.$inferSelect;
+export type InsertTenantRole = z.infer<typeof insertTenantRoleSchema>;
+
+export type TenantRolePermission = typeof tenantRolePermissions.$inferSelect;
+export type InsertTenantRolePermission = z.infer<typeof insertTenantRolePermissionSchema>;
+
+export type TenantStaff = typeof tenantStaff.$inferSelect;
+export type InsertTenantStaff = z.infer<typeof insertTenantStaffSchema>;
 
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;

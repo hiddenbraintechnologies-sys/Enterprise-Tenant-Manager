@@ -16,12 +16,16 @@ import {
   billOfMaterials, bomComponents, productionOrders, productionStages,
   deliveryOrders, deliveryOrderItems, installationOrders,
   furnitureSalesOrders, furnitureSalesOrderItems,
+  tenantRoles, tenantRolePermissions, tenantStaff,
   type Tenant, type InsertTenant,
   type Customer, type InsertCustomer,
   type Service, type InsertService,
   type Booking, type InsertBooking,
   type Staff, type InsertStaff,
   type BookingWithDetails,
+  type TenantRole, type InsertTenantRole,
+  type TenantRolePermission, type InsertTenantRolePermission,
+  type TenantStaff, type InsertTenantStaff,
   type NotificationTemplate, type InsertNotificationTemplate,
   type NotificationLog, type InsertNotificationLog,
   type Invoice, type InsertInvoice,
@@ -481,6 +485,29 @@ export interface IStorage {
   // Invoice Project Links
   getInvoiceProjectLinks(invoiceId: string, tenantId: string): Promise<InvoiceProjectLink[]>;
   createInvoiceProjectLink(link: InsertInvoiceProjectLink): Promise<InvoiceProjectLink>;
+
+  // Tenant Roles
+  getTenantRoles(tenantId: string): Promise<TenantRole[]>;
+  getTenantRole(id: string, tenantId: string): Promise<TenantRole | undefined>;
+  createTenantRole(role: InsertTenantRole): Promise<TenantRole>;
+  updateTenantRole(id: string, tenantId: string, role: Partial<InsertTenantRole>): Promise<TenantRole | undefined>;
+  deleteTenantRole(id: string, tenantId: string): Promise<void>;
+
+  // Tenant Role Permissions
+  getTenantRolePermissions(roleId: string): Promise<TenantRolePermission[]>;
+  setTenantRolePermissions(roleId: string, permissions: string[]): Promise<void>;
+
+  // Tenant Staff
+  getTenantStaff(tenantId: string): Promise<TenantStaff[]>;
+  getTenantStaffMember(id: string, tenantId: string): Promise<TenantStaff | undefined>;
+  getTenantStaffByEmail(email: string, tenantId: string): Promise<TenantStaff | undefined>;
+  getTenantStaffByUserId(userId: string, tenantId: string): Promise<TenantStaff | undefined>;
+  createTenantStaff(staff: InsertTenantStaff): Promise<TenantStaff>;
+  updateTenantStaff(id: string, tenantId: string, staff: Partial<InsertTenantStaff>): Promise<TenantStaff | undefined>;
+  deleteTenantStaff(id: string, tenantId: string): Promise<void>;
+
+  // Seed default roles for a tenant
+  seedDefaultRolesForTenant(tenantId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2660,6 +2687,128 @@ export class DatabaseStorage implements IStorage {
   async createInvoiceProjectLink(link: InsertInvoiceProjectLink): Promise<InvoiceProjectLink> {
     const [created] = await db.insert(invoiceProjectLinks).values(link).returning();
     return created;
+  }
+
+  // ==================== TENANT ROLES ====================
+  async getTenantRoles(tenantId: string): Promise<TenantRole[]> {
+    return db.select().from(tenantRoles)
+      .where(eq(tenantRoles.tenantId, tenantId))
+      .orderBy(desc(tenantRoles.isDefault), tenantRoles.name);
+  }
+
+  async getTenantRole(id: string, tenantId: string): Promise<TenantRole | undefined> {
+    const [role] = await db.select().from(tenantRoles)
+      .where(and(eq(tenantRoles.id, id), eq(tenantRoles.tenantId, tenantId)));
+    return role;
+  }
+
+  async createTenantRole(role: InsertTenantRole): Promise<TenantRole> {
+    const [created] = await db.insert(tenantRoles).values(role).returning();
+    return created;
+  }
+
+  async updateTenantRole(id: string, tenantId: string, role: Partial<InsertTenantRole>): Promise<TenantRole | undefined> {
+    const [updated] = await db.update(tenantRoles)
+      .set({ ...role, updatedAt: new Date() })
+      .where(and(eq(tenantRoles.id, id), eq(tenantRoles.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteTenantRole(id: string, tenantId: string): Promise<void> {
+    await db.delete(tenantRoles)
+      .where(and(eq(tenantRoles.id, id), eq(tenantRoles.tenantId, tenantId)));
+  }
+
+  // ==================== TENANT ROLE PERMISSIONS ====================
+  async getTenantRolePermissions(roleId: string): Promise<TenantRolePermission[]> {
+    return db.select().from(tenantRolePermissions)
+      .where(eq(tenantRolePermissions.tenantRoleId, roleId));
+  }
+
+  async setTenantRolePermissions(roleId: string, permissions: string[]): Promise<void> {
+    await db.delete(tenantRolePermissions)
+      .where(eq(tenantRolePermissions.tenantRoleId, roleId));
+    
+    if (permissions.length > 0) {
+      await db.insert(tenantRolePermissions)
+        .values(permissions.map(permission => ({
+          tenantRoleId: roleId,
+          permission,
+        })));
+    }
+  }
+
+  // ==================== TENANT STAFF ====================
+  async getTenantStaff(tenantId: string): Promise<TenantStaff[]> {
+    return db.select().from(tenantStaff)
+      .where(eq(tenantStaff.tenantId, tenantId))
+      .orderBy(tenantStaff.fullName);
+  }
+
+  async getTenantStaffMember(id: string, tenantId: string): Promise<TenantStaff | undefined> {
+    const [member] = await db.select().from(tenantStaff)
+      .where(and(eq(tenantStaff.id, id), eq(tenantStaff.tenantId, tenantId)));
+    return member;
+  }
+
+  async getTenantStaffByEmail(email: string, tenantId: string): Promise<TenantStaff | undefined> {
+    const [member] = await db.select().from(tenantStaff)
+      .where(and(eq(tenantStaff.email, email), eq(tenantStaff.tenantId, tenantId)));
+    return member;
+  }
+
+  async getTenantStaffByUserId(userId: string, tenantId: string): Promise<TenantStaff | undefined> {
+    const [member] = await db.select().from(tenantStaff)
+      .where(and(eq(tenantStaff.userId, userId), eq(tenantStaff.tenantId, tenantId)));
+    return member;
+  }
+
+  async createTenantStaff(staffMember: InsertTenantStaff): Promise<TenantStaff> {
+    const [created] = await db.insert(tenantStaff).values(staffMember).returning();
+    return created;
+  }
+
+  async updateTenantStaff(id: string, tenantId: string, staffMember: Partial<InsertTenantStaff>): Promise<TenantStaff | undefined> {
+    const [updated] = await db.update(tenantStaff)
+      .set({ ...staffMember, updatedAt: new Date() })
+      .where(and(eq(tenantStaff.id, id), eq(tenantStaff.tenantId, tenantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteTenantStaff(id: string, tenantId: string): Promise<void> {
+    await db.delete(tenantStaff)
+      .where(and(eq(tenantStaff.id, id), eq(tenantStaff.tenantId, tenantId)));
+  }
+
+  // ==================== SEED DEFAULT ROLES ====================
+  async seedDefaultRolesForTenant(tenantId: string): Promise<void> {
+    const { DEFAULT_TENANT_ROLES } = await import("@shared/rbac/permissions");
+    
+    for (const [key, roleDef] of Object.entries(DEFAULT_TENANT_ROLES)) {
+      const existingRole = await db.select().from(tenantRoles)
+        .where(and(eq(tenantRoles.tenantId, tenantId), eq(tenantRoles.name, roleDef.name)))
+        .limit(1);
+      
+      if (existingRole.length === 0) {
+        const [role] = await db.insert(tenantRoles).values({
+          tenantId,
+          name: roleDef.name,
+          description: roleDef.description,
+          isDefault: roleDef.isDefault,
+          isSystem: roleDef.isSystem,
+        }).returning();
+        
+        if (roleDef.permissions.length > 0) {
+          await db.insert(tenantRolePermissions)
+            .values(roleDef.permissions.map(permission => ({
+              tenantRoleId: role.id,
+              permission,
+            })));
+        }
+      }
+    }
   }
 }
 

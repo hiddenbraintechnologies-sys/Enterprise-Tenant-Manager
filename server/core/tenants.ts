@@ -6,6 +6,7 @@ import {
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { featureService, FEATURES, BUSINESS_TYPE_MODULES, type BusinessType } from "./features";
+import { storage } from "../storage";
 
 export class TenantService {
   async getTenant(id: string): Promise<Tenant | undefined> {
@@ -45,6 +46,9 @@ export class TenantService {
     for (const featureCode of modulesToEnable) {
       await featureService.enableFeature(tenant.id, featureCode);
     }
+
+    // Seed default tenant roles (Admin, Staff, Viewer)
+    await storage.seedDefaultRolesForTenant(tenant.id);
 
     return tenant;
   }
