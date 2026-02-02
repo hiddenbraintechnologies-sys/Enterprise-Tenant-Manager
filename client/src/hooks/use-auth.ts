@@ -3,6 +3,29 @@ import type { User } from "@shared/models/auth";
 
 export type BusinessType = "clinic" | "clinic_healthcare" | "salon" | "salon_spa" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "education_institute" | "logistics" | "logistics_fleet" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
 
+const DASHBOARD_ROUTES: Record<string, string> = {
+  clinic: "/dashboard/clinic",
+  clinic_healthcare: "/dashboard/clinic",
+  salon: "/dashboard/salon",
+  salon_spa: "/dashboard/salon",
+  pg: "/dashboard/pg",
+  pg_hostel: "/dashboard/pg",
+  coworking: "/dashboard/coworking",
+  service: "/dashboard/service",
+  real_estate: "/dashboard/real-estate",
+  tourism: "/dashboard/tourism",
+  education: "/dashboard/education",
+  education_institute: "/dashboard/education",
+  logistics: "/dashboard/logistics",
+  logistics_fleet: "/dashboard/logistics",
+  legal: "/dashboard/legal",
+  furniture_manufacturing: "/dashboard/furniture",
+  software_services: "/dashboard/software-services",
+  consulting: "/dashboard/consulting",
+  digital_agency: "/dashboard/digital-agency",
+  retail_store: "/dashboard/retail",
+};
+
 export interface Tenant {
   id: string;
   name: string;
@@ -93,9 +116,7 @@ async function fetchUser(): Promise<AuthUser | null> {
           currency: tenant.currency,
           timezone: tenant.timezone,
         } : null,
-        dashboardRoute: tenant?.businessType ? 
-          `/dashboard/${tenant.businessType === "coworking" ? "coworking" : tenant.businessType}` : 
-          "/dashboard/service",
+        dashboardRoute: DASHBOARD_ROUTES[tenant?.businessType || "service"] || "/dashboard/service",
       } as AuthUser;
     }
     
@@ -208,7 +229,7 @@ async function fetchUser(): Promise<AuthUser | null> {
         
         // Calculate dashboard route from authoritative tenant data
         const businessType = tenant?.businessType || "service";
-        const dashboardRoute = `/dashboard/${businessType === "coworking" ? "coworking" : businessType}`;
+        const dashboardRoute = DASHBOARD_ROUTES[businessType] || "/dashboard/service";
         
         return {
           id: tokens.user?.id || userData.id,

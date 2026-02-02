@@ -343,10 +343,38 @@ interface DashboardGuardProps {
   children: ReactNode;
 }
 
+// Normalize business type aliases to their canonical short form for comparison
+const BUSINESS_TYPE_CANONICAL: Record<string, string> = {
+  clinic: "clinic",
+  clinic_healthcare: "clinic",
+  salon: "salon",
+  salon_spa: "salon",
+  pg: "pg",
+  pg_hostel: "pg",
+  coworking: "coworking",
+  service: "service",
+  real_estate: "real_estate",
+  tourism: "tourism",
+  education: "education",
+  education_institute: "education",
+  logistics: "logistics",
+  logistics_fleet: "logistics",
+  legal: "legal",
+  furniture_manufacturing: "furniture_manufacturing",
+  software_services: "software_services",
+  consulting: "consulting",
+  digital_agency: "digital_agency",
+  retail_store: "retail_store",
+};
+
 export function DashboardGuard({ allowedBusinessType, children }: DashboardGuardProps) {
   const { businessType, dashboardRoute } = useTenant();
 
-  if (businessType !== allowedBusinessType) {
+  // Normalize both business types to canonical form for comparison
+  const normalizedActual = BUSINESS_TYPE_CANONICAL[businessType] || businessType;
+  const normalizedAllowed = BUSINESS_TYPE_CANONICAL[allowedBusinessType] || allowedBusinessType;
+
+  if (normalizedActual !== normalizedAllowed) {
     return <Redirect to={dashboardRoute} />;
   }
 
