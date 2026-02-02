@@ -325,7 +325,7 @@ export default function EmployeeDetailPage() {
             <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold">Employee Not Found</h3>
             <p className="mt-2 text-muted-foreground">The requested employee does not exist or has been removed.</p>
-            <Button className="mt-6" onClick={() => navigate("/hr/employees")}>
+            <Button className="mt-6" onClick={() => navigate("/hr/employees")} data-testid="button-back-to-directory">
               Back to Directory
             </Button>
           </div>
@@ -357,7 +357,7 @@ export default function EmployeeDetailPage() {
                 <h1 className="text-2xl font-semibold leading-tight" data-testid="text-employee-name">
                   {employee.firstName} {employee.lastName}
                 </h1>
-                <Badge variant={getStatusVariant(employee.status)}>
+                <Badge variant={getStatusVariant(employee.status)} data-testid="badge-employee-status">
                   {formatStatus(employee.status)}
                 </Badge>
               </div>
@@ -386,19 +386,19 @@ export default function EmployeeDetailPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border p-4">
             <div className="text-xs text-muted-foreground">Employee ID</div>
-            <div className="font-medium mt-1">{employee.employeeId || "—"}</div>
+            <div className="font-medium mt-1" data-testid="text-employee-id">{employee.employeeId || "—"}</div>
           </div>
           <div className="rounded-xl border p-4">
             <div className="text-xs text-muted-foreground">Department</div>
-            <div className="font-medium mt-1">{employee.department?.name || "—"}</div>
+            <div className="font-medium mt-1" data-testid="text-department">{employee.department?.name || "—"}</div>
           </div>
           <div className="rounded-xl border p-4">
             <div className="text-xs text-muted-foreground">Joined</div>
-            <div className="font-medium mt-1">{formatDate(employee.joinDate)}</div>
+            <div className="font-medium mt-1" data-testid="text-join-date">{formatDate(employee.joinDate)}</div>
           </div>
           <div className="rounded-xl border p-4">
             <div className="text-xs text-muted-foreground">Employment Type</div>
-            <div className="font-medium mt-1">{formatEmploymentType(employee.employmentType)}</div>
+            <div className="font-medium mt-1" data-testid="text-employment-type">{formatEmploymentType(employee.employmentType)}</div>
           </div>
         </div>
 
