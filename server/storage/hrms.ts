@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { eq, and, gte, lte, ilike, or, sql, desc, asc, count } from "drizzle-orm";
+import { eq, and, gte, lte, ilike, or, sql, desc, asc, count, inArray } from "drizzle-orm";
 import { countryRolloutService } from "../services/country-rollout";
 import { tenants, tenantFeatures } from "@shared/schema";
 import {
@@ -119,7 +119,12 @@ class HrmsStorage {
     const conditions = [eq(hrEmployees.tenantId, tenantId)];
 
     if (filters.status) {
-      conditions.push(eq(hrEmployees.status, filters.status as any));
+      // Handle "inactive" filter which maps to both "exited" and "on_hold"
+      if (filters.status === "inactive") {
+        conditions.push(inArray(hrEmployees.status, ["exited", "on_hold"]));
+      } else {
+        conditions.push(eq(hrEmployees.status, filters.status as any));
+      }
     }
     if (filters.departmentId) {
       conditions.push(eq(hrEmployees.departmentId, filters.departmentId));

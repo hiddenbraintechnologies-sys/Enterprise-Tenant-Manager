@@ -63,9 +63,13 @@ import {
   Loader2,
   UserPlus,
   FilterX,
+  Upload,
+  Download,
+  FileWarning,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CheckedState } from "@radix-ui/react-checkbox";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface Employee {
   id: string;
@@ -144,6 +148,23 @@ export default function EmployeesPage() {
   const [reactivateEmployee, setReactivateEmployee] = useState<Employee | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"deactivate" | "delete" | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    totalRows: number;
+    successCount: number;
+    errorCount: number;
+    errors: Array<{
+      rowNumber: number;
+      employeeCode: string;
+      email: string;
+      errorCode: string;
+      errorField: string;
+      errorMessage: string;
+      rawData: string;
+    }>;
+  } | null>(null);
 
   const createForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
@@ -408,6 +429,99 @@ export default function EmployeesPage() {
     bulkDeleteMutation.mutate(Array.from(selectedIds));
   };
 
+  // CSV Import mutation
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/hr/employees/import", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Import failed");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setImportResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      if (data.success) {
+        toast({ title: `Successfully imported ${data.successCount} employee(s)` });
+        setIsImportDialogOpen(false);
+        setImportFile(null);
+        setImportResult(null);
+      } else {
+        toast({ 
+          title: `Imported ${data.successCount} of ${data.totalRows} employees`, 
+          description: `${data.errorCount} row(s) had errors. Download the error report for details.`,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Import failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleImport = () => {
+    if (importFile) {
+      importMutation.mutate(importFile);
+    }
+  };
+
+  const downloadTemplate = (type: "hr" | "payroll") => {
+    window.open(`/api/hr/employees/import/template?type=${type}`, "_blank");
+  };
+
+  const downloadErrorReport = () => {
+    if (!importResult?.errors?.length) return;
+    
+    // Helper to escape CSV fields (wrap in quotes, escape internal quotes)
+    const escapeCSV = (val: string | number) => {
+      const str = String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    
+    const headers = "rowNumber,employeeCode,email,errorCode,errorField,errorMessage,rawData";
+    const rows = importResult.errors.map(e => 
+      [
+        e.rowNumber,
+        escapeCSV(e.employeeCode),
+        escapeCSV(e.email),
+        escapeCSV(e.errorCode),
+        escapeCSV(e.errorField),
+        escapeCSV(e.errorMessage),
+        escapeCSV(e.rawData),
+      ].join(",")
+    );
+    const csv = [headers, ...rows].join("\n");
+    
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "employee_import_errors.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Count employees by status for chips
+  // Active = active + probation; Inactive = exited + on_hold
+  const statusCounts = employees?.data?.reduce((acc, emp) => {
+    if (emp.status === "active" || emp.status === "probation") {
+      acc.active++;
+    } else if (emp.status === "exited" || emp.status === "on_hold") {
+      acc.inactive++;
+    }
+    return acc;
+  }, { active: 0, inactive: 0 }) || { active: 0, inactive: 0 };
+
   const filteredEmployees = employees?.data?.filter((emp) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -596,6 +710,7 @@ export default function EmployeesPage() {
     >
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -606,36 +721,148 @@ export default function EmployeesPage() {
               data-testid="input-search-employees"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-40" data-testid="select-status-filter">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="probation">Probation</SelectItem>
-              <SelectItem value="on_hold">On Hold</SelectItem>
-              <SelectItem value="exited">Exited</SelectItem>
-            </SelectContent>
-          </Select>
+          
+          {/* Status Toggle Chips */}
+          <ToggleGroup 
+            type="single" 
+            value={statusFilter} 
+            onValueChange={(v) => v && setStatusFilter(v)}
+            className="justify-start"
+          >
+            <ToggleGroupItem value="all" aria-label="All employees" data-testid="toggle-status-all">
+              All
+            </ToggleGroupItem>
+            <ToggleGroupItem value="active" aria-label="Active employees" data-testid="toggle-status-active">
+              Active ({statusCounts.active})
+            </ToggleGroupItem>
+            <ToggleGroupItem value="inactive" aria-label="Inactive employees" data-testid="toggle-status-inactive">
+              Inactive ({statusCounts.inactive})
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-employee">
-              <Plus className="mr-2 h-4 w-4" /> Add Employee
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Add New Employee</DialogTitle>
-              <DialogDescription>
-                Enter the employee details below.
-              </DialogDescription>
-            </DialogHeader>
-            {renderEmployeeForm(createForm, onCreateSubmit, createMutation.isPending, "Create Employee")}
-          </DialogContent>
-        </Dialog>
+        
+        <div className="flex items-center gap-2">
+          {/* Import CSV Button */}
+          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import-csv">
+            <Upload className="mr-2 h-4 w-4" /> Import CSV
+          </Button>
+          
+          {/* Add Employee Button */}
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-employee">
+                <Plus className="mr-2 h-4 w-4" /> Add Employee
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Add New Employee</DialogTitle>
+                <DialogDescription>
+                  Enter the employee details below.
+                </DialogDescription>
+              </DialogHeader>
+              {renderEmployeeForm(createForm, onCreateSubmit, createMutation.isPending, "Create Employee")}
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {/* Import CSV Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={(open) => {
+        setIsImportDialogOpen(open);
+        if (!open) {
+          setImportFile(null);
+          setImportResult(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Import Employees from CSV</DialogTitle>
+            <DialogDescription>
+              Upload a CSV file to import employees in bulk.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Download Templates */}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => downloadTemplate("hr")} data-testid="button-download-hr-template">
+                <Download className="mr-2 h-4 w-4" /> HR Template
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => downloadTemplate("payroll")} data-testid="button-download-payroll-template">
+                <Download className="mr-2 h-4 w-4" /> Payroll Template
+              </Button>
+            </div>
+            
+            {/* File Upload */}
+            <div className="border-2 border-dashed rounded-lg p-6 text-center">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                className="hidden"
+                id="csv-upload"
+                data-testid="input-csv-file"
+              />
+              <label htmlFor="csv-upload" className="cursor-pointer">
+                <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {importFile ? importFile.name : "Click to upload CSV file"}
+                </p>
+              </label>
+            </div>
+            
+            {/* Import Result */}
+            {importResult && (
+              <div className={`p-4 rounded-lg ${importResult.success ? "bg-green-50 dark:bg-green-950" : "bg-red-50 dark:bg-red-950"}`}>
+                <div className="flex items-start gap-3">
+                  {importResult.success ? (
+                    <div className="text-green-600">
+                      <p className="font-medium">Import successful!</p>
+                      <p className="text-sm">{importResult.successCount} employee(s) imported.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <FileWarning className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-red-600 flex-1">
+                        <p className="font-medium">Import completed with errors</p>
+                        <p className="text-sm">
+                          {importResult.successCount} of {importResult.totalRows} imported. 
+                          {importResult.errorCount} row(s) failed.
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="mt-2" 
+                          onClick={downloadErrorReport}
+                          data-testid="button-download-error-report"
+                        >
+                          <Download className="mr-2 h-4 w-4" /> Download Error Report
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleImport} 
+              disabled={!importFile || importMutation.isPending}
+              data-testid="button-start-import"
+            >
+              {importMutation.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importing...</>
+              ) : (
+                "Import"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Actions Toolbar - Zoho-style (desktop) */}
       {filteredEmployees && filteredEmployees.length > 0 && (

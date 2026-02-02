@@ -1,0 +1,278 @@
+1) CSV template columns (Malaysia payroll–optimized, EPF/SOCSO optional)
+✅ Recommended template (v1)
+
+This supports HRMS-only tenants and Payroll (Malaysia). Optional statutory fields are included but can be left blank.
+
+employee_import_template_my.csv (headers)
+
+employeeCode,firstName,lastName,email,phone,designation,department,joinedAt,status,icNumber,taxNumber,epfNumber,socsoNumber,eisNumber,pcbCategory,bankName,bankAccountNumber,basicSalary,payFrequency
+
+Field notes (what you should validate)
+
+employeeCode (optional) – unique per tenant (if provided)
+
+firstName (required)
+
+lastName (required)
+
+email (optional but recommended; if present validate format)
+
+phone (optional; normalize E.164 if you already do)
+
+designation (optional)
+
+department (optional; can auto-create department or map existing)
+
+joinedAt (optional) – accept YYYY-MM-DD only (avoid locale ambiguity)
+
+status (optional) – active or inactive (default active)
+
+icNumber (optional) – Malaysia NRIC / Passport; store as string
+
+taxNumber (optional) – LHDN number if you store it
+
+epfNumber / socsoNumber / eisNumber (optional) – store as string
+
+pcbCategory (optional) – e.g., M, K, or your internal enum
+
+bankName, bankAccountNumber (optional)
+
+basicSalary (optional) – numeric (store as cents if you do)
+
+payFrequency (optional) – monthly default; allow weekly, biweekly
+
+✅ If you want a “clean HR-only template”
+
+You can offer a second template for non-payroll tenants:
+
+employeeCode,firstName,lastName,email,phone,designation,department,joinedAt,status
+
+2) Error report CSV format (Zoho-style)
+
+When import fails partially, let users download employee_import_errors.csv.
+
+✅ Headers
+rowNumber,employeeCode,email,errorCode,errorField,errorMessage,rawData
+
+Example rows
+2,0001,test@example.com,VALIDATION_ERROR,joinedAt,Invalid date format (use YYYY-MM-DD),"{"employeeCode":"0001","firstName":"A","lastName":"B","joinedAt":"01/01/2026"}"
+5,,bad-email,VALIDATION_ERROR,email,Invalid email address,"{"firstName":"John","lastName":"Doe","email":"bad-email"}"
+9,0010,jane@x.com,CONFLICT,email,Employee with this email already exists,"{"employeeCode":"0010","firstName":"Jane","lastName":"X","email":"jane@x.com"}"
+
+ErrorCode enum (suggested)
+
+VALIDATION_ERROR
+
+CONFLICT
+
+DUPLICATE_IN_FILE
+
+UNKNOWN_FIELD
+
+PARSE_ERROR
+
+INTERNAL_ERROR
+
+Why include rawData
+
+This is what makes it Zoho-like: users can fix the file quickly.
+
+3) Exact shadcn Tabs + ToggleGroup JSX (paste-in)
+A) Employee Details tabs (shadcn Tabs)
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Lock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+type EmployeeDetailsTabsProps = {
+  canViewAttendance: boolean; // HRMS active
+  canViewPayroll: boolean;    // Payroll active + HRMS dep met
+  payrollLockedReason?: string; // e.g. "Requires HRMS" / "Payroll add-on inactive"
+  onGoToAddons?: () => void;
+};
+
+export function EmployeeDetailsTabs(props: EmployeeDetailsTabsProps) {
+  return (
+    <Tabs defaultValue="profile" className="w-full">
+      <TabsList className="w-full justify-start">
+        <TabsTrigger value="profile">Profile</TabsTrigger>
+
+        {props.canViewAttendance ? (
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
+        ) : (
+          <TabsTrigger value="attendance" disabled>
+            Attendance
+          </TabsTrigger>
+        )}
+
+        {props.canViewPayroll ? (
+          <TabsTrigger value="payroll">Payroll</TabsTrigger>
+        ) : (
+          <TabsTrigger value="payroll" disabled>
+            Payroll
+          </TabsTrigger>
+        )}
+      </TabsList>
+
+      <TabsContent value="profile" className="mt-6">
+        {/* PROFILE CONTENT */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Personal card */}
+            <div className="rounded-2xl border p-4 sm:p-6">
+              <div className="mb-4">
+                <div className="text-lg font-semibold">Personal</div>
+                <div className="text-sm text-muted-foreground">
+                  Contact and identity details
+                </div>
+              </div>
+              {/* fields */}
+            </div>
+
+            {/* Employment card */}
+            <div className="rounded-2xl border p-4 sm:p-6">
+              <div className="mb-4">
+                <div className="text-lg font-semibold">Employment</div>
+                <div className="text-sm text-muted-foreground">
+                  Role, department, and joining details
+                </div>
+              </div>
+              {/* fields */}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Quick actions */}
+            <div className="rounded-2xl border p-4 sm:p-6">
+              <div className="text-lg font-semibold">Quick actions</div>
+              <div className="mt-4 flex flex-col gap-2">
+                <Button variant="outline">Send invite</Button>
+                <Button variant="outline">Add note</Button>
+              </div>
+            </div>
+
+            {/* Statutory (optional) */}
+            <div className="rounded-2xl border p-4 sm:p-6">
+              <div className="text-lg font-semibold">Statutory (MY)</div>
+              <div className="text-sm text-muted-foreground">
+                EPF/SOCSO/EIS details (optional)
+              </div>
+              {/* fields */}
+            </div>
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="attendance" className="mt-6">
+        {props.canViewAttendance ? (
+          <div className="rounded-2xl border p-4 sm:p-6">
+            {/* ATTENDANCE CONTENT */}
+            Attendance content here…
+          </div>
+        ) : (
+          <LockedPanel
+            title="Attendance is locked"
+            message="Attendance requires the HRMS add-on."
+            onGoToAddons={props.onGoToAddons}
+          />
+        )}
+      </TabsContent>
+
+      <TabsContent value="payroll" className="mt-6">
+        {props.canViewPayroll ? (
+          <div className="rounded-2xl border p-4 sm:p-6">
+            {/* PAYROLL CONTENT */}
+            Payroll content here…
+          </div>
+        ) : (
+          <LockedPanel
+            title="Payroll is locked"
+            message={props.payrollLockedReason ?? "Payroll requires an active Payroll add-on and HRMS."}
+            onGoToAddons={props.onGoToAddons}
+          />
+        )}
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function LockedPanel({
+  title,
+  message,
+  onGoToAddons,
+}: {
+  title: string;
+  message: string;
+  onGoToAddons?: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border p-6">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 rounded-full border p-2">
+          <Lock className="h-4 w-4" />
+        </div>
+        <div className="flex-1">
+          <div className="text-lg font-semibold">{title}</div>
+          <div className="mt-1 text-sm text-muted-foreground">{message}</div>
+          {onGoToAddons && (
+            <div className="mt-4">
+              <Button onClick={onGoToAddons}>Go to Add-ons</Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+B) Status filter chips (shadcn ToggleGroup)
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+type StatusChipsProps = {
+  value: "all" | "active" | "inactive";
+  onChange: (v: "all" | "active" | "inactive") => void;
+  counts?: { active: number; inactive: number };
+};
+
+export function StatusChips({ value, onChange, counts }: StatusChipsProps) {
+  return (
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(v) => {
+        if (!v) return; // ignore empty toggle
+        onChange(v as any);
+      }}
+      className="justify-start"
+    >
+      <ToggleGroupItem value="all" aria-label="All employees">
+        All
+      </ToggleGroupItem>
+
+      <ToggleGroupItem value="active" aria-label="Active employees">
+        Active{counts ? ` (${counts.active})` : ""}
+      </ToggleGroupItem>
+
+      <ToggleGroupItem value="inactive" aria-label="Inactive employees">
+        Inactive{counts ? ` (${counts.inactive})` : ""}
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
+
+Placement suggestion
+Put chips between title and list, next to Search:
+
+Left: Search box
+
+Middle: Status chips
+
+Right: Add Employee / Import CSV
+
+Small but important recommendations
+
+Force joinedAt input format in CSV to YYYY-MM-DD to prevent “Invalid Date”.
+
+Keep statutory fields optional and don’t block import if blank.
+
+When payroll add-on is not active, still allow importing employees, but skip payroll-only validations.

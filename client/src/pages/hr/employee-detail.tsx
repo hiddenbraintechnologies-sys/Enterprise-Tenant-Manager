@@ -59,7 +59,9 @@ import {
   AlertTriangle,
   Clock,
   DollarSign,
+  Lock,
 } from "lucide-react";
+import { useEntitlements } from "@/hooks/use-entitlements";
 
 interface Employee {
   id: string;
@@ -169,6 +171,15 @@ export default function EmployeeDetailPage() {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [showReactivateDialog, setShowReactivateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  
+  // Check add-on entitlements for tab gating
+  const { entitlements } = useEntitlements();
+  const hrmsEntitled = entitlements?.hrms?.entitled || 
+                       entitlements?.["hrms-india"]?.entitled ||
+                       entitlements?.["hrms-malaysia"]?.entitled || false;
+  const payrollEntitled = (entitlements?.payroll?.entitled ||
+                          entitlements?.["payroll-india"]?.entitled ||
+                          entitlements?.["payroll-malaysia"]?.entitled) && hrmsEntitled;
 
   const editForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
@@ -606,24 +617,64 @@ export default function EmployeeDetailPage() {
 
           {/* Attendance Tab */}
           <TabsContent value="attendance" className="mt-6">
-            <div className="flex flex-col items-center justify-center py-16 rounded-xl border">
-              <Clock className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold">Attendance Records</h3>
-              <p className="mt-2 text-muted-foreground text-center max-w-md">
-                Attendance tracking is available with the HRMS add-on. View clock-in/out history and attendance reports.
-              </p>
-            </div>
+            {hrmsEntitled ? (
+              <div className="rounded-xl border p-5">
+                <h3 className="font-medium mb-4">Attendance Records</h3>
+                <div className="text-sm text-muted-foreground">
+                  <p>No attendance records found for this employee.</p>
+                  <p className="mt-2">Clock-in/out tracking will appear here once the employee starts recording attendance.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border p-6">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full border p-2">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold">Attendance is locked</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Attendance tracking requires the HRMS add-on. View clock-in/out history and attendance reports.
+                    </p>
+                    <Button className="mt-4" onClick={() => navigate("/marketplace")} data-testid="button-attendance-go-addons">
+                      Go to Add-ons
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Payroll Tab */}
           <TabsContent value="payroll" className="mt-6">
-            <div className="flex flex-col items-center justify-center py-16 rounded-xl border">
-              <DollarSign className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold">Payroll Information</h3>
-              <p className="mt-2 text-muted-foreground text-center max-w-md">
-                Salary details and payslips are available with the Payroll add-on.
-              </p>
-            </div>
+            {payrollEntitled ? (
+              <div className="rounded-xl border p-5">
+                <h3 className="font-medium mb-4">Payroll Information</h3>
+                <div className="text-sm text-muted-foreground">
+                  <p>No payroll records found for this employee.</p>
+                  <p className="mt-2">Salary details and payslips will appear here once the employee is added to a pay run.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border p-6">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full border p-2">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold">Payroll is locked</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {!hrmsEntitled 
+                        ? "Payroll requires an active HRMS add-on. Install HRMS first, then add the Payroll add-on."
+                        : "Payroll features require an active Payroll add-on. View salary details and payslips."}
+                    </p>
+                    <Button className="mt-4" onClick={() => navigate("/marketplace")} data-testid="button-payroll-go-addons">
+                      Go to Add-ons
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
