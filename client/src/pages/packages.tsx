@@ -319,7 +319,7 @@ export default function PackagesPage() {
       if (data.requiresTenantSetup) {
         localStorage.setItem("pendingPlanCode", data.pendingPlanCode || "");
         toast({ title: t( "businessSetupRequired"), description: t( "completeBusinessDetails") });
-        setLocation(data.redirectUrl || "/tenant-signup");
+        setLocation(data.redirectUrl || "/register");
         return;
       }
       

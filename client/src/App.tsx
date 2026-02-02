@@ -148,7 +148,6 @@ import TechSupportDashboard from "@/pages/admin/tech-support";
 import PortalLogin from "@/pages/portal/login";
 import PortalRegister from "@/pages/portal/register";
 import PortalDashboard from "@/pages/portal/dashboard";
-import TenantSignup from "@/pages/tenant-signup";
 import SubscriptionSelect from "@/pages/subscription-select";
 import SubscriptionDashboard from "@/pages/subscription-dashboard";
 import Pricing from "@/pages/pricing";
@@ -851,7 +850,7 @@ function AppRouter() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
-        <Route path="/signup" component={TenantSignup} />
+        <Route path="/signup">{() => <Redirect to="/register" />}</Route>
         <Route path="/in" component={LandingIndia} />
         <Route path="/uk" component={LandingUK} />
         <Route path="/uae" component={LandingUAE} />
@@ -912,7 +911,7 @@ function AppRouter() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
-        <Route path="/signup" component={TenantSignup} />
+        <Route path="/signup">{() => <Redirect to="/register" />}</Route>
         <Route path="/packages" component={Packages} />
         <Route path="/checkout" component={Checkout} />
         <Route path="/pricing" component={Pricing} />

@@ -355,7 +355,7 @@ router.post("/select-plan", requiredAuth, async (req: Request, res: Response) =>
         success: false,
         requiresTenantSetup: true,
         message: "Please complete your business setup first",
-        redirectUrl: "/tenant-signup",
+        redirectUrl: "/register",
         pendingPlanCode: planCode,
       });
     } else if (resolution.error) {
