@@ -20,6 +20,7 @@ import LandingUAE from "@/pages/landing-uae";
 import LandingSingapore from "@/pages/landing-singapore";
 import LandingMalaysia from "@/pages/landing-malaysia";
 import Register from "@/pages/register";
+import InviteAccept from "@/pages/invite-accept";
 import ClinicDashboard from "@/pages/clinic-dashboard";
 import SalonDashboard from "@/pages/salon-dashboard";
 import PGDashboard from "@/pages/pg-dashboard";
@@ -796,7 +797,7 @@ function AppRouter() {
   // Includes: landing pages, auth pages (login/register), pricing
   // NOTE: "/" is handled separately to redirect logged-in users to their dashboard
   const publicPaths = ["/in", "/uk", "/uae", "/sg", "/my", "/pricing", "/login", "/register", "/signup", "/not-authorized"];
-  const isPublicPath = publicPaths.includes(location);
+  const isPublicPath = publicPaths.includes(location) || location.startsWith("/invite/");
   const isRootPath = location === "/";
 
   if (isAdminLoginPath) {
@@ -870,6 +871,7 @@ function AppRouter() {
         <Route path="/sg" component={LandingSingapore} />
         <Route path="/my" component={LandingMalaysia} />
         <Route path="/pricing" component={Pricing} />
+        <Route path="/invite/:token" component={InviteAccept} />
         <Route path="/not-authorized" component={NotAuthorized} />
       </Switch>
     );

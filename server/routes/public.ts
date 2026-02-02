@@ -262,7 +262,7 @@ router.post("/invites/:token/accept", async (req: Request, res: Response) => {
     const [tenant] = await db.select({
       id: tenants.id,
       name: tenants.name,
-      subdomain: tenants.subdomain,
+      slug: tenants.slug,
     }).from(tenants).where(eq(tenants.id, invite.tenantId));
 
     return res.json({
@@ -271,7 +271,7 @@ router.post("/invites/:token/accept", async (req: Request, res: Response) => {
       tenant: {
         id: tenant?.id,
         name: tenant?.name,
-        subdomain: tenant?.subdomain,
+        slug: tenant?.slug,
       },
     });
   } catch (error) {

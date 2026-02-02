@@ -135,13 +135,25 @@ function UsersTab() {
   const allVisibleSelected = filtered.length > 0 && filtered.every(r => selected[r.id]);
 
   const createMutation = useMutation({
-    mutationFn: (data: z.infer<typeof staffFormSchema>) =>
-      apiRequest("POST", "/api/settings/staff", data),
-    onSuccess: () => {
+    mutationFn: async (data: z.infer<typeof staffFormSchema> & { status?: string }) => {
+      const response = await apiRequest("POST", "/api/settings/staff", data);
+      const staffData = await response.json();
+      return { staffData, sendInvite: data.status === "pending_invite" };
+    },
+    onSuccess: async ({ staffData, sendInvite }) => {
+      if (sendInvite && staffData?.id) {
+        try {
+          await apiRequest("POST", `/api/settings/staff/${staffData.id}/invite`);
+          toast({ title: "User created and invite sent" });
+        } catch (err) {
+          toast({ title: "User created but invite failed", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "User added successfully" });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/settings/staff"] });
       setDialogOpen(false);
       form.reset();
-      toast({ title: "User added successfully" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
