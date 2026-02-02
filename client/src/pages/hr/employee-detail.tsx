@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, useLocation, Link } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useEmployeePermissions } from "@/hooks/use-employee-permissions";
 import {
   Dialog,
   DialogContent,
@@ -277,9 +278,8 @@ export default function EmployeeDetailPage() {
     updateMutation.mutate(data);
   };
 
-  const canEdit = true;
-  const canDeactivate = employee?.status !== "exited";
-  const canDelete = true;
+  const permissions = useEmployeePermissions(employee?.status);
+  const { canEdit, canDeactivate, canDelete } = permissions;
 
   if (isLoading) {
     return (

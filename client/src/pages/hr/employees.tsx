@@ -16,13 +16,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { EmployeeActionsMenu } from "@/components/hr/employee-actions-menu";
+import { useEmployeePermissions } from "@/hooks/use-employee-permissions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,11 +57,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  MoreVertical,
-  Eye,
-  Pencil,
-  UserX,
-  Trash2,
 } from "lucide-react";
 
 interface Employee {
@@ -557,51 +547,17 @@ export default function EmployeesPage() {
                 onClick={(e) => handleCardClick(emp, e)}
               >
                 <CardContent className="p-6">
-                  <div className="absolute top-2 right-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          data-menu-trigger
-                          data-testid={`button-menu-${emp.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem 
-                          onClick={(e) => { e.stopPropagation(); navigate(`/hr/employees/${emp.id}`); }}
-                          data-testid={`menu-view-${emp.id}`}
-                        >
-                          <Eye className="mr-2 h-4 w-4" /> View details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={(e) => { e.stopPropagation(); openEditDialog(emp); }}
-                          data-testid={`menu-edit-${emp.id}`}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {emp.status !== "exited" && (
-                          <DropdownMenuItem 
-                            onClick={(e) => { e.stopPropagation(); setDeactivateEmployee(emp); }}
-                            data-testid={`menu-deactivate-${emp.id}`}
-                          >
-                            <UserX className="mr-2 h-4 w-4" /> Deactivate
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem 
-                          onClick={(e) => { e.stopPropagation(); setDeleteEmployee(emp); }}
-                          className="text-destructive focus:text-destructive"
-                          data-testid={`menu-delete-${emp.id}`}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                    <EmployeeActionsMenu
+                      canView={true}
+                      canEdit={true}
+                      canDeactivate={emp.status !== "exited"}
+                      canDelete={true}
+                      onView={() => navigate(`/hr/employees/${emp.id}`)}
+                      onEdit={() => openEditDialog(emp)}
+                      onDeactivate={() => setDeactivateEmployee(emp)}
+                      onDelete={() => setDeleteEmployee(emp)}
+                    />
                   </div>
                   <div className="flex items-start gap-4 pr-8">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg flex-shrink-0">
