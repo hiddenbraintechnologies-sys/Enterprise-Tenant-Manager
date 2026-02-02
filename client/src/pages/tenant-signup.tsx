@@ -83,10 +83,49 @@ const countryOptions = [
   { value: "other", label: "Other" },
 ];
 
+// Map country form values to country codes used in rollout
+const countryCodeMap: Record<string, string> = {
+  india: "IN",
+  uae: "AE",
+  uk: "GB",
+  malaysia: "MY",
+  singapore: "SG",
+};
+
+// Map rollout business type codes to form values
+const rolloutToFormBusinessType: Record<string, string> = {
+  pg_hostel: "pg",
+  consulting: "consulting",
+  software_services: "software_services",
+  clinic_healthcare: "clinic",
+  salon_spa: "salon",
+  legal: "legal",
+  digital_agency: "service",
+  retail_store: "service",
+  furniture_manufacturing: "furniture_manufacturing",
+  logistics_fleet: "logistics",
+  education_institute: "education",
+  tourism: "tourism",
+  real_estate: "real_estate",
+  coworking: "coworking",
+  service: "service",
+};
+
 export default function TenantSignupPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
+
+  // Fetch rollout data for country-specific business types
+  const { data: rolloutData } = useQuery<{
+    rollouts: Array<{
+      countryCode: string;
+      isActive: boolean;
+      enabledBusinessTypes: string[];
+    }>;
+  }>({
+    queryKey: ["/api/public/country-rollouts"],
+  });
 
   const form = useForm<TenantSignupForm>({
     resolver: zodResolver(tenantSignupSchema),
@@ -103,6 +142,32 @@ export default function TenantSignupPage() {
       phone: "",
     },
   });
+
+  // Watch country to filter business types
+  const selectedCountry = form.watch("country");
+  
+  // Get enabled business types for selected country
+  const getEnabledBusinessTypes = () => {
+    if (!rolloutData?.rollouts || selectedCountry === "other") {
+      return businessTypeOptions; // Show all for "other"
+    }
+    
+    const countryCode = countryCodeMap[selectedCountry];
+    const countryRollout = rolloutData.rollouts.find(r => r.countryCode === countryCode);
+    
+    if (!countryRollout?.enabledBusinessTypes?.length) {
+      return businessTypeOptions; // Fallback to all if no data
+    }
+    
+    // Map enabled business types to form options
+    const enabledFormTypes = new Set(
+      countryRollout.enabledBusinessTypes.map(bt => rolloutToFormBusinessType[bt] || bt)
+    );
+    
+    return businessTypeOptions.filter(opt => enabledFormTypes.has(opt.value));
+  };
+  
+  const filteredBusinessTypes = getEnabledBusinessTypes();
 
   const signupMutation = useMutation({
     mutationFn: async (data: TenantSignupForm) => {
@@ -252,18 +317,25 @@ export default function TenantSignupPage() {
 
                     <FormField
                       control={form.control}
-                      name="businessType"
+                      name="country"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Business Type</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormLabel>Country</FormLabel>
+                          <Select 
+                            onValueChange={(value) => {
+                              field.onChange(value);
+                              // Reset business type when country changes
+                              form.setValue("businessType", undefined as any);
+                            }} 
+                            defaultValue={field.value}
+                          >
                             <FormControl>
-                              <SelectTrigger data-testid="select-business-type">
-                                <SelectValue placeholder="Select your business type" />
+                              <SelectTrigger data-testid="select-country">
+                                <SelectValue placeholder="Select your country" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {businessTypeOptions.map((option) => (
+                              {countryOptions.map((option) => (
                                 <SelectItem key={option.value} value={option.value}>
                                   {option.label}
                                 </SelectItem>
@@ -277,22 +349,32 @@ export default function TenantSignupPage() {
 
                     <FormField
                       control={form.control}
-                      name="country"
+                      name="businessType"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Country</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormLabel>Business Type</FormLabel>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            value={field.value}
+                            key={selectedCountry}
+                          >
                             <FormControl>
-                              <SelectTrigger data-testid="select-country">
-                                <SelectValue placeholder="Select your country" />
+                              <SelectTrigger data-testid="select-business-type">
+                                <SelectValue placeholder="Select your business type" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {countryOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
+                              {filteredBusinessTypes.length > 0 ? (
+                                filteredBusinessTypes.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value="_none" disabled>
+                                  No business types available for this country
                                 </SelectItem>
-                              ))}
+                              )}
                             </SelectContent>
                           </Select>
                           <FormMessage />
