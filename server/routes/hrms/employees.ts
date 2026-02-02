@@ -26,6 +26,9 @@ import {
   assertMutationSucceededOr404,
   TenantResourceNotFoundError 
 } from "../../utils/assert-tenant-owned";
+import { db } from "../../db";
+import { hrPayRunItems, hrLeaves, hrAttendance, hrTimesheets } from "@shared/models/hrms";
+import { eq, and, count } from "drizzle-orm";
 
 const router = Router();
 
@@ -143,8 +146,63 @@ router.delete("/:id", requireMinimumRole("admin"), async (req, res) => {
       });
     }
     
-    const deleted = await EmployeeService.deleteEmployee(tenantId, req.params.id);
-    assertMutationSucceededOr404(deleted, { resourceName: "Employee", id: req.params.id });
+    const employeeId = req.params.id;
+    
+    // Check for dependent records before allowing delete (tenant-scoped for security)
+    const [payrollCount] = await db
+      .select({ count: count() })
+      .from(hrPayRunItems)
+      .where(and(
+        eq(hrPayRunItems.tenantId, tenantId),
+        eq(hrPayRunItems.employeeId, employeeId)
+      ));
+    
+    const [leaveCount] = await db
+      .select({ count: count() })
+      .from(hrLeaves)
+      .where(and(
+        eq(hrLeaves.tenantId, tenantId),
+        eq(hrLeaves.employeeId, employeeId)
+      ));
+    
+    const [attendanceCount] = await db
+      .select({ count: count() })
+      .from(hrAttendance)
+      .where(and(
+        eq(hrAttendance.tenantId, tenantId),
+        eq(hrAttendance.employeeId, employeeId)
+      ));
+    
+    const [timesheetCount] = await db
+      .select({ count: count() })
+      .from(hrTimesheets)
+      .where(and(
+        eq(hrTimesheets.tenantId, tenantId),
+        eq(hrTimesheets.employeeId, employeeId)
+      ));
+    
+    const hasPayroll = (payrollCount?.count || 0) > 0;
+    const hasLeaves = (leaveCount?.count || 0) > 0;
+    const hasAttendance = (attendanceCount?.count || 0) > 0;
+    const hasTimesheets = (timesheetCount?.count || 0) > 0;
+    
+    if (hasPayroll || hasLeaves || hasAttendance || hasTimesheets) {
+      const dependencies = [];
+      if (hasPayroll) dependencies.push("payroll slips");
+      if (hasLeaves) dependencies.push("leave requests");
+      if (hasAttendance) dependencies.push("attendance logs");
+      if (hasTimesheets) dependencies.push("timesheets");
+      
+      return res.status(409).json({
+        error: "Employee has history. Deactivate instead.",
+        code: "EMPLOYEE_HAS_DEPENDENCIES",
+        message: `This employee has ${dependencies.join(", ")}. For compliance, you should deactivate instead of deleting.`,
+        dependencies,
+      });
+    }
+    
+    const deleted = await EmployeeService.deleteEmployee(tenantId, employeeId);
+    assertMutationSucceededOr404(deleted, { resourceName: "Employee", id: employeeId });
     res.json({ success: true });
   } catch (error) {
     if (error instanceof TenantResourceNotFoundError) {

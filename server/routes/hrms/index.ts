@@ -32,6 +32,8 @@ import {
   requirePayrollAccess,
 } from "../../core";
 import EmployeeService from "../../services/hrms/employeeService";
+import { getAllTenantEntitlements } from "../../services/entitlement";
+import { permissionService, PERMISSIONS } from "../../core/permissions";
 import employeesRouter from "./employees";
 import attendanceRouter from "./attendance";
 import leavesRouter from "./leaves";
@@ -60,6 +62,58 @@ router.get("/dashboard", requireEmployeeAccess(), async (req, res) => {
   } catch (error) {
     console.error("[hr/dashboard] Error:", error);
     res.status(500).json({ error: "Failed to fetch dashboard stats" });
+  }
+});
+
+// Employee Abilities endpoint - /api/hr/employees/abilities
+// Returns computed abilities based on add-on entitlements + role permissions
+router.get("/employees/abilities", async (req, res) => {
+  try {
+    const userId = req.context?.user?.id;
+    const tenantId = req.context?.tenant?.id;
+
+    if (!userId || !tenantId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Check add-on entitlements (HRMS or Payroll required for Employee Directory)
+    let hasModuleAccess = false;
+    try {
+      const entitlements = await getAllTenantEntitlements(tenantId);
+      const hrmsEntitled = entitlements.addons["hrms"]?.entitled || 
+                          entitlements.addons["hrms-india"]?.entitled ||
+                          entitlements.addons["hrms-malaysia"]?.entitled ||
+                          entitlements.addons["hrms-uk"]?.entitled;
+      const payrollEntitled = entitlements.addons["payroll"]?.entitled ||
+                             entitlements.addons["payroll-india"]?.entitled ||
+                             entitlements.addons["payroll-malaysia"]?.entitled ||
+                             entitlements.addons["payroll-uk"]?.entitled;
+      hasModuleAccess = hrmsEntitled || payrollEntitled;
+    } catch (error) {
+      console.error("[hr/employees/abilities] Error checking entitlements:", error);
+      hasModuleAccess = false;
+    }
+
+    // Check role-based permissions
+    const canReadStaff = await permissionService.hasPermission(userId, tenantId, PERMISSIONS.STAFF_READ);
+    const canCreateStaff = await permissionService.hasPermission(userId, tenantId, PERMISSIONS.STAFF_CREATE);
+    const canUpdateStaff = await permissionService.hasPermission(userId, tenantId, PERMISSIONS.STAFF_UPDATE);
+    const canDeleteStaff = await permissionService.hasPermission(userId, tenantId, PERMISSIONS.STAFF_DELETE);
+
+    // Combine add-on entitlements with permissions
+    const abilities = {
+      hasModuleAccess,
+      canView: hasModuleAccess && canReadStaff,
+      canCreate: hasModuleAccess && canCreateStaff,
+      canEdit: hasModuleAccess && canUpdateStaff,
+      canDeactivate: hasModuleAccess && canUpdateStaff, // Deactivate is a status update
+      canDelete: hasModuleAccess && canDeleteStaff,
+    };
+
+    return res.json(abilities);
+  } catch (error) {
+    console.error("[hr/employees/abilities] Error checking abilities:", error);
+    return res.status(500).json({ error: "Failed to check abilities" });
   }
 });
 

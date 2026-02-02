@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { EmployeeActionsMenu } from "@/components/hr/employee-actions-menu";
-import { useAuth } from "@/hooks/use-auth";
+import { useEmployeeAbilities } from "@/hooks/use-employee-abilities";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -124,7 +124,7 @@ function formatStatus(status: string): string {
 export default function EmployeesPage() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { abilities } = useEmployeeAbilities();
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -549,10 +549,10 @@ export default function EmployeesPage() {
               >
                 <CardContent className="p-6">
                   {(() => {
-                    const canView = isAuthenticated;
-                    const canEdit = isAuthenticated;
-                    const canDeactivate = isAuthenticated && emp.status !== "exited";
-                    const canDelete = isAuthenticated;
+                    const canView = abilities.canView;
+                    const canEdit = abilities.canEdit;
+                    const canDeactivate = abilities.canDeactivate && emp.status !== "exited";
+                    const canDelete = abilities.canDelete;
                     const hasAnyAction = canView || canEdit || canDeactivate || canDelete;
                     if (!hasAnyAction) return null;
                     return (

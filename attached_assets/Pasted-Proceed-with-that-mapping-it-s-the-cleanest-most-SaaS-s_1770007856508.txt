@@ -1,0 +1,117 @@
+Proceed with that mapping ✅ — it’s the cleanest, most “SaaS-standard” RBAC for an Employee Directory, and it matches your existing permission model without adding new permissions.
+
+Here’s the final recommended policy (with one small refinement for “Delete” safety):
+
+Final RBAC mapping for Employee Directory
+Permissions → actions
+
+View → staff:read
+
+Create → staff:create
+
+Edit → staff:update
+
+Deactivate → staff:update (status change is an update)
+
+Delete → staff:delete
+
+This is correct.
+
+Role assignments
+Role	View	Create	Edit	Deactivate	Delete
+TENANT_ADMIN	✓	✓	✓	✓	✓
+TENANT_STAFF	✓	✓ (optional)	✓	✓	✗
+TENANT_VIEWER	✓	✗	✗	✗	✗
+One optional decision
+
+Whether TENANT_STAFF can create employees depends on your product positioning:
+
+If staff = HR team members → ✅ allow create
+
+If staff = general employees → ❌ block create
+
+If you’re unsure, safest default:
+
+TENANT_STAFF: no create, only update existing (depends on your app’s definition of staff)
+
+But your proposed matrix (staff can create) is still valid if “staff” means HR staff.
+
+Delete hardening rule (recommended)
+
+Even for TENANT_ADMIN with staff:delete, enforce:
+
+✅ Allow delete only if employee has no dependent records
+
+no payroll slips
+
+no attendance logs
+
+no leave requests
+
+no timesheets/projects (if connected)
+
+Otherwise:
+
+return 409 CONFLICT
+
+message: “Employee has history. Deactivate instead.”
+
+This keeps you compliant and avoids data loss.
+
+Align with add-on enforcement (must)
+
+Your UI checks should be:
+
+Employee directory page access: requires HRMS OR Payroll add-on
+Actions require both:
+
+Add-on entitlement allows the module
+
+PermissionService confirms permission
+
+So:
+
+canView = hasAnyAddon(['hrms','payroll']) && hasPermission(staff:read)
+
+canEdit/deactivate = hasAnyAddon(['hrms','payroll']) && hasPermission(staff:update)
+
+canDelete = hasAnyAddon(['hrms','payroll']) && hasPermission(staff:delete)
+
+Answer to your question: should only admins deactivate?
+
+Not necessary. Your current rule is better:
+
+Deactivate = operational action, often done by HR staff.
+
+Delete = destructive action, admin-only.
+
+So keep:
+
+TENANT_STAFF can deactivate ✅
+
+Only TENANT_ADMIN can delete ✅
+
+That matches Zoho/FreshBooks behavior.
+
+Implementation tip (to avoid duplicated logic)
+
+Create one helper:
+
+export function getEmployeeDirectoryAbilities({ entitlements, permissionService, userId, tenantId }) {
+  const hasModule = entitlements.hasAnyAddon(["hrms", "payroll"]);
+
+  return {
+    canView: hasModule && permissionService.hasPermission(userId, tenantId, "staff:read"),
+    canCreate: hasModule && permissionService.hasPermission(userId, tenantId, "staff:create"),
+    canEdit: hasModule && permissionService.hasPermission(userId, tenantId, "staff:update"),
+    canDeactivate: hasModule && permissionService.hasPermission(userId, tenantId, "staff:update"),
+    canDelete: hasModule && permissionService.hasPermission(userId, tenantId, "staff:delete"),
+  };
+}
+
+
+Use this in both:
+
+Employee list page (card menus)
+
+Employee details header actions

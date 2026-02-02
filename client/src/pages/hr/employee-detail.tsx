@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useEmployeePermissions } from "@/hooks/use-employee-permissions";
+import { useEmployeeAbilitiesForEmployee } from "@/hooks/use-employee-abilities";
 import {
   Dialog,
   DialogContent,
@@ -278,8 +278,8 @@ export default function EmployeeDetailPage() {
     updateMutation.mutate(data);
   };
 
-  const permissions = useEmployeePermissions(employee?.status);
-  const { canEdit, canDeactivate, canDelete } = permissions;
+  const { abilities } = useEmployeeAbilitiesForEmployee(employee?.status);
+  const { canEdit, canDeactivate, canDelete, canView } = abilities;
 
   if (isLoading) {
     return (
