@@ -137,19 +137,38 @@ export default function Register() {
   });
 
   // Fetch business types based on selected country
-  const { data: catalogData, isLoading: isLoadingBusinessTypes } = useQuery<CatalogResponse>({
+  const { data: catalogData, isLoading: isLoadingBusinessTypes, error: businessTypesError } = useQuery<CatalogResponse>({
     queryKey: ["/api/catalog/business-types", selectedCountry],
     queryFn: async () => {
-      if (!selectedCountry) return { countryCode: "", rolloutStatus: "coming_soon", businessTypes: defaultBusinessTypeOptions };
+      console.log("[register] Fetching business types for country:", selectedCountry);
+      if (!selectedCountry) {
+        console.log("[register] No country selected, returning defaults");
+        return { countryCode: "", rolloutStatus: "coming_soon", businessTypes: defaultBusinessTypeOptions };
+      }
       const res = await fetch(`/api/catalog/business-types?country=${selectedCountry}`);
+      console.log("[register] API response status:", res.status);
       if (!res.ok) throw new Error("Failed to fetch business types");
-      return res.json();
+      const data = await res.json();
+      console.log("[register] API response data:", data);
+      return data;
     },
     enabled: !!selectedCountry,
+    staleTime: 0, // Force fresh data
   });
 
   // Get available business types - use catalog data if available, else defaults
   const businessTypeOptions = catalogData?.businessTypes || defaultBusinessTypeOptions;
+  
+  // Debug logging
+  console.log("[register] State:", {
+    selectedCountry,
+    isLoadingBusinessTypes,
+    catalogDataExists: !!catalogData,
+    businessTypesCount: catalogData?.businessTypes?.length,
+    fallbackCount: defaultBusinessTypeOptions.length,
+    finalOptionsCount: businessTypeOptions.length,
+    error: businessTypesError?.message,
+  });
 
   // Filter only countries with registration enabled
   const availableCountries = regionConfigs?.filter(r => r.registrationEnabled && r.status === "enabled") || [];
@@ -394,30 +413,37 @@ export default function Register() {
                 <FormField
                   control={form.control}
                   name="businessType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Business Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-business-type">
-                            <SelectValue placeholder="Select your business type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {businessTypeOptions.map((option) => (
-                            <SelectItem 
-                              key={option.value} 
-                              value={option.value}
-                              data-testid={`option-${option.value}`}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    console.log("[register] Rendering business type select, options count:", businessTypeOptions.length);
+                    return (
+                      <FormItem>
+                        <FormLabel>Business Type {isLoadingBusinessTypes && "(Loading...)"}</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-business-type">
+                              <SelectValue placeholder={isLoadingBusinessTypes ? "Loading business types..." : "Select your business type"} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {businessTypeOptions.length === 0 ? (
+                              <SelectItem value="__empty" disabled>No business types available</SelectItem>
+                            ) : (
+                              businessTypeOptions.map((option) => (
+                                <SelectItem 
+                                  key={option.value} 
+                                  value={option.value}
+                                  data-testid={`option-${option.value}`}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <FormField
