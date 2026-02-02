@@ -25,6 +25,13 @@ import {
   Puzzle,
   Briefcase,
   DollarSign,
+  User,
+  Palette,
+  CreditCard,
+  Shield,
+  Brush,
+  Bell,
+  ChevronLeft,
 } from "lucide-react";
 import {
   Sidebar,
@@ -267,6 +274,17 @@ const systemItems: NavItem[] = [
   { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];
 
+const settingsNavItems: NavItem[] = [
+  { title: "Profile", url: "/settings/profile", icon: User },
+  { title: "Business", url: "/settings/business", icon: Building2 },
+  { title: "Branding", url: "/settings/branding", icon: Brush },
+  { title: "Appearance", url: "/settings/appearance", icon: Palette },
+  { title: "Notifications", url: "/settings/notifications", icon: Bell },
+  { title: "Billing", url: "/settings/billing", icon: CreditCard },
+  { title: "Customer Portal", url: "/settings/portal", icon: Users },
+  { title: "Security", url: "/settings/security", icon: Shield },
+];
+
 // HR Core items (Payroll OR HRMS add-on) - Employee Directory
 const hrCoreItems: NavItem[] = [
   { title: "HR Dashboard", url: "/hr", icon: LayoutDashboard },
@@ -449,6 +467,51 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Settings Navigation - shown when on /settings/* pages */}
+        {location.startsWith("/settings") ? (
+          <>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link href={dashboardRoute} data-testid="link-back-to-dashboard">
+                        <ChevronLeft className="h-4 w-4" />
+                        <span>Back to Dashboard</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Settings
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {settingsNavItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url || location.startsWith(item.url + "/")}
+                      >
+                        <Link 
+                          href={item.url} 
+                          data-testid={`link-settings-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : (
+          <>
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {t("sidebar.mainMenu", "Main Menu")}
@@ -674,6 +737,8 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
