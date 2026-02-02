@@ -916,6 +916,32 @@ export const tenantStaff = pgTable("tenant_staff", {
   uniqueIndex("idx_tenant_staff_email").on(table.tenantId, table.email),
 ]);
 
+export const tenantStaffInviteStatusEnum = pgEnum("tenant_staff_invite_status", [
+  "pending",
+  "accepted",
+  "expired",
+  "revoked",
+]);
+
+export const tenantStaffInvites = pgTable("tenant_staff_invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  staffId: varchar("staff_id").notNull().references(() => tenantStaff.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 128 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  status: tenantStaffInviteStatusEnum("status").default("pending"),
+  acceptedAt: timestamp("accepted_at"),
+  revokedAt: timestamp("revoked_at"),
+  invitedBy: varchar("invited_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_staff_invites_tenant").on(table.tenantId),
+  index("idx_staff_invites_staff").on(table.staffId),
+  index("idx_staff_invites_token").on(table.tokenHash),
+  uniqueIndex("idx_staff_invites_active").on(table.staffId, table.status),
+]);
+
 // ============================================
 // BUSINESS: CUSTOMERS
 // ============================================
@@ -2504,6 +2530,7 @@ export const insertStaffSchema = createInsertSchema(staff).omit({ id: true, crea
 export const insertTenantRoleSchema = createInsertSchema(tenantRoles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTenantRolePermissionSchema = createInsertSchema(tenantRolePermissions).omit({ id: true, createdAt: true });
 export const insertTenantStaffSchema = createInsertSchema(tenantStaff).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTenantStaffInviteSchema = createInsertSchema(tenantStaffInvites).omit({ id: true, createdAt: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPatientDocumentSchema = createInsertSchema(patientDocuments).omit({ id: true, createdAt: true });
 export const insertDocumentShareLinkSchema = createInsertSchema(documentShareLinks).omit({ id: true, createdAt: true });
@@ -2633,6 +2660,9 @@ export type InsertTenantRolePermission = z.infer<typeof insertTenantRolePermissi
 
 export type TenantStaff = typeof tenantStaff.$inferSelect;
 export type InsertTenantStaff = z.infer<typeof insertTenantStaffSchema>;
+
+export type TenantStaffInvite = typeof tenantStaffInvites.$inferSelect;
+export type InsertTenantStaffInvite = z.infer<typeof insertTenantStaffInviteSchema>;
 
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
