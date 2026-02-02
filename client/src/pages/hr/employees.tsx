@@ -61,8 +61,11 @@ import {
   UserMinus,
   X,
   Loader2,
+  UserPlus,
+  FilterX,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CheckedState } from "@radix-ui/react-checkbox";
 
 interface Employee {
   id: string;
@@ -634,33 +637,52 @@ export default function EmployeesPage() {
         </Dialog>
       </div>
 
-      {selectedIds.size > 0 && (
-        <div className="mb-4 flex items-center gap-3 p-3 bg-muted/50 border rounded-lg">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button variant="ghost" size="sm" onClick={clearSelection} data-testid="button-clear-selection">
-              <X className="h-4 w-4" />
-            </Button>
+      {/* Bulk Actions Toolbar - Zoho-style (desktop) */}
+      {filteredEmployees && filteredEmployees.length > 0 && (
+        <div className="mb-4 hidden sm:flex items-center justify-between gap-3 px-4 py-2 bg-muted rounded-lg">
+          <div className="flex items-center gap-3">
+            <Checkbox 
+              checked={
+                selectedIds.size === 0 
+                  ? false 
+                  : selectedIds.size === filteredEmployees.length 
+                    ? true 
+                    : "indeterminate"
+              }
+              onCheckedChange={(checked: CheckedState) => {
+                if (checked === true) {
+                  setSelectedIds(new Set(filteredEmployees.map(e => e.id)));
+                } else {
+                  setSelectedIds(new Set());
+                }
+              }}
+              data-testid="checkbox-select-all"
+            />
+            <span className="text-sm text-muted-foreground">
+              {selectedIds.size === 0 
+                ? "Select all" 
+                : `${selectedIds.size} selected`}
+            </span>
           </div>
-          <div className="flex-1" />
-          {abilities.canDeactivate && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleBulkDeactivate}
-              disabled={bulkDeactivateMutation.isPending || bulkDeleteMutation.isPending}
-              data-testid="button-bulk-deactivate"
-            >
-              {bulkDeactivateMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <UserMinus className="h-4 w-4 mr-2" />
-              )}
-              Deactivate
-            </Button>
-          )}
-          {abilities.canDelete && (
-            <AlertDialog open={bulkAction === "delete"} onOpenChange={(open) => setBulkAction(open ? "delete" : null)}>
+          
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && abilities.canDeactivate && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleBulkDeactivate}
+                disabled={bulkDeactivateMutation.isPending || bulkDeleteMutation.isPending}
+                data-testid="button-bulk-deactivate"
+              >
+                {bulkDeactivateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <UserMinus className="h-4 w-4 mr-2" />
+                )}
+                Deactivate
+              </Button>
+            )}
+            {selectedIds.size > 0 && abilities.canDelete && (
               <Button 
                 variant="destructive" 
                 size="sm" 
@@ -675,22 +697,72 @@ export default function EmployeesPage() {
                 )}
                 Delete
               </Button>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {selectedIds.size} employee(s)?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. Employees with payroll, leaves, or attendance records will not be deleted. Consider deactivating instead.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleBulkDelete}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+            )}
+            {selectedIds.size > 0 && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={clearSelection} 
+                data-testid="button-clear-selection"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       )}
+
+      {/* Mobile sticky bottom action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 sm:hidden z-50 bg-background border-t p-3 flex items-center justify-between gap-2 shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <Button variant="ghost" size="sm" onClick={clearSelection} data-testid="button-mobile-clear-selection">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            {abilities.canDeactivate && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleBulkDeactivate}
+                disabled={bulkDeactivateMutation.isPending || bulkDeleteMutation.isPending}
+                data-testid="button-mobile-bulk-deactivate"
+              >
+                {bulkDeactivateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Deactivate"}
+              </Button>
+            )}
+            {abilities.canDelete && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setBulkAction("delete")}
+                disabled={bulkDeactivateMutation.isPending || bulkDeleteMutation.isPending}
+                data-testid="button-mobile-bulk-delete"
+              >
+                {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Shared Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={bulkAction === "delete"} onOpenChange={(open) => setBulkAction(open ? "delete" : null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} employee(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. Employees with payroll, leaves, or attendance records will not be deleted. Consider deactivating instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} data-testid="button-confirm-bulk-delete">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -708,18 +780,29 @@ export default function EmployeesPage() {
             {filteredEmployees.map((emp) => (
               <Card 
                 key={emp.id} 
-                className={`hover-elevate cursor-pointer relative ${selectedIds.has(emp.id) ? "ring-2 ring-primary" : ""}`}
+                className={`cursor-pointer relative group transition-all duration-150 ${
+                  selectedIds.has(emp.id) 
+                    ? "ring-2 ring-primary/50 border-primary bg-primary/5" 
+                    : "hover:border-muted-foreground/30 hover:shadow-sm"
+                }`}
                 data-testid={`card-employee-${emp.id}`}
                 onClick={(e) => handleCardClick(emp, e)}
               >
-                <CardContent className="p-6">
-                  <div className="absolute top-3 left-3" data-checkbox onClick={(e) => e.stopPropagation()}>
+                <CardContent className="p-4">
+                  {/* Checkbox overlay - top left */}
+                  <div 
+                    className="absolute top-3 left-3 z-10" 
+                    data-checkbox 
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Checkbox 
                       checked={selectedIds.has(emp.id)}
                       onCheckedChange={() => toggleSelection(emp.id)}
                       data-testid={`checkbox-employee-${emp.id}`}
                     />
                   </div>
+                  
+                  {/* Kebab menu - visible on hover */}
                   {(() => {
                     const canView = abilities.canView;
                     const canEdit = abilities.canEdit;
@@ -728,7 +811,10 @@ export default function EmployeesPage() {
                     const hasAnyAction = canView || canEdit || canDeactivate || canDelete;
                     if (!hasAnyAction) return null;
                     return (
-                      <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                      <div 
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" 
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <EmployeeActionsMenu
                           canView={canView}
                           canEdit={canEdit}
@@ -745,37 +831,42 @@ export default function EmployeesPage() {
                       </div>
                     );
                   })()}
-                  <div className="flex items-start gap-4 pr-8 pl-6">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg flex-shrink-0">
+                  
+                  {/* Card content - improved visual hierarchy */}
+                  <div className="flex items-start gap-3 pl-7">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-base flex-shrink-0">
                       {emp.firstName[0]}{emp.lastName[0]}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0 pr-6">
+                      {/* Row 1: Name + Status badge */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold truncate" data-testid={`text-employee-name-${emp.id}`}>
                           {emp.firstName} {emp.lastName}
                         </h3>
+                        <Badge variant={getStatusVariant(emp.status)} className="text-xs">
+                          {formatStatus(emp.status)}
+                        </Badge>
                       </div>
-                      <Badge variant={getStatusVariant(emp.status)} className="mt-1">
-                        {formatStatus(emp.status)}
-                      </Badge>
-                      <p className="text-sm text-muted-foreground mt-1 truncate">{emp.designation || "No designation"}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{emp.employeeId}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{emp.email}</span>
-                    </div>
-                    {emp.phone && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Phone className="h-4 w-4 flex-shrink-0" />
-                        <span>{emp.phone}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-4 w-4 flex-shrink-0" />
-                      <span>Joined {emp.joinDate && !isNaN(new Date(emp.joinDate).getTime()) ? new Date(emp.joinDate).toLocaleDateString() : "—"}</span>
+                      
+                      {/* Row 2: Designation • ID */}
+                      <p className="text-sm text-muted-foreground mt-0.5 truncate">
+                        {emp.designation || "No designation"} <span className="text-muted-foreground/50">•</span> {emp.employeeId}
+                      </p>
+                      
+                      {/* Row 3: Email • Phone */}
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {emp.email}
+                        {emp.phone && (
+                          <> <span className="text-muted-foreground/50">•</span> {emp.phone}</>
+                        )}
+                      </p>
+                      
+                      {/* Row 4: Joined date */}
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        Joined {emp.joinDate && !isNaN(new Date(emp.joinDate).getTime()) 
+                          ? new Date(emp.joinDate).toLocaleDateString() 
+                          : "—"}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -811,15 +902,33 @@ export default function EmployeesPage() {
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <Users className="h-16 w-16 text-muted-foreground/50" />
-            <h3 className="mt-4 text-lg font-semibold">No Employees Found</h3>
-            <p className="mt-2 text-muted-foreground text-center max-w-sm">
-              {searchTerm ? "No employees match your search." : "Start by adding your first employee to the directory."}
-            </p>
-            {!searchTerm && (
-              <Button className="mt-6" onClick={() => setIsCreateDialogOpen(true)} data-testid="button-add-first-employee">
-                <Plus className="mr-2 h-4 w-4" /> Add First Employee
-              </Button>
+            {searchTerm || statusFilter !== "all" ? (
+              <>
+                <FilterX className="h-16 w-16 text-muted-foreground/50" />
+                <h3 className="mt-4 text-lg font-semibold">No employees match your filters</h3>
+                <p className="mt-2 text-muted-foreground text-center max-w-sm">
+                  Try adjusting your search term or status filter to find employees.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="mt-6" 
+                  onClick={() => { setSearchTerm(""); setStatusFilter("all"); }}
+                  data-testid="button-clear-filters"
+                >
+                  <X className="mr-2 h-4 w-4" /> Clear Filters
+                </Button>
+              </>
+            ) : (
+              <>
+                <UserPlus className="h-16 w-16 text-muted-foreground/50" />
+                <h3 className="mt-4 text-lg font-semibold">No employees yet</h3>
+                <p className="mt-2 text-muted-foreground text-center max-w-sm">
+                  Start by adding your first employee to the directory.
+                </p>
+                <Button className="mt-6" onClick={() => setIsCreateDialogOpen(true)} data-testid="button-add-first-employee">
+                  <Plus className="mr-2 h-4 w-4" /> Add Employee
+                </Button>
+              </>
             )}
           </CardContent>
         </Card>

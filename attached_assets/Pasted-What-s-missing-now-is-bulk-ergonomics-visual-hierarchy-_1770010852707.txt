@@ -1,0 +1,220 @@
+What’s missing now is bulk ergonomics + visual hierarchy. I’ll break this into clear, actionable fixes.
+
+1️⃣ Missing: “Select All” + Bulk Actions (critical)
+Problem
+
+You can select individual employees
+
+But:
+❌ No Select all
+❌ No Delete / Deactivate buttons
+❌ Selected state feels incomplete
+
+This makes bulk selection feel “half-implemented”.
+
+✅ Recommended Zoho-style solution (works for cards)
+A. Add a Select All checkbox in the toolbar
+
+Place it left of “2 selected”:
+
+☑ Select all   |  2 selected   [Deactivate] [Delete]   ✕ Clear
+
+Behavior
+
+Select all = selects current filtered list
+
+If filter/search changes → selection resets
+
+Checkbox states:
+
+☐ none selected
+
+☑ all selected
+
+⧖ indeterminate (some selected)
+
+B. Bulk action buttons (right side)
+Button	Visible when	Enabled when
+Deactivate	selection > 0	user has staff:update + addon active
+Delete	selection > 0	admin role only
+Clear	always	—
+
+👉 Delete should be danger style
+
+C. Exact shadcn Toolbar structure
+<div className="flex items-center justify-between rounded-lg bg-muted px-4 py-2">
+  <div className="flex items-center gap-3">
+    <Checkbox
+      checked={isAllSelected}
+      indeterminate={isPartialSelected}
+      onCheckedChange={toggleSelectAll}
+    />
+    <span className="text-sm text-muted-foreground">
+      {selectedCount} selected
+    </span>
+  </div>
+
+  <div className="flex items-center gap-2">
+    {canDeactivate && (
+      <Button variant="outline" onClick={bulkDeactivate}>
+        Deactivate
+      </Button>
+    )}
+    {canDelete && (
+      <Button variant="destructive" onClick={bulkDelete}>
+        Delete
+      </Button>
+    )}
+    <Button variant="ghost" onClick={clearSelection}>
+      ✕
+    </Button>
+  </div>
+</div>
+
+
+This is exactly how Zoho & FreshBooks do it.
+
+2️⃣ Improve Employee Card UX (small but high impact)
+Current issues
+
+Cards are fine, but:
+
+Too much equal visual weight
+
+Status badge competes with name
+
+Actions are invisible
+
+✅ Recommended card improvements
+A. Card click behavior
+
+Click anywhere → Employee Details page
+
+Checkbox click → selection only (stop propagation)
+
+B. Visual hierarchy (very important)
+
+Before
+
+Name
+Active
+No designation
+ID
+Email
+Phone
+Date
+
+
+After
+
+Name                [Active]
+Designation • ID
+Email • Phone
+Joined date
+
+
+👉 Less vertical noise, more scannable.
+
+C. Add quick-action menu (⋯) on hover
+
+Top-right of card:
+
+View
+
+Edit
+
+Deactivate / Reactivate
+
+Delete (admin only)
+
+Use shadcn DropdownMenu.
+
+This solves:
+
+“No edit option” complaint
+
+Avoids cluttering the card
+
+3️⃣ Select-state visual polish
+
+You already have a red border 👍
+Refine it slightly:
+
+Selected card style
+"border-primary ring-2 ring-primary/30 bg-primary/5"
+
+Hover style (unselected)
+"hover:border-muted-foreground/30 hover:shadow-sm"
+
+
+Result:
+
+Selected feels intentional
+
+Hover feels interactive
+
+4️⃣ Empty, loading, and edge states (enterprise polish)
+A. No employees
+
+Show:
+
+Icon
+
+“No employees yet”
+
+Primary CTA: Add Employee
+
+B. No results after search/filter
+
+Show:
+
+“No employees match your filters”
+
+Secondary CTA: Clear filters
+
+C. Mixed bulk delete result
+
+Toast example:
+
+1 employee deleted
+1 skipped (has payroll history)
+
+This reassures users.
+
+5️⃣ Mobile improvements (very important)
+Mobile rules
+
+Cards become full-width
+
+Checkbox moves to top-left overlay
+
+Bulk action bar becomes sticky bottom sheet
+
+[Deactivate]   [Delete]
+
+
+Zoho does this very well.
+
+6️⃣ Small UX bugs spotted in your screenshot 👀
+Fix these:
+
+Duplicate names (“Sricharan Bajanki” vs “SRI BAJANKI”) → normalize casing
+
+Employee ID:
+
+0001, 123123 → label it explicitly as Employee ID
+
+Date format → respect tenant locale (MY → DD/MM/YYYY is fine)
+
+7️⃣ Final “Zoho-grade” checklist for Employees page
+
+✅ Select all
+✅ Bulk deactivate/delete
+✅ Hover actions
+✅ Card click → details
+✅ Clear hierarchy
+✅ Mobile bulk actions
+✅ Permission-aware buttons
+✅ Add-on-aware actions
+
+Once this is done, the page will feel complete and professional.
