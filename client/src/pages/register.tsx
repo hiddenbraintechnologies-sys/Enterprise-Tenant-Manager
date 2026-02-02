@@ -150,11 +150,6 @@ export default function Register() {
 
   // Get available business types - use catalog data if available, else defaults
   const businessTypeOptions = catalogData?.businessTypes || defaultBusinessTypeOptions;
-  
-  // Debug logging
-  console.log("[register] selectedCountry:", selectedCountry);
-  console.log("[register] catalogData:", catalogData);
-  console.log("[register] businessTypeOptions count:", businessTypeOptions.length);
 
   // Filter only countries with registration enabled
   const availableCountries = regionConfigs?.filter(r => r.registrationEnabled && r.status === "enabled") || [];
