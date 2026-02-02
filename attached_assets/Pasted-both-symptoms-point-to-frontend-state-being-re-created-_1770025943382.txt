@@ -1,0 +1,142 @@
+both symptoms point to frontend state being re-created on every keystroke and/or the UI using stale catalog data (old build / cached response).
+
+I’ll explain the likely root causes and give you a single Replit prompt that will force a correct fix.
+
+Issue 1: Search bar — you must click again for every next character
+What this usually means (90% cases)
+
+The input is losing focus after every keystroke because React is re-mounting the <input> component.
+
+That happens when ANY of these are true:
+
+The input has a changing key prop
+
+<Input key={someChangingValue} ... />
+
+
+The parent component re-renders and the input component is recreated due to:
+
+conditional rendering (show && <Input />)
+
+switching layouts on every change
+
+returning different component trees
+
+The search state is tied to query state and each keystroke triggers a full refetch + rerender + component switch
+
+“search” triggers useQuery key changes
+
+list component re-mounts
+
+input loses focus
+
+Something overlaying or refocusing (rare)
+
+a Dialog/popover/command palette catches focus
+
+a global key handler calls preventDefault() and blurs
+
+Fix pattern (clean + reliable)
+
+Keep the <Input> always mounted
+
+Remove any dynamic key
+
+Store searchText in local component state
+
+Use debounced value for API/query, not the raw input value
+
+Ensure input is not inside a component that unmounts/remounts when list changes
+
+Correct approach:
+
+searchText → immediate UI state
+
+debouncedSearch → query/filter state
+
+Issue 2: Business type list not matching / unable to filter (looks like old build)
+Most common root causes
+
+Old catalog data cached in the browser or service worker
+If you ever added PWA/service worker or aggressive caching, you’ll see:
+
+old business types
+
+filters don’t match new backend values
+
+API returns old schema but frontend expects new keys
+Example mismatch:
+
+backend returns: clinic
+
+UI expects: clinics
+So filtering fails because strings don’t match.
+
+Country → business type list not synced
+
+selecting a country should load business types from catalog
+
+but it’s using hardcoded fallback list (old)
+
+i18n keys missing → showing wrong labels or fallback
+Not your main issue here, but can contribute.
+
+Fix pattern
+
+Ensure business types are fetched from one source (catalog endpoint / DB table)
+
+Ensure filter compares stable IDs, not localized labels
+
+Disable caching for catalog or set a short TTL + versioning
+
+If PWA exists: bump app version + clear SW cache on deploy
+
+What I want you to tell Replit to do (copy/paste)
+
+Use this exact prompt:
+
+BUGFIX REQUEST (2 issues)
+
+Issue 1: Search input loses focus; user must click again for every new character.
+Repro: Go to Employees (or any directory list), click search, type continuously → focus drops after each character.
+
+Root cause likely: input is being remounted due to changing key / conditional render / query-driven rerender.
+Fix:
+1) Inspect the search Input component and remove any dynamic `key`.
+2) Ensure the Input is always mounted (not inside a condition that toggles based on loading/result state).
+3) Keep `searchText` in local state and do NOT bind it directly to react-query key.
+4) Add debounced search:
+   - `searchText` updates immediately in input
+   - `debouncedSearch` (300ms) drives filtering/query
+5) Verify focus stays in input while typing 10+ characters.
+
+Issue 2: Business type list mismatched + filtering not working; looks like old build/cached data.
+Repro: On registration, Business Type options don’t match expected list; filter/search doesn’t narrow results.
+Fix:
+1) Confirm business types come from the current catalog endpoint (not an old hardcoded fallback).
+2) Make filtering compare stable IDs (businessType.code) not labels.
+3) Add console logs to show catalog version/source and ensure selectedCountry drives the correct list.
+4) Check for stale cache:
+   - if service worker/PWA exists, bump cache version and ensure app updates correctly
+   - disable aggressive caching for catalog responses or add versioned URL (?v=buildId)
+5) Add a “catalog sanity check” test: selecting country should load non-empty business types and filtering should reduce list.
+
+Deliverables:
+- Identify exact files/components causing focus loss (include explanation)
+- Provide PR-level code changes for both issues
+- Confirm fixes with short screen recording / steps
+
+Quick self-check you can do (no code)
+For search input focus issue:
+
+When typing, watch if the cursor disappears from the input after each key.
+
+If yes: it’s a remount, not just debounce.
+
+For business types old build/caching:
+
+Hard refresh with cache disabled:
+
+DevTools → Network → ✅ Disable cache → Reload
+
+If business types change after this → definitely caching/old build.
