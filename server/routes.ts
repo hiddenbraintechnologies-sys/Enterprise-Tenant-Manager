@@ -785,7 +785,13 @@ export async function registerRoutes(
       
       console.log("[register] Step 2: Checking existing user for email:", email);
 
-      const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+      // Check for existing active user (exclude soft-deleted users with deleted_at set)
+      const [existingUser] = await db.select().from(users).where(
+        and(
+          eq(users.email, email),
+          isNull(users.deletedAt)
+        )
+      );
       console.log("[register] Step 3: Existing user check complete, found:", !!existingUser);
       if (existingUser) {
         // User already exists - just return error (don't try to delete as they may have linked data)
