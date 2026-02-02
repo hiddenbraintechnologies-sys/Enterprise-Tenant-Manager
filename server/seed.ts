@@ -561,23 +561,34 @@ function generateSecurePassword(): string {
 }
 
 async function seedCountryRolloutPolicies(): Promise<void> {
+  // Full list of business types for each country
+  const indiaBusinessTypes = [
+    "pg_hostel", "consulting", "software_services", "clinic_healthcare", 
+    "salon_spa", "legal", "digital_agency", "retail_store", 
+    "furniture_manufacturing", "logistics_fleet", "education_institute", 
+    "tourism", "real_estate"
+  ];
+  
+  const malaysiaBusinessTypes = ["consulting", "software_services"];
+  const ukBusinessTypes = ["consulting", "software_services"];
+
   const policies = [
     {
       countryCode: "IN",
       isActive: true,
       status: "live" as const,
-      enabledBusinessTypes: ["pg_hostel"],
+      enabledBusinessTypes: indiaBusinessTypes,
       enabledModules: ["dashboard", "pg", "bookings", "customers", "invoicing", "analytics"],
       enabledFeatures: { hrms: false, payroll: false, gst_invoicing: true, whatsapp_automation: false, sms_notifications: true },
       comingSoonMessage: null,
-      notes: "India Phase-1 - PG/Hostel only",
+      notes: "India - All business types enabled",
       updatedBy: "system",
     },
     {
       countryCode: "MY",
       isActive: true,
       status: "beta" as const,
-      enabledBusinessTypes: ["consulting", "software_services"],
+      enabledBusinessTypes: malaysiaBusinessTypes,
       enabledModules: ["dashboard", "projects", "timesheets", "invoicing", "hrms", "analytics"],
       enabledFeatures: { hrms: true, payroll: true, gst_invoicing: false, whatsapp_automation: true, sms_notifications: true },
       comingSoonMessage: null,
@@ -588,7 +599,7 @@ async function seedCountryRolloutPolicies(): Promise<void> {
       countryCode: "GB",
       isActive: false, // Default to inactive - Super Admin enables manually when ready
       status: "coming_soon" as const,
-      enabledBusinessTypes: ["consulting", "software_services"],
+      enabledBusinessTypes: ukBusinessTypes,
       enabledModules: ["dashboard", "projects", "timesheets", "invoicing", "hrms", "analytics"],
       enabledFeatures: { hrms: true, payroll: false, gst_invoicing: false, whatsapp_automation: false, sms_notifications: true },
       comingSoonMessage: null,
@@ -605,8 +616,23 @@ async function seedCountryRolloutPolicies(): Promise<void> {
       .limit(1);
 
     if (existing) {
-      // NEVER overwrite admin settings (isActive, status) - only create if not exists
-      console.log(`  - Country rollout policy for ${policy.countryCode} already exists, preserving admin settings`);
+      // Check if enabledBusinessTypes is empty - if so, populate it
+      const existingTypes = existing.enabledBusinessTypes as string[] | null;
+      if (!existingTypes || existingTypes.length === 0) {
+        console.log(`  - Country ${policy.countryCode} has empty business types, updating...`);
+        await db
+          .update(countryRolloutPolicy)
+          .set({ 
+            enabledBusinessTypes: policy.enabledBusinessTypes,
+            notes: policy.notes,
+            updatedBy: "system-repair",
+          })
+          .where(eq(countryRolloutPolicy.countryCode, policy.countryCode));
+        console.log(`  - Updated ${policy.countryCode} with ${policy.enabledBusinessTypes.length} business types`);
+      } else {
+        // Preserve admin settings (isActive, status, enabledBusinessTypes)
+        console.log(`  - Country rollout policy for ${policy.countryCode} already exists with ${existingTypes.length} business types, preserving`);
+      }
     } else {
       console.log(`  - Creating country rollout policy for ${policy.countryCode}...`);
       await db.insert(countryRolloutPolicy).values(policy);

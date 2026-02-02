@@ -219,21 +219,31 @@ export async function registerRoutes(
         console.log("[bootstrap] Payroll addon pricing seeding skipped:", err);
       }
 
-      // Seed country rollout policies - ONLY CREATE IF NOT EXISTS (never overwrite admin settings)
+      // Seed country rollout policies - CREATE IF NOT EXISTS, UPDATE EMPTY BUSINESS TYPES
       try {
         const { countryRolloutPolicy } = await import("@shared/schema");
+        // Full business type lists for each country
+        const indiaBusinessTypes = [
+          "pg_hostel", "consulting", "software_services", "clinic_healthcare", 
+          "salon_spa", "legal", "digital_agency", "retail_store", 
+          "furniture_manufacturing", "logistics_fleet", "education_institute", 
+          "tourism", "real_estate"
+        ];
+        const malaysiaBusinessTypes = ["consulting", "software_services"];
+        
         const defaultCountries = [
-          { code: "IN", active: true, status: "live" as const, businessTypes: ["pg_hostel"] },
-          { code: "MY", active: true, status: "beta" as const, businessTypes: ["consulting", "software_services"] },
-          { code: "GB", active: false, status: "coming_soon" as const, businessTypes: [] }, // Default to inactive - admin enables manually
+          { code: "IN", active: true, status: "live" as const, businessTypes: indiaBusinessTypes },
+          { code: "MY", active: true, status: "beta" as const, businessTypes: malaysiaBusinessTypes },
+          { code: "GB", active: false, status: "coming_soon" as const, businessTypes: ["consulting", "software_services"] },
           { code: "SG", active: false, status: "coming_soon" as const, businessTypes: [] },
           { code: "AE", active: false, status: "coming_soon" as const, businessTypes: [] },
         ];
         let created = 0;
+        let repaired = 0;
         for (const country of defaultCountries) {
           const [existing] = await db.select().from(countryRolloutPolicy).where(eq(countryRolloutPolicy.countryCode, country.code)).limit(1);
           if (!existing) {
-            // ONLY insert new records - never update existing (respect admin settings)
+            // Create new record
             await db.insert(countryRolloutPolicy).values({
               countryCode: country.code,
               isActive: country.active,
@@ -244,6 +254,20 @@ export async function registerRoutes(
               updatedBy: "bootstrap",
             });
             created++;
+          } else {
+            // REPAIR: If business types are empty but we have defaults, update them
+            const existingTypes = existing.enabledBusinessTypes as string[] | null;
+            if ((!existingTypes || existingTypes.length === 0) && country.businessTypes.length > 0) {
+              await db.update(countryRolloutPolicy)
+                .set({ 
+                  enabledBusinessTypes: country.businessTypes,
+                  updatedBy: "bootstrap-repair",
+                  updatedAt: new Date(),
+                })
+                .where(eq(countryRolloutPolicy.countryCode, country.code));
+              console.log(`[bootstrap] Repaired ${country.code} with ${country.businessTypes.length} business types`);
+              repaired++;
+            }
           }
         }
         // FORCE FIX: Always ensure UK is set to inactive/coming_soon
@@ -262,7 +286,7 @@ export async function registerRoutes(
         // Mark bootstrap as ready so catalog endpoints can serve data
         const { bootstrapStatus } = await import("./services/bootstrap-status");
         bootstrapStatus.markCountryRolloutReady();
-        console.log(`[bootstrap] Country rollout: ${created} new, existing policies preserved`);
+        console.log(`[bootstrap] Country rollout: ${created} new, ${repaired} repaired, existing policies preserved`);
       } catch (err) {
         console.log("[bootstrap] Country rollout seeding skipped:", err);
       }
