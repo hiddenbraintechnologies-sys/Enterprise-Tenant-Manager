@@ -11,8 +11,14 @@ const ALL_BUSINESS_TYPES = getBusinessTypeOptions();
 // GET /api/catalog/business-types?country=IN
 // Returns only allowed business types for the given country
 router.get("/business-types", async (req: Request, res: Response) => {
+  // Prevent any caching of this dynamic data
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  
   try {
     const { country } = req.query;
+    console.log("[catalog/business-types] Request for country:", country);
     
     if (!country || typeof country !== "string") {
       return res.status(400).json({ 
@@ -74,6 +80,11 @@ router.get("/business-types", async (req: Request, res: Response) => {
 // GET /api/catalog/country-config?country=IN
 // Returns full rollout config for the country
 router.get("/country-config", async (req: Request, res: Response) => {
+  // Prevent any caching of this dynamic data
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  
   try {
     const { country } = req.query;
     
