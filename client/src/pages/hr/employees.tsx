@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,26 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -39,23 +59,27 @@ import {
   Search,
   Mail,
   Phone,
-  Building2,
   Calendar,
   ChevronLeft,
   ChevronRight,
+  MoreVertical,
+  Eye,
+  Pencil,
+  UserX,
+  Trash2,
 } from "lucide-react";
 
 interface Employee {
   id: string;
   tenantId: string;
-  employeeCode: string;
+  employeeId: string;
   firstName: string;
   lastName: string;
   email: string;
   phone: string | null;
   departmentId: string | null;
   designation: string | null;
-  joiningDate: string;
+  joinDate: string;
   status: string;
   employmentType: string;
   createdAt: string;
@@ -87,24 +111,39 @@ function getStatusVariant(status: string): "default" | "secondary" | "destructiv
   switch (status) {
     case "active":
       return "default";
-    case "on_leave":
+    case "probation":
       return "secondary";
-    case "inactive":
-    case "terminated":
+    case "on_hold":
+    case "exited":
       return "destructive";
     default:
       return "outline";
   }
 }
 
+function formatStatus(status: string): string {
+  switch (status) {
+    case "active": return "Active";
+    case "probation": return "Probation";
+    case "on_hold": return "On Hold";
+    case "exited": return "Exited";
+    default: return status;
+  }
+}
+
 export default function EmployeesPage() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null);
+  const [deactivateEmployee, setDeactivateEmployee] = useState<Employee | null>(null);
 
-  const form = useForm<EmployeeFormValues>({
+  const createForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues: {
       employeeId: "",
@@ -115,6 +154,21 @@ export default function EmployeesPage() {
       designation: "",
       departmentId: "",
       joinDate: new Date().toISOString().split("T")[0],
+      employmentType: "full_time",
+    },
+  });
+
+  const editForm = useForm<EmployeeFormValues>({
+    resolver: zodResolver(employeeFormSchema),
+    defaultValues: {
+      employeeId: "",
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      designation: "",
+      departmentId: "",
+      joinDate: "",
       employmentType: "full_time",
     },
   });
@@ -135,44 +189,122 @@ export default function EmployeesPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
       queryClient.invalidateQueries({ queryKey: ["/api/hr/dashboard"] });
       toast({ title: "Employee created successfully" });
-      setIsDialogOpen(false);
-      form.reset();
+      setIsCreateDialogOpen(false);
+      createForm.reset();
     },
     onError: (error: any) => {
-      let errorMessage = "Please check all required fields and try again.";
-      
-      try {
-        if (error.message) {
-          const parsed = JSON.parse(error.message);
-          if (parsed.details && Array.isArray(parsed.details)) {
-            const fieldErrors = parsed.details.map((d: any) => {
-              const field = d.path?.[0] || "Field";
-              const fieldName = field === "employeeId" ? "Employee Code" : 
-                               field === "joinDate" ? "Joining Date" :
-                               field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
-              return `${fieldName}: ${d.message}`;
-            });
-            errorMessage = fieldErrors.join(", ");
-          } else if (parsed.error) {
-            errorMessage = parsed.error;
-          }
-        }
-      } catch {
-        if (error.message && !error.message.includes("{")) {
-          errorMessage = error.message;
-        }
-      }
-      
-      toast({ 
-        title: "Failed to create employee", 
-        description: errorMessage, 
-        variant: "destructive" 
-      });
+      handleMutationError(error, "create");
     },
   });
 
-  const onSubmit = (data: EmployeeFormValues) => {
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: EmployeeFormValues }) => {
+      return apiRequest("PUT", `/api/hr/employees/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/dashboard"] });
+      toast({ title: "Employee updated" });
+      setIsEditDialogOpen(false);
+      setEditingEmployee(null);
+      editForm.reset();
+    },
+    onError: (error: any) => {
+      handleMutationError(error, "update");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/hr/employees/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/dashboard"] });
+      toast({ title: "Employee deleted" });
+      setDeleteEmployee(null);
+    },
+    onError: (error: any) => {
+      handleMutationError(error, "delete");
+    },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("PUT", `/api/hr/employees/${id}`, { status: "exited" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/dashboard"] });
+      toast({ title: "Employee deactivated" });
+      setDeactivateEmployee(null);
+    },
+    onError: (error: any) => {
+      handleMutationError(error, "deactivate");
+    },
+  });
+
+  function handleMutationError(error: any, action: string) {
+    let errorMessage = `Failed to ${action} employee. Please try again.`;
+    try {
+      if (error.message) {
+        const parsed = JSON.parse(error.message);
+        if (parsed.details && Array.isArray(parsed.details)) {
+          const fieldErrors = parsed.details.map((d: any) => {
+            const field = d.path?.[0] || "Field";
+            const fieldName = field === "employeeId" ? "Employee Code" : 
+                             field === "joinDate" ? "Joining Date" :
+                             field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
+            return `${fieldName}: ${d.message}`;
+          });
+          errorMessage = fieldErrors.join(", ");
+        } else if (parsed.error) {
+          errorMessage = parsed.error;
+        }
+      }
+    } catch {
+      if (error.message && !error.message.includes("{")) {
+        errorMessage = error.message;
+      }
+    }
+    toast({ 
+      title: `Failed to ${action} employee`, 
+      description: errorMessage, 
+      variant: "destructive" 
+    });
+  }
+
+  const openEditDialog = (emp: Employee) => {
+    setEditingEmployee(emp);
+    editForm.reset({
+      employeeId: emp.employeeId,
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      email: emp.email,
+      phone: emp.phone || "",
+      designation: emp.designation || "",
+      departmentId: emp.departmentId || "",
+      joinDate: emp.joinDate?.split("T")[0] || "",
+      employmentType: emp.employmentType as any || "full_time",
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const onCreateSubmit = (data: EmployeeFormValues) => {
     createMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: EmployeeFormValues) => {
+    if (!editingEmployee) return;
+    updateMutation.mutate({ id: editingEmployee.id, data });
+  };
+
+  const handleCardClick = (emp: Employee, e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-menu-trigger]') || target.closest('[role="menu"]')) {
+      return;
+    }
+    navigate(`/hr/employees/${emp.id}`);
   };
 
   const filteredEmployees = employees?.data?.filter((emp) => {
@@ -182,9 +314,176 @@ export default function EmployeesPage() {
       emp.firstName.toLowerCase().includes(search) ||
       emp.lastName.toLowerCase().includes(search) ||
       emp.email.toLowerCase().includes(search) ||
-      emp.employeeCode.toLowerCase().includes(search)
+      emp.employeeId.toLowerCase().includes(search)
     );
   });
+
+  const renderEmployeeForm = (
+    form: ReturnType<typeof useForm<EmployeeFormValues>>,
+    onSubmit: (data: EmployeeFormValues) => void,
+    isPending: boolean,
+    submitLabel: string
+  ) => (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="employeeId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Employee Code</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="EMP001" data-testid="input-employee-code" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="employmentType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Employment Type</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-employment-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="full_time">Full Time</SelectItem>
+                    <SelectItem value="part_time">Part Time</SelectItem>
+                    <SelectItem value="contract">Contract</SelectItem>
+                    <SelectItem value="intern">Intern</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="firstName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>First Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="John" data-testid="input-first-name" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="lastName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Last Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Doe" data-testid="input-last-name" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input {...field} type="email" placeholder="john.doe@company.com" data-testid="input-email" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="+1234567890" data-testid="input-phone" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="joinDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Joining Date</FormLabel>
+                <FormControl>
+                  <Input {...field} type="date" data-testid="input-joining-date" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="designation"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Designation</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="Software Engineer" data-testid="input-designation" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {departments && departments.length > 0 && (
+          <FormField
+            control={form.control}
+            name="departmentId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Department</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-department">
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {departments.map((dept: any) => (
+                      <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        <div className="flex justify-end gap-2 pt-4">
+          <Button type="button" variant="outline" onClick={() => {
+            setIsCreateDialogOpen(false);
+            setIsEditDialogOpen(false);
+          }}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isPending} data-testid="button-submit-employee">
+            {isPending ? "Saving..." : submitLabel}
+          </Button>
+        </div>
+      </form>
+    </Form>
+  );
 
   return (
     <DashboardLayout 
@@ -213,13 +512,13 @@ export default function EmployeesPage() {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="on_leave">On Leave</SelectItem>
-              <SelectItem value="terminated">Terminated</SelectItem>
+              <SelectItem value="probation">Probation</SelectItem>
+              <SelectItem value="on_hold">On Hold</SelectItem>
+              <SelectItem value="exited">Exited</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-employee">
               <Plus className="mr-2 h-4 w-4" /> Add Employee
@@ -228,163 +527,11 @@ export default function EmployeesPage() {
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Add New Employee</DialogTitle>
+              <DialogDescription>
+                Enter the employee details below.
+              </DialogDescription>
             </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="employeeId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Employee Code</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="EMP001" data-testid="input-employee-code" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="employmentType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Employment Type</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-employment-type">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="full_time">Full Time</SelectItem>
-                            <SelectItem value="part_time">Part Time</SelectItem>
-                            <SelectItem value="contract">Contract</SelectItem>
-                            <SelectItem value="intern">Intern</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="firstName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>First Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="John" data-testid="input-first-name" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="lastName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Last Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Doe" data-testid="input-last-name" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="email" placeholder="john.doe@company.com" data-testid="input-email" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="+1234567890" data-testid="input-phone" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="joinDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Joining Date</FormLabel>
-                        <FormControl>
-                          <Input {...field} type="date" data-testid="input-joining-date" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="designation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Designation</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Software Engineer" data-testid="input-designation" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {departments && departments.length > 0 && (
-                  <FormField
-                    control={form.control}
-                    name="departmentId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Department</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-department">
-                              <SelectValue placeholder="Select department" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {departments.map((dept: any) => (
-                              <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-employee">
-                    {createMutation.isPending ? "Creating..." : "Create Employee"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
+            {renderEmployeeForm(createForm, onCreateSubmit, createMutation.isPending, "Create Employee")}
           </DialogContent>
         </Dialog>
       </div>
@@ -403,10 +550,61 @@ export default function EmployeesPage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredEmployees.map((emp) => (
-              <Card key={emp.id} className="hover-elevate cursor-pointer" data-testid={`card-employee-${emp.id}`}>
+              <Card 
+                key={emp.id} 
+                className="hover-elevate cursor-pointer relative" 
+                data-testid={`card-employee-${emp.id}`}
+                onClick={(e) => handleCardClick(emp, e)}
+              >
                 <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
+                  <div className="absolute top-2 right-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          data-menu-trigger
+                          data-testid={`button-menu-${emp.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.stopPropagation(); navigate(`/hr/employees/${emp.id}`); }}
+                          data-testid={`menu-view-${emp.id}`}
+                        >
+                          <Eye className="mr-2 h-4 w-4" /> View details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.stopPropagation(); openEditDialog(emp); }}
+                          data-testid={`menu-edit-${emp.id}`}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {emp.status !== "exited" && (
+                          <DropdownMenuItem 
+                            onClick={(e) => { e.stopPropagation(); setDeactivateEmployee(emp); }}
+                            data-testid={`menu-deactivate-${emp.id}`}
+                          >
+                            <UserX className="mr-2 h-4 w-4" /> Deactivate
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.stopPropagation(); setDeleteEmployee(emp); }}
+                          className="text-destructive focus:text-destructive"
+                          data-testid={`menu-delete-${emp.id}`}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="flex items-start gap-4 pr-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg flex-shrink-0">
                       {emp.firstName[0]}{emp.lastName[0]}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -414,12 +612,12 @@ export default function EmployeesPage() {
                         <h3 className="font-semibold truncate" data-testid={`text-employee-name-${emp.id}`}>
                           {emp.firstName} {emp.lastName}
                         </h3>
-                        <Badge variant={getStatusVariant(emp.status)} className="flex-shrink-0">
-                          {emp.status}
-                        </Badge>
                       </div>
+                      <Badge variant={getStatusVariant(emp.status)} className="mt-1">
+                        {formatStatus(emp.status)}
+                      </Badge>
                       <p className="text-sm text-muted-foreground mt-1 truncate">{emp.designation || "No designation"}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{emp.employeeCode}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{emp.employeeId}</p>
                     </div>
                   </div>
                   <div className="mt-4 space-y-2 text-sm">
@@ -435,7 +633,7 @@ export default function EmployeesPage() {
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Calendar className="h-4 w-4 flex-shrink-0" />
-                      <span>Joined {new Date(emp.joiningDate).toLocaleDateString()}</span>
+                      <span>Joined {new Date(emp.joinDate).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -477,13 +675,73 @@ export default function EmployeesPage() {
               {searchTerm ? "No employees match your search." : "Start by adding your first employee to the directory."}
             </p>
             {!searchTerm && (
-              <Button className="mt-6" onClick={() => setIsDialogOpen(true)} data-testid="button-add-first-employee">
+              <Button className="mt-6" onClick={() => setIsCreateDialogOpen(true)} data-testid="button-add-first-employee">
                 <Plus className="mr-2 h-4 w-4" /> Add First Employee
               </Button>
             )}
           </CardContent>
         </Card>
       )}
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>
+              Update the employee information below.
+            </DialogDescription>
+          </DialogHeader>
+          {renderEmployeeForm(editForm, onEditSubmit, updateMutation.isPending, "Save Changes")}
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate Confirmation */}
+      <AlertDialog open={!!deactivateEmployee} onOpenChange={() => setDeactivateEmployee(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to deactivate {deactivateEmployee?.firstName} {deactivateEmployee?.lastName}? 
+              This will mark them as exited and they will no longer appear in active employee lists.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deactivateEmployee && deactivateMutation.mutate(deactivateEmployee.id)}
+              disabled={deactivateMutation.isPending}
+              data-testid="button-confirm-deactivate"
+            >
+              {deactivateMutation.isPending ? "Deactivating..." : "Deactivate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteEmployee} onOpenChange={() => setDeleteEmployee(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete {deleteEmployee?.firstName} {deleteEmployee?.lastName}? 
+              This action cannot be undone and will remove all associated records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteEmployee && deleteMutation.mutate(deleteEmployee.id)}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

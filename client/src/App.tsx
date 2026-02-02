@@ -71,6 +71,7 @@ import ConsultingProjects from "@/pages/consulting/projects";
 import ConsultingTimesheets from "@/pages/consulting/timesheets";
 import HrDashboard from "@/pages/hr-dashboard";
 import HrEmployees from "@/pages/hr/employees";
+import HrEmployeeDetail from "@/pages/hr/employee-detail";
 import HrAttendance from "@/pages/hr/attendance";
 import HrLeaves from "@/pages/hr/leaves";
 import HrPayroll from "@/pages/hr/payroll";
@@ -524,6 +525,13 @@ function AuthenticatedRoutes() {
         <ModuleGuard moduleId="hrms">
           <RequireEmployeeDirectory redirectOnDenied>
             <HrDashboard />
+          </RequireEmployeeDirectory>
+        </ModuleGuard>
+      </Route>
+      <Route path="/hr/employees/:employeeId">
+        <ModuleGuard moduleId="hrms">
+          <RequireEmployeeDirectory redirectOnDenied>
+            <HrEmployeeDetail />
           </RequireEmployeeDirectory>
         </ModuleGuard>
       </Route>
