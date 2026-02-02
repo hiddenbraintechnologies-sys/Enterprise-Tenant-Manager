@@ -880,9 +880,10 @@ function AppRouter() {
     location.startsWith("/marketplace") ||
     location.startsWith("/invoices");
     
-  // If user has token but auth is checking, wait for it on protected routes
-  const hasToken = !!localStorage.getItem("accessToken");
-  if (isDashboardPath && hasToken && isLoading) {
+  // Wait for auth to complete before redirecting to login
+  // This handles both JWT token auth AND SSO session exchange
+  // Without this, users returning from SSO login get redirected to login again
+  if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
