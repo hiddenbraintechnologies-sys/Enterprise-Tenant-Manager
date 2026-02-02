@@ -60,6 +60,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PayrollComplianceBanner } from "@/components/hrms/PayrollComplianceBanner";
+import { useEntitlements } from "@/hooks/use-entitlements";
+import { Lock, ExternalLink } from "lucide-react";
+import { Link } from "wouter";
 
 interface PayrollRecord {
   id: string;
@@ -157,12 +160,18 @@ export default function HrPayroll() {
     year: currentYear.toString(),
   });
 
+  const { entitlements, isLoading: entitlementsLoading } = useEntitlements();
+  const hrmsEntitlement = entitlements?.["hrms"];
+  const hrmsActive = hrmsEntitlement?.entitled === true;
+
   const { data: payrollData, isLoading } = useQuery<PayrollResponse>({
     queryKey: ["/api/hr/payroll", page, filters],
+    enabled: hrmsActive,
   });
 
   const { data: employees } = useQuery<{ data: any[] }>({
     queryKey: ["/api/hr/employees", { limit: 100 }],
+    enabled: hrmsActive,
   });
 
   const form = useForm<PayrollFormValues>({
@@ -255,6 +264,43 @@ export default function HrPayroll() {
     paid: payrollData?.data.filter(p => p.status === "paid").length || 0,
     totalPayout: payrollData?.data.reduce((sum, p) => sum + parseFloat(p.netSalary), 0) || 0,
   };
+
+  if (entitlementsLoading) {
+    return (
+      <DashboardLayout title="Payroll">
+        <div className="flex items-center justify-center h-64">
+          <Skeleton className="h-8 w-48" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!hrmsActive) {
+    const hrmsExpired = hrmsEntitlement?.state === "expired" || hrmsEntitlement?.state === "grace";
+    return (
+      <DashboardLayout title="Payroll">
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-6 text-center px-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+            <Lock className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2 max-w-md">
+            <h2 className="text-2xl font-semibold">Payroll requires HRMS</h2>
+            <p className="text-muted-foreground">
+              {hrmsExpired
+                ? "Your HRMS subscription has expired. Renew HRMS to continue using Payroll features."
+                : "Payroll depends on the HRMS add-on for employee data. Install HRMS first to enable payroll processing."}
+            </p>
+          </div>
+          <Link href="/settings/addons">
+            <Button data-testid="button-goto-addons">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              {hrmsExpired ? "Renew HRMS" : "Go to Add-ons"}
+            </Button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Payroll Management">

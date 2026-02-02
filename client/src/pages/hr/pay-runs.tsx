@@ -60,6 +60,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PayrollComplianceBanner } from "@/components/hrms/PayrollComplianceBanner";
+import { useEntitlements } from "@/hooks/use-entitlements";
+import { Lock, ExternalLink } from "lucide-react";
+import { Link } from "wouter";
 
 interface PayRun {
   id: string;
@@ -146,13 +149,18 @@ export default function PayRuns() {
   const [approvePayRunId, setApprovePayRunId] = useState<string | null>(null);
   const [markPaidPayRunId, setMarkPaidPayRunId] = useState<string | null>(null);
 
+  const { entitlements, isLoading: entitlementsLoading } = useEntitlements();
+  const hrmsEntitlement = entitlements?.["hrms"];
+  const hrmsActive = hrmsEntitlement?.entitled === true;
+
   const { data: payRunsData, isLoading } = useQuery<PayRunResponse>({
     queryKey: ["/api/hr/payroll/pay-runs", page],
+    enabled: hrmsActive,
   });
 
   const { data: payRunItems, isLoading: itemsLoading } = useQuery<{ payRun: PayRun; items: PayRunItem[] }>({
     queryKey: ["/api/hr/payroll/pay-runs", viewPayRunId, "items"],
-    enabled: !!viewPayRunId,
+    enabled: !!viewPayRunId && hrmsActive,
   });
 
   const generateMutation = useMutation({
@@ -223,6 +231,43 @@ export default function PayRuns() {
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+
+  if (entitlementsLoading) {
+    return (
+      <DashboardLayout title="Pay Runs">
+        <div className="flex items-center justify-center h-64">
+          <Skeleton className="h-8 w-48" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!hrmsActive) {
+    const hrmsExpired = hrmsEntitlement?.state === "expired" || hrmsEntitlement?.state === "grace";
+    return (
+      <DashboardLayout title="Pay Runs">
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-6 text-center px-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+            <Lock className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2 max-w-md">
+            <h2 className="text-2xl font-semibold">Pay Runs require HRMS</h2>
+            <p className="text-muted-foreground">
+              {hrmsExpired
+                ? "Your HRMS subscription has expired. Renew HRMS to continue using Pay Runs."
+                : "Pay Runs depend on the HRMS add-on for employee data. Install HRMS first to enable pay run processing."}
+            </p>
+          </div>
+          <Link href="/settings/addons">
+            <Button data-testid="button-goto-addons">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              {hrmsExpired ? "Renew HRMS" : "Go to Add-ons"}
+            </Button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Pay Runs">

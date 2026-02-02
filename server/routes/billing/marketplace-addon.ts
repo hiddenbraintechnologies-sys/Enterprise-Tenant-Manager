@@ -7,6 +7,14 @@ import {
 import { eq, and, desc } from "drizzle-orm";
 import { requireMinimumRole, auditService } from "../../core";
 import { razorpayService, isRazorpayConfigured, getRazorpayKeyId } from "../../services/razorpay";
+import { getTenantAddonEntitlement } from "../../services/entitlement";
+
+const ADDON_DEPENDENCIES: Record<string, string[]> = {
+  "payroll": ["hrms"],
+  "payroll-india": ["hrms", "hrms-india"],
+  "payroll-malaysia": ["hrms", "hrms-malaysia"],
+  "payroll-uk": ["hrms", "hrms-uk"],
+};
 
 const router = Router();
 
@@ -119,6 +127,46 @@ router.post("/subscribe", requireMinimumRole("admin"), async (req, res) => {
 
     if (!addon) {
       return res.status(404).json({ error: "Add-on not found or not available" });
+    }
+
+    // Check addon dependencies (e.g., Payroll requires HRMS)
+    // ALL dependencies must be entitled for the addon to be enabled
+    const dependencies = ADDON_DEPENDENCIES[addon.slug];
+    if (dependencies && dependencies.length > 0) {
+      const missingDeps: string[] = [];
+      const expiredDeps: string[] = [];
+      
+      for (const depSlug of dependencies) {
+        const depEntitlement = await getTenantAddonEntitlement(tenantId, depSlug);
+        if (!depEntitlement.entitled) {
+          if (depEntitlement.state === "expired" || depEntitlement.state === "grace") {
+            expiredDeps.push(depSlug);
+          } else {
+            missingDeps.push(depSlug);
+          }
+        }
+      }
+      
+      // Report missing dependencies first (need to install), then expired (need to renew)
+      if (missingDeps.length > 0) {
+        const depList = missingDeps.map(d => d.toUpperCase()).join(", ");
+        return res.status(400).json({
+          error: `${addon.name} requires ${depList}`,
+          code: "ADDON_DEPENDENCY_MISSING",
+          dependencies: missingDeps,
+          message: `Install ${depList} before enabling ${addon.name}.`,
+        });
+      }
+      
+      if (expiredDeps.length > 0) {
+        const depList = expiredDeps.map(d => d.toUpperCase()).join(", ");
+        return res.status(400).json({
+          error: `${addon.name} requires ${depList} to be active`,
+          code: "ADDON_DEPENDENCY_EXPIRED",
+          dependencies: expiredDeps,
+          message: `Renew ${depList} to enable ${addon.name}.`,
+        });
+      }
     }
 
     const [pricing] = await db

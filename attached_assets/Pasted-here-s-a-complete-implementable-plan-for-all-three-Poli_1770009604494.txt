@@ -1,0 +1,256 @@
+here’s a complete, implementable plan for all three:
+
+Polish Employee Details UI (Zoho-like)
+
+Bulk deactivate/delete (safe + fast)
+
+Tighten billing → HR dependency UX (zero confusion)
+
+I’ll give you: layout decisions + interaction rules + API contracts + UI prompts.
+
+1) Polish the Employee Details UI
+A. Zoho-style page layout
+
+Top header (sticky)
+
+Breadcrumb: HR / Employees / {Employee Name}
+
+Left: Avatar + Name + Status badge
+
+Subline: Employee code + department + designation
+
+Right actions:
+
+Edit (primary)
+
+⋮ More (Deactivate/Reactivate/Delete, only if allowed)
+
+Summary strip (4 tiles)
+
+Department
+
+Join date
+
+Phone/Email
+
+Payroll status (if payroll add-on)
+
+Tabs
+
+Profile (default)
+
+Attendance (only if HRMS active)
+
+Payroll (only if Payroll active + HRMS dependency met)
+
+Documents (later)
+
+Activity (later)
+
+B. Micro-polish rules
+
+Never show Invalid Date → show —
+
+Show “Not set” instead of blank fields
+
+Use consistent casing:
+
+“Time zone” not “Timezone”
+
+“Employee ID” not “Emp Id”
+
+Primary action button always visible on desktop; on mobile move into sticky bottom bar
+
+C. Empty + locked states (very important)
+
+If HRMS expired, still allow viewing if you support read-grace; otherwise show lock page with Renew CTA.
+
+If Payroll tab locked due to dependency:
+
+show message: “Payroll requires HRMS. Install HRMS to continue.”
+
+Prompt to implement UI polish
+Polish Employee Details page to be Zoho-style:
+- Sticky header with breadcrumb + name + status + actions
+- Summary tiles row
+- Tabs: Profile, Attendance (HRMS), Payroll (Payroll+HRMS), Documents/Activity (future)
+- Replace Invalid Date with em dash
+- Add consistent helper text for empty values
+- Mobile: sticky action bar for Edit and More actions
+
+2) Bulk Deactivate / Delete
+A. UX pattern (best)
+
+On Employee list:
+
+Add checkbox per employee card/row
+
+Add header bar appears when selection > 0:
+
+3 selected
+
+Deactivate (primary)
+
+Delete (danger, only admins)
+
+Clear selection
+
+Bulk rules (safe + predictable)
+
+Bulk Deactivate: allowed for users with staff:update and module access (hrms OR payroll)
+
+Bulk Delete: admin only (requireMinimumRole("admin")), no add-on required (matches your current rule)
+
+For delete, enforce 409 EMPLOYEE_HAS_HISTORY per employee
+
+B. How to handle partial failures (enterprise-grade)
+
+Never “all-or-nothing” unless you want it.
+
+Return a per-employee result list:
+
+{
+  "ok": true,
+  "results": [
+    { "id": "e1", "status": "deleted" },
+    { "id": "e2", "status": "conflict", "code": "EMPLOYEE_HAS_HISTORY" },
+    { "id": "e3", "status": "not_found" }
+  ],
+  "summary": { "success": 1, "conflict": 1, "not_found": 1 }
+}
+
+
+UI then shows:
+
+“1 deleted”
+
+“1 can’t be deleted (has history)”
+
+“1 not found”
+
+C. API endpoints
+Bulk deactivate
+
+POST /api/hr/employees/bulk/deactivate
+
+Guards: auth + tenant + requireAnyAddon(['hrms','payroll'])
+
+Permission: staff:update
+
+Body:
+
+{ "ids": ["e1","e2"], "reason": "Resigned" }
+
+Bulk delete
+
+POST /api/hr/employees/bulk/delete
+
+Guards: auth + tenant + requireMinimumRole("admin")
+
+No add-on requirement (consistent with your single delete)
+
+Body:
+
+{ "ids": ["e1","e2"] }
+
+D. UI confirmation modals
+
+Deactivate modal
+
+Title: “Deactivate employees?”
+
+Body: “Selected employees will be moved to Inactive.”
+
+Optional reason field
+
+Delete modal
+
+Title: “Delete employees permanently?”
+
+Body: “Only employees without history can be deleted. Others will be skipped.”
+
+Danger button requires typing DELETE (optional but very pro)
+
+Prompt to implement bulk actions
+Add bulk actions on Employees list:
+- Checkbox selection UI + selected toolbar
+- Bulk deactivate (staff:update + hrms/payroll addon)
+- Bulk delete (admin only, no addon required)
+- Implement endpoints:
+  POST /api/hr/employees/bulk/deactivate
+  POST /api/hr/employees/bulk/delete
+- Return per-id results with summary counts (success/conflict/not_found)
+- UI shows partial success summary and lists conflicts
+
+3) Tighten billing → HR dependency UX (Payroll depends on HRMS)
+
+This is where users get confused unless you make it explicit everywhere.
+
+A. Marketplace/Add-ons page
+
+When user clicks Payroll:
+
+Show dependency banner at top:
+
+✅ If HRMS installed: “HRMS is installed. You can enable Payroll.”
+
+❌ If HRMS missing: “Payroll requires HRMS.” with Install HRMS button
+
+If HRMS expired: “HRMS expired. Renew HRMS to use Payroll.”
+
+B. Checkout/renew flow
+
+If user tries to renew Payroll while HRMS missing/expired:
+
+Don’t throw 500.
+
+Return 400 with a clean code:
+
+{ "error": "ADDON_DEPENDENCY_MISSING", "dependency": "hrms" }
+
+
+UI should:
+
+show toast + inline helper
+
+offer one-click “Add HRMS” (or bundle purchase)
+
+C. In-product locked screens
+
+If a user navigates to Payroll module:
+
+Show locked state with dependency explanation:
+
+“Payroll requires HRMS. Install HRMS to continue.”
+
+Button: “Go to Add-ons”
+
+D. Make status labels consistent
+
+“Active”
+
+“Trial”
+
+“Grace”
+
+“Expired”
+
+“Not installed”
+
+And ensure “Expired” never shows as “Active (Renew)”.
+
+Prompt to tighten dependency UX
+Tighten Payroll→HRMS dependency UX everywhere:
+- Add-ons page: Payroll card shows dependency state (HRMS required) with clear CTA
+- Renew/checkout: return 400 ADDON_DEPENDENCY_MISSING/EXPIRED instead of 500
+- Payroll module: locked screen explains dependency + links to Add-ons
+- Standardize addon status labels (Active/Trial/Grace/Expired/Not installed)
+- Ensure UI never displays expired as active; renew CTA appears only when expired
+
+Recommended order to implement
+
+Dependency UX tightening (prevents billing errors + reduces support)
+
+Bulk actions (big productivity boost for HR)
+
+Employee Details polish (premium feel, but less urgent than workflows)

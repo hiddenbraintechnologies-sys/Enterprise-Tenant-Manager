@@ -298,4 +298,119 @@ router.post("/:id/reactivate", async (req, res) => {
   }
 });
 
+// Bulk operations schemas
+const bulkDeactivateSchema = z.object({
+  employeeIds: z.array(z.string().uuid()).min(1, "At least one employee ID required").max(50, "Maximum 50 employees at a time"),
+  reason: z.string().max(500).optional(),
+});
+
+const bulkDeleteSchema = z.object({
+  employeeIds: z.array(z.string().uuid()).min(1, "At least one employee ID required").max(50, "Maximum 50 employees at a time"),
+});
+
+type BulkResult = {
+  id: string;
+  success: boolean;
+  error?: string;
+  code?: string;
+};
+
+router.post("/bulk/deactivate", async (req, res) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    const userId = req.context?.user?.id;
+    if (!tenantId || !userId) return res.status(401).json({ error: "Unauthorized" });
+    
+    // Check permission: staff:update
+    const canUpdate = await permissionService.hasPermission(userId, tenantId, PERMISSIONS.STAFF_UPDATE);
+    if (!canUpdate) {
+      return res.status(403).json({ error: "Permission denied", code: "FORBIDDEN" });
+    }
+    
+    // Check if read-only mode
+    if (req.hrAccess?.isEmployeeReadOnly) {
+      return res.status(403).json({
+        error: "Employee directory is read-only",
+        code: "EMPLOYEE_READ_ONLY",
+        message: req.hrAccess.readOnlyReason || "Re-enable Payroll or add HRMS to deactivate employees.",
+        upgradeUrl: "/marketplace",
+      });
+    }
+    
+    // Validate request body
+    let employeeIds: string[];
+    let reason: string | undefined;
+    try {
+      const body = bulkDeactivateSchema.parse(req.body || {});
+      employeeIds = body.employeeIds;
+      reason = body.reason;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          code: "VALIDATION_ERROR",
+          details: error.errors 
+        });
+      }
+      throw error;
+    }
+    
+    const results: BulkResult[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const employeeId of employeeIds) {
+      try {
+        // Check if employee exists and belongs to this tenant
+        const existingEmployee = await EmployeeService.getEmployee(tenantId, employeeId);
+        
+        if (!existingEmployee) {
+          results.push({ id: employeeId, success: false, error: "Employee not found", code: "NOT_FOUND" });
+          errorCount++;
+          continue;
+        }
+        
+        if (existingEmployee.status === "exited") {
+          results.push({ id: employeeId, success: false, error: "Already deactivated", code: "ALREADY_DEACTIVATED" });
+          errorCount++;
+          continue;
+        }
+        
+        const employee = await EmployeeService.deactivateEmployee(tenantId, employeeId, reason);
+        
+        if (employee) {
+          results.push({ id: employeeId, success: true });
+          successCount++;
+          
+          // Audit log each deactivation
+          auditService.logAsync({
+            tenantId,
+            userId,
+            action: "update",
+            resource: "employee",
+            resourceId: employeeId,
+            metadata: { event: "HR_EMPLOYEE_DEACTIVATED", reason, bulk: true },
+          });
+        } else {
+          results.push({ id: employeeId, success: false, error: "Failed to deactivate", code: "DEACTIVATION_FAILED" });
+          errorCount++;
+        }
+      } catch (error) {
+        results.push({ id: employeeId, success: false, error: "Unexpected error", code: "INTERNAL_ERROR" });
+        errorCount++;
+      }
+    }
+    
+    res.json({
+      ok: errorCount === 0,
+      successCount,
+      errorCount,
+      results,
+    });
+  } catch (error) {
+    console.error("[employees] POST /bulk/deactivate error:", error);
+    res.status(500).json({ error: "Failed to bulk deactivate employees" });
+  }
+});
+
 export default router;

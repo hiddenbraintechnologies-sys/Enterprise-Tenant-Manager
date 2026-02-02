@@ -57,7 +57,12 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Trash2,
+  UserMinus,
+  X,
+  Loader2,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Employee {
   id: string;
@@ -134,6 +139,8 @@ export default function EmployeesPage() {
   const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null);
   const [deactivateEmployee, setDeactivateEmployee] = useState<Employee | null>(null);
   const [reactivateEmployee, setReactivateEmployee] = useState<Employee | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"deactivate" | "delete" | null>(null);
 
   const createForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
@@ -251,6 +258,58 @@ export default function EmployeesPage() {
     },
   });
 
+  const bulkDeactivateMutation = useMutation({
+    mutationFn: async (employeeIds: string[]) => {
+      return apiRequest("POST", "/api/hr/employees/bulk/deactivate", { employeeIds });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/dashboard"] });
+      const { successCount, errorCount } = data;
+      if (errorCount === 0) {
+        toast({ title: `${successCount} employee(s) deactivated` });
+      } else {
+        toast({ 
+          title: `Completed with issues`,
+          description: `${successCount} succeeded, ${errorCount} failed`,
+          variant: successCount > 0 ? "default" : "destructive",
+        });
+      }
+      setSelectedIds(new Set());
+      setBulkAction(null);
+    },
+    onError: (error: any) => {
+      handleMutationError(error, "bulk deactivate");
+      setBulkAction(null);
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (employeeIds: string[]) => {
+      return apiRequest("POST", "/api/hr/employees/bulk/delete", { employeeIds });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/dashboard"] });
+      const { successCount, errorCount } = data;
+      if (errorCount === 0) {
+        toast({ title: `${successCount} employee(s) deleted` });
+      } else {
+        toast({ 
+          title: `Completed with issues`,
+          description: `${successCount} deleted, ${errorCount} have dependencies (deactivate instead)`,
+          variant: successCount > 0 ? "default" : "destructive",
+        });
+      }
+      setSelectedIds(new Set());
+      setBulkAction(null);
+    },
+    onError: (error: any) => {
+      handleMutationError(error, "bulk delete");
+      setBulkAction(null);
+    },
+  });
+
   function handleMutationError(error: any, action: string) {
     let errorMessage = `Failed to ${action} employee. Please try again.`;
     try {
@@ -308,10 +367,42 @@ export default function EmployeesPage() {
 
   const handleCardClick = (emp: Employee, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (target.closest('[data-menu-trigger]') || target.closest('[role="menu"]')) {
+    if (target.closest('[data-menu-trigger]') || target.closest('[role="menu"]') || target.closest('[data-checkbox]')) {
       return;
     }
     navigate(`/hr/employees/${emp.id}`);
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    if (filteredEmployees) {
+      setSelectedIds(new Set(filteredEmployees.map(e => e.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDeactivate = () => {
+    if (selectedIds.size === 0) return;
+    bulkDeactivateMutation.mutate(Array.from(selectedIds));
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    bulkDeleteMutation.mutate(Array.from(selectedIds));
   };
 
   const filteredEmployees = employees?.data?.filter((emp) => {
@@ -543,6 +634,64 @@ export default function EmployeesPage() {
         </Dialog>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="mb-4 flex items-center gap-3 p-3 bg-muted/50 border rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <Button variant="ghost" size="sm" onClick={clearSelection} data-testid="button-clear-selection">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex-1" />
+          {abilities.canDeactivate && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleBulkDeactivate}
+              disabled={bulkDeactivateMutation.isPending || bulkDeleteMutation.isPending}
+              data-testid="button-bulk-deactivate"
+            >
+              {bulkDeactivateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <UserMinus className="h-4 w-4 mr-2" />
+              )}
+              Deactivate
+            </Button>
+          )}
+          {abilities.canDelete && (
+            <AlertDialog open={bulkAction === "delete"} onOpenChange={(open) => setBulkAction(open ? "delete" : null)}>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setBulkAction("delete")}
+                disabled={bulkDeactivateMutation.isPending || bulkDeleteMutation.isPending}
+                data-testid="button-bulk-delete"
+              >
+                {bulkDeleteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Delete
+              </Button>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {selectedIds.size} employee(s)?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. Employees with payroll, leaves, or attendance records will not be deleted. Consider deactivating instead.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleBulkDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -559,11 +708,18 @@ export default function EmployeesPage() {
             {filteredEmployees.map((emp) => (
               <Card 
                 key={emp.id} 
-                className="hover-elevate cursor-pointer relative" 
+                className={`hover-elevate cursor-pointer relative ${selectedIds.has(emp.id) ? "ring-2 ring-primary" : ""}`}
                 data-testid={`card-employee-${emp.id}`}
                 onClick={(e) => handleCardClick(emp, e)}
               >
                 <CardContent className="p-6">
+                  <div className="absolute top-3 left-3" data-checkbox onClick={(e) => e.stopPropagation()}>
+                    <Checkbox 
+                      checked={selectedIds.has(emp.id)}
+                      onCheckedChange={() => toggleSelection(emp.id)}
+                      data-testid={`checkbox-employee-${emp.id}`}
+                    />
+                  </div>
                   {(() => {
                     const canView = abilities.canView;
                     const canEdit = abilities.canEdit;
@@ -589,7 +745,7 @@ export default function EmployeesPage() {
                       </div>
                     );
                   })()}
-                  <div className="flex items-start gap-4 pr-8">
+                  <div className="flex items-start gap-4 pr-8 pl-6">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg flex-shrink-0">
                       {emp.firstName[0]}{emp.lastName[0]}
                     </div>

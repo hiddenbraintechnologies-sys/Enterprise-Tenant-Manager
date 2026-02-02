@@ -362,64 +362,86 @@ export default function EmployeeDetailPage() {
       ]}
     >
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
-              {initials}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-semibold leading-tight" data-testid="text-employee-name">
-                  {employee.firstName} {employee.lastName}
-                </h1>
-                <Badge variant={getStatusVariant(employee.status)} data-testid="badge-employee-status">
-                  {formatStatus(employee.status)}
-                </Badge>
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-4 px-4 py-4 border-b">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xl">
+                {initials}
               </div>
-              <p className="text-sm text-muted-foreground">{employee.designation || "No designation"}</p>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-2xl font-semibold leading-tight" data-testid="text-employee-name">
+                    {employee.firstName} {employee.lastName}
+                  </h1>
+                  <Badge variant={getStatusVariant(employee.status)} data-testid="badge-employee-status">
+                    {formatStatus(employee.status)}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">{employee.designation || "No designation"}</p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Button onClick={openEditDialog} disabled={!canEdit} data-testid="button-edit-employee">
-              <Pencil className="mr-2 h-4 w-4" /> Edit
-            </Button>
-            {(canEdit || canDeactivate || canDelete) && (
-              <EmployeeActionsMenu
-                canView={false}
-                canEdit={canEdit}
-                canDeactivate={canDeactivate}
-                canReactivate={abilities.canEdit && employee?.status === "exited"}
-                canDelete={canDelete}
-                isAddonExpired={abilities.isAddonExpired}
-                onView={() => {}}
-                onEdit={openEditDialog}
-                onDeactivate={() => setShowDeactivateDialog(true)}
-                onReactivate={() => setShowReactivateDialog(true)}
-                onDelete={() => setShowDeleteDialog(true)}
-              />
-            )}
+            <div className="flex items-center gap-2">
+              <Button onClick={openEditDialog} disabled={!canEdit} data-testid="button-edit-employee">
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+              {(canEdit || canDeactivate || canDelete) && (
+                <EmployeeActionsMenu
+                  canView={false}
+                  canEdit={canEdit}
+                  canDeactivate={canDeactivate}
+                  canReactivate={abilities.canEdit && employee?.status === "exited"}
+                  canDelete={canDelete}
+                  isAddonExpired={abilities.isAddonExpired}
+                  onView={() => {}}
+                  onEdit={openEditDialog}
+                  onDeactivate={() => setShowDeactivateDialog(true)}
+                  onReactivate={() => setShowReactivateDialog(true)}
+                  onDelete={() => setShowDeleteDialog(true)}
+                />
+              )}
+            </div>
           </div>
         </div>
 
         {/* Summary Strip */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border p-4">
-            <div className="text-xs text-muted-foreground">Employee ID</div>
-            <div className="font-medium mt-1" data-testid="text-employee-id">{employee.employeeId || "—"}</div>
+          <div className="rounded-xl border p-4 flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-muted">
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Employee ID</div>
+              <div className="font-medium mt-0.5" data-testid="text-employee-id">{employee.employeeId || "—"}</div>
+            </div>
           </div>
-          <div className="rounded-xl border p-4">
-            <div className="text-xs text-muted-foreground">Department</div>
-            <div className="font-medium mt-1" data-testid="text-department">{employee.department?.name || "—"}</div>
+          <div className="rounded-xl border p-4 flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-muted">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Department</div>
+              <div className="font-medium mt-0.5" data-testid="text-department">{employee.department?.name || "—"}</div>
+            </div>
           </div>
-          <div className="rounded-xl border p-4">
-            <div className="text-xs text-muted-foreground">Joined</div>
-            <div className="font-medium mt-1" data-testid="text-join-date">{formatDate(employee.joinDate)}</div>
+          <div className="rounded-xl border p-4 flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-muted">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Joined</div>
+              <div className="font-medium mt-0.5" data-testid="text-join-date">{formatDate(employee.joinDate)}</div>
+            </div>
           </div>
-          <div className="rounded-xl border p-4">
-            <div className="text-xs text-muted-foreground">Employment Type</div>
-            <div className="font-medium mt-1" data-testid="text-employment-type">{formatEmploymentType(employee.employmentType)}</div>
+          <div className="rounded-xl border p-4 flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-muted">
+              <Briefcase className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Employment Type</div>
+              <div className="font-medium mt-0.5" data-testid="text-employment-type">{formatEmploymentType(employee.employmentType)}</div>
+            </div>
           </div>
         </div>
 

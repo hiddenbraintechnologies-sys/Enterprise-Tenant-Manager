@@ -170,21 +170,49 @@ function AddonCardSkeleton() {
   );
 }
 
+interface AddonEntitlementInfo {
+  entitled: boolean;
+  state: string;
+  reasonCode?: string;
+}
+
 function AddonCard({
   addon,
   isInstalled,
   onInstall,
   onUpgrade,
+  onInstallDependency,
   isInstalling,
+  entitlements,
 }: {
   addon: Addon;
   isInstalled: boolean;
   onInstall: (addon: Addon) => void;
   onUpgrade?: () => void;
+  onInstallDependency?: (dependencySlug: string) => void;
   isInstalling: boolean;
+  entitlements?: Record<string, AddonEntitlementInfo>;
 }) {
   const pricingType = addon.pricing[0]?.pricingType || "free";
   const requiresUpgrade = addon.purchaseReason === "PLAN_TOO_LOW";
+  
+  // Check Payroll → HRMS dependency
+  const isPayroll = addon.slug?.toLowerCase().startsWith("payroll");
+  let dependencyState: "ok" | "missing" | "expired" | null = null;
+  
+  if (isPayroll && entitlements) {
+    const hrmsEnt = entitlements["hrms"] || 
+                    entitlements["hrms-india"] || 
+                    entitlements["hrms-malaysia"] || 
+                    entitlements["hrms-uk"];
+    if (hrmsEnt?.entitled) {
+      dependencyState = "ok";
+    } else if (hrmsEnt?.state === "expired") {
+      dependencyState = "expired";
+    } else {
+      dependencyState = "missing";
+    }
+  }
 
   return (
     <Card className="flex flex-col">
@@ -246,6 +274,43 @@ function AddonCard({
           <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400" data-testid={`micro-benefit-${addon.id}`}>
             <Check className="h-3 w-3" />
             <span>Attendance, Leave & Timesheet Management</span>
+          </div>
+        )}
+        {/* Payroll → HRMS dependency banner */}
+        {isPayroll && dependencyState === "ok" && (
+          <div className="mt-2 rounded-md border border-green-200 bg-green-50 px-2 py-1.5 dark:border-green-800 dark:bg-green-950" data-testid={`dependency-ok-${addon.id}`}>
+            <div className="flex items-center gap-1.5 text-xs text-green-700 dark:text-green-300">
+              <Check className="h-3 w-3" />
+              <span>HRMS is installed. You can enable Payroll.</span>
+            </div>
+          </div>
+        )}
+        {isPayroll && dependencyState === "missing" && (
+          <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-800 dark:bg-amber-950" data-testid={`dependency-missing-${addon.id}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                <AlertCircle className="h-3 w-3" />
+                <span>Payroll requires HRMS</span>
+              </div>
+              {onInstallDependency && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-6 text-xs px-2"
+                  onClick={(e) => { e.stopPropagation(); onInstallDependency("hrms"); }}
+                >
+                  Install HRMS
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+        {isPayroll && dependencyState === "expired" && (
+          <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 dark:border-red-800 dark:bg-red-950" data-testid={`dependency-expired-${addon.id}`}>
+            <div className="flex items-center gap-1.5 text-xs text-red-700 dark:text-red-300">
+              <AlertCircle className="h-3 w-3" />
+              <span>HRMS expired. Renew HRMS to use Payroll.</span>
+            </div>
           </div>
         )}
         {requiresUpgrade && (
@@ -849,7 +914,12 @@ export default function Marketplace() {
                   isInstalled={installedAddonIds.has(addon.id)}
                   onInstall={handleInstallClick}
                   onUpgrade={handleUpgradeClick}
+                  onInstallDependency={(slug) => {
+                    const hrmsAddon = filteredAddons.find(a => a.slug?.startsWith("hrms"));
+                    if (hrmsAddon) handleInstallClick(hrmsAddon);
+                  }}
                   isInstalling={installMutation.isPending && selectedAddon?.id === addon.id}
+                  entitlements={entitlements}
                 />
               ))}
             </div>

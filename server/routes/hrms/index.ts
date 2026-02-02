@@ -262,6 +262,158 @@ router.delete("/employees/:id", requireMinimumRole("admin"), async (req, res) =>
   }
 });
 
+import { z } from "zod";
+
+const bulkDeleteSchema = z.object({
+  employeeIds: z.array(z.string().uuid()).min(1, "At least one employee ID required").max(50, "Maximum 50 employees at a time"),
+});
+
+type BulkDeleteResult = {
+  id: string;
+  success: boolean;
+  error?: string;
+  code?: string;
+  dependencies?: string[];
+};
+
+router.post("/employees/bulk/delete", requireMinimumRole("admin"), async (req, res) => {
+  try {
+    const tenantId = req.context?.tenant?.id;
+    const userId = req.context?.user?.id;
+    if (!tenantId || !userId) return res.status(401).json({ error: "Unauthorized" });
+    
+    // Validate request body
+    let employeeIds: string[];
+    try {
+      const body = bulkDeleteSchema.parse(req.body || {});
+      employeeIds = body.employeeIds;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          code: "VALIDATION_ERROR",
+          details: error.errors 
+        });
+      }
+      throw error;
+    }
+    
+    // Check if add-on is active (for audit clarity)
+    let addonActive = false;
+    try {
+      const entitlements = await getAllTenantEntitlements(tenantId);
+      addonActive = entitlements.addons["hrms"]?.entitled || 
+                    entitlements.addons["hrms-india"]?.entitled ||
+                    entitlements.addons["hrms-malaysia"]?.entitled ||
+                    entitlements.addons["payroll"]?.entitled ||
+                    entitlements.addons["payroll-india"]?.entitled ||
+                    entitlements.addons["payroll-malaysia"]?.entitled || false;
+    } catch { /* ignore */ }
+    
+    const results: BulkDeleteResult[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const employeeId of employeeIds) {
+      try {
+        // Check for dependent records before allowing delete (tenant-scoped for security)
+        const [payrollCount] = await db
+          .select({ count: count() })
+          .from(hrPayRunItems)
+          .where(and(
+            eq(hrPayRunItems.tenantId, tenantId),
+            eq(hrPayRunItems.employeeId, employeeId)
+          ));
+        
+        const [leaveCount] = await db
+          .select({ count: count() })
+          .from(hrLeaves)
+          .where(and(
+            eq(hrLeaves.tenantId, tenantId),
+            eq(hrLeaves.employeeId, employeeId)
+          ));
+        
+        const [attendanceCount] = await db
+          .select({ count: count() })
+          .from(hrAttendance)
+          .where(and(
+            eq(hrAttendance.tenantId, tenantId),
+            eq(hrAttendance.employeeId, employeeId)
+          ));
+        
+        const [timesheetCount] = await db
+          .select({ count: count() })
+          .from(hrTimesheets)
+          .where(and(
+            eq(hrTimesheets.tenantId, tenantId),
+            eq(hrTimesheets.employeeId, employeeId)
+          ));
+        
+        const hasPayroll = (payrollCount?.count || 0) > 0;
+        const hasLeaves = (leaveCount?.count || 0) > 0;
+        const hasAttendance = (attendanceCount?.count || 0) > 0;
+        const hasTimesheets = (timesheetCount?.count || 0) > 0;
+        
+        if (hasPayroll || hasLeaves || hasAttendance || hasTimesheets) {
+          const dependencies = [];
+          if (hasPayroll) dependencies.push("payroll slips");
+          if (hasLeaves) dependencies.push("leave requests");
+          if (hasAttendance) dependencies.push("attendance logs");
+          if (hasTimesheets) dependencies.push("timesheets");
+          
+          results.push({ 
+            id: employeeId, 
+            success: false, 
+            error: "Has dependencies. Deactivate instead.", 
+            code: "EMPLOYEE_HAS_DEPENDENCIES",
+            dependencies,
+          });
+          errorCount++;
+          continue;
+        }
+        
+        const deleted = await EmployeeService.deleteEmployee(tenantId, employeeId);
+        
+        if (deleted) {
+          results.push({ id: employeeId, success: true });
+          successCount++;
+          
+          // Audit log each deletion
+          auditService.logAsync({
+            tenantId,
+            userId,
+            action: "delete",
+            resource: "employee",
+            resourceId: employeeId,
+            metadata: { 
+              event: "HR_EMPLOYEE_DELETED",
+              cleanupAfterExpiry: !addonActive,
+              addonActive,
+              bulk: true,
+            },
+          });
+        } else {
+          results.push({ id: employeeId, success: false, error: "Not found", code: "NOT_FOUND" });
+          errorCount++;
+        }
+      } catch (error) {
+        results.push({ id: employeeId, success: false, error: "Unexpected error", code: "INTERNAL_ERROR" });
+        errorCount++;
+      }
+    }
+    
+    res.json({
+      ok: errorCount === 0,
+      successCount,
+      errorCount,
+      results,
+    });
+  } catch (error) {
+    console.error("[employees] POST /bulk/delete error:", error);
+    res.status(500).json({ error: "Failed to bulk delete employees" });
+  }
+});
+
 // ============================================================================
 // HRMS SUITE ROUTES (HRMS add-on ONLY - Payroll does NOT grant access)
 // ============================================================================
