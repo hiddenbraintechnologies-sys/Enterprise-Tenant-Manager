@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
+export type BusinessType = "clinic" | "clinic_healthcare" | "salon" | "salon_spa" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "education_institute" | "logistics" | "logistics_fleet" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
 
 export interface ModuleConfig {
   id: string;
@@ -191,11 +191,51 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
   ],
+  // Alias entries (these map to the same modules as their base types)
+  clinic_healthcare: [
+    { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  salon_spa: [
+    { id: "customers", name: "Clients", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "services", name: "Services", enabled: true, routes: ["/services", "/services/new"] },
+    { id: "bookings", name: "Appointments", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  education_institute: [
+    { id: "students", name: "Students", enabled: true, routes: ["/students", "/students/new", "/students/:id"] },
+    { id: "courses", name: "Courses", enabled: true, routes: ["/courses", "/courses/new", "/courses/:id"] },
+    { id: "batches", name: "Batches", enabled: true, routes: ["/batches", "/batches/new", "/batches/:id"] },
+    { id: "attendance", name: "Attendance", enabled: true, routes: ["/attendance", "/attendance/:batchId"] },
+    { id: "exams", name: "Exams", enabled: true, routes: ["/exams", "/exams/new", "/exams/:id", "/exams/:id/results"] },
+    { id: "fees", name: "Fees", enabled: true, routes: ["/fees", "/fees/new", "/fees/:id", "/fees/collections"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
+  logistics_fleet: [
+    { id: "vehicles", name: "Vehicles", enabled: true, routes: ["/vehicles", "/vehicles/new", "/vehicles/:id"] },
+    { id: "drivers", name: "Drivers", enabled: true, routes: ["/drivers", "/drivers/new", "/drivers/:id"] },
+    { id: "trips", name: "Trips", enabled: true, routes: ["/trips", "/trips/new", "/trips/:id"] },
+    { id: "shipments", name: "Shipments", enabled: true, routes: ["/shipments", "/shipments/new", "/shipments/:id"] },
+    { id: "tracking", name: "Tracking", enabled: true, routes: ["/tracking", "/tracking/:shipmentId"] },
+    { id: "maintenance", name: "Maintenance", enabled: true, routes: ["/maintenance", "/maintenance/new", "/maintenance/:id"] },
+    HRMS_MODULE,
+    { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
+    { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
+  ],
 };
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   clinic: "/dashboard/clinic",
+  clinic_healthcare: "/dashboard/clinic",
   salon: "/dashboard/salon",
+  salon_spa: "/dashboard/salon",
   pg: "/dashboard/pg",
   pg_hostel: "/dashboard/pg",
   coworking: "/dashboard/coworking",
@@ -203,7 +243,9 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   real_estate: "/dashboard/real-estate",
   tourism: "/dashboard/tourism",
   education: "/dashboard/education",
+  education_institute: "/dashboard/education",
   logistics: "/dashboard/logistics",
+  logistics_fleet: "/dashboard/logistics",
   legal: "/dashboard/legal",
   furniture_manufacturing: "/dashboard/furniture",
   software_services: "/dashboard/software-services",

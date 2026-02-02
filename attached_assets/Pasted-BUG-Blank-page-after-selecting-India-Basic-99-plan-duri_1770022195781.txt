@@ -1,0 +1,40 @@
+BUG: Blank page after selecting India Basic ₹99 plan during signup.
+
+Repro:
+1) Register new tenant
+2) Select Country = India, Business Type = Clinics
+3) Go to Packages and click the ₹99 plan
+4) App redirects to /dashboard/service and shows a completely blank page.
+
+Goal:
+- Identify root cause and fix redirect + guards so user always lands on a valid post-purchase screen (dashboard or onboarding completion), never a blank page.
+- Ensure tenant context + subscription/entitlements are loaded before rendering dashboard routes.
+- Add an error boundary + loading fallback so crashes never render blank.
+
+Tasks:
+A) Find the redirect code path after plan selection (client side). It likely calls navigate("/dashboard/service") or similar.
+   - Change it to a safe route: "/dashboard" OR "/onboarding/complete" depending on your onboarding logic.
+   - After successful plan selection, invalidate and refetch tenant/subscription/entitlements queries BEFORE navigating:
+     - queryClient.invalidateQueries({ queryKey: ["tenant"] })
+     - queryClient.invalidateQueries({ queryKey: ["subscription"] })
+     - queryClient.invalidateQueries({ queryKey: ["entitlements"] })
+     - await Promise.all([...refetches]) if you use refetchQueries
+
+B) Add a hard guard in the /dashboard layout:
+   - If tenant context is missing/loading, show a full-page loader (not null).
+   - If tenant fetch fails, show an error screen with "Retry" and "Back to Packages".
+
+C) Add an ErrorBoundary for all dashboard routes:
+   - Wrap the dashboard route tree with an error boundary that shows an error card + retry.
+   - Log the error to console for debugging.
+
+D) Verify server response:
+   - Confirm select-plan endpoint sets/returns enough info so frontend knows subscription is active.
+   - If select-plan activates subscription asynchronously, add a small polling step (max 3 tries) to confirm subscription state before redirect.
+
+Deliverables:
+1) Explain root cause (console error + failing API call or missing route)
+2) The exact files changed (client route/redirect + dashboard guard + error boundary)
+3) Confirm fixed behavior:
+   - After selecting ₹99 plan, user lands on dashboard (not /dashboard/service) with valid tenant context.
+   - No blank page even if APIs fail.

@@ -30,18 +30,27 @@ const router = Router();
 // Dashboard route mapping based on business type
 const DASHBOARD_ROUTES: Record<string, string> = {
   clinic: "/dashboard/clinic",
+  clinic_healthcare: "/dashboard/clinic",
   salon: "/dashboard/salon",
+  salon_spa: "/dashboard/salon",
   pg: "/dashboard/pg",
+  pg_hostel: "/dashboard/pg",
   coworking: "/dashboard/coworking",
   service: "/dashboard/service",
+  real_estate: "/dashboard/real-estate",
   realestate: "/dashboard/realestate",
   tourism: "/dashboard/tourism",
   education: "/dashboard/education",
+  education_institute: "/dashboard/education",
   logistics: "/dashboard/logistics",
+  logistics_fleet: "/dashboard/logistics",
   legal: "/dashboard/legal",
   furniture: "/dashboard/furniture",
+  furniture_manufacturing: "/dashboard/furniture",
   consulting: "/dashboard/consulting",
   software_services: "/dashboard/software-services",
+  digital_agency: "/dashboard/digital-agency",
+  retail_store: "/dashboard/retail",
 };
 
 async function getDashboardUrl(tenantId: string): Promise<string> {

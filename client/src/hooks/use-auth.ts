@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/models/auth";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
+export type BusinessType = "clinic" | "clinic_healthcare" | "salon" | "salon_spa" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "education_institute" | "logistics" | "logistics_fleet" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
 
 export interface Tenant {
   id: string;

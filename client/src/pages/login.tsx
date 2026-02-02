@@ -169,7 +169,9 @@ export default function Login() {
             const businessType = data.tenant?.businessType || "service";
             const dashboardRoutes: Record<string, string> = {
               clinic: "/dashboard/clinic",
+              clinic_healthcare: "/dashboard/clinic",
               salon: "/dashboard/salon",
+              salon_spa: "/dashboard/salon",
               pg: "/dashboard/pg",
               pg_hostel: "/dashboard/pg",
               coworking: "/dashboard/coworking",
@@ -178,7 +180,9 @@ export default function Login() {
               realestate: "/dashboard/realestate",
               tourism: "/dashboard/tourism",
               education: "/dashboard/education",
+              education_institute: "/dashboard/education",
               logistics: "/dashboard/logistics",
+              logistics_fleet: "/dashboard/logistics",
               legal: "/dashboard/legal",
               furniture: "/dashboard/furniture",
               furniture_manufacturing: "/dashboard/furniture",

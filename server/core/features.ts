@@ -78,7 +78,7 @@ export const FEATURES = {
   CLIENT_PORTAL: "client_portal",
 } as const;
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal" | "furniture_manufacturing" | "software_services" | "consulting";
+export type BusinessType = "clinic" | "clinic_healthcare" | "salon" | "salon_spa" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "education_institute" | "logistics" | "logistics_fleet" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
 
 export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
   clinic: [
@@ -237,6 +237,84 @@ export const BUSINESS_TYPE_MODULES: Record<BusinessType, string[]> = {
     FEATURES.NOTIFICATIONS_SMS,
     FEATURES.ANALYTICS_BASIC,
     FEATURES.ANALYTICS_ADVANCED,
+  ],
+  // Alias entries for alternate business type codes
+  clinic_healthcare: [
+    FEATURES.PATIENTS,
+    FEATURES.APPOINTMENTS,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.EMR,
+    FEATURES.PRESCRIPTIONS,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.ANALYTICS_BASIC,
+  ],
+  salon_spa: [
+    FEATURES.APPOINTMENTS,
+    FEATURES.SERVICES,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.ANALYTICS_BASIC,
+  ],
+  pg_hostel: [
+    FEATURES.ROOMS,
+    FEATURES.TENANTS_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.BILLING_SUBSCRIPTIONS,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.ANALYTICS_BASIC,
+  ],
+  education_institute: [
+    FEATURES.STUDENTS,
+    FEATURES.COURSES,
+    FEATURES.EXAMS,
+    FEATURES.ATTENDANCE,
+    FEATURES.FACULTY,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.BILLING_SUBSCRIPTIONS,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  logistics_fleet: [
+    FEATURES.VEHICLES,
+    FEATURES.TRIPS,
+    FEATURES.SHIPMENTS,
+    FEATURES.DRIVERS,
+    FEATURES.TRACKING,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.NOTIFICATIONS_WHATSAPP,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  digital_agency: [
+    FEATURES.PROJECTS,
+    FEATURES.PROJECT_TASKS,
+    FEATURES.TIMESHEETS,
+    FEATURES.CLIENT_PORTAL,
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
+    FEATURES.ANALYTICS_ADVANCED,
+  ],
+  retail_store: [
+    FEATURES.CUSTOMER_MANAGEMENT,
+    FEATURES.INVENTORY,
+    FEATURES.BILLING_INVOICES,
+    FEATURES.STAFF_MANAGEMENT,
+    FEATURES.NOTIFICATIONS_EMAIL,
+    FEATURES.NOTIFICATIONS_SMS,
+    FEATURES.ANALYTICS_BASIC,
   ],
 };
 

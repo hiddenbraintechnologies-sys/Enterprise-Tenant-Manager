@@ -169,7 +169,9 @@ interface SubscriptionData {
 
 const DASHBOARD_ROUTES: Record<string, string> = {
   clinic: "/dashboard/clinic",
+  clinic_healthcare: "/dashboard/clinic",
   salon: "/dashboard/salon",
+  salon_spa: "/dashboard/salon",
   pg: "/dashboard/pg",
   pg_hostel: "/dashboard/pg",
   coworking: "/dashboard/coworking",
@@ -177,7 +179,9 @@ const DASHBOARD_ROUTES: Record<string, string> = {
   real_estate: "/dashboard/real-estate",
   tourism: "/dashboard/tourism",
   education: "/dashboard/education",
+  education_institute: "/dashboard/education",
   logistics: "/dashboard/logistics",
+  logistics_fleet: "/dashboard/logistics",
   legal: "/dashboard/legal",
   furniture_manufacturing: "/dashboard/furniture",
   software_services: "/dashboard/software-services",

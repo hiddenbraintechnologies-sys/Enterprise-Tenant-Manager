@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { tenantService } from "./tenants";
 
-export type BusinessType = "clinic" | "salon" | "pg" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "logistics" | "legal";
+export type BusinessType = "clinic" | "clinic_healthcare" | "salon" | "salon_spa" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "education_institute" | "logistics" | "logistics_fleet" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
 
 const API_ROUTE_TO_BUSINESS_TYPE: Record<string, BusinessType> = {
   "/api/real-estate": "real_estate",
@@ -13,15 +13,25 @@ const API_ROUTE_TO_BUSINESS_TYPE: Record<string, BusinessType> = {
 
 const DASHBOARD_ROUTES: Record<BusinessType, string> = {
   clinic: "/dashboard/clinic",
+  clinic_healthcare: "/dashboard/clinic",
   salon: "/dashboard/salon",
+  salon_spa: "/dashboard/salon",
   pg: "/dashboard/pg",
+  pg_hostel: "/dashboard/pg",
   coworking: "/dashboard/coworking",
   service: "/dashboard/service",
   real_estate: "/dashboard/real-estate",
   tourism: "/dashboard/tourism",
   education: "/dashboard/education",
+  education_institute: "/dashboard/education",
   logistics: "/dashboard/logistics",
+  logistics_fleet: "/dashboard/logistics",
   legal: "/dashboard/legal",
+  furniture_manufacturing: "/dashboard/furniture",
+  software_services: "/dashboard/software-services",
+  consulting: "/dashboard/consulting",
+  digital_agency: "/dashboard/digital-agency",
+  retail_store: "/dashboard/retail",
 };
 
 const ROUTE_TO_BUSINESS_TYPE: Record<string, BusinessType> = {
