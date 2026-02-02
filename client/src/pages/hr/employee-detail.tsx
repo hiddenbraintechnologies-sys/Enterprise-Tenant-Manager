@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -14,13 +14,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +39,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { EmployeeActionsMenu } from "@/components/hr/employee-actions-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,12 +52,12 @@ import {
   Building2,
   MapPin,
   Pencil,
-  MoreVertical,
-  UserX,
-  Trash2,
   Briefcase,
   CreditCard,
-  FileText,
+  User,
+  AlertTriangle,
+  Clock,
+  DollarSign,
 } from "lucide-react";
 
 interface Employee {
@@ -157,6 +151,13 @@ function formatWorkLocation(location: string | null): string {
     case "hybrid": return "Hybrid";
     default: return location;
   }
+}
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString();
 }
 
 export default function EmployeeDetailPage() {
@@ -276,6 +277,10 @@ export default function EmployeeDetailPage() {
     updateMutation.mutate(data);
   };
 
+  const canEdit = true;
+  const canDeactivate = employee?.status !== "exited";
+  const canDelete = true;
+
   if (isLoading) {
     return (
       <DashboardLayout 
@@ -286,9 +291,20 @@ export default function EmployeeDetailPage() {
           { label: "Loading..." },
         ]}
       >
-        <div className="space-y-6">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-32 w-full" />
+        <div className="mx-auto max-w-6xl space-y-6">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-20 rounded-xl" />
+            ))}
+          </div>
+          <Skeleton className="h-64 rounded-xl" />
         </div>
       </DashboardLayout>
     );
@@ -304,18 +320,21 @@ export default function EmployeeDetailPage() {
           { label: "Not Found" },
         ]}
       >
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex flex-col items-center justify-center py-16 rounded-xl border bg-card">
+            <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold">Employee Not Found</h3>
             <p className="mt-2 text-muted-foreground">The requested employee does not exist or has been removed.</p>
             <Button className="mt-6" onClick={() => navigate("/hr/employees")}>
               Back to Directory
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </DashboardLayout>
     );
   }
+
+  const initials = `${employee.firstName[0] || ""}${employee.lastName[0] || ""}`.toUpperCase();
 
   return (
     <DashboardLayout 
@@ -326,209 +345,244 @@ export default function EmployeeDetailPage() {
         { label: `${employee.firstName} ${employee.lastName}` },
       ]}
     >
-      {/* Header with actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-2xl">
-            {employee.firstName[0]}{employee.lastName[0]}
+      <div className="mx-auto max-w-6xl space-y-6">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
+              {initials}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-semibold leading-tight" data-testid="text-employee-name">
+                  {employee.firstName} {employee.lastName}
+                </h1>
+                <Badge variant={getStatusVariant(employee.status)}>
+                  {formatStatus(employee.status)}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{employee.designation || "No designation"}</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-semibold" data-testid="text-employee-name">
-              {employee.firstName} {employee.lastName}
-            </h2>
-            <p className="text-muted-foreground">{employee.designation || "No designation"}</p>
-            <Badge variant={getStatusVariant(employee.status)} className="mt-1">
-              {formatStatus(employee.status)}
-            </Badge>
+
+          <div className="flex items-center gap-2">
+            <Button onClick={openEditDialog} disabled={!canEdit} data-testid="button-edit-employee">
+              <Pencil className="mr-2 h-4 w-4" /> Edit
+            </Button>
+            <EmployeeActionsMenu
+              canView={false}
+              canEdit={canEdit}
+              canDeactivate={canDeactivate}
+              canDelete={canDelete}
+              onView={() => {}}
+              onEdit={openEditDialog}
+              onDeactivate={() => setShowDeactivateDialog(true)}
+              onDelete={() => setShowDeleteDialog(true)}
+            />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={openEditDialog} data-testid="button-edit-employee">
-            <Pencil className="mr-2 h-4 w-4" /> Edit
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" data-testid="button-more-actions">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {employee.status !== "exited" && (
-                <DropdownMenuItem 
-                  onClick={() => setShowDeactivateDialog(true)}
-                  data-testid="menu-deactivate"
-                >
-                  <UserX className="mr-2 h-4 w-4" /> Deactivate
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => setShowDeleteDialog(true)}
-                className="text-destructive focus:text-destructive"
-                data-testid="menu-delete"
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+
+        {/* Summary Strip */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border p-4">
+            <div className="text-xs text-muted-foreground">Employee ID</div>
+            <div className="font-medium mt-1">{employee.employeeId || "—"}</div>
+          </div>
+          <div className="rounded-xl border p-4">
+            <div className="text-xs text-muted-foreground">Department</div>
+            <div className="font-medium mt-1">{employee.department?.name || "—"}</div>
+          </div>
+          <div className="rounded-xl border p-4">
+            <div className="text-xs text-muted-foreground">Joined</div>
+            <div className="font-medium mt-1">{formatDate(employee.joinDate)}</div>
+          </div>
+          <div className="rounded-xl border p-4">
+            <div className="text-xs text-muted-foreground">Employment Type</div>
+            <div className="font-medium mt-1">{formatEmploymentType(employee.employmentType)}</div>
+          </div>
         </div>
-      </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Basic Information */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center gap-3">
-              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">Employee ID:</span>
-              <span className="font-medium">{employee.employeeId}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">Email:</span>
-              <span className="font-medium">{employee.email}</span>
-            </div>
-            {employee.phone && (
-              <div className="flex items-center gap-3">
-                <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-muted-foreground">Phone:</span>
-                <span className="font-medium">{employee.phone}</span>
-              </div>
-            )}
-            {employee.dateOfBirth && (
-              <div className="flex items-center gap-3">
-                <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-muted-foreground">Date of Birth:</span>
-                <span className="font-medium">{new Date(employee.dateOfBirth).toLocaleDateString()}</span>
-              </div>
-            )}
-            {employee.gender && (
-              <div className="flex items-center gap-3">
-                <span className="w-4" />
-                <span className="text-muted-foreground">Gender:</span>
-                <span className="font-medium capitalize">{employee.gender}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Tabs */}
+        <Tabs defaultValue="profile" className="w-full">
+          <TabsList className="w-full justify-start">
+            <TabsTrigger value="profile" data-testid="tab-profile">
+              <User className="mr-2 h-4 w-4" /> Profile
+            </TabsTrigger>
+            <TabsTrigger value="attendance" data-testid="tab-attendance">
+              <Clock className="mr-2 h-4 w-4" /> Attendance
+            </TabsTrigger>
+            <TabsTrigger value="payroll" data-testid="tab-payroll">
+              <DollarSign className="mr-2 h-4 w-4" /> Payroll
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Employment Details */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Employment Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center gap-3">
-              <Briefcase className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">Type:</span>
-              <span className="font-medium">{formatEmploymentType(employee.employmentType)}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">Join Date:</span>
-              <span className="font-medium">{employee.joinDate && !isNaN(new Date(employee.joinDate).getTime()) ? new Date(employee.joinDate).toLocaleDateString() : "—"}</span>
-            </div>
-            {employee.department && (
-              <div className="flex items-center gap-3">
-                <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-muted-foreground">Department:</span>
-                <span className="font-medium">{employee.department.name}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">Work Location:</span>
-              <span className="font-medium">{formatWorkLocation(employee.workLocation)}</span>
-            </div>
-            {employee.probationEndDate && (
-              <div className="flex items-center gap-3">
-                <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-muted-foreground">Probation End:</span>
-                <span className="font-medium">{new Date(employee.probationEndDate).toLocaleDateString()}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Address */}
-        {(employee.address || employee.city || employee.state || employee.country) && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium">Address</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm">
-              <div className="flex items-start gap-3">
-                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                <div>
-                  {employee.address && <p>{employee.address}</p>}
-                  <p>
-                    {[employee.city, employee.state, employee.postalCode].filter(Boolean).join(", ")}
-                  </p>
-                  {employee.country && <p>{employee.country}</p>}
+          {/* Profile Tab */}
+          <TabsContent value="profile" className="mt-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Personal Details */}
+              <div className="rounded-xl border p-5">
+                <h3 className="font-medium mb-4">Personal Details</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground w-24">Full Name</span>
+                    <span className="font-medium">{employee.firstName} {employee.lastName}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground w-24">Email</span>
+                    <span className="font-medium">{employee.email}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground w-24">Phone</span>
+                    <span className="font-medium">{employee.phone || "—"}</span>
+                  </div>
+                  {employee.dateOfBirth && (
+                    <div className="flex items-center gap-3">
+                      <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground w-24">Date of Birth</span>
+                      <span className="font-medium">{formatDate(employee.dateOfBirth)}</span>
+                    </div>
+                  )}
+                  {employee.gender && (
+                    <div className="flex items-center gap-3">
+                      <span className="w-4" />
+                      <span className="text-muted-foreground w-24">Gender</span>
+                      <span className="font-medium capitalize">{employee.gender}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Bank Details */}
-        {(employee.bankName || employee.bankAccountNumber) && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium">Bank Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {employee.bankName && (
-                <div className="flex items-center gap-3">
-                  <CreditCard className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="text-muted-foreground">Bank:</span>
-                  <span className="font-medium">{employee.bankName}</span>
+              {/* Employment Details */}
+              <div className="rounded-xl border p-5">
+                <h3 className="font-medium mb-4">Employment Details</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Briefcase className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground w-24">Designation</span>
+                    <span className="font-medium">{employee.designation || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground w-24">Department</span>
+                    <span className="font-medium">{employee.department?.name || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground w-24">Join Date</span>
+                    <span className="font-medium">{formatDate(employee.joinDate)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground w-24">Work Location</span>
+                    <span className="font-medium">{formatWorkLocation(employee.workLocation)}</span>
+                  </div>
+                  {employee.probationEndDate && (
+                    <div className="flex items-center gap-3">
+                      <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground w-24">Probation End</span>
+                      <span className="font-medium">{formatDate(employee.probationEndDate)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Address */}
+              {(employee.address || employee.city || employee.country) && (
+                <div className="rounded-xl border p-5">
+                  <h3 className="font-medium mb-4">Address</h3>
+                  <div className="flex items-start gap-3 text-sm">
+                    <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    <div>
+                      {employee.address && <p>{employee.address}</p>}
+                      {(employee.city || employee.state || employee.postalCode) && (
+                        <p>{[employee.city, employee.state, employee.postalCode].filter(Boolean).join(", ")}</p>
+                      )}
+                      {employee.country && <p>{employee.country}</p>}
+                    </div>
+                  </div>
                 </div>
               )}
-              {employee.bankAccountNumber && (
-                <div className="flex items-center gap-3">
-                  <span className="w-4" />
-                  <span className="text-muted-foreground">Account:</span>
-                  <span className="font-medium">****{employee.bankAccountNumber.slice(-4)}</span>
-                </div>
-              )}
-              {employee.bankIfscCode && (
-                <div className="flex items-center gap-3">
-                  <span className="w-4" />
-                  <span className="text-muted-foreground">IFSC:</span>
-                  <span className="font-medium">{employee.bankIfscCode}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Emergency Contact */}
-        {(employee.emergencyContactName || employee.emergencyContactPhone) && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium">Emergency Contact</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {employee.emergencyContactName && (
-                <div className="flex items-center gap-3">
-                  <span className="text-muted-foreground">Name:</span>
-                  <span className="font-medium">{employee.emergencyContactName}</span>
+              {/* Bank Details */}
+              {(employee.bankName || employee.bankAccountNumber) && (
+                <div className="rounded-xl border p-5">
+                  <h3 className="font-medium mb-4">Bank Details</h3>
+                  <div className="space-y-3 text-sm">
+                    {employee.bankName && (
+                      <div className="flex items-center gap-3">
+                        <CreditCard className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-muted-foreground w-24">Bank</span>
+                        <span className="font-medium">{employee.bankName}</span>
+                      </div>
+                    )}
+                    {employee.bankAccountNumber && (
+                      <div className="flex items-center gap-3">
+                        <span className="w-4" />
+                        <span className="text-muted-foreground w-24">Account</span>
+                        <span className="font-medium">****{employee.bankAccountNumber.slice(-4)}</span>
+                      </div>
+                    )}
+                    {employee.bankIfscCode && (
+                      <div className="flex items-center gap-3">
+                        <span className="w-4" />
+                        <span className="text-muted-foreground w-24">IFSC</span>
+                        <span className="font-medium">{employee.bankIfscCode}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              {employee.emergencyContactPhone && (
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="text-muted-foreground">Phone:</span>
-                  <span className="font-medium">{employee.emergencyContactPhone}</span>
+
+              {/* Emergency Contact */}
+              {(employee.emergencyContactName || employee.emergencyContactPhone) && (
+                <div className="rounded-xl border p-5">
+                  <h3 className="font-medium mb-4">Emergency Contact</h3>
+                  <div className="space-y-3 text-sm">
+                    {employee.emergencyContactName && (
+                      <div className="flex items-center gap-3">
+                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-muted-foreground w-24">Name</span>
+                        <span className="font-medium">{employee.emergencyContactName}</span>
+                      </div>
+                    )}
+                    {employee.emergencyContactPhone && (
+                      <div className="flex items-center gap-3">
+                        <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-muted-foreground w-24">Phone</span>
+                        <span className="font-medium">{employee.emergencyContactPhone}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </TabsContent>
+
+          {/* Attendance Tab */}
+          <TabsContent value="attendance" className="mt-6">
+            <div className="flex flex-col items-center justify-center py-16 rounded-xl border">
+              <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold">Attendance Records</h3>
+              <p className="mt-2 text-muted-foreground text-center max-w-md">
+                Attendance tracking is available with the HRMS add-on. View clock-in/out history and attendance reports.
+              </p>
+            </div>
+          </TabsContent>
+
+          {/* Payroll Tab */}
+          <TabsContent value="payroll" className="mt-6">
+            <div className="flex flex-col items-center justify-center py-16 rounded-xl border">
+              <DollarSign className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold">Payroll Information</h3>
+              <p className="mt-2 text-muted-foreground text-center max-w-md">
+                Salary details and payslips are available with the Payroll add-on.
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Edit Dialog */}
@@ -629,7 +683,7 @@ export default function EmployeeDetailPage() {
                     <FormItem>
                       <FormLabel>Phone</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="+1234567890" data-testid="input-phone" />
+                        <Input {...field} placeholder="+60123456789" data-testid="input-phone" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -642,7 +696,7 @@ export default function EmployeeDetailPage() {
                     <FormItem>
                       <FormLabel>Joining Date</FormLabel>
                       <FormControl>
-                        <Input {...field} type="date" data-testid="input-joining-date" />
+                        <Input {...field} type="date" data-testid="input-join-date" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -662,35 +716,33 @@ export default function EmployeeDetailPage() {
                   </FormItem>
                 )}
               />
-              {departments && departments.length > 0 && (
-                <FormField
-                  control={editForm.control}
-                  name="departmentId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Department</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-department">
-                            <SelectValue placeholder="Select department" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {departments.map((dept: any) => (
-                            <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              <div className="flex justify-end gap-2 pt-4">
+              <FormField
+                control={editForm.control}
+                name="departmentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-department">
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {departments?.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={updateMutation.isPending} data-testid="button-submit-employee">
+                <Button type="submit" disabled={updateMutation.isPending} data-testid="button-save-employee">
                   {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
@@ -699,19 +751,19 @@ export default function EmployeeDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Deactivate Confirmation */}
+      {/* Deactivate Dialog */}
       <AlertDialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to deactivate {employee.firstName} {employee.lastName}? 
-              This will mark them as exited and they will no longer appear in active employee lists.
+              They will no longer be able to access the portal, but their records will be preserved for compliance purposes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogAction 
               onClick={() => deactivateMutation.mutate()}
               disabled={deactivateMutation.isPending}
               data-testid="button-confirm-deactivate"
@@ -722,19 +774,19 @@ export default function EmployeeDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Confirmation */}
+      {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+            <AlertDialogTitle>Delete Employee Permanently</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete {employee.firstName} {employee.lastName}? 
-              This action cannot be undone and will remove all associated records.
+              This action cannot be undone. This will permanently delete {employee.firstName} {employee.lastName}'s 
+              record and all associated data. Are you sure you want to proceed?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogAction 
               onClick={() => deleteMutation.mutate()}
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

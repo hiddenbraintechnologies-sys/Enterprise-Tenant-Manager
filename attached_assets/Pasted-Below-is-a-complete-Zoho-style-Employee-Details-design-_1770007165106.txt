@@ -1,0 +1,374 @@
+Below is a complete, Zoho-style Employee Details design + copy-paste shadcn DropdownMenu code + clear Deactivate vs Delete rules + permission alignment with your add-on enforcement.
+
+1) Employee Details page layout (Zoho-style)
+Route
+
+/hr/employees/:employeeId
+
+Page structure
+
+A. Header (sticky-ish)
+
+Breadcrumb: HR Management / Employees / {Employee Name}
+
+Left: avatar + name + designation + status pill
+
+Right: Primary actions
+
+Edit (button)
+
+More (⋮) dropdown: Deactivate / Delete / Reset portal access (optional)
+
+B. Summary strip (3–5 quick facts)
+Small “info chips”/stat blocks:
+
+Employee ID
+
+Department
+
+Join date
+
+Work location
+
+Employment type
+
+C. Tabs (keep it simple now, scalable later)
+Tabs:
+
+Profile (default)
+
+Attendance (if HRMS)
+
+Payroll (if Payroll add-on)
+
+Documents (optional later)
+
+Activity (audit log later)
+
+D. Profile tab content
+Two-column grid on desktop:
+
+Left column (primary):
+
+Personal details (name, DOB optional, gender optional, contact)
+
+Employment details (designation, dept, manager, status)
+
+Work details (shift, location, start date)
+
+Right column (secondary):
+
+Salary summary (only if payroll)
+
+Statutory IDs (EPF/SOCSO/PCB) (only if payroll + MY)
+
+Quick actions card (send invite, generate payslip, mark exit)
+
+E. Footer actions
+
+Save button only when editing (not on view mode)
+
+“Invalid Date” fix
+
+Anywhere you render dates:
+
+if null/invalid → show — or “Not set”
+Never show “Invalid Date”.
+
+2) Exact shadcn DropdownMenu code (Employee card + details header)
+A) Employee Card kebab menu (⋮)
+
+Assumes shadcn dropdown is installed.
+
+import { MoreVertical, Pencil, Eye, Trash2, UserX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+type EmployeeActionsProps = {
+  canView: boolean;
+  canEdit: boolean;
+  canDeactivate: boolean;
+  canDelete: boolean;
+  onView: () => void;
+  onEdit: () => void;
+  onDeactivate: () => void;
+  onDelete: () => void;
+};
+
+export function EmployeeActionsMenu(props: EmployeeActionsProps) {
+  const { canView, canEdit, canDeactivate, canDelete } = props;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Employee actions">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-48">
+        {canView && (
+          <DropdownMenuItem onClick={props.onView}>
+            <Eye className="mr-2 h-4 w-4" />
+            View details
+          </DropdownMenuItem>
+        )}
+
+        {canEdit && (
+          <DropdownMenuItem onClick={props.onEdit}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+        )}
+
+        {(canDeactivate || canDelete) && <DropdownMenuSeparator />}
+
+        {canDeactivate && (
+          <DropdownMenuItem onClick={props.onDeactivate}>
+            <UserX className="mr-2 h-4 w-4" />
+            Deactivate
+          </DropdownMenuItem>
+        )}
+
+        {canDelete && (
+          <DropdownMenuItem
+            onClick={props.onDelete}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+B) Use it in the card (top-right)
+
+Make sure clicks don’t trigger card navigation:
+
+<div
+  className="relative rounded-2xl border bg-background p-4 hover:shadow-sm cursor-pointer"
+  onClick={goToDetails}
+>
+  <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
+    <EmployeeActionsMenu
+      canView
+      canEdit={canEdit}
+      canDeactivate={canDeactivate}
+      canDelete={canDelete}
+      onView={goToDetails}
+      onEdit={() => openEditModal(employee)}
+      onDeactivate={() => openDeactivateDialog(employee)}
+      onDelete={() => openDeleteDialog(employee)}
+    />
+  </div>
+
+  {/* card body */}
+</div>
+
+3) Deactivate vs Delete rules (what you should implement)
+✅ Default should be Deactivate
+
+Because HR records must be retained for:
+
+payroll history
+
+leave/attendance history
+
+audits/compliance
+
+reports
+
+Deactivate means:
+
+employee status = inactive / terminated
+
+can’t log into portal
+
+cannot be included in new payroll runs (unless reactivated)
+
+still appears in filters “All / Active / Inactive”
+
+all historical records remain
+
+Delete should be rare and restricted
+
+Only allow hard delete if:
+
+employee has no dependent records
+
+no payslips
+
+no attendance
+
+no leave records
+
+no timesheets/projects
+
+and user has high privilege (Owner/Admin)
+
+Recommended rule:
+
+If dependencies exist → show message:
+
+“This employee has payroll/attendance history. You can deactivate instead.”
+
+Suggested actions naming (Zoho-like)
+
+Deactivate (soft)
+
+Delete permanently (only if allowed)
+
+4) Align permissions with add-on enforcement
+
+You already enforce add-ons on routes. Do the same at UI + API level.
+
+Feature access logic (high level)
+
+Employee directory can require HRMS OR Payroll (as you already wrote)
+
+Attendance requires HRMS
+
+Payroll tab requires Payroll add-on, plus HRMS dependency (as per your dependency rules)
+
+Permission roles (simple mapping)
+
+Define capabilities (do not hardcode UI checks everywhere):
+
+hr.employee.read
+
+hr.employee.write
+
+hr.employee.deactivate
+
+hr.employee.delete
+
+Then map roles:
+
+Owner / Admin: all
+
+HR Manager: read/write/deactivate, delete maybe ❌
+
+Payroll Admin: read/write (limited), delete ❌
+
+Viewer: read only
+
+Combined gate rule
+
+An action is allowed only if BOTH are true:
+
+Add-on entitlement allows the feature (hrms or payroll)
+
+RBAC allows the action (write/deactivate/delete)
+
+Example:
+
+If payroll expired:
+
+Employee list may still show (if HRMS active)
+
+Payroll tab hidden/locked
+
+If both expired:
+
+Block with ADDON_EXPIRED and show Renew CTA
+
+UI logic sample
+const canReadEmployees = hasAnyAddon(["hrms", "payroll"]) && hasPerm("hr.employee.read");
+const canEdit = hasAnyAddon(["hrms", "payroll"]) && hasPerm("hr.employee.write");
+const canDeactivate = hasAnyAddon(["hrms", "payroll"]) && hasPerm("hr.employee.deactivate");
+const canDelete = hasAnyAddon(["hrms", "payroll"]) && hasPerm("hr.employee.delete");
+
+API alignment (must)
+
+On backend endpoints:
+
+GET /api/hr/employees/:id → requires read + requireAnyAddon
+
+PUT /api/hr/employees/:id → requires write + requireAnyAddon
+
+POST /api/hr/employees/:id/deactivate → requires deactivate + requireAnyAddon
+
+DELETE /api/hr/employees/:id → requires delete + requireAnyAddon + dependency checks + “no-history” check
+
+Employee Details page skeleton (JSX layout you can hand to dev)
+<div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6">
+  {/* Header */}
+  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex items-center gap-4">
+      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center font-semibold">
+        SB
+      </div>
+      <div>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold leading-tight">Sricharan Bajanki</h1>
+          <span className="rounded-full border px-2 py-0.5 text-xs">Active</span>
+        </div>
+        <p className="text-sm text-muted-foreground">No designation</p>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-2">
+      <Button disabled={!canEdit}>Edit</Button>
+      <EmployeeActionsMenu
+        canView
+        canEdit={canEdit}
+        canDeactivate={canDeactivate}
+        canDelete={canDelete}
+        onView={() => {}}
+        onEdit={() => {}}
+        onDeactivate={() => {}}
+        onDelete={() => {}}
+      />
+    </div>
+  </div>
+
+  {/* Summary */}
+  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="rounded-2xl border p-4">
+      <div className="text-xs text-muted-foreground">Department</div>
+      <div className="font-medium">—</div>
+    </div>
+    <div className="rounded-2xl border p-4">
+      <div className="text-xs text-muted-foreground">Joined</div>
+      <div className="font-medium">—</div>
+    </div>
+    <div className="rounded-2xl border p-4">
+      <div className="text-xs text-muted-foreground">Phone</div>
+      <div className="font-medium">+60…</div>
+    </div>
+    <div className="rounded-2xl border p-4">
+      <div className="text-xs text-muted-foreground">Status</div>
+      <div className="font-medium">Active</div>
+    </div>
+  </div>
+
+  {/* Tabs area */}
+  <div className="mt-6 rounded-2xl border p-4 sm:p-6">
+    {/* Replace with shadcn Tabs if you have it */}
+    <div className="text-sm text-muted-foreground">Tabs: Profile / Attendance / Payroll</div>
+    <div className="mt-4">
+      {/* Profile form sections here */}
+    </div>
+  </div>
+</div>
+
+Final recommended decisions (so you don’t get stuck)
+
+✅ Implement Details page + kebab menu
+
+✅ Default action = Deactivate
+
+✅ Allow Delete only if no history + Owner/Admin only
+
+✅ Gate everything with Addon entitlement AND RBAC permission
+
+✅ Hide Payroll tab if payroll add-on inactive/expired
