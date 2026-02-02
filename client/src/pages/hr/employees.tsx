@@ -133,6 +133,7 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null);
   const [deactivateEmployee, setDeactivateEmployee] = useState<Employee | null>(null);
+  const [reactivateEmployee, setReactivateEmployee] = useState<Employee | null>(null);
 
   const createForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
@@ -222,7 +223,7 @@ export default function EmployeesPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("PUT", `/api/hr/employees/${id}`, { status: "exited" });
+      return apiRequest("POST", `/api/hr/employees/${id}/deactivate`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
@@ -232,6 +233,21 @@ export default function EmployeesPage() {
     },
     onError: (error: any) => {
       handleMutationError(error, "deactivate");
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("POST", `/api/hr/employees/${id}/reactivate`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/dashboard"] });
+      toast({ title: "Employee reactivated" });
+      setReactivateEmployee(null);
+    },
+    onError: (error: any) => {
+      handleMutationError(error, "reactivate");
     },
   });
 
@@ -561,10 +577,12 @@ export default function EmployeesPage() {
                           canView={canView}
                           canEdit={canEdit}
                           canDeactivate={canDeactivate}
+                          canReactivate={abilities.canEdit && emp.status === "exited"}
                           canDelete={canDelete}
                           onView={() => navigate(`/hr/employees/${emp.id}`)}
                           onEdit={() => openEditDialog(emp)}
                           onDeactivate={() => setDeactivateEmployee(emp)}
+                          onReactivate={() => setReactivateEmployee(emp)}
                           onDelete={() => setDeleteEmployee(emp)}
                         />
                       </div>
@@ -681,6 +699,29 @@ export default function EmployeesPage() {
               data-testid="button-confirm-deactivate"
             >
               {deactivateMutation.isPending ? "Deactivating..." : "Deactivate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reactivate Confirmation */}
+      <AlertDialog open={!!reactivateEmployee} onOpenChange={() => setReactivateEmployee(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reactivate {reactivateEmployee?.firstName} {reactivateEmployee?.lastName}? 
+              This will restore their active status.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => reactivateEmployee && reactivateMutation.mutate(reactivateEmployee.id)}
+              disabled={reactivateMutation.isPending}
+              data-testid="button-confirm-reactivate"
+            >
+              {reactivateMutation.isPending ? "Reactivating..." : "Reactivate"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

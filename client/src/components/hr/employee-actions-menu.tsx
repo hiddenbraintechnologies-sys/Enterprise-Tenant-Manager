@@ -1,4 +1,4 @@
-import { MoreVertical, Pencil, Eye, Trash2, UserX } from "lucide-react";
+import { MoreVertical, Pencil, Eye, Trash2, UserX, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,17 +12,19 @@ type EmployeeActionsProps = {
   canView: boolean;
   canEdit: boolean;
   canDeactivate: boolean;
+  canReactivate: boolean;
   canDelete: boolean;
   onView: () => void;
   onEdit: () => void;
   onDeactivate: () => void;
+  onReactivate: () => void;
   onDelete: () => void;
 };
 
 export function EmployeeActionsMenu(props: EmployeeActionsProps) {
-  const { canView, canEdit, canDeactivate, canDelete } = props;
+  const { canView, canEdit, canDeactivate, canReactivate, canDelete } = props;
 
-  const hasDestructiveActions = canDeactivate || canDelete;
+  const hasDestructiveActions = canDeactivate || canReactivate || canDelete;
 
   return (
     <DropdownMenu>
@@ -59,6 +61,13 @@ export function EmployeeActionsMenu(props: EmployeeActionsProps) {
           <DropdownMenuItem onClick={props.onDeactivate} data-testid="menu-item-deactivate">
             <UserX className="mr-2 h-4 w-4" />
             Deactivate
+          </DropdownMenuItem>
+        )}
+
+        {canReactivate && (
+          <DropdownMenuItem onClick={props.onReactivate} data-testid="menu-item-reactivate">
+            <UserCheck className="mr-2 h-4 w-4" />
+            Reactivate
           </DropdownMenuItem>
         )}
 

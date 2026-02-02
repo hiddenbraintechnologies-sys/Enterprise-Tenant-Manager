@@ -56,6 +56,14 @@ class EmployeeService {
     return hrmsStorage.deleteEmployee(tenantId, id);
   }
 
+  static async deactivateEmployee(tenantId: string, id: string, reason?: string) {
+    return hrmsStorage.deactivateEmployee(tenantId, id, reason);
+  }
+
+  static async reactivateEmployee(tenantId: string, id: string) {
+    return hrmsStorage.reactivateEmployee(tenantId, id);
+  }
+
   static async listDepartments(tenantId: string) {
     return hrmsStorage.getDepartments(tenantId);
   }

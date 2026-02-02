@@ -640,9 +640,35 @@ class HrmsStorage {
     };
   }
 
+  async deactivateEmployee(tenantId: string, id: string, reason?: string): Promise<HrEmployee | null> {
+    const [employee] = await db.update(hrEmployees)
+      .set({ 
+        status: "exited", 
+        deactivatedAt: new Date(),
+        deactivationReason: reason || null,
+        updatedAt: new Date() 
+      })
+      .where(and(eq(hrEmployees.tenantId, tenantId), eq(hrEmployees.id, id)))
+      .returning();
+    return employee || null;
+  }
+
+  async reactivateEmployee(tenantId: string, id: string): Promise<HrEmployee | null> {
+    const [employee] = await db.update(hrEmployees)
+      .set({ 
+        status: "active", 
+        reactivatedAt: new Date(),
+        deactivatedAt: null,
+        deactivationReason: null,
+        updatedAt: new Date() 
+      })
+      .where(and(eq(hrEmployees.tenantId, tenantId), eq(hrEmployees.id, id)))
+      .returning();
+    return employee || null;
+  }
+
   async deleteEmployee(tenantId: string, id: string): Promise<boolean> {
-    const result = await db.update(hrEmployees)
-      .set({ status: "exited", updatedAt: new Date() })
+    const result = await db.delete(hrEmployees)
       .where(and(eq(hrEmployees.tenantId, tenantId), eq(hrEmployees.id, id)))
       .returning();
     return result.length > 0;

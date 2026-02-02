@@ -1,0 +1,209 @@
+Great — here’s the exact API contract (endpoints, status codes, payloads) for Deactivate / Reactivate / Delete with the 409 “has history” rule, aligned with your Tenant + RBAC + add-on enforcement and your existing “404 for cross-tenant” approach.
+
+Endpoints
+1) Deactivate employee
+
+POST /api/hr/employees/:id/deactivate
+
+Purpose: soft-disable an employee (keep history)
+
+Guards
+
+requireAuth
+
+requireTenantContext
+
+requireAnyAddon(['hrms','payroll'])
+
+permission: staff:update
+
+Request body (optional)
+
+{ "reason": "Resigned", "effectiveDate": "2026-02-02" }
+
+
+Success 200
+
+{
+  "ok": true,
+  "employee": {
+    "id": "emp_123",
+    "status": "inactive",
+    "deactivatedAt": "2026-02-02T01:23:45.000Z",
+    "deactivationReason": "Resigned"
+  }
+}
+
+
+Errors
+
+401 UNAUTHORIZED (not logged in)
+
+403 FORBIDDEN (no staff:update)
+
+402 ADDON_EXPIRED / ADDON_REQUIRED (if you use this gating)
+
+404 RESOURCE_NOT_FOUND (employee not in this tenant or doesn’t exist)
+
+400 VALIDATION_ERROR (bad date format etc.)
+
+2) Reactivate employee
+
+POST /api/hr/employees/:id/reactivate
+
+Guards
+
+same as deactivate
+
+permission: staff:update
+
+Success 200
+
+{
+  "ok": true,
+  "employee": {
+    "id": "emp_123",
+    "status": "active",
+    "reactivatedAt": "2026-02-02T02:12:00.000Z"
+  }
+}
+
+
+Errors
+
+same set as deactivate
+
+3) Delete employee (hard delete)
+
+DELETE /api/hr/employees/:id
+
+Purpose: permanent delete, only when safe
+
+Guards
+
+requireAuth
+
+requireTenantContext
+
+requireAnyAddon(['hrms','payroll']) (optional—if employee module requires it even for cleanup)
+
+permission: staff:delete
+
+plus dependency check: deny if record has history (409)
+
+Success 200
+
+{ "ok": true, "deleted": true, "id": "emp_123" }
+
+
+Errors
+
+401 UNAUTHORIZED
+
+403 FORBIDDEN (no staff:delete)
+
+404 RESOURCE_NOT_FOUND (not in this tenant)
+
+✅ 409 CONFLICT (history exists)
+
+{
+  "error": "EMPLOYEE_HAS_HISTORY",
+  "message": "This employee has related records (payroll/attendance/leave). Deactivate instead."
+}
+
+“Has history” rule (what counts as history)
+
+Return 409 EMPLOYEE_HAS_HISTORY if any of these exist for the employee:
+
+Payroll: payslips/pay runs entries
+
+Attendance logs
+
+Leave requests
+
+Timesheets/projects (if tied)
+
+Any statutory filings you store
+
+If none exist → allow delete.
+
+Status model in DB (minimal + future-proof)
+
+Add fields to employees table (or your hrEmployees):
+
+status: 'active' | 'inactive'
+
+deactivatedAt: timestamp nullable
+
+deactivationReason: text nullable
+
+reactivatedAt: timestamp nullable
+
+No need for a separate “deleted” flag if you hard-delete.
+
+UI behavior mapping (Zoho style)
+On Employee Details
+
+If status = active:
+
+Show Deactivate in ⋮
+
+If status = inactive:
+
+Show Reactivate in ⋮
+
+Delete always:
+
+Only shown if canDelete
+
+Even then, backend may return 409 → show message with “Deactivate instead”.
+
+Audit logs (recommended)
+
+Write audit events:
+
+HR_EMPLOYEE_DEACTIVATED
+
+HR_EMPLOYEE_REACTIVATED
+
+HR_EMPLOYEE_DELETED
+
+Each includes:
+
+employeeId
+
+actorUserId
+
+tenantId
+
+reason (if provided)
+
+Copy/paste Replit master prompt to implement these endpoints
+Implement Employee Deactivate/Reactivate/Delete APIs with proper RBAC + add-on enforcement + safe-delete rule.
+
+Endpoints:
+1) POST /api/hr/employees/:id/deactivate
+   - requireAuth, requireTenantContext
+   - requireAnyAddon(['hrms','payroll'])
+   - permission: staff:update
+   - sets status='inactive', deactivatedAt=now, stores optional reason/effectiveDate
+   - returns { ok:true, employee }
+
+2) POST /api/hr/employees/:id/reactivate
+   - same guards as deactivate
+   - permission: staff:update
+   - sets status='active', reactivatedAt=now, clears deactivatedAt/reason if needed
+   - returns { ok:true, employee }
+
+3) DELETE /api/hr/employees/:id
+   - requireAuth, requireTenantContext
+   - permission: staff:delete
+   - enforce safe delete:
+     if employee has related history (attendance/leaves/payroll/timesheets) => return 409 EMPLOYEE_HAS_HISTORY
+     else hard delete and return { ok:true, deleted:true, id }
+
+Rules:
+- Cross-tenant access must return 404 RESOURCE_NOT_FOUND (not 403)
+- Add audit log entries for deactivate/reactivate/delete
+- Update tests for status transitions and 409 conflict behavior
+- Frontend: wire kebab menu to call these endpoints and refresh employee queries

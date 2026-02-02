@@ -167,6 +167,7 @@ export default function EmployeeDetailPage() {
   const params = useParams<{ employeeId: string }>();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [showReactivateDialog, setShowReactivateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const editForm = useForm<EmployeeFormValues>({
@@ -224,7 +225,7 @@ export default function EmployeeDetailPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("PUT", `/api/hr/employees/${params.employeeId}`, { status: "exited" });
+      return apiRequest("POST", `/api/hr/employees/${params.employeeId}/deactivate`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/hr/employees/${params.employeeId}`] });
@@ -234,6 +235,21 @@ export default function EmployeeDetailPage() {
     },
     onError: (error: any) => {
       handleMutationError(error, "deactivate");
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/hr/employees/${params.employeeId}/reactivate`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/hr/employees/${params.employeeId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hr/employees"] });
+      toast({ title: "Employee reactivated" });
+      setShowReactivateDialog(false);
+    },
+    onError: (error: any) => {
+      handleMutationError(error, "reactivate");
     },
   });
 
@@ -374,10 +390,12 @@ export default function EmployeeDetailPage() {
                 canView={false}
                 canEdit={canEdit}
                 canDeactivate={canDeactivate}
+                canReactivate={abilities.canEdit && employee?.status === "exited"}
                 canDelete={canDelete}
                 onView={() => {}}
                 onEdit={openEditDialog}
                 onDeactivate={() => setShowDeactivateDialog(true)}
+                onReactivate={() => setShowReactivateDialog(true)}
                 onDelete={() => setShowDeleteDialog(true)}
               />
             )}
@@ -771,6 +789,29 @@ export default function EmployeeDetailPage() {
               data-testid="button-confirm-deactivate"
             >
               {deactivateMutation.isPending ? "Deactivating..." : "Deactivate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reactivate Dialog */}
+      <AlertDialog open={showReactivateDialog} onOpenChange={setShowReactivateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reactivate {employee.firstName} {employee.lastName}? 
+              This will restore their active status.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => reactivateMutation.mutate()}
+              disabled={reactivateMutation.isPending}
+              data-testid="button-confirm-reactivate"
+            >
+              {reactivateMutation.isPending ? "Reactivating..." : "Reactivate"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
