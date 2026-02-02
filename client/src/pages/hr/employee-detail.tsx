@@ -429,7 +429,7 @@ export default function EmployeeDetailPage() {
             <div className="flex items-center gap-3">
               <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <span className="text-muted-foreground">Join Date:</span>
-              <span className="font-medium">{new Date(employee.joinDate).toLocaleDateString()}</span>
+              <span className="font-medium">{employee.joinDate && !isNaN(new Date(employee.joinDate).getTime()) ? new Date(employee.joinDate).toLocaleDateString() : "—"}</span>
             </div>
             {employee.department && (
               <div className="flex items-center gap-3">

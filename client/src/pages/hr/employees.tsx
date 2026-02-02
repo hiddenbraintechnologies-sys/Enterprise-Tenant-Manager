@@ -633,7 +633,7 @@ export default function EmployeesPage() {
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Calendar className="h-4 w-4 flex-shrink-0" />
-                      <span>Joined {new Date(emp.joinDate).toLocaleDateString()}</span>
+                      <span>Joined {emp.joinDate && !isNaN(new Date(emp.joinDate).getTime()) ? new Date(emp.joinDate).toLocaleDateString() : "—"}</span>
                     </div>
                   </div>
                 </CardContent>

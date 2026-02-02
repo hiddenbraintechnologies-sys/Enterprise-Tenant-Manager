@@ -1,4 +1,4 @@
-const CACHE_NAME = "app-shell-v10";
+const CACHE_NAME = "app-shell-v11";
 const OFFLINE_URL = "/offline.html";
 
 const PRECACHE_URLS = [
