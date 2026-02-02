@@ -392,6 +392,7 @@ export default function EmployeeDetailPage() {
                 canDeactivate={canDeactivate}
                 canReactivate={abilities.canEdit && employee?.status === "exited"}
                 canDelete={canDelete}
+                isAddonExpired={abilities.isAddonExpired}
                 onView={() => {}}
                 onEdit={openEditDialog}
                 onDeactivate={() => setShowDeactivateDialog(true)}

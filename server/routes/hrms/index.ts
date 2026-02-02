@@ -35,6 +35,13 @@ import {
 import EmployeeService from "../../services/hrms/employeeService";
 import { getAllTenantEntitlements } from "../../services/entitlement";
 import { permissionService, PERMISSIONS } from "../../core/permissions";
+import { db } from "../../db";
+import { hrPayRunItems, hrLeaves, hrAttendance, hrTimesheets } from "@shared/models/hrms";
+import { eq, and, count } from "drizzle-orm";
+import { 
+  assertMutationSucceededOr404, 
+  TenantResourceNotFoundError 
+} from "../../utils/assert-tenant-owned";
 import employeesRouter from "./employees";
 import attendanceRouter from "./attendance";
 import leavesRouter from "./leaves";
@@ -102,13 +109,15 @@ router.get("/employees/abilities", async (req, res) => {
     const canDeleteStaff = await permissionService.hasPermission(userId, tenantId, PERMISSIONS.STAFF_DELETE);
 
     // Combine add-on entitlements with permissions
+    // Note: Delete is allowed even when add-on expired (for admin cleanup)
     const abilities = {
       hasModuleAccess,
+      isAddonExpired: !hasModuleAccess,
       canView: hasModuleAccess && canReadStaff,
       canCreate: hasModuleAccess && canCreateStaff,
       canEdit: hasModuleAccess && canUpdateStaff,
-      canDeactivate: hasModuleAccess && canUpdateStaff, // Deactivate is a status update
-      canDelete: hasModuleAccess && canDeleteStaff,
+      canDeactivate: hasModuleAccess && canUpdateStaff, // Deactivate requires active add-on
+      canDelete: canDeleteStaff, // Delete allowed even when expired (admin cleanup)
     };
 
     return res.json(abilities);
@@ -155,11 +164,6 @@ router.use("/employees", requireEmployeeAccess(), employeesRouter);
 // Requires: admin role + tenant isolation (but NOT add-on entitlement)
 // ============================================================================
 router.delete("/employees/:id", requireMinimumRole("admin"), async (req, res) => {
-  const { db } = await import("../../db");
-  const { hrPayRunItems, hrLeaves, hrAttendance, hrTimesheets } = await import("@shared/models/hrms");
-  const { eq, and, count } = await import("drizzle-orm");
-  const { assertMutationSucceededOr404, TenantResourceNotFoundError } = await import("../../utils/assert-tenant-owned");
-
   try {
     const tenantId = req.context?.tenant?.id;
     if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
@@ -222,14 +226,30 @@ router.delete("/employees/:id", requireMinimumRole("admin"), async (req, res) =>
     const deleted = await EmployeeService.deleteEmployee(tenantId, employeeId);
     assertMutationSucceededOr404(deleted, { resourceName: "Employee", id: employeeId });
     
-    // Audit log
+    // Check if add-on is active (for audit clarity)
+    let addonActive = false;
+    try {
+      const entitlements = await getAllTenantEntitlements(tenantId);
+      addonActive = entitlements.addons["hrms"]?.entitled || 
+                    entitlements.addons["hrms-india"]?.entitled ||
+                    entitlements.addons["hrms-malaysia"]?.entitled ||
+                    entitlements.addons["payroll"]?.entitled ||
+                    entitlements.addons["payroll-india"]?.entitled ||
+                    entitlements.addons["payroll-malaysia"]?.entitled || false;
+    } catch { /* ignore */ }
+    
+    // Audit log with cleanup context
     auditService.logAsync({
       tenantId,
       userId: req.context?.user?.id,
       action: "delete",
       resource: "employee",
       resourceId: employeeId,
-      metadata: { event: "HR_EMPLOYEE_DELETED" },
+      metadata: { 
+        event: "HR_EMPLOYEE_DELETED",
+        cleanupAfterExpiry: !addonActive,
+        addonActive,
+      },
     });
     
     res.json({ ok: true, deleted: true, id: employeeId });

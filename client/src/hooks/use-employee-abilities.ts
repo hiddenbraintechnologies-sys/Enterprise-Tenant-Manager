@@ -17,6 +17,7 @@ export interface EmployeeAbilities {
   canDeactivate: boolean;
   canDelete: boolean;
   hasModuleAccess: boolean;
+  isAddonExpired: boolean;
 }
 
 const defaultAbilities: EmployeeAbilities = {
@@ -26,6 +27,7 @@ const defaultAbilities: EmployeeAbilities = {
   canDeactivate: false,
   canDelete: false,
   hasModuleAccess: false,
+  isAddonExpired: true,
 };
 
 export function useEmployeeAbilities() {

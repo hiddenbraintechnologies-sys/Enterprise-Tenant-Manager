@@ -1,4 +1,4 @@
-import { MoreVertical, Pencil, Eye, Trash2, UserX, UserCheck } from "lucide-react";
+import { MoreVertical, Pencil, Eye, Trash2, UserX, UserCheck, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -7,6 +7,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type EmployeeActionsProps = {
   canView: boolean;
@@ -14,6 +19,7 @@ type EmployeeActionsProps = {
   canDeactivate: boolean;
   canReactivate: boolean;
   canDelete: boolean;
+  isAddonExpired?: boolean;
   onView: () => void;
   onEdit: () => void;
   onDeactivate: () => void;
@@ -22,7 +28,7 @@ type EmployeeActionsProps = {
 };
 
 export function EmployeeActionsMenu(props: EmployeeActionsProps) {
-  const { canView, canEdit, canDeactivate, canReactivate, canDelete } = props;
+  const { canView, canEdit, canDeactivate, canReactivate, canDelete, isAddonExpired } = props;
 
   const hasDestructiveActions = canDeactivate || canReactivate || canDelete;
 
@@ -72,14 +78,24 @@ export function EmployeeActionsMenu(props: EmployeeActionsProps) {
         )}
 
         {canDelete && (
-          <DropdownMenuItem
-            onClick={props.onDelete}
-            className="text-destructive focus:text-destructive"
-            data-testid="menu-item-delete"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete permanently
-          </DropdownMenuItem>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuItem
+                onClick={props.onDelete}
+                className="text-destructive focus:text-destructive"
+                data-testid="menu-item-delete"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete permanently
+                {isAddonExpired && <Info className="ml-auto h-3 w-3 opacity-50" />}
+              </DropdownMenuItem>
+            </TooltipTrigger>
+            {isAddonExpired && (
+              <TooltipContent side="left">
+                <p className="text-xs">Cleanup allowed even when HRMS subscription is inactive</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
