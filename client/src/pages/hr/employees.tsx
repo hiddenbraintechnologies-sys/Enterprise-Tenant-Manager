@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { EmployeeActionsMenu } from "@/components/hr/employee-actions-menu";
-import { useEmployeePermissions } from "@/hooks/use-employee-permissions";
+import { useAuth } from "@/hooks/use-auth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -124,6 +124,7 @@ function formatStatus(status: string): string {
 export default function EmployeesPage() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -547,18 +548,28 @@ export default function EmployeesPage() {
                 onClick={(e) => handleCardClick(emp, e)}
               >
                 <CardContent className="p-6">
-                  <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
-                    <EmployeeActionsMenu
-                      canView={true}
-                      canEdit={true}
-                      canDeactivate={emp.status !== "exited"}
-                      canDelete={true}
-                      onView={() => navigate(`/hr/employees/${emp.id}`)}
-                      onEdit={() => openEditDialog(emp)}
-                      onDeactivate={() => setDeactivateEmployee(emp)}
-                      onDelete={() => setDeleteEmployee(emp)}
-                    />
-                  </div>
+                  {(() => {
+                    const canView = isAuthenticated;
+                    const canEdit = isAuthenticated;
+                    const canDeactivate = isAuthenticated && emp.status !== "exited";
+                    const canDelete = isAuthenticated;
+                    const hasAnyAction = canView || canEdit || canDeactivate || canDelete;
+                    if (!hasAnyAction) return null;
+                    return (
+                      <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                        <EmployeeActionsMenu
+                          canView={canView}
+                          canEdit={canEdit}
+                          canDeactivate={canDeactivate}
+                          canDelete={canDelete}
+                          onView={() => navigate(`/hr/employees/${emp.id}`)}
+                          onEdit={() => openEditDialog(emp)}
+                          onDeactivate={() => setDeactivateEmployee(emp)}
+                          onDelete={() => setDeleteEmployee(emp)}
+                        />
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-start gap-4 pr-8">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg flex-shrink-0">
                       {emp.firstName[0]}{emp.lastName[0]}

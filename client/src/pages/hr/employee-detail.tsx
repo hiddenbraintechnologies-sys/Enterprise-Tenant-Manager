@@ -369,16 +369,18 @@ export default function EmployeeDetailPage() {
             <Button onClick={openEditDialog} disabled={!canEdit} data-testid="button-edit-employee">
               <Pencil className="mr-2 h-4 w-4" /> Edit
             </Button>
-            <EmployeeActionsMenu
-              canView={false}
-              canEdit={canEdit}
-              canDeactivate={canDeactivate}
-              canDelete={canDelete}
-              onView={() => {}}
-              onEdit={openEditDialog}
-              onDeactivate={() => setShowDeactivateDialog(true)}
-              onDelete={() => setShowDeleteDialog(true)}
-            />
+            {(canEdit || canDeactivate || canDelete) && (
+              <EmployeeActionsMenu
+                canView={false}
+                canEdit={canEdit}
+                canDeactivate={canDeactivate}
+                canDelete={canDelete}
+                onView={() => {}}
+                onEdit={openEditDialog}
+                onDeactivate={() => setShowDeactivateDialog(true)}
+                onDelete={() => setShowDeleteDialog(true)}
+              />
+            )}
           </div>
         </div>
 
