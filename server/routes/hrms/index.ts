@@ -13,6 +13,7 @@
  * Endpoints:
  * - /api/hr/dashboard - HR Dashboard stats (requires employee access)
  * - /api/hr/employees/* - Employee CRUD (requires Payroll OR HRMS)
+ * - /api/hr/employees/:id (DELETE) - Admin cleanup even when add-on expired
  * - /api/hr/departments - Department management (requires Payroll OR HRMS)
  * - /api/hr/attendance/* - Attendance (requires HRMS add-on only)
  * - /api/hr/leaves/* - Leave management (requires HRMS add-on only)
@@ -148,6 +149,98 @@ router.post("/departments", requireEmployeeAccess(), requireMinimumRole("admin")
 // Employees: /api/hr/employees/*
 // Accessible with Payroll OR HRMS add-on
 router.use("/employees", requireEmployeeAccess(), employeesRouter);
+
+// ============================================================================
+// EMPLOYEE DELETE - Allowed even when add-on expired (for admin cleanup)
+// Requires: admin role + tenant isolation (but NOT add-on entitlement)
+// ============================================================================
+router.delete("/employees/:id", requireMinimumRole("admin"), async (req, res) => {
+  const { db } = await import("../../db");
+  const { hrPayRunItems, hrLeaves, hrAttendance, hrTimesheets } = await import("@shared/models/hrms");
+  const { eq, and, count } = await import("drizzle-orm");
+  const { assertMutationSucceededOr404, TenantResourceNotFoundError } = await import("../../utils/assert-tenant-owned");
+
+  try {
+    const tenantId = req.context?.tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: "Tenant ID required" });
+    
+    const employeeId = req.params.id;
+    
+    // Check for dependent records before allowing delete (tenant-scoped for security)
+    const [payrollCount] = await db
+      .select({ count: count() })
+      .from(hrPayRunItems)
+      .where(and(
+        eq(hrPayRunItems.tenantId, tenantId),
+        eq(hrPayRunItems.employeeId, employeeId)
+      ));
+    
+    const [leaveCount] = await db
+      .select({ count: count() })
+      .from(hrLeaves)
+      .where(and(
+        eq(hrLeaves.tenantId, tenantId),
+        eq(hrLeaves.employeeId, employeeId)
+      ));
+    
+    const [attendanceCount] = await db
+      .select({ count: count() })
+      .from(hrAttendance)
+      .where(and(
+        eq(hrAttendance.tenantId, tenantId),
+        eq(hrAttendance.employeeId, employeeId)
+      ));
+    
+    const [timesheetCount] = await db
+      .select({ count: count() })
+      .from(hrTimesheets)
+      .where(and(
+        eq(hrTimesheets.tenantId, tenantId),
+        eq(hrTimesheets.employeeId, employeeId)
+      ));
+    
+    const hasPayroll = (payrollCount?.count || 0) > 0;
+    const hasLeaves = (leaveCount?.count || 0) > 0;
+    const hasAttendance = (attendanceCount?.count || 0) > 0;
+    const hasTimesheets = (timesheetCount?.count || 0) > 0;
+    
+    if (hasPayroll || hasLeaves || hasAttendance || hasTimesheets) {
+      const dependencies = [];
+      if (hasPayroll) dependencies.push("payroll slips");
+      if (hasLeaves) dependencies.push("leave requests");
+      if (hasAttendance) dependencies.push("attendance logs");
+      if (hasTimesheets) dependencies.push("timesheets");
+      
+      return res.status(409).json({
+        error: "Employee has history. Deactivate instead.",
+        code: "EMPLOYEE_HAS_DEPENDENCIES",
+        message: `This employee has ${dependencies.join(", ")}. For compliance, you should deactivate instead of deleting.`,
+        dependencies,
+      });
+    }
+    
+    const deleted = await EmployeeService.deleteEmployee(tenantId, employeeId);
+    assertMutationSucceededOr404(deleted, { resourceName: "Employee", id: employeeId });
+    
+    // Audit log
+    auditService.logAsync({
+      tenantId,
+      userId: req.context?.user?.id,
+      action: "delete",
+      resource: "employee",
+      resourceId: employeeId,
+      metadata: { event: "HR_EMPLOYEE_DELETED" },
+    });
+    
+    res.json({ ok: true, deleted: true, id: employeeId });
+  } catch (error) {
+    if (error instanceof TenantResourceNotFoundError) {
+      return res.status(404).json({ error: error.message, code: "RESOURCE_NOT_FOUND" });
+    }
+    console.error("[employees] DELETE /:id error:", error);
+    res.status(500).json({ error: "Failed to delete employee" });
+  }
+});
 
 // ============================================================================
 // HRMS SUITE ROUTES (HRMS add-on ONLY - Payroll does NOT grant access)
