@@ -5794,11 +5794,11 @@ export async function registerRoutes(
     }
   });
 
-  // Soft delete tenant - Super Admin only
+  // Delete tenant - Super Admin only (supports soft delete and hard delete)
   app.delete("/api/super-admin/tenants/:tenantId", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
     try {
       const { tenantId } = req.params;
-      const { reason } = req.body;
+      const { reason, hardDelete } = req.body;
 
       if (!reason || reason.trim().length < 3) {
         return res.status(400).json({ message: "A reason is required (at least 3 characters)" });
@@ -5809,23 +5809,10 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Tenant not found" });
       }
 
-      if (tenant.status === "deleted") {
-        return res.status(400).json({ message: "Tenant is already deleted" });
-      }
-
-      await db.update(tenants).set({
-        status: "deleted",
-        isActive: false,
-        deletedAt: new Date(),
-        statusChangedAt: new Date(),
-        statusChangedBy: req.platformAdminContext?.platformAdmin.id,
-        statusChangeReason: reason,
-        updatedAt: new Date(),
-      }).where(eq(tenants.id, tenantId));
-
+      // Get user records before deletion for cleanup
       const tenantUserRecords = await db.select().from(userTenants).where(eq(userTenants.tenantId, tenantId));
       
-      // Clean up refresh tokens and user associations
+      // Clean up refresh tokens and user associations first
       for (const tu of tenantUserRecords) {
         // Delete refresh tokens for this user-tenant combination
         await db.delete(refreshTokens).where(and(
@@ -5841,47 +5828,89 @@ export async function registerRoutes(
             sql`${userTenants.tenantId} != ${tenantId}`
           ));
         
+        // Delete user_tenants record
+        await db.delete(userTenants).where(and(
+          eq(userTenants.userId, tu.userId),
+          eq(userTenants.tenantId, tenantId)
+        ));
+        
         // If user only belonged to this tenant, delete their user record
         if (otherTenants.length === 0) {
-          // Delete user_tenants record first
-          await db.delete(userTenants).where(and(
-            eq(userTenants.userId, tu.userId),
-            eq(userTenants.tenantId, tenantId)
-          ));
-          // Delete the user record
           await db.delete(users).where(eq(users.id, tu.userId));
-        } else {
-          // User has other tenants, just remove from this one
-          await db.delete(userTenants).where(and(
-            eq(userTenants.userId, tu.userId),
-            eq(userTenants.tenantId, tenantId)
-          ));
         }
       }
 
-      auditService.logAsync({
-        tenantId,
-        userId: req.platformAdminContext?.platformAdmin.id,
-        action: "delete",
-        resource: "TENANT_DELETED",
-        resourceId: tenantId,
-        oldValue: { status: tenant.status },
-        newValue: { status: "deleted" },
-        metadata: { 
-          accessType: "super_admin",
-          tenantName: tenant.name,
-          reason: reason,
-          adminId: req.platformAdminContext?.platformAdmin.id,
-          superAdminId: req.platformAdminContext?.platformAdmin.id,
-        },
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-      });
+      if (hardDelete) {
+        // HARD DELETE: Completely remove tenant and all data (cascades via FK constraints)
+        // The schema has onDelete: "cascade" on most tenant-related tables
+        await db.delete(tenants).where(eq(tenants.id, tenantId));
 
-      res.json({ 
-        success: true, 
-        message: "Tenant deleted successfully. Data retained for audit purposes.",
-      });
+        auditService.logAsync({
+          tenantId: null, // Tenant is gone
+          userId: req.platformAdminContext?.platformAdmin.id,
+          action: "delete",
+          resource: "TENANT_HARD_DELETED",
+          resourceId: tenantId,
+          oldValue: { id: tenant.id, name: tenant.name, email: tenant.email },
+          newValue: null,
+          metadata: { 
+            accessType: "super_admin",
+            tenantName: tenant.name,
+            tenantEmail: tenant.email,
+            reason: reason,
+            hardDelete: true,
+            adminId: req.platformAdminContext?.platformAdmin.id,
+            superAdminId: req.platformAdminContext?.platformAdmin.id,
+          },
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+
+        res.json({ 
+          success: true, 
+          message: "Tenant and all associated data permanently deleted.",
+        });
+      } else {
+        // SOFT DELETE: Mark as deleted but retain data
+        if (tenant.status === "deleted") {
+          return res.status(400).json({ message: "Tenant is already deleted" });
+        }
+
+        await db.update(tenants).set({
+          status: "deleted",
+          isActive: false,
+          deletedAt: new Date(),
+          statusChangedAt: new Date(),
+          statusChangedBy: req.platformAdminContext?.platformAdmin.id,
+          statusChangeReason: reason,
+          updatedAt: new Date(),
+        }).where(eq(tenants.id, tenantId));
+
+        auditService.logAsync({
+          tenantId,
+          userId: req.platformAdminContext?.platformAdmin.id,
+          action: "delete",
+          resource: "TENANT_DELETED",
+          resourceId: tenantId,
+          oldValue: { status: tenant.status },
+          newValue: { status: "deleted" },
+          metadata: { 
+            accessType: "super_admin",
+            tenantName: tenant.name,
+            reason: reason,
+            hardDelete: false,
+            adminId: req.platformAdminContext?.platformAdmin.id,
+            superAdminId: req.platformAdminContext?.platformAdmin.id,
+          },
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+
+        res.json({ 
+          success: true, 
+          message: "Tenant deleted successfully. Data retained for audit purposes.",
+        });
+      }
     } catch (error) {
       console.error("Super admin tenant delete error:", error);
       res.status(500).json({ message: "Failed to delete tenant" });

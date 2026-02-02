@@ -100,20 +100,63 @@ async function processTenantWipe(job: typeof deleteJobs.$inferSelect): Promise<D
     }
   }
 
+  // Delete users who only belonged to this tenant
   await db.update(deleteJobs)
     .set({ 
-      currentStep: "Soft-deleting tenant...",
+      currentStep: "Cleaning up users...",
+      progress: 90
+    })
+    .where(eq(deleteJobs.id, job.id));
+
+  try {
+    // Get all users who belonged to this tenant (from the records we already deleted from user_tenants)
+    // We need to find users who no longer have any tenant associations
+    const orphanedUsers = await db.execute(sql`
+      SELECT u.id FROM users u
+      WHERE NOT EXISTS (
+        SELECT 1 FROM user_tenants ut WHERE ut.user_id = u.id
+      )
+    `);
+    
+    if (orphanedUsers.rows && orphanedUsers.rows.length > 0) {
+      for (const row of orphanedUsers.rows) {
+        await db.delete(users).where(eq(users.id, row.id as string));
+      }
+      summary.deletedTables["users"] = orphanedUsers.rows.length;
+      summary.totalDeleted += orphanedUsers.rows.length;
+    }
+  } catch (error) {
+    const errorMsg = `Failed to clean up users: ${error instanceof Error ? error.message : String(error)}`;
+    summary.errors.push(errorMsg);
+    console.error(`[delete-job-worker] ${errorMsg}`);
+  }
+
+  // Hard delete the tenant record (cascades remaining data via FK constraints)
+  await db.update(deleteJobs)
+    .set({ 
+      currentStep: "Deleting tenant record...",
       progress: 95
     })
     .where(eq(deleteJobs.id, job.id));
 
-  await db.update(tenants)
-    .set({ 
-      deletedAt: new Date(),
-      status: "deleted",
-      isActive: false
-    })
-    .where(eq(tenants.id, tenantId));
+  try {
+    await db.delete(tenants).where(eq(tenants.id, tenantId));
+    summary.deletedTables["tenant"] = 1;
+    summary.totalDeleted += 1;
+  } catch (error) {
+    // If hard delete fails (e.g., FK constraint issues), fall back to soft delete
+    const errorMsg = `Hard delete failed, falling back to soft delete: ${error instanceof Error ? error.message : String(error)}`;
+    summary.errors.push(errorMsg);
+    console.error(`[delete-job-worker] ${errorMsg}`);
+    
+    await db.update(tenants)
+      .set({ 
+        deletedAt: new Date(),
+        status: "deleted",
+        isActive: false
+      })
+      .where(eq(tenants.id, tenantId));
+  }
 
   return summary;
 }
