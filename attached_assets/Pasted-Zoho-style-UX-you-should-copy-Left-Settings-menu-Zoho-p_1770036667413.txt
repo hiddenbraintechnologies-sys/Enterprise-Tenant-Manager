@@ -1,0 +1,589 @@
+Zoho-style UX you should copy
+Left Settings menu (Zoho pattern)
+
+Settings page should be a 2-column layout:
+
+Left: Settings sections list
+Right: Selected section content
+
+Add a new section:
+
+✅ Users & Roles
+
+Inside it, two tabs (Zoho-like):
+
+Users (staff list + invites)
+
+Roles (role list + permissions editor)
+
+1) Users (staff) page — Zoho-like layout
+Header bar (top row)
+
+Title: Users
+
+Subtitle: “Manage users who can access your account”
+
+Right actions:
+
+Invite User (primary)
+
+Add User (secondary) — creates staff without login (optional feature)
+
+Filters row (Zoho-style compact)
+
+Search (name/email)
+
+Role dropdown
+
+Status chips: Active / Inactive / Invited
+
+Bulk actions appear when selected
+
+Table (must be table, not cards)
+
+Columns:
+
+Checkbox (select)
+
+User (avatar + name + email)
+
+Alias (public-facing)
+
+Role
+
+Status (Active / Inactive / Invited)
+
+Last active (optional)
+
+Actions (⋯)
+
+Actions menu (row):
+
+Edit profile
+
+Change role
+
+Deactivate / Activate
+
+Resend invite (if invited)
+
+Remove user (admin-only)
+
+✅ Zoho principle: Row actions are hidden under kebab menu.
+
+2) Roles page — Zoho-like layout
+Split view (important)
+
+Zoho typically uses list on left + editor on right.
+
+Left panel
+
+Role list: Admin, Staff, Viewer, Custom Roles
+
+New Role button
+
+Right panel
+
+Role name + description
+
+Permission groups (accordion)
+
+Save button fixed to top-right
+
+Permission groups (accordion)
+
+Core
+
+Patients / Clients
+
+Appointments / Bookings
+
+HR / Payroll
+
+Billing
+
+Settings
+
+Marketplace
+
+Each permission is a checkbox.
+
+Default roles:
+
+Admin: all
+
+Staff: operational permissions
+
+Viewer: read-only
+
+✅ Zoho principle: “Clone role” button.
+
+3) Alias name (Zoho-like behavior)
+
+Field name in UI: Display name (shown to customers/patients)
+Tooltip: “This name appears on bookings, invoices, and messages.”
+
+Rules:
+
+If empty → fallback to full name
+
+Visible in appointment confirmations, receipts, and patient-facing uploads
+
+4) Minimal permission mapping (fits your current RBAC)
+
+You already have:
+
+staff:read/create/update/delete
+
+Add these:
+
+roles:read
+
+roles:manage
+
+settings:manage
+
+And keep module permissions separate:
+
+patients:* (or map to clients:*)
+
+bookings:*
+
+invoices:*
+
+payments:*
+
+Access logic order
+✅ requireAuth → requireTenantContext → requireAddonIfNeeded → requirePermission
+
+5) Exact shadcn JSX to paste (Zoho-like)
+A) Users page table + bulk actions
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { MoreHorizontal, Plus, UserPlus } from "lucide-react";
+
+type StaffRow = {
+  id: string;
+  fullName: string;
+  email: string;
+  aliasName?: string | null;
+  roleName: string;
+  status: "active" | "inactive" | "invited";
+  lastActiveAt?: string | null;
+};
+
+export function UsersZohoStyle({
+  rows,
+  onInvite,
+  onAddUser,
+  onEdit,
+  onChangeRole,
+  onDeactivate,
+  onActivate,
+  onResendInvite,
+  onRemove,
+}: {
+  rows: StaffRow[];
+  onInvite: () => void;
+  onAddUser: () => void;
+  onEdit: (id: string) => void;
+  onChangeRole: (id: string) => void;
+  onDeactivate: (id: string) => void;
+  onActivate: (id: string) => void;
+  onResendInvite: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState<"all" | "active" | "inactive" | "invited">("all");
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return rows.filter(r => {
+      const matchesQ =
+        !s ||
+        r.fullName.toLowerCase().includes(s) ||
+        r.email.toLowerCase().includes(s) ||
+        (r.aliasName ?? "").toLowerCase().includes(s);
+
+      const matchesStatus = status === "all" ? true : r.status === status;
+      return matchesQ && matchesStatus;
+    });
+  }, [rows, q, status]);
+
+  const selectedIds = Object.entries(selected).filter(([,v]) => v).map(([k]) => k);
+  const allVisibleSelected = filtered.length > 0 && filtered.every(r => selected[r.id]);
+  const someVisibleSelected = filtered.some(r => selected[r.id]);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Users</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage users who can access your account
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onAddUser}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add User
+          </Button>
+          <Button onClick={onInvite}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Invite User
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-full sm:w-[320px]">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name, email, or alias…"
+          />
+        </div>
+
+        <ToggleGroup
+          type="single"
+          value={status}
+          onValueChange={(v) => v && setStatus(v as any)}
+          className="justify-start"
+        >
+          <ToggleGroupItem value="all">All</ToggleGroupItem>
+          <ToggleGroupItem value="active">Active</ToggleGroupItem>
+          <ToggleGroupItem value="inactive">Inactive</ToggleGroupItem>
+          <ToggleGroupItem value="invited">Invited</ToggleGroupItem>
+        </ToggleGroup>
+
+        {/* Bulk actions */}
+        {selectedIds.length > 0 && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {selectedIds.length} selected
+            </span>
+            <Button variant="outline" onClick={() => selectedIds.forEach(onDeactivate)}>
+              Deactivate
+            </Button>
+            <Button variant="destructive" onClick={() => selectedIds.forEach(onRemove)}>
+              Remove
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="rounded-2xl border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[44px]">
+                <Checkbox
+                  checked={allVisibleSelected}
+                  // indeterminate behaviour: show checked if all, otherwise unchecked
+                  onCheckedChange={(v) => {
+                    const next = { ...selected };
+                    filtered.forEach(r => (next[r.id] = Boolean(v)));
+                    setSelected(next);
+                  }}
+                />
+              </TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Display name</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+
+          <TableBody>
+            {filtered.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={Boolean(selected[r.id])}
+                    onCheckedChange={(v) =>
+                      setSelected((prev) => ({ ...prev, [r.id]: Boolean(v) }))
+                    }
+                  />
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{r.fullName}</span>
+                    <span className="text-sm text-muted-foreground">{r.email}</span>
+                  </div>
+                </TableCell>
+
+                <TableCell>
+                  <span className="text-sm">
+                    {r.aliasName?.trim() ? r.aliasName : "—"}
+                  </span>
+                </TableCell>
+
+                <TableCell>
+                  <span className="text-sm">{r.roleName}</span>
+                </TableCell>
+
+                <TableCell>
+                  <StatusBadge status={r.status} />
+                </TableCell>
+
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(r.id)}>
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onChangeRole(r.id)}>
+                        Change role
+                      </DropdownMenuItem>
+
+                      {r.status === "active" && (
+                        <DropdownMenuItem onClick={() => onDeactivate(r.id)}>
+                          Deactivate
+                        </DropdownMenuItem>
+                      )}
+                      {r.status === "inactive" && (
+                        <DropdownMenuItem onClick={() => onActivate(r.id)}>
+                          Activate
+                        </DropdownMenuItem>
+                      )}
+                      {r.status === "invited" && (
+                        <DropdownMenuItem onClick={() => onResendInvite(r.id)}>
+                          Resend invite
+                        </DropdownMenuItem>
+                      )}
+
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => onRemove(r.id)}
+                      >
+                        Remove
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  No users found.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: "active" | "inactive" | "invited" }) {
+  if (status === "active") return <Badge>Active</Badge>;
+  if (status === "inactive") return <Badge variant="secondary">Inactive</Badge>;
+  return <Badge variant="outline">Invited</Badge>;
+}
+
+
+✅ This produces the exact Zoho feel: table-first, compact controls, bulk actions, kebab menu.
+
+B) Roles page split-view (Zoho clone)
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+
+type Role = { id: string; name: string; description?: string | null };
+type PermissionGroup = { title: string; items: { key: string; label: string }[] };
+
+export function RolesZohoStyle({
+  roles,
+  selectedRoleId,
+  onSelectRole,
+  onCreateRole,
+  onCloneRole,
+  onDeleteRole,
+  roleName,
+  roleDescription,
+  permissions,
+  selectedPermissions,
+  onTogglePermission,
+  onSave,
+}: {
+  roles: Role[];
+  selectedRoleId: string;
+  onSelectRole: (id: string) => void;
+  onCreateRole: () => void;
+  onCloneRole: () => void;
+  onDeleteRole: () => void;
+
+  roleName: string;
+  roleDescription?: string | null;
+
+  permissions: PermissionGroup[];
+  selectedPermissions: Record<string, boolean>;
+  onTogglePermission: (key: string, next: boolean) => void;
+  onSave: () => void;
+}) {
+  const [q, setQ] = useState("");
+
+  const filteredRoles = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return roles;
+    return roles.filter(r => r.name.toLowerCase().includes(s));
+  }, [roles, q]);
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      {/* Left: role list */}
+      <div className="rounded-2xl border p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-semibold">Roles</div>
+          <Button size="sm" onClick={onCreateRole}>New role</Button>
+        </div>
+
+        <div className="mt-3">
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search roles…" />
+        </div>
+
+        <div className="mt-3 space-y-1">
+          {filteredRoles.map(r => (
+            <button
+              key={r.id}
+              onClick={() => onSelectRole(r.id)}
+              className={[
+                "w-full rounded-xl px-3 py-2 text-left",
+                r.id === selectedRoleId ? "bg-muted" : "hover:bg-muted/60"
+              ].join(" ")}
+            >
+              <div className="font-medium">{r.name}</div>
+              {r.description ? (
+                <div className="text-xs text-muted-foreground line-clamp-1">{r.description}</div>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: role editor */}
+      <div className="rounded-2xl border">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+          <div>
+            <div className="text-lg font-semibold">{roleName || "Role"}</div>
+            <div className="text-sm text-muted-foreground">
+              Configure what this role can access
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCloneRole}>Clone</Button>
+            <Button variant="destructive" onClick={onDeleteRole}>Delete</Button>
+            <Button onClick={onSave}>Save</Button>
+          </div>
+        </div>
+
+        <div className="p-4">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {permissions.map(group => (
+              <div key={group.title} className="rounded-2xl border p-4">
+                <div className="font-semibold">{group.title}</div>
+                <Separator className="my-3" />
+                <div className="space-y-3">
+                  {group.items.map(p => (
+                    <label key={p.key} className="flex items-start gap-3">
+                      <Checkbox
+                        checked={Boolean(selectedPermissions[p.key])}
+                        onCheckedChange={(v) => onTogglePermission(p.key, Boolean(v))}
+                      />
+                      <span className="text-sm">{p.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+✅ This matches Zoho: role list left, permissions editor right.
+
+6) Replit prompt to implement “like Zoho” (copy/paste)
+Make Tenant Users & Roles exactly like Zoho.
+
+Requirements:
+1) Add Settings section: "Users & Roles" with Zoho-style layout:
+   - Left Settings menu (sections)
+   - Right content area
+   - Tabs inside: Users | Roles
+
+2) Users tab:
+   - Table view (not cards)
+   - Columns: checkbox, user(name+email), display name(alias), role, status, actions
+   - Status: Active / Inactive / Invited
+   - Search + role filter + status chips
+   - Bulk actions: Deactivate, Remove (visible only when rows selected)
+   - Row kebab menu actions: Edit, Change role, Deactivate/Activate, Resend invite, Remove
+
+3) Roles tab:
+   - Split layout: role list on left + role editor on right
+   - Role editor: role name + description + permission groups (accordion/cards) with checkboxes
+   - Buttons: Save, Clone, Delete
+   - Seed default roles: Admin, Staff, Viewer
+
+4) Alias/Display name:
+   - Add field "Display name (shown to customers/patients)"
+   - Use aliasName first in any customer/patient-facing UI, fallback to fullName.
+
+5) RBAC:
+   - Enforce requirePermission on all APIs and UI actions.
+   - Keep add-on enforcement separate and applied before RBAC for gated modules.
+
+Deliverables:
+- Screenshots: Users table + Roles editor
+- APIs implemented and tenant-isolated
+- No blank screens; add fallback UI for empty/loading states
+
+7) One key detail (Zoho-like “invite” behavior)
+
+Zoho distinguishes:
+
+User created
+
+Invite pending
+
+Active
+
+So add status invited and show:
+
+“Resend invite”
+
+“Cancel invite”
