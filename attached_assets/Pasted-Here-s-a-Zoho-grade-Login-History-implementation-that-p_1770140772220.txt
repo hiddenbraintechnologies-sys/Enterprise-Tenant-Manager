@@ -1,0 +1,287 @@
+Here’s a Zoho-grade “Login History” implementation that plugs cleanly into what you already built (SSO-only, tenant staff, RBAC, impersonation, audit logs).
+
+I’ll give you:
+
+Exact DB schema (Drizzle-ready)
+
+When & how to record login events (SSO-friendly)
+
+Impersonation-safe handling
+
+UI design (Zoho-style)
+
+Retention & performance rules
+
+Replit master prompt (copy/paste)
+
+1️⃣ DB schema: Login History
+Table: tenant_staff_login_history
+
+Purpose: immutable login/session records (Zoho keeps these immutable).
+
+CREATE TABLE tenant_staff_login_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  staff_id uuid NOT NULL REFERENCES tenant_staff(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+  login_at timestamptz NOT NULL DEFAULT now(),
+  logout_at timestamptz,
+
+  ip_address text,
+  user_agent text,
+  auth_provider text NOT NULL DEFAULT 'sso', -- future-proof
+  is_impersonated boolean NOT NULL DEFAULT false,
+  impersonated_by_staff_id uuid REFERENCES tenant_staff(id),
+
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_login_history_tenant_staff
+  ON tenant_staff_login_history (tenant_id, staff_id, login_at DESC);
+
+Drizzle schema (TypeScript)
+import { pgTable, uuid, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import { tenants } from "./tenants";
+import { users } from "./users";
+import { tenantStaff } from "./tenant-rbac";
+
+export const tenantStaffLoginHistory = pgTable(
+  "tenant_staff_login_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => tenantStaff.id, { onDelete: "cascade" }),
+
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    loginAt: timestamp("login_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+
+    logoutAt: timestamp("logout_at", { withTimezone: true }),
+
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    authProvider: text("auth_provider").notNull().default("sso"),
+
+    isImpersonated: boolean("is_impersonated").notNull().default(false),
+    impersonatedByStaffId: uuid("impersonated_by_staff_id")
+      .references(() => tenantStaff.id),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    tenantStaffIdx: index("login_history_tenant_staff_idx").on(
+      t.tenantId,
+      t.staffId,
+      t.loginAt
+    ),
+  })
+);
+
+2️⃣ When to record login events (SSO-only)
+✅ Correct trigger (SSO)
+
+Record ONE login event per SSO session, not per request.
+
+Where to hook
+
+In your SSO callback / auth success handler, after:
+
+user is authenticated
+
+tenant is resolved
+
+tenant_staff is linked and active
+
+Example (Express)
+async function recordLogin({
+  tenantId,
+  staffId,
+  userId,
+  req,
+  isImpersonated = false,
+  impersonatedByStaffId,
+}: {
+  tenantId: string;
+  staffId: string;
+  userId: string;
+  req: Request;
+  isImpersonated?: boolean;
+  impersonatedByStaffId?: string;
+}) {
+  await db.insert(tenantStaffLoginHistory).values({
+    tenantId,
+    staffId,
+    userId,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+    authProvider: "sso",
+    isImpersonated,
+    impersonatedByStaffId,
+  });
+}
+
+Also update lastActiveAt
+
+Do this on:
+
+successful login
+
+optionally every N minutes via middleware (cheap heartbeat)
+
+await db
+  .update(tenantStaff)
+  .set({ lastActiveAt: new Date() })
+  .where(eq(tenantStaff.id, staffId));
+
+3️⃣ Impersonation-safe login history (VERY important)
+Rule (Zoho does this):
+
+Impersonation does NOT create a new login
+
+It creates a login history row with is_impersonated = true
+
+When admin clicks “View as user”
+
+Call:
+
+recordLogin({
+  tenantId,
+  staffId: targetStaffId,
+  userId: adminUserId,
+  req,
+  isImpersonated: true,
+  impersonatedByStaffId: adminStaffId,
+});
+
+UI display
+
+Show clearly:
+
+“Viewed by Admin (Impersonation)”
+
+Never hide this — it’s critical for compliance.
+
+4️⃣ UI: Zoho-style Login History
+Where it lives
+
+Settings → Users & Roles → Users → User Detail → Login History
+
+Layout (table)
+
+Columns:
+
+Date & Time
+
+IP Address
+
+Device / Browser (parsed from user-agent)
+
+Auth Method (SSO)
+
+Status
+
+Normal
+
+Impersonated (badge)
+
+Action (optional): View details
+
+Example row
+02 Feb 2026 14:12 | 103.21.xxx.xx | Chrome · macOS | SSO | Active
+02 Feb 2026 13:40 | — | — | SSO | Impersonated by Admin
+
+Permissions
+
+Only users with:
+
+staff:read (self)
+
+OR staff:manage (admin viewing others)
+
+Optional: Self-view shortcut
+
+Let users see their own login history:
+
+Profile → Security → Login History
+
+Zoho does this and users love it.
+
+5️⃣ Retention & performance (important)
+Retention policy (recommended)
+
+Keep 90 days of login history
+
+Nightly cron:
+
+DELETE FROM tenant_staff_login_history
+WHERE login_at < now() - interval '90 days';
+
+Why not infinite?
+
+Compliance + cost control
+
+Zoho also rotates old data
+
+6️⃣ Replit master prompt (copy/paste)
+Add Zoho-style Login History for tenant staff (SSO-only).
+
+Backend:
+1) Create table tenant_staff_login_history:
+   - tenantId, staffId, userId
+   - loginAt, logoutAt
+   - ipAddress, userAgent
+   - authProvider = 'sso'
+   - isImpersonated boolean
+   - impersonatedByStaffId nullable
+   - indexed by tenantId + staffId + loginAt desc
+
+2) On successful SSO login:
+   - Record one login history row
+   - Update tenant_staff.lastActiveAt
+
+3) Impersonation:
+   - When admin starts impersonation, record login history row:
+     - isImpersonated = true
+     - impersonatedByStaffId = admin staff id
+   - Do NOT change real auth user
+
+4) APIs:
+   - GET /api/settings/staff/:id/login-history
+     - tenant-scoped
+     - requirePermission('staff:read') or admin
+     - paginated, ordered by loginAt desc
+
+Frontend:
+5) Settings → Users & Roles → Users → User detail
+   - Add tab "Login History"
+   - Show table: Date, IP, Device, Auth Method, Status
+   - Highlight impersonated sessions clearly
+
+6) Retention:
+   - Add cleanup job to remove login history older than 90 days.
+
+Rules:
+- Never create password-related fields
+- Never hide impersonation
+- No blank screens; show empty state if no history
+
+7️⃣ Why this matches Zoho exactly
+
+✔ Immutable audit trail
+✔ Clear impersonation visibility
+✔ Per-user security transparency
+✔ Works with SSO only
+✔ Minimal runtime overhead

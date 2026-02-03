@@ -942,6 +942,31 @@ export const tenantStaffInvites = pgTable("tenant_staff_invites", {
   uniqueIndex("idx_staff_invites_active").on(table.staffId, table.status),
 ]);
 
+export const tenantStaffLoginHistory = pgTable("tenant_staff_login_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  staffId: varchar("staff_id").notNull().references(() => tenantStaff.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  loginAt: timestamp("login_at", { withTimezone: true }).notNull().defaultNow(),
+  logoutAt: timestamp("logout_at", { withTimezone: true }),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  authProvider: text("auth_provider").notNull().default("sso"),
+  isImpersonated: boolean("is_impersonated").notNull().default(false),
+  impersonatedByStaffId: varchar("impersonated_by_staff_id").references(() => tenantStaff.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_login_history_tenant_staff").on(table.tenantId, table.staffId, table.loginAt),
+]);
+
+export const insertTenantStaffLoginHistorySchema = createInsertSchema(tenantStaffLoginHistory).omit({ 
+  id: true, 
+  createdAt: true 
+});
+
+export type TenantStaffLoginHistory = typeof tenantStaffLoginHistory.$inferSelect;
+export type InsertTenantStaffLoginHistory = z.infer<typeof insertTenantStaffLoginHistorySchema>;
+
 // ============================================
 // BUSINESS: CUSTOMERS
 // ============================================
