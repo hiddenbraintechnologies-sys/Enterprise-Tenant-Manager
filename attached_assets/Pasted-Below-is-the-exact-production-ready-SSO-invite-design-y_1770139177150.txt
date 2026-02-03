@@ -1,0 +1,315 @@
+Below is the exact, production-ready SSO invite design you can implement without passwords, magic links, or auth duplication, fully Zoho-style.
+
+✅ SSO-ONLY Users & Roles — Final Design
+
+This assumes:
+
+One SSO provider (OIDC / Replit Auth / enterprise SSO)
+
+Auth user identity comes only from SSO
+
+Email from SSO is authoritative
+
+1️⃣ SSO Invite Flow (End-to-End)
+🧭 Flow overview (Zoho-style)
+
+Admin
+
+Adds user → enters email, full name, alias, role
+
+System sends invite link
+
+User clicks link
+
+User is redirected to SSO login
+
+After successful SSO:
+
+email is verified
+
+staff record is linked
+
+user becomes active
+
+User lands in dashboard
+
+No passwords. No magic links. No confusion.
+
+2️⃣ Backend — Invite lifecycle (SSO)
+A) Create invite (tenant admin)
+
+POST /api/settings/staff/invite
+
+{
+  "email": "doctor@clinic.com",
+  "fullName": "Dr. Kumar",
+  "aliasName": "Dr. Kumar",
+  "roleId": "uuid"
+}
+
+
+Server logic
+
+requireAuth
+
+requireTenantContext
+
+requirePermission("staff:create")
+
+Upsert tenant_staff
+
+status = invited
+
+userId = null
+
+invitedAt = now
+
+Generate secure token
+
+Store hash of token in tenant_staff_invites
+
+Send invite URL
+
+Invite URL
+
+https://app.yourdomain.com/accept-invite?token=XYZ
+
+B) Token generation (secure)
+import crypto from "crypto";
+
+export function generateInviteToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+export function hashInviteToken(token: string) {
+  return crypto
+    .createHash("sha256")
+    .update(token + process.env.INVITE_SECRET!)
+    .digest("hex");
+}
+
+
+✔ Store only tokenHash
+❌ Never store raw token
+
+C) Public invite lookup (pre-SSO)
+
+GET /api/public/invites/:token/lookup
+
+Purpose:
+
+Show tenant name
+
+Masked email
+
+Expiry status
+
+{
+  "tenantName": "ABC Clinic",
+  "email": "do***@clinic.com",
+  "expiresAt": "2026-02-10T00:00:00Z"
+}
+
+
+❌ No login required
+❌ No sensitive info
+
+D) Accept invite (SSO only)
+
+POST /api/public/invites/:token/accept
+
+Guards
+
+requireAuth (SSO enforced)
+
+No password handling
+
+Logic
+
+Hash token → find invite
+
+Validate:
+
+not expired
+
+not revoked
+
+not accepted
+
+Get email from SSO user
+
+Email must match invite email
+
+Link staff:
+
+await db.transaction(async (tx) => {
+  await tx.update(tenantStaff)
+    .set({
+      userId: authUser.id,
+      status: "active",
+      lastActiveAt: new Date(),
+    })
+    .where(eq(tenantStaff.id, invite.staffId));
+
+  await tx.update(tenantStaffInvites)
+    .set({ acceptedAt: new Date() })
+    .where(eq(tenantStaffInvites.id, invite.id));
+});
+
+
+Redirect to /dashboard
+
+3️⃣ Frontend — Accept Invite Page (SSO UX)
+/accept-invite
+
+State machine
+
+Load → call /lookup
+
+Show:
+
+“You’ve been invited to join ABC Clinic”
+
+Email masked
+
+Button: Continue with Single Sign-On
+
+After SSO:
+
+POST /accept
+
+Redirect to dashboard
+
+❌ What you should NOT show
+
+Password fields
+
+Signup form
+
+Email verification
+
+SSO already did that.
+
+4️⃣ Status model (Zoho-accurate)
+Status	Meaning
+invited	Staff exists, not logged in
+active	Linked to SSO user
+inactive	Access blocked
+Admin actions
+
+Resend invite → regenerate token
+
+Revoke invite → set revokedAt
+
+Deactivate user → status = inactive
+
+Reactivate → status = active (no new invite needed)
+
+5️⃣ Permission resolution (runtime)
+
+When user logs in via SSO:
+
+const staff = await db.query.tenantStaff.findFirst({
+  where: and(
+    eq(tenantStaff.userId, authUser.id),
+    eq(tenantStaff.tenantId, tenantId),
+    eq(tenantStaff.status, "active")
+  ),
+  with: {
+    role: {
+      with: { permissions: true }
+    }
+  }
+});
+
+
+Permission check:
+
+staff.role.permissions.some(p => p.permission === required)
+
+
+If no staff record → 403 Not Authorized
+
+6️⃣ UI behavior (Zoho-style)
+Users list
+
+Invited badge
+
+Action: Resend invite
+
+No access until accepted
+
+Roles
+
+Fully tenant-managed
+
+Admin role locked (isSystem=true)
+
+Alias usage
+
+Always show:
+
+aliasName ?? fullName
+
+
+In:
+
+bookings
+
+invoices
+
+patient-facing screens
+
+7️⃣ Replit master prompt (SSO-only, copy/paste)
+Implement SSO-only Users & Roles (Zoho-style).
+
+Auth model:
+- SSO is the only login method
+- No passwords, no magic links
+- Email from SSO is authoritative
+
+Backend:
+1) Tables:
+- tenant_roles
+- tenant_role_permissions
+- tenant_staff (userId nullable, status invited|active|inactive)
+- tenant_staff_invites (tokenHash, expiresAt, acceptedAt, revokedAt)
+
+2) Invite flow:
+- POST /api/settings/staff/invite
+  - Creates/updates tenant_staff (status=invited)
+  - Generates secure token, stores hash
+  - Returns invite URL
+
+- GET /api/public/invites/:token/lookup
+  - Public, no auth
+  - Returns tenant name + masked email
+
+- POST /api/public/invites/:token/accept
+  - Requires authenticated SSO user
+  - Email from SSO must match invite
+  - Links tenant_staff.userId
+  - Sets status=active, acceptedAt
+  - Redirects to /dashboard
+
+3) RBAC:
+- Resolve permissions via tenant_staff → tenant_roles → tenant_role_permissions
+- Deny access if staff.status !== active
+
+Frontend:
+4) Settings → Users & Roles
+- Users tab: table + invite + resend + deactivate
+- Roles tab: split view, permission checklist
+
+Rules:
+- Never create auth users manually
+- Never allow password setup
+- Never show blank screens
+
+8️⃣ Why this is the right decision
+
+✔ Enterprise-grade
+✔ Zero auth duplication
+✔ Clean RBAC
+✔ Matches Zoho, Google Workspace, Notion
+✔ Works perfectly with add-on enforcement

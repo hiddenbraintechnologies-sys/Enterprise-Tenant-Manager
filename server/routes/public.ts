@@ -191,8 +191,18 @@ router.get("/invites/:token/lookup", async (req: Request, res: Response) => {
       name: tenants.name,
     }).from(tenants).where(eq(tenants.id, invite.tenantId));
 
+    // Mask email for security (e.g., "doctor@clinic.com" -> "do***@clinic.com")
+    const maskEmail = (email: string): string => {
+      const [local, domain] = email.split("@");
+      if (!domain) return "***";
+      const maskedLocal = local.length <= 2 
+        ? local[0] + "***" 
+        : local.substring(0, 2) + "***";
+      return `${maskedLocal}@${domain}`;
+    };
+
     return res.json({
-      email: invite.email,
+      email: maskEmail(invite.email),
       tenantName: tenant?.name || "Unknown",
       expiresAt: invite.expiresAt,
     });

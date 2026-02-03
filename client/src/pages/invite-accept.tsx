@@ -4,8 +4,9 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, CheckCircle, XCircle, LogIn } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Shield, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 type InviteInfo = {
   email: string;
@@ -27,6 +28,7 @@ export default function InviteAccept() {
   const { token } = useParams();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useAuth();
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,23 +74,37 @@ export default function InviteAccept() {
           description: "Please sign in to accept this invite",
           variant: "destructive"
         });
+      } else if (err.message?.includes("EMAIL_MISMATCH")) {
+        toast({ 
+          title: "Email mismatch", 
+          description: "Please sign in with the email address this invite was sent to",
+          variant: "destructive"
+        });
       } else {
         toast({ title: "Error", description: err.message, variant: "destructive" });
       }
     },
   });
 
-  if (loading) {
+  const handleContinueWithSSO = () => {
+    if (user) {
+      acceptMutation.mutate();
+    } else {
+      window.location.href = `/__repl_auth/login?redirect=/invite/${token}`;
+    }
+  };
+
+  if (loading || authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
@@ -107,7 +123,7 @@ export default function InviteAccept() {
 
   if (acceptMutation.isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
@@ -123,15 +139,16 @@ export default function InviteAccept() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="max-w-md w-full">
         <CardHeader className="text-center">
+          <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
           <CardTitle>You've been invited!</CardTitle>
           <CardDescription>
             You've been invited to join <strong>{inviteInfo?.tenantName}</strong>
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="text-sm text-muted-foreground text-center">
             This invite is for: <strong>{inviteInfo?.email}</strong>
           </div>
@@ -140,22 +157,30 @@ export default function InviteAccept() {
             Expires: {inviteInfo?.expiresAt ? new Date(inviteInfo.expiresAt).toLocaleDateString() : "Unknown"}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <Button 
-              onClick={() => acceptMutation.mutate()}
+              onClick={handleContinueWithSSO}
               disabled={acceptMutation.isPending}
               className="w-full"
-              data-testid="button-accept-invite"
+              size="lg"
+              data-testid="button-continue-sso"
             >
               {acceptMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
-                <LogIn className="h-4 w-4 mr-2" />
+                <KeyRound className="h-4 w-4 mr-2" />
               )}
-              Accept Invite
+              {user ? "Accept Invite" : "Continue with Single Sign-On"}
             </Button>
+            
+            {user && (
+              <p className="text-xs text-muted-foreground text-center">
+                Signed in as {user.email}
+              </p>
+            )}
+            
             <Button 
-              variant="outline" 
+              variant="ghost" 
               onClick={() => navigate("/")}
               className="w-full"
               data-testid="button-decline-invite"
