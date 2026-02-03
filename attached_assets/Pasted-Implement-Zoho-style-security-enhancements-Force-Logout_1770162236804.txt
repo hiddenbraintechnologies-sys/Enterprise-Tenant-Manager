@@ -1,0 +1,50 @@
+Implement Zoho-style security enhancements: Force Logout, IP restrictions, and Suspicious Login Alerts (SSO-only).
+
+A) Force Logout (invalidate session)
+1) Add staff session version:
+- Add columns to tenant_staff:
+  - session_version INT NOT NULL DEFAULT 1
+  - force_logout_at timestamptz nullable
+2) When minting JWT after SSO login, include claim "sv" = tenant_staff.session_version.
+3) Middleware: on every authenticated request, compare jwt.sv with current tenant_staff.session_version:
+   - if mismatch => 401 + clear cookie.
+4) Endpoint:
+- POST /api/settings/staff/:id/force-logout
+  - tenant scoped
+  - admin-only (requireMinimumRole("admin") OR requirePermission("staff:update") + additional admin gate)
+  - increments session_version, sets force_logout_at, logs audit event "STAFF_FORCE_LOGOUT"
+5) Optional: POST /api/settings/force-logout/self to sign out other sessions.
+
+B) IP allow/deny rules
+1) Create table tenant_ip_rules:
+- tenantId, mode ('allow'|'deny'), cidr, label, isEnabled, createdAt
+2) Middleware: enforce IP policy after auth+tenant context:
+- deny list takes precedence
+- if allow list empty => allow all
+- if allow list present => block if IP not in allowed CIDRs
+Return 403 with code "IP_NOT_ALLOWED".
+3) Admin APIs:
+- GET/POST/PUT/DELETE /api/settings/security/ip-rules
+- tenant scoped, admin-only
+4) Settings UI: Security → IP Restrictions (Zoho-like list + add range + enable toggle)
+
+C) Suspicious login alerts (new device/new IP/new country)
+1) Create tables:
+- tenant_staff_known_devices (tenantId, staffId, deviceHash, firstSeenAt, lastSeenAt, lastIp, lastCountry nullable)
+- security_alerts (tenantId, type, severity, staffId, actorUserId, metadata json, createdAt, acknowledgedAt)
+2) On successful login (SSO callback):
+- compute deviceHash = sha256(userAgent + SECRET)
+- if deviceHash not seen for staff => create known device + create security_alert NEW_DEVICE
+- if IP differs from lastIp => create security_alert NEW_IP
+- country detection optional; keep field nullable for now; add NEW_COUNTRY later if geo is available
+3) Add UI page: Settings → Security → Alerts
+- list alerts, filter by type/severity, allow "Acknowledge"
+4) Audit:
+- log STAFF_FORCE_LOGOUT, IP_RULE_CREATED/UPDATED/DELETED, SECURITY_ALERT_CREATED
+
+Deliverables:
+- Migrations + Drizzle schema
+- Middleware for session version + IP rules
+- Working force logout endpoint (confirmed by immediate 401 for target)
+- Alerts created on new device/IP logins
+- Settings UI for IP rules and Security Alerts

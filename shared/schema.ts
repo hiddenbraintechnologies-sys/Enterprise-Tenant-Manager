@@ -907,6 +907,8 @@ export const tenantStaff = pgTable("tenant_staff", {
   inviteToken: varchar("invite_token", { length: 100 }),
   inviteExpiresAt: timestamp("invite_expires_at"),
   lastLoginAt: timestamp("last_login_at"),
+  sessionVersion: integer("session_version").notNull().default(1),
+  forceLogoutAt: timestamp("force_logout_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -966,6 +968,100 @@ export const insertTenantStaffLoginHistorySchema = createInsertSchema(tenantStaf
 
 export type TenantStaffLoginHistory = typeof tenantStaffLoginHistory.$inferSelect;
 export type InsertTenantStaffLoginHistory = z.infer<typeof insertTenantStaffLoginHistorySchema>;
+
+// ============================================
+// SECURITY: IP RULES
+// ============================================
+
+export const ipRuleModeEnum = pgEnum("ip_rule_mode", ["allow", "deny"]);
+
+export const tenantIpRules = pgTable("tenant_ip_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  mode: ipRuleModeEnum("mode").notNull(),
+  cidr: varchar("cidr", { length: 50 }).notNull(),
+  label: varchar("label", { length: 100 }),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => [
+  index("idx_ip_rules_tenant").on(table.tenantId),
+  index("idx_ip_rules_enabled").on(table.tenantId, table.isEnabled),
+]);
+
+export const insertTenantIpRuleSchema = createInsertSchema(tenantIpRules).omit({ 
+  id: true, 
+  createdAt: true 
+});
+
+export type TenantIpRule = typeof tenantIpRules.$inferSelect;
+export type InsertTenantIpRule = z.infer<typeof insertTenantIpRuleSchema>;
+
+// ============================================
+// SECURITY: KNOWN DEVICES
+// ============================================
+
+export const tenantStaffKnownDevices = pgTable("tenant_staff_known_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  staffId: varchar("staff_id").notNull().references(() => tenantStaff.id, { onDelete: "cascade" }),
+  deviceHash: varchar("device_hash", { length: 64 }).notNull(),
+  userAgentSummary: varchar("user_agent_summary", { length: 255 }),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  lastIp: varchar("last_ip", { length: 45 }),
+  lastCountry: varchar("last_country", { length: 2 }),
+}, (table) => [
+  index("idx_known_devices_tenant_staff").on(table.tenantId, table.staffId),
+  uniqueIndex("idx_known_devices_unique").on(table.staffId, table.deviceHash),
+]);
+
+export type TenantStaffKnownDevice = typeof tenantStaffKnownDevices.$inferSelect;
+
+// ============================================
+// SECURITY: ALERTS
+// ============================================
+
+export const securityAlertTypeEnum = pgEnum("security_alert_type", [
+  "new_device",
+  "new_ip", 
+  "new_country",
+  "force_logout",
+  "suspicious_activity",
+]);
+
+export const securityAlertSeverityEnum = pgEnum("security_alert_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+export const securityAlerts = pgTable("security_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  type: securityAlertTypeEnum("type").notNull(),
+  severity: securityAlertSeverityEnum("severity").notNull().default("medium"),
+  staffId: varchar("staff_id").references(() => tenantStaff.id, { onDelete: "cascade" }),
+  actorUserId: varchar("actor_user_id").references(() => users.id),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledgedBy: varchar("acknowledged_by").references(() => users.id),
+}, (table) => [
+  index("idx_security_alerts_tenant").on(table.tenantId),
+  index("idx_security_alerts_staff").on(table.staffId),
+  index("idx_security_alerts_created").on(table.tenantId, table.createdAt),
+  index("idx_security_alerts_unacknowledged").on(table.tenantId, table.acknowledgedAt),
+]);
+
+export const insertSecurityAlertSchema = createInsertSchema(securityAlerts).omit({ 
+  id: true, 
+  createdAt: true 
+});
+
+export type SecurityAlert = typeof securityAlerts.$inferSelect;
+export type InsertSecurityAlert = z.infer<typeof insertSecurityAlertSchema>;
 
 // ============================================
 // BUSINESS: CUSTOMERS
