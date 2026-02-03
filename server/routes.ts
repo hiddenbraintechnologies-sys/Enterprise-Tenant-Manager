@@ -59,6 +59,7 @@ import ukComplianceRoutes from "./core/uk-compliance/uk-compliance-routes";
 import { aiRouter } from "./core/ai-routes";
 import staffRolesRoutes from "./routes/settings/staff-roles";
 import impersonationRoutes from "./routes/settings/impersonation";
+import securityRoutes from "./routes/settings/security";
 import { blockImpersonationOnSensitiveRoutes } from "./middleware/require-permission";
 import {
   adminIpRestriction,
@@ -129,6 +130,7 @@ import brandingUploadRoutes from "./routes/branding-upload";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { requireModule, softSubscriptionCheck } from "./middleware/subscription-gate";
 import { requireTenant, requireAuth, requireDashboardAccess, extractTenantFromRequest, isPublicDomain } from "./middleware/tenant-auth";
+import { sessionVersionMiddleware } from "./middleware/session-version";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, ne, isNull } from "drizzle-orm";
 import { buildAddonAccessMap } from "./core/addon-gating";
@@ -452,13 +454,13 @@ export async function registerRoutes(
 
   // Register HRMS module routes (protected, cross-business horizontal module)
   // Uses hybrid auth (session + JWT) to support both cookie-based dashboard access and token-based API access
-  app.use('/api/hr', authenticateHybrid({ required: true }), enforceTenantBoundary(), requireModule("hrms"), hrmsRoutes);
+  app.use('/api/hr', authenticateHybrid({ required: true }), enforceTenantBoundary(), sessionVersionMiddleware, requireModule("hrms"), hrmsRoutes);
 
   // Register Reseller/White-label routes
-  app.use('/api/resellers', authenticateHybrid({ required: true }), resellerRoutes);
+  app.use('/api/resellers', authenticateHybrid({ required: true }), sessionVersionMiddleware, resellerRoutes);
 
   // Register Branding/Theming routes
-  app.use('/api/branding', authenticateHybrid({ required: true }), enforceTenantBoundary(), brandingRoutes);
+  app.use('/api/branding', authenticateHybrid({ required: true }), enforceTenantBoundary(), sessionVersionMiddleware, brandingRoutes);
 
   // Register Add-on Marketplace routes (with optional auth to populate context for authenticated routes)
   app.use('/api/addons', authenticateHybrid({ required: false }), addonRoutes);
@@ -496,13 +498,16 @@ export async function registerRoutes(
   registerObjectStorageRoutes(app);
 
   // Register Feature Flags runtime evaluation routes (for tenant apps)
-  app.use('/api/feature-flags', authenticateHybrid(), enforceTenantBoundary(), featureFlagsRoutes);
+  app.use('/api/feature-flags', authenticateHybrid(), enforceTenantBoundary(), sessionVersionMiddleware, featureFlagsRoutes);
 
   // Settings routes for staff and roles management
-  app.use('/api/settings', authenticateHybrid({ required: true }), enforceTenantBoundary(), staffRolesRoutes);
+  app.use('/api/settings', authenticateHybrid({ required: true }), enforceTenantBoundary(), sessionVersionMiddleware, staffRolesRoutes);
   
   // Impersonation routes (with sensitive routes blocked)
-  app.use('/api/settings/impersonation', authenticateHybrid({ required: true }), enforceTenantBoundary(), impersonationRoutes);
+  app.use('/api/settings/impersonation', authenticateHybrid({ required: true }), enforceTenantBoundary(), sessionVersionMiddleware, impersonationRoutes);
+  
+  // Security routes (force logout, IP rules, alerts)
+  app.use('/api/settings/security', authenticateHybrid({ required: true }), enforceTenantBoundary(), sessionVersionMiddleware, securityRoutes);
   
   // Block impersonation on sensitive routes
   app.use(blockImpersonationOnSensitiveRoutes);

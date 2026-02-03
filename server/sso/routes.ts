@@ -13,6 +13,7 @@ import { createSamlHandler } from './saml-handler';
 import { ssoUserProvisioningService } from './user-provisioning';
 import { z } from 'zod';
 import { recordLogin, findStaffByUserId } from '../services/login-history';
+import { checkAndRecordDevice, createSecurityAlert } from '../services/session-security';
 
 const router = Router();
 
@@ -538,18 +539,48 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       (req.session as any).ssoProvider = 'google';
     }
 
-    // Record login history
+    // Record login history and check for suspicious activity
     try {
       const staffId = await findStaffByUserId(result.tenant.id, result.user.id);
       if (staffId) {
+        const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+        const userAgent = req.headers['user-agent'] || 'unknown';
+
         await recordLogin({
           tenantId: result.tenant.id,
           staffId,
           userId: result.user.id,
-          ipAddress: req.ip || req.socket.remoteAddress,
-          userAgent: req.headers['user-agent'],
+          ipAddress,
+          userAgent,
           authProvider: 'google',
         });
+
+        const deviceCheck = await checkAndRecordDevice(
+          result.tenant.id,
+          staffId,
+          userAgent,
+          ipAddress
+        );
+
+        if (deviceCheck.isNewDevice) {
+          await createSecurityAlert(
+            result.tenant.id,
+            'new_device',
+            staffId,
+            result.user.id,
+            { device: userAgent, ip: ipAddress, provider: 'google' },
+            'medium'
+          );
+        } else if (deviceCheck.isNewIp) {
+          await createSecurityAlert(
+            result.tenant.id,
+            'new_ip',
+            staffId,
+            result.user.id,
+            { ip: ipAddress, provider: 'google' },
+            'low'
+          );
+        }
       }
     } catch (loginHistoryError) {
       console.error('Failed to record login history:', loginHistoryError);
@@ -740,18 +771,48 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
       (req.session as any).azureClaims = result.claims;
     }
 
-    // Record login history
+    // Record login history and check for suspicious activity
     try {
       const staffId = await findStaffByUserId(result.tenant.id, result.user.id);
       if (staffId) {
+        const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+        const userAgent = req.headers['user-agent'] || 'unknown';
+
         await recordLogin({
           tenantId: result.tenant.id,
           staffId,
           userId: result.user.id,
-          ipAddress: req.ip || req.socket.remoteAddress,
-          userAgent: req.headers['user-agent'],
+          ipAddress,
+          userAgent,
           authProvider: 'microsoft',
         });
+
+        const deviceCheck = await checkAndRecordDevice(
+          result.tenant.id,
+          staffId,
+          userAgent,
+          ipAddress
+        );
+
+        if (deviceCheck.isNewDevice) {
+          await createSecurityAlert(
+            result.tenant.id,
+            'new_device',
+            staffId,
+            result.user.id,
+            { device: userAgent, ip: ipAddress, provider: 'microsoft' },
+            'medium'
+          );
+        } else if (deviceCheck.isNewIp) {
+          await createSecurityAlert(
+            result.tenant.id,
+            'new_ip',
+            staffId,
+            result.user.id,
+            { ip: ipAddress, provider: 'microsoft' },
+            'low'
+          );
+        }
       }
     } catch (loginHistoryError) {
       console.error('Failed to record login history:', loginHistoryError);
@@ -933,18 +994,48 @@ router.get('/okta/callback', async (req: Request, res: Response) => {
       (req.session as any).role = provisionResult.assignedRole;
     }
 
-    // Record login history
+    // Record login history and check for suspicious activity
     try {
       const staffId = await findStaffByUserId(result.session.tenantId, provisionResult.user.id);
       if (staffId) {
+        const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+        const userAgent = req.headers['user-agent'] || 'unknown';
+
         await recordLogin({
           tenantId: result.session.tenantId,
           staffId,
           userId: provisionResult.user.id,
-          ipAddress: req.ip || req.socket.remoteAddress,
-          userAgent: req.headers['user-agent'],
+          ipAddress,
+          userAgent,
           authProvider: 'okta',
         });
+
+        const deviceCheck = await checkAndRecordDevice(
+          result.session.tenantId,
+          staffId,
+          userAgent,
+          ipAddress
+        );
+
+        if (deviceCheck.isNewDevice) {
+          await createSecurityAlert(
+            result.session.tenantId,
+            'new_device',
+            staffId,
+            provisionResult.user.id,
+            { device: userAgent, ip: ipAddress, provider: 'okta' },
+            'medium'
+          );
+        } else if (deviceCheck.isNewIp) {
+          await createSecurityAlert(
+            result.session.tenantId,
+            'new_ip',
+            staffId,
+            provisionResult.user.id,
+            { ip: ipAddress, provider: 'okta' },
+            'low'
+          );
+        }
       }
     } catch (loginHistoryError) {
       console.error('Failed to record login history:', loginHistoryError);

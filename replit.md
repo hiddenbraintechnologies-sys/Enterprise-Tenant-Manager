@@ -36,6 +36,12 @@ Security measures include:
 - **Audit Logging**: Key security events are logged for tracking.
 - **Impersonation ("View as User")**: Allows admins to view the application as another staff member for support, with strict permission checks, sensitive route blocking, and clear UI indicators.
 - **Tenant Isolation**: Multi-tenant data isolation is enforced through middleware and scoping helpers, ensuring "fail-closed" behavior and returning 404 for cross-tenant access to prevent information leakage.
+- **Login History Tracking**: Zoho-style login history with SSO integration (Google, Microsoft, Okta), 90-day retention with automatic cleanup job.
+- **Force Logout Capability**: Session version management enables admins to force logout staff members across all devices; self-service logout of other sessions also supported.
+- **IP Restriction System**: Configurable IP allow/deny rules with CIDR support for tenant-level access control.
+- **Suspicious Login Detection**: Device fingerprinting using SHA-256 hashes; automatic security alerts for new devices or IPs during SSO login.
+- **Security Alerts**: Categorized alerts (new_device, new_ip, new_country, force_logout, suspicious_activity) with severity levels and acknowledgment workflow.
+- **Session Version Middleware**: Applied to authenticated routes to enforce logout invalidation across the platform.
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
