@@ -6,6 +6,7 @@ import { requireTenantPermission } from "../../middleware/tenant-permission";
 import { Permissions, PERMISSION_GROUPS, DEFAULT_TENANT_ROLES } from "@shared/rbac/permissions";
 import { insertTenantRoleSchema, insertTenantStaffSchema } from "@shared/schema";
 import { logRoleEvent, logStaffEvent } from "../../services/audit";
+import { getLoginHistory } from "../../services/login-history";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -534,6 +535,46 @@ router.post("/staff/:id/revoke-invite",
     } catch (error) {
       console.error("[settings/staff] Error revoking invite:", error);
       return res.status(500).json({ error: "Failed to revoke invite" });
+    }
+  }
+);
+
+// ==================== LOGIN HISTORY ENDPOINTS ====================
+
+router.get("/staff/:staffId/login-history",
+  requireTenantPermission(Permissions.STAFF_READ),
+  async (req: Request, res: Response) => {
+    const context = (req as any).context;
+    if (!context?.tenantId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { staffId } = req.params;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    try {
+      const staff = await storage.getTenantStaffMember(staffId, context.tenantId);
+      if (!staff) {
+        return res.status(404).json({ error: "Staff member not found" });
+      }
+
+      const { entries, total } = await getLoginHistory({
+        tenantId: context.tenantId,
+        staffId,
+        limit,
+        offset,
+      });
+
+      return res.json({
+        entries,
+        total,
+        limit,
+        offset,
+      });
+    } catch (error) {
+      console.error("[settings/staff/login-history] Error:", error);
+      return res.status(500).json({ error: "Failed to fetch login history" });
     }
   }
 );
