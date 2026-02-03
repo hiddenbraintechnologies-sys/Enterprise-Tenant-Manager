@@ -1,0 +1,378 @@
+Below is a drop-in implementation plan for all 3:
+
+Wire tenant roles into your existing PermissionService
+
+Add audit logs for role/user changes
+
+Add Zoho-like impersonation (admin “View as user”) safely
+
+I’ll keep it aligned with your stack: Express + Postgres + Drizzle + your existing tenant context + SSO.
+
+1) Wire into your existing PermissionService
+Goal
+
+Make this work:
+
+permissionService.hasPermission(userId, tenantId, "staff:update")
+
+
+…by resolving:
+
+users.id → tenant_staff.user_id → tenant_roles → tenant_role_permissions
+
+Recommended shape
+A) Add a “getEffectiveActor” helper (supports impersonation later)
+type EffectiveActor = {
+  userId: string;
+  tenantId: string;
+  staffId: string;
+  roleId: string;
+  roleName: string;
+  permissions: Set<string>;
+  isImpersonating: boolean;
+  impersonatedStaffId?: string;
+};
+
+B) PermissionService implementation (with caching)
+
+Cache per (tenantId, staffId) for ~30–60 seconds (or request-scoped cache)
+
+Invalidate cache when roles or assignments change
+
+export class PermissionService {
+  constructor(private db: DbClient) {}
+
+  async getActor(userId: string, tenantId: string, opts?: { impersonatedStaffId?: string }) {
+    // 1) Resolve the staff record for this user in this tenant (active only)
+    const staff = await this.db.query.tenantStaff.findFirst({
+      where: (t, { and, eq }) =>
+        and(eq(t.tenantId, tenantId), eq(t.userId, userId), eq(t.status, "active")),
+    });
+
+    if (!staff) return null;
+
+    // 2) If impersonating, verify admin privilege & resolve target staff
+    let effectiveStaffId = staff.id;
+    let isImpersonating = false;
+
+    if (opts?.impersonatedStaffId && opts.impersonatedStaffId !== staff.id) {
+      // Only allow impersonation for tenant admins (see section 3)
+      const isAdmin = await this.hasPermission(userId, tenantId, "impersonation:use", { bypassActorFetch: true });
+      if (isAdmin) {
+        effectiveStaffId = opts.impersonatedStaffId;
+        isImpersonating = true;
+      }
+    }
+
+    // 3) Load role + permissions for effectiveStaffId
+    const effective = await this.db.query.tenantStaff.findFirst({
+      where: (t, { and, eq }) =>
+        and(eq(t.tenantId, tenantId), eq(t.id, effectiveStaffId)),
+      with: {
+        role: {
+          with: { permissions: true },
+        },
+      },
+    });
+
+    if (!effective || effective.status !== "active") return null;
+
+    const perms = new Set(effective.role.permissions.map(p => p.permission));
+
+    return {
+      userId,
+      tenantId,
+      staffId: effective.id,
+      roleId: effective.roleId,
+      roleName: effective.role?.name ?? "Role",
+      permissions: perms,
+      isImpersonating,
+      impersonatedStaffId: isImpersonating ? effective.id : undefined,
+    } satisfies EffectiveActor;
+  }
+
+  async hasPermission(
+    userId: string,
+    tenantId: string,
+    permission: string,
+    opts?: { impersonatedStaffId?: string; bypassActorFetch?: boolean }
+  ) {
+    // bypassActorFetch is used for impersonation checks to avoid recursion loops
+    const actor = opts?.bypassActorFetch
+      ? await this.getActor(userId, tenantId)
+      : await this.getActor(userId, tenantId, { impersonatedStaffId: opts?.impersonatedStaffId });
+
+    if (!actor) return false;
+    return actor.permissions.has(permission) || actor.permissions.has(permission.split(":")[0] + ":*");
+  }
+}
+
+C) Express middleware wrapper
+export function requirePermission(permission: string) {
+  return async (req, res, next) => {
+    const { user, tenant } = req.ctx; // your existing context
+    const impersonatedStaffId = req.headers["x-impersonate-staff-id"] as string | undefined;
+
+    const ok = await req.services.permissionService.hasPermission(
+      user.id,
+      tenant.id,
+      permission,
+      { impersonatedStaffId }
+    );
+
+    if (!ok) return res.status(403).json({ error: "FORBIDDEN", code: "FORBIDDEN" });
+    next();
+  };
+}
+
+
+Note: Keep add-on enforcement separate and earlier in the chain, just like you’re doing.
+
+2) Audit logs for role changes (and user changes)
+
+You said you already have an audit_logs table. Great — reuse it.
+
+Audit events to log
+
+Role lifecycle
+
+ROLE_CREATED
+
+ROLE_UPDATED
+
+ROLE_DELETED
+
+ROLE_PERMISSIONS_UPDATED
+
+ROLE_CLONED
+
+User lifecycle
+
+STAFF_INVITED
+
+STAFF_INVITE_RESENT
+
+STAFF_INVITE_REVOKED
+
+STAFF_ACTIVATED
+
+STAFF_DEACTIVATED
+
+STAFF_ROLE_CHANGED
+
+STAFF_UPDATED
+
+STAFF_REMOVED
+
+Impersonation
+
+IMPERSONATION_STARTED
+
+IMPERSONATION_ENDED
+
+Payload shape (keep it consistent)
+
+Store these fields (whatever your audit_logs table supports):
+
+tenantId
+
+actorUserId
+
+actorStaffId (if available)
+
+action
+
+targetType (role | staff)
+
+targetId
+
+metadata (JSON)
+
+Example metadata for permissions update:
+
+{
+  "roleId": "…",
+  "roleName": "Receptionist",
+  "added": ["patients:update", "bookings:create"],
+  "removed": ["payments:collect"]
+}
+
+Where to log (exact spots)
+
+In routes:
+
+POST /api/settings/roles → ROLE_CREATED
+
+PUT /api/settings/roles/:id → ROLE_UPDATED
+
+PUT /api/settings/roles/:id/permissions → ROLE_PERMISSIONS_UPDATED (diff old/new)
+
+POST /api/settings/staff/invite → STAFF_INVITED
+
+PUT /api/settings/staff/:id → STAFF_UPDATED
+
+PUT /api/settings/staff/:id/role → STAFF_ROLE_CHANGED
+
+PUT /api/settings/staff/:id/status → STAFF_(DE)ACTIVATED
+
+Impersonation endpoints (below)
+
+How to compute permission diff (tiny helper)
+function diffPerms(before: string[], after: string[]) {
+  const b = new Set(before);
+  const a = new Set(after);
+  return {
+    added: [...a].filter(x => !b.has(x)),
+    removed: [...b].filter(x => !a.has(x)),
+  };
+}
+
+3) Zoho-like impersonation (Admin “View as user”) — secure design
+Core principle
+
+Impersonation should never rely on changing the real auth user.
+It should be a scoped override that:
+
+is explicit
+
+is visible
+
+is auditable
+
+is easy to exit
+
+cannot be used to change billing/security settings
+
+Recommended model
+
+Only tenant admins with permission: impersonation:use
+
+Impersonation affects RBAC only (what the UI/API allows)
+
+Always keep the real actor identity for auditing
+
+How to implement (simple & safe)
+A) Add permission
+
+Add to your registry:
+
+impersonation:use
+
+Only Admin role gets it by default.
+
+B) UI behavior
+
+In Users table row menu:
+
+“View as user”
+When selected:
+
+set impersonateStaffId in a client store (localStorage or sessionStorage)
+
+show a top banner:
+
+“Viewing as: Dr. Kumar (Receptionist) — Exit”
+
+every API request sends header:
+
+X-Impersonate-Staff-Id: <staffId>
+
+C) Server enforcement
+
+In PermissionService.getActor():
+
+if header present:
+
+verify current actor has impersonation:use
+
+verify target staff is same tenant and active
+
+set isImpersonating=true
+
+permissions are evaluated as target staff
+
+D) Critical safety rule (must)
+
+Block impersonation for sensitive routes, even if target has permissions.
+Examples:
+
+billing/subscriptions/payment methods
+
+roles management
+
+staff management
+
+security settings
+
+audit logs access (optional)
+
+Implement:
+
+const IMPERSONATION_BLOCKED_PREFIXES = [
+  "/api/billing",
+  "/api/settings/roles",
+  "/api/settings/staff",
+  "/api/super-admin",
+  "/api/admin",
+];
+
+export function blockImpersonationOnSensitiveRoutes(req, res, next) {
+  const imp = req.headers["x-impersonate-staff-id"];
+  if (!imp) return next();
+
+  if (IMPERSONATION_BLOCKED_PREFIXES.some(p => req.path.startsWith(p))) {
+    return res.status(403).json({
+      error: "IMPERSONATION_NOT_ALLOWED",
+      message: "Impersonation is not allowed for this area.",
+    });
+  }
+  next();
+}
+
+E) Audit impersonation events
+
+When impersonation header first appears (or when user clicks “View as” and you call endpoint), log:
+
+IMPERSONATION_STARTED
+
+When exit:
+
+IMPERSONATION_ENDED
+
+Implementation option (cleaner):
+Create 2 endpoints:
+
+POST /api/settings/impersonation/start { staffId }
+
+POST /api/settings/impersonation/end
+
+These log events. Client still uses header for actual enforcement.
+
+Copy-paste Replit master prompt for these 3 items
+Implement Zoho-style RBAC integration, audit logs, and impersonation.
+
+1) PermissionService wiring:
+- Update PermissionService.hasPermission(userId, tenantId, permission) to resolve:
+  users.id -> tenant_staff.user_id -> tenant_roles -> tenant_role_permissions
+- Staff must be status=active to authorize.
+- Add requirePermission(permission) Express middleware wrapper.
+- Keep add-on enforcement as separate middleware executed before requirePermission.
+
+2) Audit logs:
+- Reuse audit_logs table.
+- Log role events: ROLE_CREATED/UPDATED/DELETED/CLONED/ROLE_PERMISSIONS_UPDATED (store added/removed diff).
+- Log staff events: STAFF_INVITED/RESENT/REVOKED/ROLE_CHANGED/ACTIVATED/DEACTIVATED/UPDATED/REMOVED.
+- Log impersonation: IMPERSONATION_STARTED/ENDED including actorUserId and targetStaffId.
+
+3) Impersonation (Zoho-style “View as user”):
+- Add permission: impersonation:use (Admin only by default).
+- UI: Users table row action “View as user” sets impersonateStaffId and shows a top banner with Exit.
+- Client sends header X-Impersonate-Staff-Id on API requests while impersonating.
+- Server: PermissionService supports optional impersonatedStaffId ONLY if actor has impersonation:use.
+- Add middleware to block impersonation on sensitive routes (/api/billing, /api/settings/*, /api/admin, /api/super-admin).
+- All actions during impersonation must still audit the real actor as the actor, and target as impersonated.
+
+Deliverables:
+- Code changes in PermissionService + middleware
+- Audit logging in role/staff routes
+- Impersonation UI banner + API header usage + blocked sensitive routes

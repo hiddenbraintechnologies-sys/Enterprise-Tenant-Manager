@@ -33,6 +33,12 @@ function getAuthHeaders(): Record<string, string> {
     headers["X-Tenant-ID"] = tenantId;
   }
   
+  // Include impersonation header if set
+  const impersonatedStaffId = sessionStorage.getItem("impersonation_staff_id");
+  if (impersonatedStaffId) {
+    headers["X-Impersonate-Staff-Id"] = impersonatedStaffId;
+  }
+  
   return headers;
 }
 

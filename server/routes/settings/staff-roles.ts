@@ -5,6 +5,7 @@ import { storage } from "../../storage";
 import { requireTenantPermission } from "../../middleware/tenant-permission";
 import { Permissions, PERMISSION_GROUPS, DEFAULT_TENANT_ROLES } from "@shared/rbac/permissions";
 import { insertTenantRoleSchema, insertTenantStaffSchema } from "@shared/schema";
+import { logRoleEvent, logStaffEvent } from "../../services/audit";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -73,6 +74,16 @@ router.post("/roles",
         await storage.setTenantRolePermissions(role.id, permissions);
       }
 
+      await logRoleEvent("ROLE_CREATED", {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        roleId: role.id,
+        roleName: role.name,
+        newPermissions: permissions || [],
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
       return res.status(201).json({ 
         ...role, 
         permissions: permissions || [] 
@@ -133,6 +144,7 @@ router.put("/roles/:id",
 
       const { permissions, ...updateData } = parsed.data;
 
+      const oldPermissions = await storage.getTenantRolePermissions(req.params.id);
       const role = await storage.updateTenantRole(req.params.id, context.tenantId, updateData);
 
       if (permissions !== undefined) {
@@ -140,6 +152,20 @@ router.put("/roles/:id",
       }
 
       const updatedPermissions = await storage.getTenantRolePermissions(req.params.id);
+
+      if (role) {
+        await logRoleEvent("ROLE_UPDATED", {
+          tenantId: context.tenantId,
+          actorUserId: context.userId,
+          roleId: role.id,
+          roleName: role.name,
+          oldPermissions: oldPermissions.map(p => p.permission),
+          newPermissions: updatedPermissions.map(p => p.permission),
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+        });
+      }
+
       return res.json({ ...role, permissions: updatedPermissions.map(p => p.permission) });
     } catch (error) {
       console.error("[settings/roles] Error updating role:", error);
@@ -175,9 +201,22 @@ router.put("/roles/:id/permissions",
         return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
       }
 
+      const oldPermissions = await storage.getTenantRolePermissions(req.params.id);
       await storage.setTenantRolePermissions(req.params.id, parsed.data.permissions);
       
       const updatedPermissions = await storage.getTenantRolePermissions(req.params.id);
+
+      await logRoleEvent("ROLE_PERMISSIONS_UPDATED", {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        roleId: existingRole.id,
+        roleName: existingRole.name,
+        oldPermissions: oldPermissions.map(p => p.permission),
+        newPermissions: updatedPermissions.map(p => p.permission),
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
       return res.json({ 
         ...existingRole, 
         permissions: updatedPermissions.map(p => p.permission) 
@@ -208,6 +247,16 @@ router.delete("/roles/:id",
       }
 
       await storage.deleteTenantRole(req.params.id, context.tenantId);
+
+      await logRoleEvent("ROLE_DELETED", {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        roleId: existingRole.id,
+        roleName: existingRole.name,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
       return res.status(204).send();
     } catch (error) {
       console.error("[settings/roles] Error deleting role:", error);
@@ -272,6 +321,18 @@ router.post("/staff",
       }
 
       const staff = await storage.createTenantStaff(parsed.data);
+
+      await logStaffEvent("STAFF_INVITED", {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        staffId: staff.id,
+        staffEmail: staff.email,
+        staffName: staff.fullName,
+        newValue: { email: staff.email, roleId: staff.tenantRoleId },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
       return res.status(201).json(staff);
     } catch (error) {
       console.error("[settings/staff] Error creating staff:", error);
@@ -331,7 +392,27 @@ router.put("/staff/:id",
         }
       }
 
+      const oldRoleId = existingMember.tenantRoleId;
       const staff = await storage.updateTenantStaff(req.params.id, context.tenantId, parsed.data);
+
+      const event = parsed.data.tenantRoleId && parsed.data.tenantRoleId !== oldRoleId
+        ? "STAFF_ROLE_CHANGED"
+        : parsed.data.status && parsed.data.status !== existingMember.status
+          ? (parsed.data.status === "active" ? "STAFF_ACTIVATED" : "STAFF_DEACTIVATED")
+          : "STAFF_UPDATED";
+
+      await logStaffEvent(event, {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        staffId: staff?.id || req.params.id,
+        staffEmail: staff?.email || existingMember.email,
+        staffName: staff?.fullName || existingMember.fullName,
+        oldValue: { roleId: oldRoleId, status: existingMember.status },
+        newValue: { roleId: staff?.tenantRoleId, status: staff?.status },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
       return res.json(staff);
     } catch (error) {
       console.error("[settings/staff] Error updating staff member:", error);
@@ -355,6 +436,17 @@ router.delete("/staff/:id",
       }
 
       await storage.deleteTenantStaff(req.params.id, context.tenantId);
+
+      await logStaffEvent("STAFF_REMOVED", {
+        tenantId: context.tenantId,
+        actorUserId: context.userId,
+        staffId: existingMember.id,
+        staffEmail: existingMember.email,
+        staffName: existingMember.fullName,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
       return res.status(204).send();
     } catch (error) {
       console.error("[settings/staff] Error deleting staff member:", error);

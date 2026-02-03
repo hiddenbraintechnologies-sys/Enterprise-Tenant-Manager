@@ -160,6 +160,9 @@ export const Permissions = {
   BILLING_VIEW: "BILLING_VIEW",
   BILLING_MANAGE: "BILLING_MANAGE",
   BILLING_REPORTS: "BILLING_REPORTS",
+
+  // Impersonation permission (Admin only)
+  IMPERSONATION_USE: "IMPERSONATION_USE",
 } as const;
 
 export type Permission = (typeof Permissions)[keyof typeof Permissions];
@@ -608,6 +611,8 @@ export const DEFAULT_TENANT_ROLES = {
       Permissions.SETTINGS_VIEW, Permissions.SETTINGS_EDIT, Permissions.MANAGE_SETTINGS,
       Permissions.SUBSCRIPTION_VIEW, Permissions.SUBSCRIPTION_CHANGE,
       Permissions.MARKETPLACE_BROWSE, Permissions.MARKETPLACE_PURCHASE, Permissions.MARKETPLACE_MANAGE_BILLING,
+      // Impersonation (Admin only)
+      Permissions.IMPERSONATION_USE,
     ],
   },
   STAFF: {

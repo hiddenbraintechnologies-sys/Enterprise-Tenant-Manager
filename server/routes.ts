@@ -58,6 +58,8 @@ import uaeComplianceRoutes from "./core/uae-compliance/uae-compliance-routes";
 import ukComplianceRoutes from "./core/uk-compliance/uk-compliance-routes";
 import { aiRouter } from "./core/ai-routes";
 import staffRolesRoutes from "./routes/settings/staff-roles";
+import impersonationRoutes from "./routes/settings/impersonation";
+import { blockImpersonationOnSensitiveRoutes } from "./middleware/require-permission";
 import {
   adminIpRestriction,
   adminRateLimit,
@@ -498,6 +500,12 @@ export async function registerRoutes(
 
   // Settings routes for staff and roles management
   app.use('/api/settings', authenticateHybrid({ required: true }), enforceTenantBoundary(), staffRolesRoutes);
+  
+  // Impersonation routes (with sensitive routes blocked)
+  app.use('/api/settings/impersonation', authenticateHybrid({ required: true }), enforceTenantBoundary(), impersonationRoutes);
+  
+  // Block impersonation on sensitive routes
+  app.use(blockImpersonationOnSensitiveRoutes);
 
   // Register Business Version management routes (SuperAdmin only)
   app.use('/api/business-versions', authenticateJWT({ required: true }), businessVersionRoutes);

@@ -7,6 +7,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { TenantProvider, DashboardGuard, ModuleGuard, FeatureGuard, useTenant, OnboardingGuard } from "@/contexts/tenant-context";
 import { TourProvider } from "@/contexts/tour-context";
+import { ImpersonationProvider } from "@/contexts/impersonation-context";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { CountryProvider } from "@/contexts/country-context";
 import { BrandingProvider } from "@/contexts/branding-context";
@@ -967,11 +969,14 @@ function App() {
         <CountryProvider>
           <TooltipProvider>
             <TourProvider>
-              <Toaster />
-              <OfflineBanner />
-              <InstallBanner />
-              <AppRouter />
-              <TourOverlay />
+              <ImpersonationProvider>
+                <Toaster />
+                <OfflineBanner />
+                <InstallBanner />
+                <ImpersonationBanner />
+                <AppRouter />
+                <TourOverlay />
+              </ImpersonationProvider>
             </TourProvider>
           </TooltipProvider>
         </CountryProvider>

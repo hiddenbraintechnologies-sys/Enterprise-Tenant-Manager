@@ -11,88 +11,31 @@ The user wants the AI to act as an expert developer and to follow all the archit
 ### Core Platform
 MyBizStream is built as a multi-tenant SaaS platform featuring robust authentication (Replit Auth OIDC, JWT, hybrid middleware), fine-grained Role-Based Access Control (RBAC), and a five-tier administration system. It supports subdomain isolation, per-tenant feature flags, and comprehensive audit logging. Key features include a Customer Portal, White-Label & Reseller System, extensive Tenant Branding options, multi-currency support, and compliance with various international data protection and taxation regulations (HIPAA/DPDP, India, UAE, UK, Malaysia, US).
 
-### Add-on Marketplace
-The platform includes an Add-on Marketplace with country-specific filtering and multi-currency pricing, allowing add-ons to be globally available or country-specific. A comprehensive feature gating system (using `useFeatureGate` hook) enables soft-upselling by controlling module and feature access based on plan tier, add-on status, country, and user roles. Locked feature pages/modals include trial Calls-to-Action. A Super Admin Marketplace Revenue Analytics Dashboard provides insights into subscriptions, revenue, and conversion funnels. The Super Admin console allows full management of the marketplace, including catalog, country rollout, and eligibility rules. HR-related add-ons (HRMS, Payroll) are structured to provide specific capabilities and restrict access based on add-on subscriptions, with mechanisms for employee limit enforcement and read-only modes upon subscription expiry.
-
-### Add-on Entitlement Enforcement
-A comprehensive entitlement enforcement system controls add-on access across the platform:
-
-**Entitlement States:**
-- `active` - Paid subscription active and valid
-- `trial` - Trial period active and not expired  
-- `grace` - Subscription expired but within grace period (3 days default)
-- `expired` - Subscription/trial has fully expired
-- `not_installed` - Add-on not installed for tenant
-- `cancelled` - Add-on explicitly cancelled/disabled
-
-**Backend Enforcement:**
-- `requireAddonMiddleware` enforces access at API level, returning 403 with specific error codes
-- Dependency checking enforces add-on prerequisites (e.g., Payroll requires HRMS)
-- Built-in dependencies: `payroll → hrms`, `payroll-india → hrms/hrms-india`, etc.
-- Error codes: `ADDON_EXPIRED`, `ADDON_TRIAL_EXPIRED`, `ADDON_NOT_INSTALLED`, `ADDON_CANCELLED`, `ADDON_DEPENDENCY_MISSING`, `ADDON_DEPENDENCY_EXPIRED`
-
-**Frontend Enforcement:**
-- `useEntitlements` hook provides entitlement state for all installed add-ons
-- `useAddonEntitlement(code)` checks specific add-on status
-- `RequireAddon` wrapper component blocks/redirects unauthorized access
-- My Add-ons page uses entitlements for Open/Renew button logic
-
-**Background Processing:**
-- Hourly sync job (`startAddonEntitlementSync`) updates subscription statuses
-- Grace period management via `graceUntil` field on tenant_addons table
-
-**Key Files:**
-- `server/services/entitlement.ts`: Core entitlement logic
-- `server/middleware/require-addon.ts`: API middleware
-- `server/routes/billing/entitlements.ts`: Entitlements API
-- `client/src/hooks/use-entitlements.ts`: Frontend hooks
-- `client/src/components/gating/require-addon.tsx`: Route wrapper component
+### Add-on Marketplace & Entitlement Enforcement
+The platform includes an Add-on Marketplace with country-specific filtering and multi-currency pricing. A comprehensive feature gating system enables soft-upselling by controlling module and feature access based on plan tier, add-on status, country, and user roles. A robust entitlement enforcement system controls add-on access, supporting states like `active`, `trial`, `grace`, `expired`, `not_installed`, and `cancelled`. This includes both backend (API middleware, dependency checking) and frontend enforcement (hooks, wrapper components) with background synchronization jobs.
 
 ### Technical Implementation
-The **Frontend** is developed using React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, featuring a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adhering to a RESTful API design with Zod for validation. **Database** operations utilize PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) follows Clean Architecture, uses BLoC for state management, Dio for HTTP, and Hive for offline caching, with full multi-tenancy support. Deployment is multi-cloud on AWS (EKS, RDS, ElastiCache, S3, CloudFront) and GCP (Cloud Run, Cloud SQL, Memorystore) with multi-region support and disaster recovery.
+The **Frontend** is developed using React 18, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query v5, and Wouter, featuring a professional blue color scheme with dark/light modes. The **Backend** is built with Express.js and TypeScript, adhering to a RESTful API design with Zod for validation. **Database** operations utilize PostgreSQL with Drizzle ORM. The **Mobile** application (Flutter) follows Clean Architecture, uses BLoC for state management, Dio for HTTP, and Hive for offline caching, with full multi-tenancy support. Deployment is multi-cloud on AWS and GCP with multi-region support and disaster recovery.
 
 ### Billing & Pricing
-A flexible billing system supports multi-interval pricing (monthly, quarterly, yearly) with automatic savings calculations, configurable by platform admins. Razorpay is integrated for marketplace add-on subscription management, handling plan creation, subscription lifecycle, and idempotent webhook processing for various events including trial support.
+A flexible billing system supports multi-interval pricing with automatic savings calculations. Razorpay is integrated for marketplace add-on subscription management, handling plan creation, subscription lifecycle, and idempotent webhook processing.
 
 ### User Experience & Notifications
-The platform includes an enhanced Booking Dialog with alerts for missing data and quick action buttons. A customizable Notification Center offers a NotificationBell for in-app alerts and preferences for configuring notification types, severity, channels (In-App, Email, WhatsApp, SMS), and quiet hours.
+The platform includes an enhanced Booking Dialog and a customizable Notification Center offering in-app alerts and preferences for configuring notification types, severity, channels (In-App, Email, WhatsApp, SMS), and quiet hours.
 
-### Internationalization (i18n)
-The platform supports 8 languages via `react-i18next`: English, Hindi, Telugu, Tamil, Kannada, Malayalam, Malay, and Chinese Simplified. It features country-driven language selection with defined language lists for India, Malaysia, UK, UAE, and Singapore. Language and country preferences are persisted, with automatic language switching if the current language is invalid for a selected country.
-
-### Country Locale Defaults
-A centralized country defaults system ensures correct locale settings during tenant creation:
-
-**Supported Countries:**
-- `MY` (Malaysia): MYR, Asia/Kuala_Lumpur, SST 6%
-- `IN` (India): INR, Asia/Kolkata, GST 18%
-- `SG` (Singapore): SGD, Asia/Singapore, GST 9%
-- `AE` (UAE): AED, Asia/Dubai, VAT 5%
-- `GB` (UK): GBP, Europe/London, VAT 20%
-- `US` (USA): USD, America/New_York, SalesTax 0%
-
-**Key Files:**
-- `shared/locale/country-defaults.ts`: Single source of truth for country defaults
-- `server/services/region-lock.ts`: Region config seeding with correct defaults
-- `platform_region_configs` table: Database source for registration flow
-
-**Helper Functions:**
-- `getCountryDefaults(countryCode)`: Returns defaults with MY fallback
-- `normalizeCountryCode(country)`: Converts country names to ISO codes
-- `needsRepair(countryCode, currency, timezone)`: Checks if tenant needs fixing
+### Internationalization (i18n) & Country Locale Defaults
+The platform supports 8 languages via `react-i18next` (English, Hindi, Telugu, Tamil, Kannada, Malayalam, Malay, and Chinese Simplified) with country-driven language selection. A centralized country defaults system ensures correct locale settings (currency, timezone, tax rates) during tenant creation for supported countries (MY, IN, SG, AE, GB, US).
 
 ### Progressive Web App (PWA)
-The platform offers PWA features including an installable app with manifest and icons, an offline fallback page (dark theme), and a smart install prompt. A service worker provides safe caching for static assets (cache-first) while strictly avoiding caching of API requests or requests with authentication/tenant headers.
+The platform offers PWA features including an installable app with manifest and icons, an offline fallback page, and a smart install prompt. A service worker provides safe caching for static assets.
 
-**Branding:** Theme color #2563EB (blue), background #0B1220 (dark)
-
-**Files:**
-- `client/public/manifest.webmanifest`: App manifest
-- `client/public/sw.js`: Service worker (safe caching)
-- `client/public/offline.html`: Offline page (dark theme)
-- `client/public/icons/`: PWA icons (blue theme)
-- `client/src/components/pwa/offline-banner.tsx`: Amber status banner
-- `client/src/components/pwa/install-prompt.tsx`: Install button/hook
+### Security Hardening
+Security measures include:
+- **Security Headers (Helmet)**: Baseline security headers are configured, including CSP in report-only mode with Razorpay exceptions.
+- **Registration Anti-Abuse**: Rate limiting, honeypot, optional MX validation, business name validation (Unicode-safe, no special characters), and profanity moderation (flag or strict block mode with obfuscation and leet-speak detection, and a false positive allowlist).
+- **Audit Logging**: Key security events are logged for tracking.
+- **Impersonation ("View as User")**: Allows admins to view the application as another staff member for support, with strict permission checks, sensitive route blocking, and clear UI indicators.
+- **Tenant Isolation**: Multi-tenant data isolation is enforced through middleware and scoping helpers, ensuring "fail-closed" behavior and returning 404 for cross-tenant access to prevent information leakage.
 
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
@@ -107,89 +50,3 @@ The platform offers PWA features including an installable app with manifest and 
 - **SendGrid/Resend**: Email notifications
 - **Razorpay**: Subscription management and billing
 - **Helmet**: Security headers middleware
-
-## Security Hardening
-
-### Security Headers (Helmet)
-Baseline security headers are configured via `server/middleware/security-headers.ts`:
-- **X-Content-Type-Options**: nosniff
-- **Referrer-Policy**: strict-origin-when-cross-origin
-- **X-Frame-Options**: DENY (prevents clickjacking)
-- **Permissions-Policy**: camera=(), microphone=(), geolocation=(), payment=(self)
-- **HSTS**: Enabled in production only (31536000 seconds, includeSubDomains, preload)
-- **CSP**: Report-only mode with Razorpay domain exceptions
-
-**CSP Exceptions (Razorpay):**
-- script-src: checkout.razorpay.com, api.razorpay.com
-- connect-src: api.razorpay.com, checkout.razorpay.com
-- frame-src: api.razorpay.com, checkout.razorpay.com
-
-### Registration Anti-Abuse
-- **Rate limiting**: 10 registrations per 15 minutes per IP
-- **Honeypot**: Hidden companyWebsite field catches bots
-- **MX validation**: Optional email domain verification (ENABLE_EMAIL_MX_VALIDATION env var)
-- **Business name validation**: Unicode-safe, rejects special-character-only inputs
-- **Profanity moderation**: Business name content moderation with two modes (see below)
-
-### Business Name Profanity Moderation
-The platform includes a profanity detection system for business name moderation during registration.
-
-**Environment Variables:**
-- `ENABLE_PROFANITY_CHECK`: Set to "true" to enable profanity checking (default: disabled)
-- `STRICT_PROFANITY_BLOCK`: Set to "true" to block registration for profane names (default: flag mode)
-
-**Modes:**
-- **Disabled** (default): No profanity checking, all names allowed
-- **Flag mode**: Profane names are allowed but flagged for admin review (moderationStatus: "flagged")
-- **Strict mode**: Profane names are blocked with 400 error
-
-**Detection Strategies:**
-- Direct word matching against normalized text
-- Obfuscation detection (punctuation/space removal)
-- Character repetition normalization (fuuuck -> fuck)
-- Leet-speak normalization (sh!t -> shit, f@ck -> fack)
-
-**False Positive Prevention:**
-- Allowlist includes common words like "assistant", "classic", "cockpit", "analyst", "Sussex", etc.
-
-**Database Fields (tenants table):**
-- `moderationStatus`: enum ("clear", "flagged", "reviewed", "blocked")
-- `moderationRuleId`: varchar - stores rule ID that triggered flag/block
-
-**Audit Events:**
-- `TENANT_NAME_PROFANITY_BLOCKED`: Logged when registration blocked in strict mode
-- `TENANT_NAME_FLAGGED_FOR_REVIEW`: Logged when tenant created with flagged status
-
-**Key Files:**
-- `shared/validation/profanity.ts`: Detection utility with rules and allowlist
-- `shared/validation/business.ts`: Business name validation with profanity integration
-- `server/__tests__/profanity.test.ts`: Unit tests for profanity detection
-
-### Audit Logging
-Key security events logged: USER_REGISTERED, TENANT_CREATED, ADDON_RENEW_STARTED, ADDON_RENEW_SUCCEEDED, ADDON_RENEW_FAILED
-
-### Tenant Isolation
-Multi-tenant data isolation is enforced through middleware and scoping helpers:
-
-**Infrastructure:**
-- `TenantResolver` class: Multi-strategy tenant resolution (subdomain, header, JWT claim, path, user default)
-- `TenantIsolation` class: Provides scoping helpers (`scopeCondition`, `validateOwnership`, `scopedInsert`)
-- `tenantIsolationMiddleware()`: Validates tenant context and user access
-- `requireTenantContext()`: Consolidated tenant context middleware
-
-**Scoping Helpers:**
-- `scopedWhere()`: Adds tenant filter to SELECT queries
-- `scopedWhereById()`: Adds tenant + ID filter for single-record queries
-- `scopedInsert()`: Ensures tenantId is added to INSERT data
-- `validateRecordBelongsToTenant()`: Validates record ownership with proper 404 response
-
-**Security Patterns:**
-- **Fail-closed**: Missing tenant context results in 403 Forbidden
-- **404 for cross-tenant access**: Returns 404 (not 403) for cross-tenant access to avoid information leakage
-- **Tenant-owned tables**: 23+ tables require tenantId in all queries (employees, invoices, bookings, etc.)
-
-**Key Files:**
-- `server/core/tenant-isolation.ts`: Main isolation infrastructure
-- `server/middleware/tenant-context.ts`: Request context middleware
-- `server/lib/tenant-scope.ts`: Scoping helper functions
-- `docs/tenant-scope-checklist.md`: Developer guidelines and patterns

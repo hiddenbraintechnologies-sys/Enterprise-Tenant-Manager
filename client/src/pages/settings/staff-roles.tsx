@@ -17,8 +17,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Shield, Plus, MoreHorizontal, UserPlus, Copy, Trash2, Loader2 } from "lucide-react";
+import { Users, Shield, Plus, MoreHorizontal, UserPlus, Copy, Trash2, Loader2, Eye } from "lucide-react";
 import { insertTenantStaffSchema, insertTenantRoleSchema, type TenantRole, type TenantStaff } from "@shared/schema";
+import { useImpersonation } from "@/contexts/impersonation-context";
 
 type TenantStaffMember = TenantStaff & {
   role: { id: string; name: string } | null;
@@ -87,6 +88,7 @@ export default function StaffRolesSettings() {
 
 function UsersTab() {
   const { toast } = useToast();
+  const { startImpersonation } = useImpersonation();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "pending_invite">("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -238,6 +240,22 @@ function UsersTab() {
     const user = staffList.find(u => u.id === userId);
     setNewRoleId(user?.tenantRoleId || "");
     setChangeRoleDialogOpen(true);
+  };
+
+  const handleViewAsUser = async (staffId: string) => {
+    try {
+      await startImpersonation(staffId);
+      toast({
+        title: "Impersonation started",
+        description: "You are now viewing the application as this user.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to start impersonation",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSaveRoleChange = () => {
@@ -400,6 +418,12 @@ function UsersTab() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleOpenEdit(row)}>Edit</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleChangeRole(row.id)}>Change role</DropdownMenuItem>
+                        {row.status === "active" && (
+                          <DropdownMenuItem onClick={() => handleViewAsUser(row.id)} data-testid={`button-view-as-${row.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View as user
+                          </DropdownMenuItem>
+                        )}
                         {row.status === "active" && (
                           <DropdownMenuItem onClick={() => deactivateMutation.mutate(row.id)}>Deactivate</DropdownMenuItem>
                         )}
