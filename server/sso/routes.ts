@@ -12,6 +12,7 @@ import { oktaSsoService } from './okta-sso';
 import { createSamlHandler } from './saml-handler';
 import { ssoUserProvisioningService } from './user-provisioning';
 import { z } from 'zod';
+import { recordLogin, findStaffByUserId } from '../services/login-history';
 
 const router = Router();
 
@@ -537,6 +538,23 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       (req.session as any).ssoProvider = 'google';
     }
 
+    // Record login history
+    try {
+      const staffId = await findStaffByUserId(result.tenant.id, result.user.id);
+      if (staffId) {
+        await recordLogin({
+          tenantId: result.tenant.id,
+          staffId,
+          userId: result.user.id,
+          ipAddress: req.ip || req.socket.remoteAddress,
+          userAgent: req.headers['user-agent'],
+          authProvider: 'google',
+        });
+      }
+    } catch (loginHistoryError) {
+      console.error('Failed to record login history:', loginHistoryError);
+    }
+
     // Redirect to dashboard or return URL
     const returnUrl = req.query.returnUrl as string || '/dashboard';
     res.redirect(`${returnUrl}?sso=google&new_user=${result.user.isNewUser}`);
@@ -722,6 +740,23 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
       (req.session as any).azureClaims = result.claims;
     }
 
+    // Record login history
+    try {
+      const staffId = await findStaffByUserId(result.tenant.id, result.user.id);
+      if (staffId) {
+        await recordLogin({
+          tenantId: result.tenant.id,
+          staffId,
+          userId: result.user.id,
+          ipAddress: req.ip || req.socket.remoteAddress,
+          userAgent: req.headers['user-agent'],
+          authProvider: 'microsoft',
+        });
+      }
+    } catch (loginHistoryError) {
+      console.error('Failed to record login history:', loginHistoryError);
+    }
+
     // Redirect to dashboard or return URL
     const returnUrl = req.query.returnUrl as string || '/dashboard';
     res.redirect(`${returnUrl}?sso=microsoft&new_user=${result.user.isNewUser}`);
@@ -896,6 +931,23 @@ router.get('/okta/callback', async (req: Request, res: Response) => {
       (req.session as any).ssoProvider = 'okta';
       (req.session as any).oktaGroups = result.groups;
       (req.session as any).role = provisionResult.assignedRole;
+    }
+
+    // Record login history
+    try {
+      const staffId = await findStaffByUserId(result.session.tenantId, provisionResult.user.id);
+      if (staffId) {
+        await recordLogin({
+          tenantId: result.session.tenantId,
+          staffId,
+          userId: provisionResult.user.id,
+          ipAddress: req.ip || req.socket.remoteAddress,
+          userAgent: req.headers['user-agent'],
+          authProvider: 'okta',
+        });
+      }
+    } catch (loginHistoryError) {
+      console.error('Failed to record login history:', loginHistoryError);
     }
 
     const returnUrl = result.session.returnUrl || '/dashboard';

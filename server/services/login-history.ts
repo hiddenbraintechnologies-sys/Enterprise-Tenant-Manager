@@ -2,6 +2,20 @@ import { db } from "../db";
 import { tenantStaffLoginHistory, tenantStaff } from "@shared/schema";
 import { eq, and, desc, lt, sql } from "drizzle-orm";
 
+export async function findStaffByUserId(tenantId: string, userId: string): Promise<string | null> {
+  const [staff] = await db
+    .select({ id: tenantStaff.id })
+    .from(tenantStaff)
+    .where(
+      and(
+        eq(tenantStaff.tenantId, tenantId),
+        eq(tenantStaff.userId, userId)
+      )
+    )
+    .limit(1);
+  return staff?.id || null;
+}
+
 export interface RecordLoginParams {
   tenantId: string;
   staffId: string;

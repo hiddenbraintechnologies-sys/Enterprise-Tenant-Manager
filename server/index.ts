@@ -327,6 +327,9 @@ app.use((req, res, next) => {
   // Start background job for syncing addon entitlements
   startAddonEntitlementSync();
   
+  // Start background job for cleaning up old login history
+  startLoginHistoryCleanup();
+  
   // Server is already listening (started at the top of this async block)
   // This ensures platform health checks pass immediately
   } catch (error) {
@@ -395,4 +398,24 @@ function startAddonEntitlementSync() {
   setTimeout(() => runSync(), 15000);
   setInterval(runSync, INTERVAL_MS);
   log("Addon entitlement sync started (runs hourly)", "addon-entitlement-sync");
+}
+
+function startLoginHistoryCleanup() {
+  const INTERVAL_MS = 24 * 60 * 60 * 1000; // Run once per day
+  
+  const runCleanup = async () => {
+    try {
+      const { cleanupOldLoginHistory } = await import("./services/login-history");
+      const count = await cleanupOldLoginHistory(90);
+      if (count > 0) {
+        log(`Cleaned up ${count} old login history entries`, "login-history-cleanup");
+      }
+    } catch (error) {
+      console.error("[login-history-cleanup] Error cleaning up login history:", error);
+    }
+  };
+
+  setTimeout(() => runCleanup(), 60000);
+  setInterval(runCleanup, INTERVAL_MS);
+  log("Login history cleanup started (runs daily)", "login-history-cleanup");
 }
