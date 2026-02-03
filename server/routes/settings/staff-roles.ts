@@ -542,7 +542,7 @@ router.post("/staff/:id/revoke-invite",
 // ==================== LOGIN HISTORY ENDPOINTS ====================
 
 router.get("/staff/:staffId/login-history",
-  requireTenantPermission(Permissions.STAFF_READ),
+  requireTenantPermission(Permissions.STAFF_VIEW),
   async (req: Request, res: Response) => {
     const context = (req as any).context;
     if (!context?.tenantId) {

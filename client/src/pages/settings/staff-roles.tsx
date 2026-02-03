@@ -17,13 +17,47 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Shield, Plus, MoreHorizontal, UserPlus, Copy, Trash2, Loader2, Eye } from "lucide-react";
+import { Users, Shield, Plus, MoreHorizontal, UserPlus, Copy, Trash2, Loader2, Eye, Clock, Monitor, Globe } from "lucide-react";
 import { insertTenantStaffSchema, insertTenantRoleSchema, type TenantRole, type TenantStaff } from "@shared/schema";
 import { useImpersonation } from "@/contexts/impersonation-context";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type TenantStaffMember = TenantStaff & {
   role: { id: string; name: string } | null;
 };
+
+type LoginHistoryEntry = {
+  id: string;
+  loginAt: string;
+  logoutAt: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  authProvider: string;
+  isImpersonated: boolean;
+  impersonatedByStaffId: string | null;
+  impersonatedByStaffName: string | null;
+};
+
+function parseUserAgent(ua: string | null): { browser: string; os: string } {
+  if (!ua) return { browser: "Unknown", os: "Unknown" };
+  
+  let browser = "Unknown";
+  let os = "Unknown";
+  
+  if (ua.includes("Chrome")) browser = "Chrome";
+  else if (ua.includes("Firefox")) browser = "Firefox";
+  else if (ua.includes("Safari")) browser = "Safari";
+  else if (ua.includes("Edge")) browser = "Edge";
+  else if (ua.includes("Opera")) browser = "Opera";
+  
+  if (ua.includes("Windows")) os = "Windows";
+  else if (ua.includes("Mac OS")) os = "macOS";
+  else if (ua.includes("Linux")) os = "Linux";
+  else if (ua.includes("Android")) os = "Android";
+  else if (ua.includes("iOS") || ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+  
+  return { browser, os };
+}
 
 type TenantRoleWithPermissions = TenantRole & {
   permissions: string[];
@@ -99,6 +133,8 @@ function UsersTab() {
   const [changeRoleDialogOpen, setChangeRoleDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [newRoleId, setNewRoleId] = useState<string>("");
+  const [loginHistoryOpen, setLoginHistoryOpen] = useState(false);
+  const [loginHistoryStaff, setLoginHistoryStaff] = useState<TenantStaffMember | null>(null);
 
   const { data: staffList = [], isLoading } = useQuery<TenantStaffMember[]>({
     queryKey: ["/api/settings/staff"],
@@ -107,6 +143,19 @@ function UsersTab() {
   const { data: roles = [] } = useQuery<TenantRoleWithPermissions[]>({
     queryKey: ["/api/settings/roles"],
   });
+
+  const { data: loginHistoryData, isLoading: loginHistoryLoading } = useQuery<{
+    entries: LoginHistoryEntry[];
+    total: number;
+  }>({
+    queryKey: ["/api/settings/staff", loginHistoryStaff?.id, "login-history"],
+    enabled: !!loginHistoryStaff?.id,
+  });
+
+  const handleViewLoginHistory = (staff: TenantStaffMember) => {
+    setLoginHistoryStaff(staff);
+    setLoginHistoryOpen(true);
+  };
 
   const form = useForm<z.infer<typeof staffFormSchema>>({
     resolver: zodResolver(staffFormSchema),
@@ -424,6 +473,10 @@ function UsersTab() {
                             View as user
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => handleViewLoginHistory(row)} data-testid={`button-login-history-${row.id}`}>
+                          <Clock className="h-4 w-4 mr-2" />
+                          Login history
+                        </DropdownMenuItem>
                         {row.status === "active" && (
                           <DropdownMenuItem onClick={() => deactivateMutation.mutate(row.id)}>Deactivate</DropdownMenuItem>
                         )}
@@ -581,6 +634,80 @@ function UsersTab() {
               Save
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={loginHistoryOpen} onOpenChange={setLoginHistoryOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Login History</DialogTitle>
+            <DialogDescription>
+              {loginHistoryStaff?.aliasName || loginHistoryStaff?.fullName} ({loginHistoryStaff?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[400px]">
+            {loginHistoryLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !loginHistoryData?.entries?.length ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No login history available.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>IP Address</TableHead>
+                    <TableHead>Device</TableHead>
+                    <TableHead>Auth Method</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loginHistoryData.entries.map((entry) => {
+                    const { browser, os } = parseUserAgent(entry.userAgent);
+                    return (
+                      <TableRow key={entry.id} data-testid={`login-history-row-${entry.id}`}>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(entry.loginAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {entry.ipAddress || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Monitor className="h-3 w-3 text-muted-foreground" />
+                            <span>{browser}</span>
+                            <span className="text-muted-foreground">·</span>
+                            <span>{os}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="uppercase text-xs">
+                          {entry.authProvider}
+                        </TableCell>
+                        <TableCell>
+                          {entry.isImpersonated ? (
+                            <Badge variant="outline" className="text-amber-600 border-amber-300">
+                              Impersonated by {entry.impersonatedByStaffName || "Admin"}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Normal</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </ScrollArea>
+          {loginHistoryData && loginHistoryData.total > 20 && (
+            <div className="text-sm text-muted-foreground text-center pt-2">
+              Showing {loginHistoryData.entries.length} of {loginHistoryData.total} entries
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
