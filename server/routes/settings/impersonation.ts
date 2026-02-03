@@ -3,6 +3,7 @@ import { requireAuth } from "../../middleware/tenant-auth";
 import { requireTenantContext } from "../../middleware/tenant-context";
 import { PermissionService } from "../../services/permission";
 import { logImpersonationEvent } from "../../services/audit";
+import { recordLogin } from "../../services/login-history";
 import { storage } from "../../storage";
 import { Permissions } from "@shared/rbac/permissions";
 
@@ -57,6 +58,17 @@ router.post("/start", requireAuth, requireTenantContext(), async (req: Request, 
       targetStaffName: targetStaff.fullName || targetStaff.email,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent"),
+    });
+
+    await recordLogin({
+      tenantId: tenant.id,
+      staffId: targetStaff.id,
+      userId: user.id,
+      ipAddress: req.ip || undefined,
+      userAgent: req.get("User-Agent") || undefined,
+      authProvider: "impersonation",
+      isImpersonated: true,
+      impersonatedByStaffId: actorStaff.id,
     });
 
     const role = targetStaff.tenantRoleId 
