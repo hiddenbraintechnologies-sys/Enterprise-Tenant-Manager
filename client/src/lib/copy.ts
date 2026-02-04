@@ -1,3 +1,19 @@
+/**
+ * CENTRALIZED COPY CONSTANTS
+ * ==========================
+ * IMPORTANT:
+ * - Do not introduce industry-specific terms outside COPY.clinic
+ * - All core UI text must come from this file
+ * - CI will fail on forbidden terms (patient, patients, doctor, dr.)
+ * - Run `npm run lint:terminology` to validate
+ *
+ * Global Terminology Standard:
+ * - Public-facing: Customer
+ * - Internal record: Contact
+ * - Auth/access: User
+ * - Internal team: Staff / Employee
+ * - Clinic-only (restricted to COPY.clinic): Patient, Doctor
+ */
 export const COPY = {
   product: {
     name: "MyBizStream",

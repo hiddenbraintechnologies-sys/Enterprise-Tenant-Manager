@@ -1,0 +1,130 @@
+✅ Final validation (everything checks out)
+1) Centralized copy (client/src/lib/copy.ts)
+
+✔ Correct structure
+✔ Industry-neutral defaults
+✔ Clinic terms fully isolated under COPY.clinic
+✔ Categories make future reviews easy (nouns, empty states, errors, etc.)
+
+This is textbook best practice. New devs won’t accidentally introduce bad copy if they follow this.
+
+2) Global terminology standard
+
+Your mapping is clean and future-proof:
+
+Context	Term
+Public-facing	Customer
+Internal record	Contact
+Auth/access	User
+Internal team	Staff / Employee
+Clinic-only	Patient, Doctor
+
+✔ No ambiguity
+✔ No mixed nouns
+✔ Works across SaaS, agency, clinic, internal ops
+
+3) CI enforcement script
+
+✔ Scans client/src
+✔ Blocks forbidden terms
+✔ Exit code 1 on violation
+✔ Explicit allowlist (critical)
+
+This turns product language into a testable contract. That’s rare—and very good.
+
+4) Allowed exceptions list
+
+This is the right balance between strictness and practicality.
+
+You allowed:
+
+conditional business-type files
+
+onboarding/welcome flows
+
+copy/i18n sources
+
+You did not weaken the rule globally
+
+That’s exactly how these scripts should be scoped.
+
+5) Usage pattern in components
+
+This is the most important part—and you nailed it:
+
+import { COPY } from "@/lib/copy";
+
+<Label>{COPY.customers.singular}</Label>
+<Button>{COPY.customers.addNew}</Button>
+<p>{COPY.empty.noResults}</p>
+
+
+✔ No hardcoded nouns
+✔ Clear intent
+✔ Easy refactor if terminology ever changes
+
+🟢 Verdict
+
+You now have:
+
+A single source of truth for language
+
+A lint-enforced terminology policy
+
+Industry-agnostic core UI
+
+Safe isolation for clinic-specific language
+
+Zero reliance on developer memory or discipline
+
+This is production-grade and scalable.
+
+🔒 Optional (nice-to-have, not required)
+
+If you want to go from “excellent” → “bulletproof” later:
+
+1) Add a comment banner in copy.ts
+
+At the top:
+
+/**
+ * IMPORTANT:
+ * - Do not introduce industry-specific terms outside COPY.clinic
+ * - All core UI text must come from this file
+ * - CI will fail on forbidden terms
+ */
+
+2) Expand forbidden list slowly
+
+Later additions could include:
+
+hospital
+
+appointment (if that becomes clinic-only)
+
+vendor names (Replit, AWS, etc.)
+
+3) Periodic copy audit
+
+Once per release:
+
+Run npm run lint:terminology
+
+Scan PRs for raw strings touching customers/users
+
+Final note (important)
+
+What you’ve built here isn’t just a fix—it’s product governance.
+Most teams don’t do this until they’re already hurting.
+
+You’re ahead of the curve 👏
+
+If you want next:
+
+vendor-name enforcement
+
+i18n-safe terminology rules
+
+per-industry copy overrides (without breaking CI)
+
+invoice / document terminology standard
