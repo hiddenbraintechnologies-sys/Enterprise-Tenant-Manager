@@ -43,6 +43,58 @@ Security measures include:
 - **Security Alerts**: Categorized alerts (new_device, new_ip, new_country, force_logout, suspicious_activity) with severity levels and acknowledgment workflow.
 - **Session Version Middleware**: Applied to authenticated routes to enforce logout invalidation across the platform.
 
+### Role-Based Access Control (RBAC)
+
+The platform implements a comprehensive permission-based RBAC system defined in `shared/rbac.ts`.
+
+#### Roles
+Five predefined roles with hierarchical access:
+- **OWNER**: Full platform access, all settings and modules
+- **ADMIN**: Most access, view-only for Security and Billing
+- **MANAGER**: Operations focus, view-only Team access
+- **STAFF**: Limited to personal work view and appointments
+- **ACCOUNTANT**: Billing and invoicing focus
+
+#### Permission Categories
+- **Settings Permissions**: `SETTINGS_*_VIEW`, `SETTINGS_*_EDIT` for Profile, Org, Team, Security, Billing, Client Portal, Branding, Theme, Notifications
+- **Dashboard Permissions**: `DASHBOARD_OVERVIEW_VIEW`, `DASHBOARD_OPERATIONS_VIEW`, `DASHBOARD_MYWORK_VIEW`
+- **Module Permissions**: `CLIENTS_VIEW`, `SERVICES_VIEW`, `APPOINTMENTS_VIEW`, `INVOICES_VIEW`, `REPORTS_VIEW`
+
+#### Key Files
+- `shared/rbac.ts`: Role/permission constants, role-permission mappings, helper functions (`hasPermission`, `buildPermissionsFromRole`, `normalizeRole`)
+- `shared/defaultRoute.ts`: Smart dashboard routing via `getDefaultDashboardRoute(user)` - routes based on role + permissions + business type
+- `server/rbac/requirePermission.ts`: Express middleware guards (`requirePermission`, `requireAnyPermission`, `requireAllPermissions`)
+- `client/src/rbac/useCan.ts`: React hook for permission-based UI visibility (`can`, `canAny`, `canAll`)
+
+#### Smart Dashboard Routing
+After login, users are routed based on role and permissions:
+- **Owner/Admin**: `/dashboard/overview`
+- **Manager**: `/dashboard/operations`
+- **Staff**: `/dashboard/my-work`
+- **Accountant**: `/dashboard/overview`
+- **Fallback**: `/dashboard` (safe generic view)
+
+#### Settings Visibility
+Settings sidebar items use `viewPermission` and `editPermission` to:
+- Hide items user cannot access
+- Show "View only" badge for items user can view but not edit
+- Backend permissions are used when available, with role-derived fallback
+
+#### Usage Examples
+
+**Backend route protection:**
+```typescript
+import { requirePermission } from "./rbac/requirePermission";
+router.get("/api/settings/security", requirePermission("SETTINGS_SECURITY_VIEW"), handler);
+```
+
+**Frontend visibility:**
+```typescript
+import { useCan } from "@/rbac/useCan";
+const { can } = useCan();
+if (can("SETTINGS_BILLING_VIEW")) { /* show billing menu */ }
+```
+
 ## External Dependencies
 - **Replit Auth (OIDC)**: User authentication
 - **PostgreSQL**: Primary database
