@@ -48,6 +48,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import type { Permission } from "@shared/rbac";
+import { normalizeRole, buildPermissionsFromRole } from "@shared/rbac";
 import { useModuleAccess } from "@/hooks/use-module-access";
 import { usePayrollAddon } from "@/hooks/use-payroll-addon";
 import { Button } from "@/components/ui/button";
@@ -318,8 +320,8 @@ const systemItems: NavItem[] = [
 ];
 
 interface SettingsNavItem extends NavItem {
-  allowedRoles?: string[];
-  viewOnlyRoles?: string[];
+  viewPermission?: Permission;
+  editPermission?: Permission;
 }
 
 interface SettingsSection {
@@ -331,48 +333,47 @@ const settingsSections: SettingsSection[] = [
   {
     label: "Account",
     items: [
-      { title: "My Profile", url: "/settings/profile", icon: User, subtitle: "Name, email, avatar" },
+      { title: "My Profile", url: "/settings/profile", icon: User, subtitle: "Name, email, avatar", viewPermission: "SETTINGS_PROFILE_VIEW", editPermission: "SETTINGS_PROFILE_EDIT" },
     ],
   },
   {
     label: "Organization",
     items: [
-      { title: "Organization Details", url: "/settings/organization", icon: Building2, subtitle: "Company info, timezone, currency", allowedRoles: ["Owner", "Admin"] },
-      { title: "Team & Roles", url: "/settings/team", icon: Users, subtitle: "Invite users, assign permissions", allowedRoles: ["Owner", "Admin"], viewOnlyRoles: ["Manager"] },
-      { title: "Security & Access", url: "/settings/security", icon: Shield, subtitle: "SSO, sessions, IP rules, alerts", allowedRoles: ["Owner"], viewOnlyRoles: ["Admin"] },
+      { title: "Organization Details", url: "/settings/organization", icon: Building2, subtitle: "Company info, timezone, currency", viewPermission: "SETTINGS_ORG_VIEW", editPermission: "SETTINGS_ORG_EDIT" },
+      { title: "Team & Roles", url: "/settings/team", icon: Users, subtitle: "Invite users, assign permissions", viewPermission: "SETTINGS_TEAM_VIEW", editPermission: "SETTINGS_TEAM_INVITE" },
+      { title: "Security & Access", url: "/settings/security", icon: Shield, subtitle: "SSO, sessions, IP rules, alerts", viewPermission: "SETTINGS_SECURITY_VIEW", editPermission: "SETTINGS_SECURITY_EDIT" },
     ],
   },
   {
     label: "Subscription",
     items: [
-      { title: "Plans & Billing", url: "/settings/billing", icon: CreditCard, subtitle: "Plan, add-ons, invoices", allowedRoles: ["Owner", "Accountant"], viewOnlyRoles: ["Admin"] },
+      { title: "Plans & Billing", url: "/settings/billing", icon: CreditCard, subtitle: "Plan, add-ons, invoices", viewPermission: "SETTINGS_BILLING_VIEW", editPermission: "SETTINGS_BILLING_EDIT" },
     ],
   },
   {
     label: "Customer Experience",
     items: [
-      { title: "Client Portal", url: "/settings/portal", icon: Users, subtitle: "Customer-facing settings", allowedRoles: ["Owner", "Admin"], viewOnlyRoles: ["Manager"] },
-      { title: "Branding & Templates", url: "/settings/branding", icon: Brush, subtitle: "Logo, colors, email templates", allowedRoles: ["Owner", "Admin"] },
+      { title: "Client Portal", url: "/settings/portal", icon: Users, subtitle: "Customer-facing settings", viewPermission: "SETTINGS_CLIENT_PORTAL_VIEW", editPermission: "SETTINGS_CLIENT_PORTAL_EDIT" },
+      { title: "Branding & Templates", url: "/settings/branding", icon: Brush, subtitle: "Logo, colors, email templates", viewPermission: "SETTINGS_BRANDING_VIEW", editPermission: "SETTINGS_BRANDING_EDIT" },
     ],
   },
   {
     label: "Preferences",
     items: [
-      { title: "Theme & Layout", url: "/settings/appearance", icon: Palette, subtitle: "Dark/light mode, UI density", allowedRoles: ["Owner", "Admin", "Manager"] },
-      { title: "Notifications & Alerts", url: "/settings/notifications", icon: Bell, subtitle: "Email, push, system alerts" },
+      { title: "Theme & Layout", url: "/settings/appearance", icon: Palette, subtitle: "Dark/light mode, UI density", viewPermission: "SETTINGS_THEME_VIEW", editPermission: "SETTINGS_THEME_EDIT" },
+      { title: "Notifications & Alerts", url: "/settings/notifications", icon: Bell, subtitle: "Email, push, system alerts", viewPermission: "SETTINGS_NOTIFICATIONS_VIEW", editPermission: "SETTINGS_NOTIFICATIONS_EDIT" },
     ],
   },
 ];
 
-function canAccessSettingsItem(item: SettingsNavItem, userRole: string | null): boolean {
-  if (!item.allowedRoles) return true;
-  if (!userRole) return false;
-  return item.allowedRoles.includes(userRole) || (item.viewOnlyRoles?.includes(userRole) ?? false);
+function canAccessSettingsItem(item: SettingsNavItem, userPermissions: readonly Permission[]): boolean {
+  if (!item.viewPermission) return true;
+  return userPermissions.includes(item.viewPermission);
 }
 
-function isViewOnlyAccess(item: SettingsNavItem, userRole: string | null): boolean {
-  if (!userRole || !item.viewOnlyRoles) return false;
-  return item.viewOnlyRoles.includes(userRole) && !item.allowedRoles?.includes(userRole);
+function isViewOnlyAccess(item: SettingsNavItem, userPermissions: readonly Permission[]): boolean {
+  if (!item.viewPermission || !item.editPermission) return false;
+  return userPermissions.includes(item.viewPermission) && !userPermissions.includes(item.editPermission);
 }
 
 // HR Core items (Payroll OR HRMS add-on) - Employee Directory
@@ -408,6 +409,13 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
   const { t } = useTranslation();
   const { user, logout, isLoggingOut, businessType: authBusinessType, tenant, role: userRole } = useAuth();
+  
+  const userPermissions = useMemo<readonly Permission[]>(() => {
+    const normalizedRole = normalizeRole(userRole);
+    if (!normalizedRole) return [];
+    return buildPermissionsFromRole(normalizedRole);
+  }, [userRole]);
+  
   const { canAccessModule, getModuleAccessInfo, isFreePlan } = useModuleAccess();
   const { hasPayrollAccess, isPayrollTrialing, countryCode, isLoading: isPayrollLoading } = usePayrollAddon();
   const { branding } = useBranding();
@@ -582,7 +590,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
               </SidebarGroupContent>
             </SidebarGroup>
             {settingsSections.map((section) => {
-              const visibleItems = section.items.filter(item => canAccessSettingsItem(item, userRole));
+              const visibleItems = section.items.filter(item => canAccessSettingsItem(item, userPermissions));
               if (visibleItems.length === 0) return null;
               
               return (
@@ -595,7 +603,7 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                       {visibleItems.map((item) => {
                         const isBillingItem = item.url === "/settings/billing";
                         const showBillingAlert = isBillingItem && billingStatus?.needsAttention;
-                        const viewOnly = isViewOnlyAccess(item, userRole);
+                        const viewOnly = isViewOnlyAccess(item, userPermissions);
                         
                         return (
                           <SidebarMenuItem key={item.title}>

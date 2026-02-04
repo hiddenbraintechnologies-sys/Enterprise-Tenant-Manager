@@ -19,7 +19,9 @@ import { Link } from "wouter";
 import type { Booking, Customer, Service, BookingWithDetails } from "@shared/schema";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { useCountry } from "@/contexts/country-context";
-import { useAuth, DASHBOARD_ROUTES } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
+import { getDefaultDashboardRoute, type UserLike } from "@shared/defaultRoute";
+import { normalizeRole, buildPermissionsFromRole, type Role } from "@shared/rbac";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -107,43 +109,26 @@ export default function Dashboard() {
   const { formatCurrency } = useCountry();
   const { user, tenant, role, isLoading: authLoading } = useAuth();
   
-  // Smart routing based on role and business type
-  // Implements role-based internal routing per spec:
-  // Owner/Admin → /dashboard/overview (module-specific dashboard)
-  // Manager → /dashboard/operations (same as overview for now)
-  // Staff → /dashboard (generic work view - stay here)
-  // Accountant → /dashboard (billing-focused - stay here)
-  // Unknown/missing → /dashboard (safe fallback)
+  // Smart routing using getDefaultDashboardRoute
+  // Routes based on role + permissions + business type
   useEffect(() => {
     if (authLoading) return;
-    
-    // Safety: If no user or tenant, stay on generic dashboard (safe fallback)
     if (!user || !tenant) return;
     
-    const businessType = tenant.businessType || "service";
-    const moduleRoute = DASHBOARD_ROUTES[businessType] || "/dashboard/service";
-    const normalizedRole = (role || "").toLowerCase();
+    const userRole = normalizeRole(role);
+    if (!userRole) return;
     
-    // Route based on role
-    switch (normalizedRole) {
-      case "owner":
-      case "admin":
-        // Owners and Admins see the full module-specific overview dashboard
-        setLocation(moduleRoute);
-        break;
-      case "manager":
-        // Managers see operations view (module-specific for now)
-        setLocation(moduleRoute);
-        break;
-      case "staff":
-      case "accountant":
-        // Staff and Accountant stay on generic dashboard (their work/billing view)
-        // No redirect - they see this page
-        break;
-      default:
-        // Unknown role or no role - stay on safe generic dashboard
-        // This prevents blank pages for edge cases
-        break;
+    const userForRouting: UserLike = {
+      role: userRole,
+      businessType: tenant.businessType || "service",
+      permissions: buildPermissionsFromRole(userRole),
+      onboardingCompleted: tenant.onboardingCompleted,
+    };
+    
+    const targetRoute = getDefaultDashboardRoute(userForRouting);
+    
+    if (targetRoute !== "/dashboard" && targetRoute !== window.location.pathname) {
+      setLocation(targetRoute);
     }
   }, [authLoading, user, tenant, role, setLocation]);
   
