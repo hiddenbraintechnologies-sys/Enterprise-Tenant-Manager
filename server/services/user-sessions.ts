@@ -59,6 +59,67 @@ export async function updateSessionLastSeen(sessionId: string): Promise<void> {
     .where(eq(userSessions.id, sessionId));
 }
 
+// In-memory throttle cache for touchSession (to avoid DB writes on every request)
+const touchThrottle = new Map<string, number>();
+const TOUCH_THROTTLE_MS = 60_000; // 1 minute
+
+/**
+ * Touch session last_seen_at (throttled to reduce DB writes).
+ * Only updates if more than 1 minute since last touch.
+ */
+export async function touchSession(sessionId: string): Promise<void> {
+  const now = Date.now();
+  const lastTouch = touchThrottle.get(sessionId) || 0;
+  
+  if (now - lastTouch < TOUCH_THROTTLE_MS) {
+    return; // Throttled, skip update
+  }
+  
+  touchThrottle.set(sessionId, now);
+  await updateSessionLastSeen(sessionId);
+}
+
+export interface SessionValidationResult {
+  valid: boolean;
+  reason?: "not_found" | "revoked" | "version_mismatch";
+  session?: typeof userSessions.$inferSelect;
+}
+
+/**
+ * Validate that a session is active and matches the expected version.
+ * Used by auth middleware to verify JWT session claims.
+ */
+export async function validateSessionActive(
+  sessionId: string,
+  tenantId: string,
+  expectedVersion?: number
+): Promise<SessionValidationResult> {
+  const [session] = await db
+    .select()
+    .from(userSessions)
+    .where(
+      and(
+        eq(userSessions.id, sessionId),
+        eq(userSessions.tenantId, tenantId)
+      )
+    )
+    .limit(1);
+
+  if (!session) {
+    return { valid: false, reason: "not_found" };
+  }
+
+  if (session.revokedAt) {
+    return { valid: false, reason: "revoked" };
+  }
+
+  if (expectedVersion !== undefined && session.sessionVersion !== expectedVersion) {
+    return { valid: false, reason: "version_mismatch" };
+  }
+
+  return { valid: true, session };
+}
+
 /**
  * Get active sessions for a user.
  */

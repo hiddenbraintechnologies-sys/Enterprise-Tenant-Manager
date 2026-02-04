@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { jwtAuthService, DecodedToken } from "./jwt";
 import { db } from "../db";
-import { users, tenants, roles, userTenants, platformAdmins, platformAdminCountryAssignments, type PlatformAdminRole } from "@shared/schema";
+import { users, tenants, roles, userTenants, platformAdmins, platformAdminCountryAssignments, userSessions, type PlatformAdminRole } from "@shared/schema";
+import { validateSessionActive, touchSession } from "../services/user-sessions";
 import { eq, and, inArray } from "drizzle-orm";
 import { getTenantFeatures } from "./context";
 import type { RequestContext } from "@shared/schema";
@@ -68,6 +69,32 @@ export function authenticateJWT(options: { required?: boolean } = { required: tr
       return next();
     }
     console.log(`[auth] Token verified for userId=${decoded.userId}, tenantId=${decoded.tenantId}`);
+
+    // Validate session if sessionId is present in token
+    if (decoded.sessionId && decoded.tenantId) {
+      const sessionResult = await validateSessionActive(
+        decoded.sessionId,
+        decoded.tenantId,
+        decoded.sessionVersion
+      );
+
+      if (!sessionResult.valid) {
+        console.log(`[auth] Session validation failed: ${sessionResult.reason} for sessionId=${decoded.sessionId}`);
+        return res.status(401).json({
+          message: sessionResult.reason === "revoked" 
+            ? "Session has been revoked" 
+            : sessionResult.reason === "version_mismatch"
+            ? "Session invalidated (force logout)"
+            : "Session not found",
+          code: "SESSION_INVALID",
+        });
+      }
+
+      // Touch session last seen (throttled)
+      touchSession(decoded.sessionId).catch(err => {
+        console.error(`[auth] Failed to touch session: ${err.message}`);
+      });
+    }
 
     req.tokenPayload = decoded;
 
@@ -425,6 +452,33 @@ export function authenticateHybrid(options: { required?: boolean } = { required:
       }
       
       console.log(`[auth-hybrid] JWT verified for userId=${decoded.userId}, tenantId=${decoded.tenantId}`);
+      
+      // Validate session if sessionId is present in token
+      if (decoded.sessionId && decoded.tenantId) {
+        const sessionResult = await validateSessionActive(
+          decoded.sessionId,
+          decoded.tenantId,
+          decoded.sessionVersion
+        );
+
+        if (!sessionResult.valid) {
+          console.log(`[auth-hybrid] Session validation failed: ${sessionResult.reason} for sessionId=${decoded.sessionId}`);
+          return res.status(401).json({
+            message: sessionResult.reason === "revoked" 
+              ? "Session has been revoked" 
+              : sessionResult.reason === "version_mismatch"
+              ? "Session invalidated (force logout)"
+              : "Session not found",
+            code: "SESSION_INVALID",
+          });
+        }
+
+        // Touch session last seen (throttled)
+        touchSession(decoded.sessionId).catch(err => {
+          console.error(`[auth-hybrid] Failed to touch session: ${err.message}`);
+        });
+      }
+
       req.tokenPayload = decoded;
 
       // Handle platform admin JWT

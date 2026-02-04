@@ -28,6 +28,13 @@ export interface TokenPayload extends JwtPayload {
   ver: number;
   isPlatformAdmin?: boolean;
   platformRole?: PlatformAdminRole;
+  // Session tracking
+  sid?: string; // sessionId
+  stf?: string; // staffId
+  sver?: number; // sessionVersion
+  // Impersonation
+  ruid?: string; // realUserId (when impersonating)
+  imp?: boolean; // impersonating flag
 }
 
 export interface TokenPair {
@@ -45,6 +52,13 @@ export interface DecodedToken {
   jti: string;
   isPlatformAdmin?: boolean;
   platformRole?: PlatformAdminRole;
+  // Session tracking
+  sessionId?: string;
+  staffId?: string;
+  sessionVersion?: number;
+  // Impersonation
+  realUserId?: string;
+  impersonating?: boolean;
 }
 
 function generateTokenId(): string {
@@ -55,13 +69,22 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export interface SessionContext {
+  sessionId?: string;
+  staffId?: string;
+  sessionVersion?: number;
+  realUserId?: string;
+  impersonating?: boolean;
+}
+
 export class JWTAuthService {
   async generateTokenPair(
     userId: string,
     tenantId: string | null,
     roleId: string | null,
     permissions: string[],
-    deviceInfo?: { userAgent?: string; ipAddress?: string }
+    deviceInfo?: { userAgent?: string; ipAddress?: string },
+    sessionContext?: SessionContext
   ): Promise<TokenPair> {
     const accessJti = generateTokenId();
     const refreshJti = generateTokenId();
@@ -74,6 +97,13 @@ export class JWTAuthService {
       type: "access",
       jti: accessJti,
       ver: 1,
+      // Session tracking
+      sid: sessionContext?.sessionId,
+      stf: sessionContext?.staffId,
+      sver: sessionContext?.sessionVersion,
+      // Impersonation
+      ruid: sessionContext?.realUserId,
+      imp: sessionContext?.impersonating,
     };
 
     const refreshPayload: TokenPayload = {
@@ -84,6 +114,9 @@ export class JWTAuthService {
       type: "refresh",
       jti: refreshJti,
       ver: 1,
+      sid: sessionContext?.sessionId,
+      stf: sessionContext?.staffId,
+      sver: sessionContext?.sessionVersion,
     };
 
     const accessToken = jwt.sign(accessPayload, JWT_SECRET, {
@@ -138,6 +171,13 @@ export class JWTAuthService {
         jti: decoded.jti,
         isPlatformAdmin: decoded.isPlatformAdmin,
         platformRole: decoded.platformRole,
+        // Session tracking
+        sessionId: decoded.sid,
+        staffId: decoded.stf,
+        sessionVersion: decoded.sver,
+        // Impersonation
+        realUserId: decoded.ruid,
+        impersonating: decoded.imp,
       };
     } catch (error: any) {
       console.log(`[jwt] Token verification error: ${error.message}`);
