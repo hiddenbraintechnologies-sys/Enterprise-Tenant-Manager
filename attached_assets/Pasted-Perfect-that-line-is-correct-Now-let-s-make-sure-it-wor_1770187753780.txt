@@ -1,0 +1,105 @@
+Perfect 👍 — that line is correct.
+Now let’s make sure it works reliably in Replit + CI, and doesn’t bite you later.
+
+1) Final package.json snippet (recommended)
+
+Put it under scripts:
+
+{
+  "scripts": {
+    "lint:terminology": "bash scripts/no-clinic-terms-core.sh",
+    "lint": "npm run lint:terminology",
+    "pretest": "npm run lint:terminology"
+  }
+}
+
+
+Why:
+
+lint:terminology → manual/local use
+
+lint → easy CI hook
+
+pretest → blocks tests if forbidden terms exist
+
+2) Make sure the script actually runs (common pitfalls)
+A) Ensure executable permission (important)
+
+Run once:
+
+chmod +x scripts/no-clinic-terms-core.sh
+
+
+If you skip this, CI may fail with:
+
+permission denied
+
+B) Ensure bash exists (Replit-safe)
+
+Replit Linux environments do have bash, so you’re safe.
+
+If you ever move to a Windows-only runner, see section 5.
+
+3) Expected behavior (what “success” looks like)
+When clean
+npm run lint:terminology
+
+
+Output:
+
+Scanning for clinic-specific terms in non-clinic UI...
+✅ No forbidden clinic terms found in core UI.
+
+
+Exit code: 0 ✅
+
+When someone reintroduces bad copy
+
+Example:
+"Display Name (shown to patients)"
+
+CI output:
+
+❌ Forbidden clinic terms found outside clinic module:
+client/src/components/AddUserModal.tsx:42: Display Name (shown to patients)
+
+
+Exit code: 1 ❌
+→ build fails (as intended)
+
+4) Allowlisting clinic-only modules (important)
+
+You already did the right thing by excluding clinic paths:
+
+"client/src/modules/clinic"
+"server/modules/clinic"
+
+
+Rule:
+
+Clinic module may use patient/doctor
+
+Everywhere else is forbidden
+
+This enforces your global terminology standard automatically.
+
+5) Optional: Node-based fallback (future-proof)
+
+If you ever want cross-platform support (Windows CI), replace the bash script with Node.
+
+Tell me if you want this and I’ll give you:
+
+"lint:terminology": "node scripts/no-clinic-terms-core.js"
+
+
+But for now — bash is perfectly fine.
+
+6) Final verdict
+
+✅ Script name correct
+✅ Command correct
+✅ CI-safe
+✅ Enforces terminology discipline
+✅ Prevents regression permanently
+
+This is exactly the kind of guardrail mature SaaS products use.
