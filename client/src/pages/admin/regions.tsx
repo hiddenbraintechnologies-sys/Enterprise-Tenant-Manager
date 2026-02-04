@@ -132,8 +132,12 @@ const TIMEZONES = [
 
 import { BUSINESS_TYPE_CONFIG } from "@shared/business-type-config";
 
+// All business types available for Super Admin to enable/disable per region
+// Filter only removes legacy aliases (shorter keys that duplicate full keys)
+const ALIAS_KEYS = ["pg", "clinic", "salon", "furniture", "logistics", "education"];
+
 const BUSINESS_TYPES = Object.entries(BUSINESS_TYPE_CONFIG)
-  .filter(([key]) => !["pg", "clinic", "salon", "furniture", "logistics", "education"].includes(key))
+  .filter(([key]) => !ALIAS_KEYS.includes(key))
   .map(([key, config]) => ({
     key,
     label: config.label,
