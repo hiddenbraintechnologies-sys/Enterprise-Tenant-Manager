@@ -1,0 +1,276 @@
+Perfect — here’s a clean, end-to-end design that ties Super Admin UI, DB/Drizzle, and automatic module + terminology + CI alignment together. This is the missing backbone that makes Gym & Coworking first-class and future-proof.
+
+1) Super Admin UI wireframe
+
+Region → Business Types Enablement
+
+Navigation
+Super Admin
+ └── Regions
+      └── Malaysia
+           ├── General
+           ├── Business Types   ← NEW
+           ├── Plans
+           └── Compliance
+
+Wireframe (Desktop)
+┌───────────────────────────────────────────────────────────────┐
+│ Super Admin > Regions > Malaysia > Business Types              │
+│                                                               │
+│ Control which business types are available for onboarding      │
+│ and tenant creation in this region.                            │
+│                                                               │
+│ ┌───────────────────────────────────────────────────────────┐ │
+│ │ Business Type        Status        Modules Enabled          │ │
+│ ├───────────────────────────────────────────────────────────┤ │
+│ │ Software Services   [ ON ]         Core, Invoices, CRM      │ │
+│ │ Clinic              [ ON ]         Clinic, Appointments     │ │
+│ │ Gym                 [ OFF ]        Gym, Members, Trainers   │ │
+│ │ Coworking           [ OFF ]        Coworking, Desks, Hosts  │ │
+│ └───────────────────────────────────────────────────────────┘ │
+│                                                               │
+│ ℹ Turning OFF a business type prevents new tenants from       │
+│   selecting it. Existing tenants are NOT affected.            │
+│                                                               │
+│                     [ Cancel ]   [ Save Changes ]              │
+└───────────────────────────────────────────────────────────────┘
+
+UX rules (important)
+
+Toggle affects new onboarding only
+
+Existing tenants are never broken
+
+Disabled types disappear from onboarding instantly
+
+Save is explicit (no auto-save)
+
+Optional (future-ready)
+
+Click a row → side panel:
+
+Business Type: Gym
+☑ Enable for this region
+
+Default modules:
+☑ Members
+☑ Trainers
+☑ Sessions
+☐ Billing Add-ons
+
+Terminology:
+Primary noun: Member
+
+
+You don’t need this now — but the model below supports it.
+
+2) DB schema + Drizzle models
+
+This is the correct minimal schema (don’t overdesign).
+
+A) Canonical business types (system-level)
+business_types (static / seeded)
+business_types
+--------------
+key            varchar PK   -- software_services | clinic | gym | coworking
+label          varchar
+module_key     varchar NULL -- clinic | gym | coworking | null
+
+
+Seed once. Never tenant-specific.
+
+B) Region → enabled business types
+region_business_types
+region_business_types
+---------------------
+id              uuid PK
+region_id       uuid FK → regions.id
+business_type   varchar FK → business_types.key
+enabled         boolean default true
+created_at
+
+Constraints
+
+(region_id, business_type) UNIQUE
+
+Only Super Admin can modify
+
+C) Tenant business type (already exists / should)
+tenants
+-------
+id
+region_id
+business_type   varchar FK → business_types.key
+
+
+Server must validate:
+
+tenant.business_type ∈ region.enabled_business_types
+
+Drizzle models (example)
+// businessTypes.ts
+export const businessTypes = pgTable("business_types", {
+  key: varchar("key", { length: 50 }).primaryKey(),
+  label: varchar("label", { length: 100 }).notNull(),
+  moduleKey: varchar("module_key", { length: 50 }),
+});
+
+// regionBusinessTypes.ts
+export const regionBusinessTypes = pgTable(
+  "region_business_types",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    regionId: uuid("region_id").notNull(),
+    businessType: varchar("business_type", { length: 50 }).notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => ({
+    uniqueRegionType: unique().on(t.regionId, t.businessType),
+  })
+);
+
+3) Automatic alignment: modules + terminology + CI rules
+
+(this is the key architecture win)
+
+A) Business Type Config (single source of truth)
+
+Create:
+
+shared/business-type-config.ts
+export const BUSINESS_TYPE_CONFIG = {
+  software_services: {
+    modules: ["core", "crm", "invoices"],
+    terminology: "core",
+    forbiddenTerms: ["patient", "doctor", "member", "trainer", "host"],
+  },
+
+  clinic: {
+    modules: ["clinic", "appointments"],
+    terminology: "clinic",
+    forbiddenTerms: ["member", "trainer", "host"],
+  },
+
+  gym: {
+    modules: ["gym", "members", "trainers"],
+    terminology: "gym",
+    forbiddenTerms: ["patient", "doctor", "host"],
+  },
+
+  coworking: {
+    modules: ["coworking", "desks", "hosts"],
+    terminology: "coworking",
+    forbiddenTerms: ["patient", "doctor", "trainer"],
+  },
+} as const;
+
+B) Module enablement (automatic)
+
+When tenant is created:
+
+const config = BUSINESS_TYPE_CONFIG[tenant.businessType];
+
+enableModules(tenant.id, config.modules);
+
+
+No if/else. No duplication.
+
+C) Terminology enforcement (automatic)
+
+In UI:
+
+const terminology = BUSINESS_TYPE_CONFIG[tenant.businessType].terminology;
+
+
+Map to:
+
+COPY.core
+
+COPY.clinic
+
+COPY.gym
+
+COPY.coworking
+
+Core UI never switches.
+Only module UI reads this.
+
+D) CI rule alignment (automatic)
+
+Update your script logic:
+
+Core scan still blocks:
+
+patient / doctor / member / trainer / host
+
+Module folders are excluded based on config, not hardcoded paths
+
+Example future-proof idea:
+
+# allowed module paths come from config
+client/src/modules/clinic
+client/src/modules/gym
+client/src/modules/coworking
+
+
+Each module is responsible for its own terminology.
+
+4) APIs (wiring it together)
+Public (onboarding)
+GET /api/public/regions/:regionId/business-types
+
+
+Returns:
+
+[
+  {
+    "key": "gym",
+    "label": "Gym",
+    "modules": ["gym", "members", "trainers"]
+  }
+]
+
+Super Admin
+GET  /api/admin/regions/:id/business-types
+PUT  /api/admin/regions/:id/business-types
+
+
+Payload:
+
+{
+  "software_services": true,
+  "clinic": true,
+  "gym": false,
+  "coworking": true
+}
+
+5) QA acceptance checklist (don’t skip)
+
+✅ Gym/Coworking visible in onboarding ONLY if enabled
+
+❌ Hidden if disabled
+
+❌ Cannot POST disabled business type
+
+✅ Correct modules auto-enabled
+
+✅ Correct terminology allowed only in module UI
+
+✅ CI fails if forbidden terms leak into core UI
+
+✅ Existing tenants unaffected by region changes
+
+Final verdict
+
+With this in place you get:
+
+Super Admin control
+
+Clean onboarding
+
+Automatic module wiring
+
+Terminology safety
+
+Future verticals in minutes, not weeks

@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { countryRolloutService } from "../services/country-rollout";
 import { bootstrapStatus } from "../services/bootstrap-status";
 import { getBusinessTypeOptions } from "@shared/business-types";
+import { getBusinessTypeConfig } from "@shared/business-type-config";
 
 const router = Router();
 

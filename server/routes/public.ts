@@ -8,6 +8,7 @@ import { storage } from "../storage";
 import { countryRolloutService } from "../services/country-rollout";
 import { bootstrapStatus } from "../services/bootstrap-status";
 import { getBusinessTypeOptions } from "@shared/business-types";
+import { getBusinessTypeConfig } from "@shared/business-type-config";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -346,10 +347,17 @@ router.get("/regions/:countryCode/business-types", async (req: Request, res: Res
       });
     }
 
-    // Filter to only enabled business types
-    const filteredTypes = ALL_BUSINESS_TYPES.filter(
-      bt => enabledTypes.includes(bt.value)
-    );
+    // Filter to only enabled business types and include modules
+    const filteredTypes = ALL_BUSINESS_TYPES
+      .filter(bt => enabledTypes.includes(bt.value))
+      .map(bt => {
+        const typeConfig = getBusinessTypeConfig(bt.value);
+        return {
+          key: bt.value,
+          label: bt.label,
+          modules: typeConfig?.modules || [],
+        };
+      });
 
     res.json({
       countryCode: normalizedCode,

@@ -130,23 +130,15 @@ const TIMEZONES = [
   { value: "Asia/Riyadh", label: "Asia/Riyadh (AST)" },
 ];
 
-const BUSINESS_TYPES = [
-  { key: "pg_hostel", label: "PG / Hostel" },
-  { key: "consulting", label: "Consulting" },
-  { key: "software_services", label: "Software Services" },
-  { key: "clinic_healthcare", label: "Clinic / Healthcare" },
-  { key: "salon_spa", label: "Salon / Spa" },
-  { key: "gym", label: "Gym / Fitness Center" },
-  { key: "coworking", label: "Coworking Space" },
-  { key: "legal", label: "Legal Services" },
-  { key: "digital_agency", label: "Digital Agency" },
-  { key: "retail_store", label: "Retail Store" },
-  { key: "furniture_manufacturing", label: "Furniture Manufacturing" },
-  { key: "logistics_fleet", label: "Logistics & Fleet" },
-  { key: "education_institute", label: "Coaching Institute" },
-  { key: "tourism", label: "Tourism" },
-  { key: "real_estate", label: "Real Estate" },
-];
+import { BUSINESS_TYPE_CONFIG } from "@shared/business-type-config";
+
+const BUSINESS_TYPES = Object.entries(BUSINESS_TYPE_CONFIG)
+  .filter(([key]) => !["pg", "clinic", "salon", "furniture", "logistics", "education"].includes(key))
+  .map(([key, config]) => ({
+    key,
+    label: config.label,
+    modules: config.modules,
+  }));
 
 interface CountryOption {
   code: string;
@@ -567,18 +559,24 @@ function RegionForm({ region, onSuccess, onCancel }: RegionFormProps) {
             </Button>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto rounded-md border p-3">
+        <div className="space-y-2 max-h-64 overflow-y-auto rounded-md border p-3">
           {BUSINESS_TYPES.map((bt) => (
-            <div key={bt.key} className="flex items-center gap-2">
+            <div key={bt.key} className="flex items-start gap-2 py-1">
               <Checkbox
                 id={`bt-${bt.key}`}
                 checked={formData.allowedBusinessTypes.includes(bt.key)}
                 onCheckedChange={() => toggleBusinessType(bt.key)}
                 data-testid={`checkbox-bt-${bt.key}`}
+                className="mt-0.5"
               />
-              <Label htmlFor={`bt-${bt.key}`} className="text-sm font-normal cursor-pointer">
-                {bt.label}
-              </Label>
+              <div className="flex-1">
+                <Label htmlFor={`bt-${bt.key}`} className="text-sm font-medium cursor-pointer">
+                  {bt.label}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Modules: {bt.modules.slice(0, 3).join(", ")}{bt.modules.length > 3 ? ` +${bt.modules.length - 3} more` : ""}
+                </p>
+              </div>
             </div>
           ))}
         </div>
