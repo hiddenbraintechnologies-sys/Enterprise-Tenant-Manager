@@ -76,12 +76,23 @@ Five predefined roles with hierarchical access:
 #### Key Files
 - `shared/rbac.ts`: Role/permission constants, role-permission mappings, helper functions (`hasPermission`, `buildPermissionsFromRole`, `normalizeRole`)
 - `shared/defaultRoute.ts`: Smart dashboard routing via `getDefaultDashboardRoute(user)` - routes based on role + permissions + business type
+- `shared/plans.ts`: Plan and Addon definitions with permission mappings (FREE, BASIC, PRO, ENTERPRISE plans; HRMS, PAYROLL, SERVICES, ADVANCED_ANALYTICS, WHITE_LABEL addons)
+- `shared/composePermissions.ts`: Permission composer that merges Role + Plan + Addon permissions into a single set
 - `server/rbac/requirePermission.ts`: Express middleware guards (`requirePermission`, `requireAnyPermission`, `requireAllPermissions`)
+- `server/audit/logAudit.ts`: Audit logging system for security events (role changes, plan changes, addon installs, force logout, login events)
 - `client/src/rbac/useCan.ts`: React hook for permission-based UI visibility (`can`, `canAny`, `canAll`)
 - `client/src/stores/authStore.ts`: Zustand auth store with race-condition-proof flow (status: idle/loading/authenticated/unauthenticated)
 - `client/src/billing/postPlanSelection.ts`: Safe post-plan handler - never redirects to module routes, always uses `getDefaultDashboardRoute(user)`
 - `client/src/layouts/DashboardLayout.tsx`: Protected layout that prevents blank screens during auth loading
 - `client/src/config/sidebar.config.ts`: Permission-based sidebar configuration (single JSON → UI)
+
+#### Permission Composition
+Permissions are composed from three sources: `Final Permissions = Role + Plan + Addons`
+- **Role permissions**: Base access granted by user role (OWNER, ADMIN, MANAGER, STAFF, ACCOUNTANT)
+- **Plan permissions**: Features unlocked by subscription tier (FREE, BASIC, PRO, ENTERPRISE)
+- **Addon permissions**: Extra features from installed add-ons (HRMS, PAYROLL, SERVICES, etc.)
+
+Use `composePermissions()` once during login/session refresh and store the result on the user object.
 
 **Integration Notes:**
 - `authStore` should be used as the single source of truth for auth state, replacing any existing auth context
