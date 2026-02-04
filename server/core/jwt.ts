@@ -151,6 +151,47 @@ export class JWTAuthService {
     };
   }
 
+  /**
+   * Generate only an access token (used for refresh flow where refresh token already exists).
+   * Does NOT create a new refresh token or database entry.
+   */
+  generateAccessTokenOnly(
+    userId: string,
+    tenantId: string | null,
+    roleId: string | null,
+    permissions: string[],
+    sessionContext?: SessionContext
+  ): { accessToken: string; expiresIn: number; tokenType: string } {
+    const accessJti = generateTokenId();
+
+    const accessPayload: TokenPayload = {
+      sub: userId,
+      tnt: tenantId,
+      rol: roleId,
+      perms: permissions,
+      type: "access",
+      jti: accessJti,
+      ver: 1,
+      sid: sessionContext?.sessionId,
+      stf: sessionContext?.staffId,
+      sver: sessionContext?.sessionVersion,
+      ruid: sessionContext?.realUserId,
+      imp: sessionContext?.impersonating,
+    };
+
+    const accessToken = jwt.sign(accessPayload, JWT_SECRET, {
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+      issuer: "bizflow",
+      audience: "bizflow-api",
+    } as SignOptions);
+
+    return {
+      accessToken,
+      expiresIn: 60 * 60, // 1 hour
+      tokenType: "Bearer",
+    };
+  }
+
   async verifyAccessToken(token: string): Promise<DecodedToken | null> {
     try {
       const decoded = jwt.verify(token, JWT_SECRET, {

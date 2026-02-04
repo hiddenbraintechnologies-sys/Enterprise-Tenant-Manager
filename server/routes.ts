@@ -63,6 +63,15 @@ import securityRoutes from "./routes/settings/security";
 import securitySessionsRoutes from "./routes/security";
 import complianceExportsRoutes from "./routes/compliance/exports";
 import { blockImpersonationOnSensitiveRoutes } from "./middleware/require-permission";
+import { computeAnomalyScore, shouldTriggerSecurityAlert } from "./services/anomaly-scoring";
+import { 
+  rotateRefreshToken, 
+  createRefreshToken, 
+  RefreshTokenReuseError, 
+  RefreshTokenNotFoundError,
+  revokeAllRefreshTokens 
+} from "./services/refresh-token-rotation";
+import { logAudit } from "./audit/logAudit";
 import {
   adminIpRestriction,
   adminRateLimit,
@@ -1405,6 +1414,61 @@ export async function registerRoutes(
         [tenantData] = await db.select().from(tenants).where(eq(tenants.id, userTenantRecord.tenantId));
       }
 
+      // Compute anomaly score before issuing tokens
+      const deviceFingerprint = req.body.deviceFingerprint || req.headers["x-device-fingerprint"] as string;
+      const anomalyScore = await computeAnomalyScore({
+        tenantId: userTenantRecord.tenantId,
+        userId: existingUser.id,
+        deviceFingerprint,
+        country: req.body.country,
+        city: req.body.city,
+        ipAddress: req.ip,
+      });
+
+      // If high anomaly score, require step-up before issuing tokens
+      if (anomalyScore.requiresStepUp) {
+        await logAudit({
+          tenantId: userTenantRecord.tenantId,
+          userId: existingUser.id,
+          action: "login",
+          resource: "auth",
+          metadata: { 
+            event: "SUSPICIOUS_LOGIN_DETECTED",
+            score: anomalyScore.score,
+            reasons: anomalyScore.reasons,
+            requiresForceLogout: anomalyScore.requiresForceLogout,
+          },
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+          correlationId: req.correlationId,
+        });
+
+        // If extremely high score, block login entirely
+        if (anomalyScore.requiresForceLogout) {
+          return res.status(401).json({
+            error: "LOGIN_BLOCKED",
+            message: "Login blocked due to security concerns. Please verify your identity.",
+            requiresStepUp: true,
+            purpose: "security_verification",
+            score: anomalyScore.score,
+            reasons: anomalyScore.reasons,
+          });
+        }
+
+        // Require step-up authentication before issuing tokens
+        return res.status(428).json({
+          requiresStepUp: true,
+          purpose: "security_verification",
+          score: anomalyScore.score,
+          reasons: anomalyScore.reasons,
+          user: {
+            id: existingUser.id,
+            email: existingUser.email,
+          },
+          tenantId: userTenantRecord.tenantId,
+        });
+      }
+
       const tokens = await jwtAuthService.generateTokenPair(
         existingUser.id,
         userTenantRecord.tenantId,
@@ -1421,9 +1485,14 @@ export async function registerRoutes(
         userId: existingUser.id,
         action: "login",
         resource: "auth",
-        metadata: { method: "password" },
+        metadata: { 
+          method: "password",
+          anomalyScore: anomalyScore.score,
+          anomalyReasons: anomalyScore.reasons,
+        },
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
+        correlationId: req.correlationId,
       });
 
       // Update last_tenant_id for next login preference
@@ -1461,6 +1530,186 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Refresh token endpoint with rotation + anomaly scoring
+  app.post("/api/auth/refresh", authRateLimit, async (req, res) => {
+    try {
+      const { refreshToken, deviceFingerprint, country, city } = req.body;
+
+      if (!refreshToken) {
+        return res.status(400).json({ error: "INVALID_REQUEST", message: "Refresh token is required" });
+      }
+
+      // Step 1: Rotate the refresh token first (before any other checks)
+      let rotated;
+      try {
+        rotated = await rotateRefreshToken({
+          refreshToken,
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+          deviceFingerprint,
+        });
+      } catch (error) {
+        if (error instanceof RefreshTokenReuseError) {
+          // Reuse detected - family already revoked, sessions invalidated
+          await logAudit({
+            tenantId: "system",
+            userId: "system",
+            action: "access",
+            resource: "auth",
+            metadata: { 
+              event: "REFRESH_TOKEN_REUSE_DETECTED",
+              error: error.message,
+            },
+            ipAddress: req.ip,
+            userAgent: req.headers["user-agent"],
+            correlationId: req.correlationId,
+          });
+          return res.status(401).json({ 
+            error: "FORCE_LOGOUT", 
+            reason: "token_reuse_detected",
+            message: "Session invalidated due to security event. Please log in again.",
+          });
+        }
+        if (error instanceof RefreshTokenNotFoundError) {
+          return res.status(401).json({ 
+            error: "INVALID_TOKEN", 
+            message: "Refresh token is invalid or expired",
+          });
+        }
+        throw error;
+      }
+
+      // Step 2: Compute anomaly score
+      const anomalyScore = rotated.tenantId ? await computeAnomalyScore({
+        tenantId: rotated.tenantId,
+        userId: rotated.userId,
+        deviceFingerprint,
+        country,
+        city,
+        ipAddress: req.ip,
+      }) : { score: 0, reasons: [], requiresStepUp: false, requiresForceLogout: false };
+
+      // Step 3: If force logout required, revoke family and return 401
+      if (anomalyScore.requiresForceLogout) {
+        await revokeAllRefreshTokens({
+          userId: rotated.userId,
+          tenantId: rotated.tenantId || undefined,
+          staffId: rotated.staffId || undefined,
+          reason: "force_logout",
+        });
+
+        if (rotated.tenantId) {
+          await logAudit({
+            tenantId: rotated.tenantId,
+            userId: rotated.userId,
+            action: "access",
+            resource: "auth",
+            metadata: { 
+              event: "FORCE_LOGOUT",
+              reason: "anomaly_score",
+              score: anomalyScore.score,
+              reasons: anomalyScore.reasons,
+            },
+            ipAddress: req.ip,
+            userAgent: req.headers["user-agent"],
+            correlationId: req.correlationId,
+          });
+        }
+
+        return res.status(401).json({ 
+          error: "FORCE_LOGOUT", 
+          reason: "anomaly_score",
+          message: "Session invalidated due to security concerns. Please log in again.",
+        });
+      }
+
+      // Step 4: If step-up required, return 428 but still provide the rotated refresh token
+      if (anomalyScore.requiresStepUp) {
+        if (rotated.tenantId) {
+          await logAudit({
+            tenantId: rotated.tenantId,
+            userId: rotated.userId,
+            action: "access",
+            resource: "auth",
+            metadata: { 
+              event: "SUSPICIOUS_LOGIN_DETECTED",
+              score: anomalyScore.score,
+              reasons: anomalyScore.reasons,
+            },
+            ipAddress: req.ip,
+            userAgent: req.headers["user-agent"],
+            correlationId: req.correlationId,
+          });
+        }
+
+        return res.status(428).json({
+          error: "STEP_UP_REQUIRED",
+          purpose: "security_verification",
+          refreshToken: rotated.newRefreshToken, // Client must store this!
+          score: anomalyScore.score,
+          reasons: anomalyScore.reasons,
+        });
+      }
+
+      // Step 5: Normal flow - issue new access token (NOT a new refresh token)
+      // Require tenant context for token refresh
+      if (!rotated.tenantId) {
+        return res.status(400).json({
+          error: "INVALID_CONTEXT",
+          message: "Refresh token has no tenant context",
+        });
+      }
+
+      // Get user role and permissions for the tenant
+      const [userTenantRecord] = await db.select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, rotated.userId),
+          eq(userTenants.tenantId, rotated.tenantId)
+        ));
+      
+      if (!userTenantRecord) {
+        return res.status(401).json({
+          error: "NO_TENANT_ACCESS",
+          message: "User no longer has access to this tenant",
+        });
+      }
+
+      // Generate ONLY an access token (refresh token already rotated above)
+      const accessTokenResult = jwtAuthService.generateAccessTokenOnly(
+        rotated.userId,
+        rotated.tenantId,
+        userTenantRecord.roleId,
+        [], // Permissions will be fetched by middleware as needed
+      );
+
+      await logAudit({
+        tenantId: rotated.tenantId,
+        userId: rotated.userId,
+        action: "access",
+        resource: "auth",
+        metadata: { 
+          event: "AUTH_TOKEN_REFRESH",
+          anomalyScore: anomalyScore.score,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        correlationId: req.correlationId,
+      });
+
+      res.json({
+        accessToken: accessTokenResult.accessToken,
+        refreshToken: rotated.newRefreshToken,
+        expiresIn: accessTokenResult.expiresIn,
+        tokenType: accessTokenResult.tokenType,
+        requiresStepUp: false,
+      });
+    } catch (error) {
+      console.error("Refresh token error:", error);
+      res.status(500).json({ error: "REFRESH_FAILED", message: "Token refresh failed" });
     }
   });
 

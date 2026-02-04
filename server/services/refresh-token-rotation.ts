@@ -154,12 +154,23 @@ async function revokeRefreshFamilyAndInvalidate(
   const familyId = existing.familyId ?? existing.id;
   const now = new Date();
 
+  // Revoke all tokens in the family
   await db.update(refreshTokens).set({
     revokedAt: now,
     isRevoked: true,
     revokeReason: ctx.reason,
     suspiciousReuseAt: ctx.reason === "reuse_detected" ? now : undefined,
   }).where(eq(refreshTokens.familyId, familyId));
+
+  // Also revoke the original token if it wasn't part of a family (familyId was null)
+  if (!existing.familyId) {
+    await db.update(refreshTokens).set({
+      revokedAt: now,
+      isRevoked: true,
+      revokeReason: ctx.reason,
+      suspiciousReuseAt: ctx.reason === "reuse_detected" ? now : undefined,
+    }).where(eq(refreshTokens.id, existing.id));
+  }
 
   if (existing.staffId) {
     const [staff] = await db.select().from(tenantStaff).where(eq(tenantStaff.id, existing.staffId));
