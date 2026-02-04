@@ -40,6 +40,8 @@ export interface Tenant {
 export interface AuthUser extends User {
   tenant?: Tenant | null;
   dashboardRoute?: string;
+  role?: string | null;
+  permissions?: string[];
 }
 
 async function fetchUserTenants(accessToken: string): Promise<{ tenants: Tenant[]; defaultTenantId: string | null }> {
@@ -118,6 +120,8 @@ async function fetchUser(): Promise<AuthUser | null> {
           timezone: tenant.timezone,
         } : null,
         dashboardRoute: DASHBOARD_ROUTES[tenant?.businessType || "service"] || "/dashboard/service",
+        role: data.role || null,
+        permissions: data.permissions || [],
       } as AuthUser;
     }
     
@@ -293,11 +297,15 @@ export function useAuth() {
   });
 
   const businessType = user?.tenant?.businessType || "service";
+  const role = user?.role || null;
+  const permissions = user?.permissions || [];
 
   return {
     user,
     tenant: user?.tenant,
     businessType,
+    role,
+    permissions,
     isLoading,
     isAuthenticated: !!user,
     logout: logoutMutation.mutate,

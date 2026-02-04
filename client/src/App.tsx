@@ -521,6 +521,7 @@ function AuthenticatedRoutes() {
       <Route path="/ai-permissions" component={AiPermissions} />
       <Route path="/settings" component={SettingsHome} />
       <Route path="/settings/profile" component={ProfileSettings} />
+      <Route path="/settings/organization" component={BusinessSettings} />
       <Route path="/settings/business" component={BusinessSettings} />
       <Route path="/settings/branding" component={BrandingSettings} />
       <Route path="/settings/appearance" component={AppearanceSettings} />
@@ -528,6 +529,7 @@ function AuthenticatedRoutes() {
       <Route path="/settings/billing" component={BillingSettings} />
       <Route path="/settings/portal" component={PortalSettings} />
       <Route path="/settings/security" component={SecuritySettings} />
+      <Route path="/settings/team" component={StaffRolesSettings} />
       <Route path="/settings/users-roles" component={StaffRolesSettings} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/onboarding" component={Onboarding} />

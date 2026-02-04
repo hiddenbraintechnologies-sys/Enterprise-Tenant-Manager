@@ -154,6 +154,8 @@ export default function Login() {
         firstName: data.user.firstName,
         lastName: data.user.lastName,
         profileImageUrl: data.user.profileImageUrl || null,
+        role: data.role || null,
+        permissions: data.permissions || [],
         tenant: data.tenant ? {
           id: data.tenant.id,
           name: data.tenant.name,
@@ -200,8 +202,9 @@ export default function Login() {
           const status = (subscriptionData?.status || "").toLowerCase();
           
           if (isActive || status === "active" || status === "trialing") {
-            // Tenant has active subscription - go to dashboard
-            setLocation(dashboardRoute);
+            // Tenant has active subscription - go to unified dashboard (smart router)
+            // The dashboard page will handle role-based internal routing
+            setLocation("/dashboard");
             return;
           }
         }

@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +19,7 @@ import { Link } from "wouter";
 import type { Booking, Customer, Service, BookingWithDetails } from "@shared/schema";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { useCountry } from "@/contexts/country-context";
+import { useAuth, DASHBOARD_ROUTES } from "@/hooks/use-auth";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -100,7 +103,50 @@ function formatBookingDate(dateStr: string) {
 }
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const { formatCurrency } = useCountry();
+  const { user, tenant, role, isLoading: authLoading } = useAuth();
+  
+  // Smart routing based on role and business type
+  // Implements role-based internal routing per spec:
+  // Owner/Admin → /dashboard/overview (module-specific dashboard)
+  // Manager → /dashboard/operations (same as overview for now)
+  // Staff → /dashboard (generic work view - stay here)
+  // Accountant → /dashboard (billing-focused - stay here)
+  // Unknown/missing → /dashboard (safe fallback)
+  useEffect(() => {
+    if (authLoading) return;
+    
+    // Safety: If no user or tenant, stay on generic dashboard (safe fallback)
+    if (!user || !tenant) return;
+    
+    const businessType = tenant.businessType || "service";
+    const moduleRoute = DASHBOARD_ROUTES[businessType] || "/dashboard/service";
+    const normalizedRole = (role || "").toLowerCase();
+    
+    // Route based on role
+    switch (normalizedRole) {
+      case "owner":
+      case "admin":
+        // Owners and Admins see the full module-specific overview dashboard
+        setLocation(moduleRoute);
+        break;
+      case "manager":
+        // Managers see operations view (module-specific for now)
+        setLocation(moduleRoute);
+        break;
+      case "staff":
+      case "accountant":
+        // Staff and Accountant stay on generic dashboard (their work/billing view)
+        // No redirect - they see this page
+        break;
+      default:
+        // Unknown role or no role - stay on safe generic dashboard
+        // This prevents blank pages for edge cases
+        break;
+    }
+  }, [authLoading, user, tenant, role, setLocation]);
+  
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });

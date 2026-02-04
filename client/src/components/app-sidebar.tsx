@@ -317,9 +317,14 @@ const systemItems: NavItem[] = [
   { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];
 
+interface SettingsNavItem extends NavItem {
+  allowedRoles?: string[];
+  viewOnlyRoles?: string[];
+}
+
 interface SettingsSection {
   label: string;
-  items: NavItem[];
+  items: SettingsNavItem[];
 }
 
 const settingsSections: SettingsSection[] = [
@@ -332,32 +337,43 @@ const settingsSections: SettingsSection[] = [
   {
     label: "Organization",
     items: [
-      { title: "Organization Details", url: "/settings/business", icon: Building2, subtitle: "Company info, timezone, currency" },
-      { title: "Team & Roles", url: "/settings/users-roles", icon: Users, subtitle: "Invite users, assign permissions" },
-      { title: "Security & Access", url: "/settings/security", icon: Shield, subtitle: "SSO, sessions, IP rules, alerts" },
+      { title: "Organization Details", url: "/settings/organization", icon: Building2, subtitle: "Company info, timezone, currency", allowedRoles: ["Owner", "Admin"] },
+      { title: "Team & Roles", url: "/settings/team", icon: Users, subtitle: "Invite users, assign permissions", allowedRoles: ["Owner", "Admin"], viewOnlyRoles: ["Manager"] },
+      { title: "Security & Access", url: "/settings/security", icon: Shield, subtitle: "SSO, sessions, IP rules, alerts", allowedRoles: ["Owner"], viewOnlyRoles: ["Admin"] },
     ],
   },
   {
     label: "Subscription",
     items: [
-      { title: "Plans & Billing", url: "/settings/billing", icon: CreditCard, subtitle: "Plan, add-ons, invoices" },
+      { title: "Plans & Billing", url: "/settings/billing", icon: CreditCard, subtitle: "Plan, add-ons, invoices", allowedRoles: ["Owner", "Accountant"], viewOnlyRoles: ["Admin"] },
     ],
   },
   {
     label: "Customer Experience",
     items: [
-      { title: "Client Portal", url: "/settings/portal", icon: Users, subtitle: "Customer-facing settings" },
-      { title: "Branding & Templates", url: "/settings/branding", icon: Brush, subtitle: "Logo, colors, email templates" },
+      { title: "Client Portal", url: "/settings/portal", icon: Users, subtitle: "Customer-facing settings", allowedRoles: ["Owner", "Admin"], viewOnlyRoles: ["Manager"] },
+      { title: "Branding & Templates", url: "/settings/branding", icon: Brush, subtitle: "Logo, colors, email templates", allowedRoles: ["Owner", "Admin"] },
     ],
   },
   {
     label: "Preferences",
     items: [
-      { title: "Theme & Layout", url: "/settings/appearance", icon: Palette, subtitle: "Dark/light mode, UI density" },
+      { title: "Theme & Layout", url: "/settings/appearance", icon: Palette, subtitle: "Dark/light mode, UI density", allowedRoles: ["Owner", "Admin", "Manager"] },
       { title: "Notifications & Alerts", url: "/settings/notifications", icon: Bell, subtitle: "Email, push, system alerts" },
     ],
   },
 ];
+
+function canAccessSettingsItem(item: SettingsNavItem, userRole: string | null): boolean {
+  if (!item.allowedRoles) return true;
+  if (!userRole) return false;
+  return item.allowedRoles.includes(userRole) || (item.viewOnlyRoles?.includes(userRole) ?? false);
+}
+
+function isViewOnlyAccess(item: SettingsNavItem, userRole: string | null): boolean {
+  if (!userRole || !item.viewOnlyRoles) return false;
+  return item.viewOnlyRoles.includes(userRole) && !item.allowedRoles?.includes(userRole);
+}
 
 // HR Core items (Payroll OR HRMS add-on) - Employee Directory
 const hrCoreItems: NavItem[] = [
@@ -391,7 +407,7 @@ interface LockedModalState {
 export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
   const { t } = useTranslation();
-  const { user, logout, isLoggingOut, businessType: authBusinessType, tenant } = useAuth();
+  const { user, logout, isLoggingOut, businessType: authBusinessType, tenant, role: userRole } = useAuth();
   const { canAccessModule, getModuleAccessInfo, isFreePlan } = useModuleAccess();
   const { hasPayrollAccess, isPayrollTrialing, countryCode, isLoading: isPayrollLoading } = usePayrollAddon();
   const { branding } = useBranding();
@@ -565,52 +581,63 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            {settingsSections.map((section) => (
-              <SidebarGroup key={section.label}>
-                <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {section.label}
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {section.items.map((item) => {
-                      const isBillingItem = item.url === "/settings/billing";
-                      const showBillingAlert = isBillingItem && billingStatus?.needsAttention;
-                      
-                      return (
-                        <SidebarMenuItem key={item.title}>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={location === item.url || location.startsWith(item.url + "/")}
-                            className="h-auto py-2"
-                          >
-                            <Link 
-                              href={item.url} 
-                              data-testid={`link-settings-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+            {settingsSections.map((section) => {
+              const visibleItems = section.items.filter(item => canAccessSettingsItem(item, userRole));
+              if (visibleItems.length === 0) return null;
+              
+              return (
+                <SidebarGroup key={section.label}>
+                  <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    {section.label}
+                  </SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {visibleItems.map((item) => {
+                        const isBillingItem = item.url === "/settings/billing";
+                        const showBillingAlert = isBillingItem && billingStatus?.needsAttention;
+                        const viewOnly = isViewOnlyAccess(item, userRole);
+                        
+                        return (
+                          <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={location === item.url || location.startsWith(item.url + "/")}
+                              className="h-auto py-2"
                             >
-                              <item.icon className={`h-4 w-4 shrink-0 ${item.icon === Shield ? "text-blue-500" : ""}`} />
-                              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="truncate">{item.title}</span>
-                                  {showBillingAlert && (
-                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                                      <AlertCircle className="h-3 w-3 mr-0.5" />
-                                      Action needed
-                                    </Badge>
+                              <Link 
+                                href={item.url} 
+                                data-testid={`link-settings-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                              >
+                                <item.icon className={`h-4 w-4 shrink-0 ${item.icon === Shield ? "text-blue-500" : ""}`} />
+                                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="truncate">{item.title}</span>
+                                    {viewOnly && (
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                        View only
+                                      </Badge>
+                                    )}
+                                    {showBillingAlert && (
+                                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                        <AlertCircle className="h-3 w-3 mr-0.5" />
+                                        Action needed
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {item.subtitle && (
+                                    <span className="text-[11px] text-muted-foreground truncate">{item.subtitle}</span>
                                   )}
                                 </div>
-                                {item.subtitle && (
-                                  <span className="text-[11px] text-muted-foreground truncate">{item.subtitle}</span>
-                                )}
-                              </div>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            ))}
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              );
+            })}
           </>
         ) : (
           <>

@@ -1,0 +1,179 @@
+Perfect — let’s lock this down cleanly so roles, navigation, and naming all feel intentional (and you don’t get blank pages or confused users again).
+
+I’ll break it into 3 crisp sections you can directly turn into specs.
+
+1️⃣ Role → Settings Visibility Matrix (who sees what)
+Roles assumed
+
+Owner (tenant creator)
+
+Admin (full ops, no billing ownership sometimes)
+
+Manager (clinic/business manager)
+
+Staff (front-desk, nurse, operator, etc.)
+
+Accountant (optional, billing-only)
+
+Settings access matrix
+Settings Menu	Owner	Admin	Manager	Staff	Accountant
+My Profile	✅	✅	✅	✅	✅
+Organization Details	✅	✅	❌	❌	❌
+Team & Roles	✅	✅	⚠️ View-only	❌	❌
+Security & Access	✅	⚠️ Limited	❌	❌	❌
+Plans & Billing	✅	⚠️ View-only	❌	❌	✅
+Client Portal	✅	✅	⚠️ Limited	❌	❌
+Branding & Templates	✅	✅	❌	❌	❌
+Theme & Layout	✅	✅	✅	❌	❌
+Notifications & Alerts	✅	✅	⚠️ Personal only	⚠️ Personal only	⚠️ Billing only
+Important rules
+
+❌ Never show disabled items → hide them entirely
+
+⚠️ Limited = view or partial edit (safe fields only)
+
+Staff should only see My Profile + personal notifications
+
+This alone removes 80% of confusion.
+
+2️⃣ Default Landing Page After Login (VERY IMPORTANT)
+Golden rule
+
+Never land users on a module page (/dashboard/service) directly after login or plan selection.
+
+Universal landing logic (recommended)
+Login → /dashboard (smart router)
+
+
+Then decide internally 👇
+
+Clinic Business (your focus)
+Owner / Admin
+
+👉 /dashboard/overview
+
+Today’s appointments
+
+Revenue snapshot
+
+Alerts (subscription, setup incomplete)
+
+Quick actions
+
+Manager
+
+👉 /dashboard/operations
+
+Appointments
+
+Patients
+
+Staff availability
+
+Staff
+
+👉 /dashboard/my-work
+
+Today’s tasks
+
+Assigned appointments
+
+Check-in / check-out
+
+Non-clinic / Generic Business
+Owner / Admin
+
+👉 /dashboard/overview
+
+Manager
+
+👉 /dashboard/projects OR /dashboard/clients
+(depends on business type)
+
+Fallback safety rule (critical)
+
+If:
+
+user has no permission for preferred module
+
+OR auth/session still loading
+
+➡️ Redirect to /dashboard/overview, not a module page.
+
+This prevents blank pages forever.
+
+3️⃣ Naming Consistency Review (Dashboard + Sidebar)
+Current problem (likely)
+
+“Business” in settings
+
+“Clients” in sidebar
+
+“Service” route
+
+“Customer Portal” elsewhere
+
+This creates mental friction.
+
+Recommended naming standard (pick ONE term and stick)
+Core entities
+Concept	Use this everywhere
+Business / Tenant	Organization
+Customer / Client	Client (shorter, B2B-friendly)
+Service	Services (plural)
+Staff	Team
+Users	Team Members
+Sidebar vs Settings alignment
+Sidebar
+
+Dashboard
+
+Clients
+
+Services
+
+Appointments (clinic only)
+
+Team
+
+Reports
+
+Settings
+
+Organization Details
+
+Team & Roles
+
+Security & Access
+
+Plans & Billing
+
+👉 Same words, same meaning, zero confusion.
+
+Route naming consistency (dev tip)
+
+Avoid:
+
+/dashboard/service ❌
+
+/dashboard/settings/business ❌
+
+Prefer:
+
+/dashboard/services
+
+/settings/organization
+
+/settings/team
+
+/settings/security
+
+4️⃣ Final sanity checklist (QA + UX)
+
+⛔ No role ever sees a page they can’t access
+
+🔁 Login always lands on /dashboard, never deep routes
+
+🧠 Sidebar + Settings use the same nouns
+
+👀 If user lacks access → hide menu item (don’t disable)
