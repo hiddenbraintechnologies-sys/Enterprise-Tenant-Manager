@@ -1,0 +1,245 @@
+1) Global terminology standard
+
+Use one primary term across the whole app, and allow a limited set of sub-terms for specific contexts.
+
+Recommended default (best for multi-industry SaaS)
+
+Primary term: Customer
+Record type term: Contact (for the database-like entity)
+
+Why this works:
+
+“Customer” is universally understood (clinics, agencies, services, SaaS).
+
+“Contact” fits CRM-style records without implying payment/relationship.
+
+Standard glossary (use these consistently)
+
+People/Organizations you serve
+
+Customer = the person/org receiving service (public-facing wording)
+
+Contact = the record in the system (internal wording)
+
+Client = optional synonym; avoid unless your product is agency-first
+
+Healthcare-specific (only inside clinic module, never in core UI)
+
+Patient = only inside Clinic/EMR/Appointment clinical contexts
+
+Provider = only when referring to clinicians
+
+Team/Internal
+
+Staff = tenant employees who serve customers
+
+User = someone with login access to the system
+
+Member = internal team member (synonym of staff/user; pick one and stick)
+
+Public-facing naming
+
+Public Display Name = what customers see
+
+Legal Name = for invoices/compliance
+
+Naming rule by module (simple)
+
+Core CRM-like area: Contacts
+
+Public-facing help text: customers
+
+Auth / access: users
+
+HRMS: employees/staff
+
+Clinic add-on only: can show patients inside clinic screens
+
+What to avoid (causes confusion)
+
+Mixing “customers/patients” in the same sentence
+
+Using “client” in some places and “customer” in others
+
+Using “patient” in global settings, users, roles, invoices, messaging
+
+2) Copy constants file (prevents regression)
+A) Create file
+
+client/src/lib/copy.ts
+
+// client/src/lib/copy.ts
+export const COPY = {
+  product: {
+    name: "MyBizStream",
+  },
+
+  nouns: {
+    customer: "Customer",
+    customers: "Customers",
+    contact: "Contact",
+    contacts: "Contacts",
+    user: "User",
+    users: "Users",
+    staff: "Staff",
+    employee: "Employee",
+    employees: "Employees",
+  },
+
+  userManagement: {
+    publicDisplayNameLabel: "Public Display Name",
+    publicDisplayNameHelp:
+      "This name appears on invoices and customer-facing communications.",
+    publicDisplayNamePlaceholder: "John D.",
+  },
+
+  // Use ONLY inside clinic-specific module screens (not global settings/users/roles)
+  clinic: {
+    patient: "Patient",
+    patients: "Patients",
+    provider: "Provider",
+  },
+
+  // Words we want to avoid in non-clinic areas (for tests/CI scanning)
+  forbiddenNonClinicTerms: ["patient", "patients", "doctor", "dr."],
+} as const;
+
+B) Replace hardcoded text usage
+
+Example in your Add User modal:
+
+import { COPY } from "@/lib/copy";
+
+<Label>{COPY.userManagement.publicDisplayNameLabel}</Label>
+<Input placeholder={COPY.userManagement.publicDisplayNamePlaceholder} />
+<p className="text-sm text-muted-foreground">
+  {COPY.userManagement.publicDisplayNameHelp}
+</p>
+
+C) Prevent direct strings in core UI
+
+Add a lightweight convention:
+
+In shared/core UI components, don’t write “Customer/Client/Patient” directly.
+
+Always use COPY.nouns.* or a module-specific copy object.
+
+3) QA text-scan test to block “patients / doctor” in CI
+
+You can do this two ways:
+
+Option 1 (recommended): Repo grep CI script
+
+Fastest, works regardless of rendering.
+
+Create: scripts/no-clinic-terms-core.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Scanning for clinic-specific terms in non-clinic UI..."
+
+# Forbidden terms (case-insensitive)
+FORBIDDEN_REGEX='patient|patients|doctor|dr\.'
+
+# Directories to scan
+SCAN_DIRS=("client" "server")
+
+# Exclude clinic module paths and typical generated dirs
+EXCLUDES=(
+  "node_modules"
+  "dist"
+  "build"
+  ".next"
+  "coverage"
+  ".git"
+  "client/src/modules/clinic"      # adjust to your clinic module path
+  "server/modules/clinic"          # adjust if exists
+)
+
+EXCLUDE_ARGS=()
+for ex in "${EXCLUDES[@]}"; do
+  EXCLUDE_ARGS+=(--exclude-dir="$ex")
+done
+
+set +e
+matches=$(grep -RIn "${EXCLUDE_ARGS[@]}" -E "$FORBIDDEN_REGEX" "${SCAN_DIRS[@]}")
+status=$?
+set -e
+
+if [ $status -eq 0 ]; then
+  echo "❌ Forbidden clinic terms found outside clinic module:"
+  echo "$matches"
+  exit 1
+fi
+
+echo "✅ No forbidden clinic terms found in core UI."
+
+
+Add it to package.json:
+
+{
+  "scripts": {
+    "lint:terminology": "bash scripts/no-clinic-terms-core.sh"
+  }
+}
+
+
+Run in CI before tests:
+
+npm run lint:terminology
+
+If you don’t have a clinic module folder yet, remove those excludes and later add them when clinic module exists.
+
+Option 2: Rendered UI scan (extra safety)
+
+This catches runtime strings (i18n, concatenated text).
+
+Create:
+client/src/__tests__/terminology.rendered.test.tsx
+
+import { render } from "@testing-library/react";
+import React from "react";
+
+// Import a few key pages that represent core UI
+import { SettingsPage } from "@/pages/settings/SettingsPage";
+import { UsersPage } from "@/pages/settings/users/UsersPage";
+import { LoginPage } from "@/pages/auth/LoginPage";
+
+const forbidden = [/patient/i, /patients/i, /\bdoctor\b/i, /\bdr\./i];
+
+function assertNoClinicTerms() {
+  const text = document.body.textContent ?? "";
+  for (const rx of forbidden) {
+    expect(text).not.toMatch(rx);
+  }
+}
+
+describe("Terminology: no clinic terms in core UI", () => {
+  test("Settings page has no patient/doctor terms", () => {
+    render(<SettingsPage />);
+    assertNoClinicTerms();
+  });
+
+  test("Users page has no patient/doctor terms", () => {
+    render(<UsersPage />);
+    assertNoClinicTerms();
+  });
+
+  test("Login page has no patient/doctor terms", () => {
+    render(<LoginPage />);
+    assertNoClinicTerms();
+  });
+});
+
+
+(If these pages need Router/Providers, wrap them with your TestProviders.)
+
+Final recommended setup (best practice)
+
+✅ Use Customer + Contact standard
+
+✅ Enforce copy via client/src/lib/copy.ts
+
+✅ Add repo scan script in CI
+
+✅ Optionally add rendered UI scan test

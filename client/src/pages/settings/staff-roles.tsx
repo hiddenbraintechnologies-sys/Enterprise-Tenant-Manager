@@ -22,6 +22,7 @@ import { insertTenantStaffSchema, insertTenantRoleSchema, type TenantRole, type 
 import { useImpersonation } from "@/contexts/impersonation-context";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { COPY } from "@/lib/copy";
 
 type TenantStaffMember = TenantStaff & {
   role: { id: string; name: string } | null;
@@ -559,11 +560,11 @@ function UsersTab() {
                 name="aliasName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Public Display Name</FormLabel>
+                    <FormLabel>{COPY.userManagement.publicDisplayNameLabel}</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ""} placeholder="John D." data-testid="input-user-alias" />
+                      <Input {...field} value={field.value || ""} placeholder={COPY.userManagement.publicDisplayNamePlaceholder} data-testid="input-user-alias" />
                     </FormControl>
-                    <FormDescription>This name appears on invoices and customer-facing communications.</FormDescription>
+                    <FormDescription>{COPY.userManagement.publicDisplayNameHelp}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
