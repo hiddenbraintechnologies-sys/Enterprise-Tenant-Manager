@@ -323,35 +323,35 @@ const settingsSections: SettingsSection[] = [
   {
     label: "Account",
     items: [
-      { title: "Profile", url: "/settings/profile", icon: User },
+      { title: "My Profile", url: "/settings/profile", icon: User },
     ],
   },
   {
     label: "Organization",
     items: [
-      { title: "Business", url: "/settings/business", icon: Building2 },
-      { title: "Users & Roles", url: "/settings/users-roles", icon: Users },
-      { title: "Security", url: "/settings/security", icon: Shield },
+      { title: "Organization Details", url: "/settings/business", icon: Building2 },
+      { title: "Team & Roles", url: "/settings/users-roles", icon: Users },
+      { title: "Security & Access", url: "/settings/security", icon: Shield },
     ],
   },
   {
     label: "Subscription",
     items: [
-      { title: "Billing", url: "/settings/billing", icon: CreditCard },
+      { title: "Plans & Billing", url: "/settings/billing", icon: CreditCard },
     ],
   },
   {
     label: "Customer Experience",
     items: [
-      { title: "Customer Portal", url: "/settings/portal", icon: Users },
-      { title: "Branding", url: "/settings/branding", icon: Brush },
+      { title: "Client Portal", url: "/settings/portal", icon: Users },
+      { title: "Branding & Templates", url: "/settings/branding", icon: Brush },
     ],
   },
   {
     label: "Preferences",
     items: [
-      { title: "Appearance", url: "/settings/appearance", icon: Palette },
-      { title: "Notifications", url: "/settings/notifications", icon: Bell },
+      { title: "Theme & Layout", url: "/settings/appearance", icon: Palette },
+      { title: "Notifications & Alerts", url: "/settings/notifications", icon: Bell },
     ],
   },
 ];
