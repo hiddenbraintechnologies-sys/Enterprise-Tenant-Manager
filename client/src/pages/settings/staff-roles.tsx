@@ -556,11 +556,11 @@ function UsersTab() {
                 name="aliasName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Display Name (shown to customers/patients)</FormLabel>
+                    <FormLabel>Public Display Name</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ""} placeholder="Dr. John" data-testid="input-user-alias" />
+                      <Input {...field} value={field.value || ""} placeholder="John D." data-testid="input-user-alias" />
                     </FormControl>
-                    <FormDescription>This name appears on bookings, invoices, and messages.</FormDescription>
+                    <FormDescription>This name appears on invoices and customer-facing communications.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
