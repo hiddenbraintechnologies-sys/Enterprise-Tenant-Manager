@@ -21,6 +21,7 @@ import { Users, Shield, Plus, MoreHorizontal, UserPlus, Copy, Trash2, Loader2, E
 import { insertTenantStaffSchema, insertTenantRoleSchema, type TenantRole, type TenantStaff } from "@shared/schema";
 import { useImpersonation } from "@/contexts/impersonation-context";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DashboardLayout } from "@/components/dashboard-layout";
 
 type TenantStaffMember = TenantStaff & {
   role: { id: string; name: string } | null;
@@ -95,28 +96,30 @@ export default function StaffRolesSettings() {
   const [activeTab, setActiveTab] = useState("users");
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
-            <Users className="h-4 w-4" />
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="roles" className="gap-2" data-testid="tab-roles">
-            <Shield className="h-4 w-4" />
-            Roles
-          </TabsTrigger>
-        </TabsList>
+    <DashboardLayout title="Users & Roles" breadcrumbs={[{ label: "Settings", href: "/settings" }, { label: "Users & Roles" }]}>
+      <div className="container mx-auto p-6 max-w-6xl">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-6">
+            <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
+              <Users className="h-4 w-4" />
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="gap-2" data-testid="tab-roles">
+              <Shield className="h-4 w-4" />
+              Roles
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="users">
-          <UsersTab />
-        </TabsContent>
+          <TabsContent value="users">
+            <UsersTab />
+          </TabsContent>
 
-        <TabsContent value="roles">
-          <RolesTab />
-        </TabsContent>
-      </Tabs>
-    </div>
+          <TabsContent value="roles">
+            <RolesTab />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </DashboardLayout>
   );
 }
 
