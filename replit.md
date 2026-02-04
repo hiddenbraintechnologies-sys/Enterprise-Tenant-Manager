@@ -51,9 +51,22 @@ The platform implements a comprehensive permission-based RBAC system defined in 
 Five predefined roles with hierarchical access:
 - **OWNER**: Full platform access, all settings and modules
 - **ADMIN**: Most access, view-only for Security and Billing
-- **MANAGER**: Operations focus, view-only Team access
-- **STAFF**: Limited to personal work view and appointments
-- **ACCOUNTANT**: Billing and invoicing focus
+- **MANAGER**: Operations focus, limited settings (Profile, Theme, Notifications, Client Portal view-only)
+- **STAFF**: Limited to personal work view and appointments (Profile, Notifications only)
+- **ACCOUNTANT**: Billing and invoicing focus (Profile, Billing, Notifications only)
+
+#### Settings Visibility per Role
+| Setting | Owner | Admin | Manager | Staff | Accountant |
+|---------|-------|-------|---------|-------|------------|
+| Profile | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Organization | ✓ | ✓ | - | - | - |
+| Team & Roles | ✓ | ✓ | - | - | - |
+| Security | ✓ | View only | - | - | - |
+| Billing | ✓ | View only | - | - | ✓ |
+| Client Portal | ✓ | ✓ | View only | - | - |
+| Branding | ✓ | ✓ | - | - | - |
+| Theme & Layout | ✓ | ✓ | ✓ | - | - |
+| Notifications | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 #### Permission Categories
 - **Settings Permissions**: `SETTINGS_*_VIEW`, `SETTINGS_*_EDIT` for Profile, Org, Team, Security, Billing, Client Portal, Branding, Theme, Notifications
@@ -67,16 +80,29 @@ Five predefined roles with hierarchical access:
 - `client/src/rbac/useCan.ts`: React hook for permission-based UI visibility (`can`, `canAny`, `canAll`)
 
 #### Smart Dashboard Routing
-After login, users are routed based on role and permissions:
-- **Owner/Admin**: `/dashboard/overview`
-- **Manager**: `/dashboard/operations`
-- **Staff**: `/dashboard/my-work`
-- **Accountant**: `/dashboard/overview`
-- **Fallback**: `/dashboard` (safe generic view)
+After login, users are routed based on role, permissions, and business type:
+
+**Clinic/Salon Business:**
+| Role | Landing Route |
+|------|---------------|
+| Owner/Admin | `/dashboard/overview` |
+| Manager | `/dashboard/appointments` |
+| Staff | `/dashboard/my-work` |
+| Accountant | `/dashboard/overview` |
+
+**Generic Business:**
+| Role | Landing Route |
+|------|---------------|
+| Owner/Admin | `/dashboard/overview` |
+| Manager | `/dashboard/clients` |
+| Staff | `/dashboard/my-work` |
+| Accountant | `/dashboard/overview` |
+
+**Safety Fallback:** If computed route is not permitted, redirect to `/dashboard/overview`. Never redirect to module routes directly after login/payment.
 
 #### Settings Visibility
 Settings sidebar items use `viewPermission` and `editPermission` to:
-- Hide items user cannot access
+- Hide items user cannot access (no disabled-only UI)
 - Show "View only" badge for items user can view but not edit
 - Backend permissions are used when available, with role-derived fallback
 

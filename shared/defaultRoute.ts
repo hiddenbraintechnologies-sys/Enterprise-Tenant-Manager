@@ -34,38 +34,48 @@ export function getDefaultDashboardRoute(user: UserLike): string {
   }
 
   const bt = (user.businessType || "").toLowerCase();
-  const isClinic = bt === "clinic";
-  const isSalon = bt === "salon" || bt === "spa";
+  const isClinic = bt === "clinic" || bt === "clinic_healthcare";
+  const isSalon = bt === "salon" || bt === "spa" || bt === "salon_spa";
 
   if (isClinic || isSalon) {
     if ((user.role === "OWNER" || user.role === "ADMIN") && can(user, "DASHBOARD_OVERVIEW_VIEW")) {
       return "/dashboard/overview";
     }
-    if (user.role === "MANAGER" && can(user, "DASHBOARD_OPERATIONS_VIEW")) {
-      return "/dashboard/operations";
+    if (user.role === "MANAGER") {
+      if (can(user, "APPOINTMENTS_VIEW")) {
+        return "/dashboard/appointments";
+      }
+      return "/dashboard/overview";
     }
     if (user.role === "STAFF" && can(user, "DASHBOARD_MYWORK_VIEW")) {
       return "/dashboard/my-work";
+    }
+    if (user.role === "ACCOUNTANT" && can(user, "DASHBOARD_OVERVIEW_VIEW")) {
+      return "/dashboard/overview";
     }
     if (can(user, "APPOINTMENTS_VIEW")) {
       return "/dashboard/appointments";
     }
   }
 
-  if (can(user, "DASHBOARD_OVERVIEW_VIEW")) {
+  if ((user.role === "OWNER" || user.role === "ADMIN") && can(user, "DASHBOARD_OVERVIEW_VIEW")) {
     return "/dashboard/overview";
   }
-  if (can(user, "DASHBOARD_OPERATIONS_VIEW")) {
-    return "/dashboard/operations";
+  if (user.role === "MANAGER") {
+    if (can(user, "CLIENTS_VIEW")) {
+      return "/dashboard/clients";
+    }
+    return "/dashboard/overview";
   }
-  if (can(user, "DASHBOARD_MYWORK_VIEW")) {
+  if (user.role === "STAFF" && can(user, "DASHBOARD_MYWORK_VIEW")) {
     return "/dashboard/my-work";
   }
-  if (can(user, "CLIENTS_VIEW")) {
-    return "/dashboard/clients";
+  if (user.role === "ACCOUNTANT" && can(user, "DASHBOARD_OVERVIEW_VIEW")) {
+    return "/dashboard/overview";
   }
-  if (can(user, "SERVICES_VIEW")) {
-    return "/dashboard/services";
+
+  if (can(user, "DASHBOARD_OVERVIEW_VIEW")) {
+    return "/dashboard/overview";
   }
 
   return "/dashboard";

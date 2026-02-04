@@ -1,0 +1,213 @@
+I’ll tailor the suggestions to what’s visible in your current UI flow (Profile → Settings → sidebar you showed), not generic theory.
+
+Below is a directly-applicable spec you can hand to dev/QA.
+
+A) RBAC visibility — according to your current Settings menu
+Your current menu (observed)
+
+Profile
+
+Business
+
+Branding
+
+Appearance
+
+Notifications
+
+Billing
+
+Customer Portal
+
+Security
+
+Users & Roles
+
+✅ Corrected visibility per role (hide, don’t disable)
+Owner
+
+Sees everything
+
+Profile
+Business
+Users & Roles
+Security
+Billing
+Customer Portal
+Branding
+Appearance
+Notifications
+
+Admin
+
+Sees everything except ownership-level billing controls
+
+Profile
+Business
+Users & Roles
+Security (view-only)
+Billing (view-only)
+Customer Portal
+Branding
+Appearance
+Notifications
+
+
+❌ Cannot:
+
+Change plan
+
+Cancel subscription
+
+Change payment method
+
+Manager (Clinic Manager)
+Profile
+Appearance
+Notifications
+Customer Portal (limited)
+
+
+❌ Must NOT see:
+
+Business
+
+Users & Roles
+
+Security
+
+Billing
+
+Branding
+
+👉 This matches real clinic operations (no financial or security power).
+
+Staff (Front desk / Nurse)
+Profile
+Notifications
+
+
+That’s it.
+Anything more causes confusion and risk.
+
+Accountant
+Profile
+Billing
+Notifications (billing-only)
+
+
+❌ No dashboard modules
+❌ No users / security / branding
+
+B) Smart default landing page — based on what your app actually has
+❌ What’s happening now (problem)
+After Pro plan → /dashboard/service
+
+
+This:
+
+requires module permission
+
+requires user loaded
+
+fails if auth is still resolving
+→ blank screen
+
+✅ Correct landing logic (exact)
+Always land here first
+/dashboard
+
+
+Then internally redirect using role + business type.
+
+Clinic Business
+Role	Landing route
+Owner	/dashboard/overview
+Admin	/dashboard/overview
+Manager	/dashboard/appointments
+Staff	/dashboard/my-work
+
+Never /dashboard/service as first page.
+
+Non-clinic / generic business
+Role	Landing route
+Owner/Admin	/dashboard/overview
+Manager	/dashboard/clients
+Staff	/dashboard/my-work
+🛑 Mandatory safety fallback
+
+If:
+
+user has no permission for computed route
+
+or permissions not loaded yet
+
+➡️ redirect to:
+
+/dashboard/overview
+
+
+This single rule prevents all blank dashboards.
+
+C) Naming consistency — based on your UI text
+Problems visible now
+
+“Business” in Settings
+
+“Dashboard” elsewhere
+
+“Service” route singular
+
+“Customer Portal” vs “Clients”
+
+✅ Exact renames (minimal but powerful)
+Settings
+Current	Change to
+Business	Organization
+Users & Roles	Team & Roles
+Customer Portal	Client Portal
+Appearance	Theme & Layout
+Branding	Branding & Templates
+Dashboard / routes
+Current	Change to
+/dashboard/service	/dashboard/services
+Service (menu)	Services
+Customers (if exists)	Clients
+
+👉 Same words everywhere = no confusion.
+
+D) QA checklist — specific to your issue
+Login / Plan selection
+
+ After Pro plan → redirected to /dashboard (NOT module)
+
+ Sidebar is visible immediately
+
+ /api/auth/user returns 200 before dashboard render
+
+Role checks (clinic)
+
+ Staff cannot see Billing, Security, Business
+
+ Manager cannot access Users & Roles via URL
+
+ Admin sees Billing but cannot change plan
+
+ Owner sees everything
+
+Route protection
+
+ Direct open /dashboard/service without permission → redirect to /dashboard/overview
+
+ Unauthorized settings page → hidden from menu AND blocked by backend
+
+Regression (your reported bug)
+
+ Clinic user → Pro plan → Proceed
+✅ lands on dashboard
+✅ no blank page
+✅ no 401 in console
+
+E) One-line dev rule (write this in code comments)
+
+No redirect after login, signup, or payment should ever point to a module route. Always redirect to /dashboard and let RBAC decide.
