@@ -1,0 +1,284 @@
+Below is a drop-in RBAC setup you can use for both backend + frontend, plus a smart dashboard redirect and a QA checklist focused on role-based navigation (and preventing blank pages like /dashboard/service).
+
+1) RBAC constants (shared across frontend + backend)
+shared/rbac.ts (single source of truth)
+// shared/rbac.ts
+export const ROLES = ["OWNER", "ADMIN", "MANAGER", "STAFF", "ACCOUNTANT"] as const;
+export type Role = (typeof ROLES)[number];
+
+export const PERMISSIONS = [
+  // Settings
+  "SETTINGS_PROFILE_VIEW",
+  "SETTINGS_PROFILE_EDIT",
+
+  "SETTINGS_ORG_VIEW",
+  "SETTINGS_ORG_EDIT",
+
+  "SETTINGS_TEAM_VIEW",
+  "SETTINGS_TEAM_INVITE",
+  "SETTINGS_TEAM_EDIT_ROLES",
+
+  "SETTINGS_SECURITY_VIEW",
+  "SETTINGS_SECURITY_EDIT",
+
+  "SETTINGS_BILLING_VIEW",
+  "SETTINGS_BILLING_EDIT",
+
+  "SETTINGS_CLIENT_PORTAL_VIEW",
+  "SETTINGS_CLIENT_PORTAL_EDIT",
+
+  "SETTINGS_BRANDING_VIEW",
+  "SETTINGS_BRANDING_EDIT",
+
+  "SETTINGS_THEME_VIEW",
+  "SETTINGS_THEME_EDIT",
+
+  "SETTINGS_NOTIFICATIONS_VIEW",
+  "SETTINGS_NOTIFICATIONS_EDIT",
+
+  // Dashboard/modules (examples)
+  "DASHBOARD_OVERVIEW_VIEW",
+  "DASHBOARD_OPERATIONS_VIEW",
+  "DASHBOARD_MYWORK_VIEW",
+
+  "CLIENTS_VIEW",
+  "SERVICES_VIEW",
+  "APPOINTMENTS_VIEW",
+
+] as const;
+
+export type Permission = (typeof PERMISSIONS)[number];
+
+// Helper to make typing nice
+export type RolePermissions = Record<Role, readonly Permission[]>;
+
+/**
+ * Default role -> permissions mapping
+ * You can extend later with plan/module gating (addons).
+ */
+export const ROLE_PERMISSIONS: RolePermissions = {
+  OWNER: [
+    "SETTINGS_PROFILE_VIEW","SETTINGS_PROFILE_EDIT",
+    "SETTINGS_ORG_VIEW","SETTINGS_ORG_EDIT",
+    "SETTINGS_TEAM_VIEW","SETTINGS_TEAM_INVITE","SETTINGS_TEAM_EDIT_ROLES",
+    "SETTINGS_SECURITY_VIEW","SETTINGS_SECURITY_EDIT",
+    "SETTINGS_BILLING_VIEW","SETTINGS_BILLING_EDIT",
+    "SETTINGS_CLIENT_PORTAL_VIEW","SETTINGS_CLIENT_PORTAL_EDIT",
+    "SETTINGS_BRANDING_VIEW","SETTINGS_BRANDING_EDIT",
+    "SETTINGS_THEME_VIEW","SETTINGS_THEME_EDIT",
+    "SETTINGS_NOTIFICATIONS_VIEW","SETTINGS_NOTIFICATIONS_EDIT",
+
+    "DASHBOARD_OVERVIEW_VIEW","DASHBOARD_OPERATIONS_VIEW",
+    "CLIENTS_VIEW","SERVICES_VIEW","APPOINTMENTS_VIEW",
+  ],
+  ADMIN: [
+    "SETTINGS_PROFILE_VIEW","SETTINGS_PROFILE_EDIT",
+    "SETTINGS_ORG_VIEW","SETTINGS_ORG_EDIT",
+    "SETTINGS_TEAM_VIEW","SETTINGS_TEAM_INVITE","SETTINGS_TEAM_EDIT_ROLES",
+    "SETTINGS_SECURITY_VIEW", // limited: can view but not edit
+    "SETTINGS_BILLING_VIEW",  // view-only by default
+    "SETTINGS_CLIENT_PORTAL_VIEW","SETTINGS_CLIENT_PORTAL_EDIT",
+    "SETTINGS_BRANDING_VIEW","SETTINGS_BRANDING_EDIT",
+    "SETTINGS_THEME_VIEW","SETTINGS_THEME_EDIT",
+    "SETTINGS_NOTIFICATIONS_VIEW","SETTINGS_NOTIFICATIONS_EDIT",
+
+    "DASHBOARD_OVERVIEW_VIEW","DASHBOARD_OPERATIONS_VIEW",
+    "CLIENTS_VIEW","SERVICES_VIEW","APPOINTMENTS_VIEW",
+  ],
+  MANAGER: [
+    "SETTINGS_PROFILE_VIEW","SETTINGS_PROFILE_EDIT",
+    "SETTINGS_TEAM_VIEW", // view-only
+    "SETTINGS_THEME_VIEW","SETTINGS_THEME_EDIT",
+    "SETTINGS_NOTIFICATIONS_VIEW","SETTINGS_NOTIFICATIONS_EDIT",
+
+    "DASHBOARD_OPERATIONS_VIEW",
+    "CLIENTS_VIEW","SERVICES_VIEW","APPOINTMENTS_VIEW",
+  ],
+  STAFF: [
+    "SETTINGS_PROFILE_VIEW","SETTINGS_PROFILE_EDIT",
+    "SETTINGS_NOTIFICATIONS_VIEW","SETTINGS_NOTIFICATIONS_EDIT",
+
+    "DASHBOARD_MYWORK_VIEW",
+    "APPOINTMENTS_VIEW",
+  ],
+  ACCOUNTANT: [
+    "SETTINGS_PROFILE_VIEW","SETTINGS_PROFILE_EDIT",
+    "SETTINGS_BILLING_VIEW","SETTINGS_BILLING_EDIT",
+    "SETTINGS_NOTIFICATIONS_VIEW", // billing alerts mostly
+
+    "DASHBOARD_OVERVIEW_VIEW",
+  ],
+};
+
+// Common helpers
+export function hasPermission(
+  userPerms: readonly Permission[] | undefined,
+  perm: Permission
+) {
+  return !!userPerms?.includes(perm);
+}
+
+export function buildPermissionsFromRole(role: Role): Permission[] {
+  return [...ROLE_PERMISSIONS[role]];
+}
+
+Backend usage (Express-style guard)
+// server/rbac/requirePermission.ts
+import type { Permission } from "../../shared/rbac";
+
+export function requirePermission(permission: Permission) {
+  return (req: any, res: any, next: any) => {
+    // assumes req.user.permissions exists after auth middleware
+    const perms: Permission[] = req.user?.permissions ?? [];
+    if (!perms.includes(permission)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    next();
+  };
+}
+
+Frontend usage (hide menu items)
+// client/rbac/useCan.ts
+import type { Permission } from "../../shared/rbac";
+
+export function useCan() {
+  // replace with your auth store/hook
+  const user = (window as any).__authUser as { permissions?: Permission[] } | null;
+
+  return {
+    can: (perm: Permission) => !!user?.permissions?.includes(perm),
+  };
+}
+
+2) Smart redirect function: getDefaultDashboardRoute(user)
+
+This prevents landing on module routes before auth is ready, and supports clinic roles.
+
+// shared/defaultRoute.ts
+import type { Permission, Role } from "./rbac";
+
+export type BusinessType = "CLINIC" | "GENERIC";
+
+export type UserLike = {
+  role: Role;
+  businessType?: BusinessType;
+  permissions: Permission[];
+  onboardingCompleted?: boolean;
+};
+
+function can(u: UserLike, p: Permission) {
+  return u.permissions.includes(p);
+}
+
+/**
+ * Always return a SAFE route that:
+ * - exists
+ * - user has permission to view
+ * - won't blank-screen if modules are locked
+ */
+export function getDefaultDashboardRoute(user: UserLike): string {
+  // 1) Onboarding gate (optional)
+  if (user.onboardingCompleted === false) return "/onboarding";
+
+  const isClinic = user.businessType === "CLINIC";
+
+  // 2) Clinic-first routing
+  if (isClinic) {
+    if ((user.role === "OWNER" || user.role === "ADMIN") && can(user, "DASHBOARD_OVERVIEW_VIEW")) {
+      return "/dashboard/overview";
+    }
+    if (user.role === "MANAGER" && can(user, "DASHBOARD_OPERATIONS_VIEW")) {
+      return "/dashboard/operations";
+    }
+    if (user.role === "STAFF" && can(user, "DASHBOARD_MYWORK_VIEW")) {
+      return "/dashboard/my-work";
+    }
+
+    // Clinic fallback: appointments if allowed
+    if (can(user, "APPOINTMENTS_VIEW")) return "/dashboard/appointments";
+  }
+
+  // 3) Generic business routing
+  if (can(user, "DASHBOARD_OVERVIEW_VIEW")) return "/dashboard/overview";
+  if (can(user, "CLIENTS_VIEW")) return "/dashboard/clients";
+  if (can(user, "SERVICES_VIEW")) return "/dashboard/services";
+
+  // 4) Absolute safe fallback
+  return "/dashboard";
+}
+
+Use it after login / plan selection (important order)
+// client/auth/postAuthRedirect.ts
+import { getDefaultDashboardRoute } from "../../shared/defaultRoute";
+
+export async function redirectAfterAuth({ user, router }: any) {
+  // Ensure user is loaded (avoid blank page + 401 loop)
+  // await auth.refreshUser();  // call your /api/auth/user here
+
+  const target = getDefaultDashboardRoute(user);
+  router.replace(target);
+}
+
+
+Key rule: never redirect to /dashboard/service or any module directly after payment. Always go through getDefaultDashboardRoute.
+
+3) QA checklist for role-based navigation (must-pass)
+A) Visibility (menu/links)
+
+For each role (Owner/Admin/Manager/Staff/Accountant):
+
+ Settings sidebar shows only allowed items (no disabled-only UI)
+
+ Dashboard sidebar shows only allowed modules
+
+ No “dead” menu items that open blank screens
+
+B) Route protection (direct URL)
+
+For each restricted route (ex: /settings/security, /settings/billing, /dashboard/services):
+
+ If user lacks permission → 403 page or redirect to safe dashboard
+
+ If unauthenticated → redirect to /login
+
+ No blank page on 401/403
+
+C) Default login landing
+
+For each role (with clinic business):
+
+Owner/Admin → lands on /dashboard/overview
+
+Manager → lands on /dashboard/operations
+
+Staff → lands on /dashboard/my-work
+
+Accountant → lands on /dashboard/overview (or billing summary)
+
+ If preferred route not permitted → lands on fallback (appointments/overview)
+
+D) Plan/module gating (addons)
+
+For each plan combo (Free, Basic, Pro + addons):
+
+ Sidebar hides modules not in plan
+
+ Direct URL to gated module redirects to /dashboard/overview with “Upgrade required”
+
+ Post-plan-selection “Proceed” always goes to getDefaultDashboardRoute()
+
+E) Session timing / refresh resilience
+
+ Immediately after login, refresh page (hard reload) → still renders dashboard (no blank)
+
+ Incognito mode login → no 401 loop on /api/auth/user
+
+ Token/cookie cleared → redirect to /login cleanly
+
+F) Regression tests (must include your reported bug)
+
+ Clinic user selects Pro → “Proceed to Dashboard” → lands on safe route (not /dashboard/service)
+
+ Console has no 401 for /api/auth/user after redirect
+
+ Sidebar visible and consistent
