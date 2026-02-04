@@ -314,16 +314,46 @@ const systemItems: NavItem[] = [
   { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
 ];
 
-const settingsNavItems: NavItem[] = [
-  { title: "Profile", url: "/settings/profile", icon: User },
-  { title: "Business", url: "/settings/business", icon: Building2 },
-  { title: "Branding", url: "/settings/branding", icon: Brush },
-  { title: "Appearance", url: "/settings/appearance", icon: Palette },
-  { title: "Notifications", url: "/settings/notifications", icon: Bell },
-  { title: "Billing", url: "/settings/billing", icon: CreditCard },
-  { title: "Customer Portal", url: "/settings/portal", icon: Users },
-  { title: "Security", url: "/settings/security", icon: Shield },
-  { title: "Users & Roles", url: "/settings/users-roles", icon: Users },
+interface SettingsSection {
+  label: string;
+  items: NavItem[];
+}
+
+const settingsSections: SettingsSection[] = [
+  {
+    label: "Account",
+    items: [
+      { title: "Profile", url: "/settings/profile", icon: User },
+    ],
+  },
+  {
+    label: "Organization",
+    items: [
+      { title: "Business", url: "/settings/business", icon: Building2 },
+      { title: "Users & Roles", url: "/settings/users-roles", icon: Users },
+      { title: "Security", url: "/settings/security", icon: Shield },
+    ],
+  },
+  {
+    label: "Subscription",
+    items: [
+      { title: "Billing", url: "/settings/billing", icon: CreditCard },
+    ],
+  },
+  {
+    label: "Customer Experience",
+    items: [
+      { title: "Customer Portal", url: "/settings/portal", icon: Users },
+      { title: "Branding", url: "/settings/branding", icon: Brush },
+    ],
+  },
+  {
+    label: "Preferences",
+    items: [
+      { title: "Appearance", url: "/settings/appearance", icon: Palette },
+      { title: "Notifications", url: "/settings/notifications", icon: Bell },
+    ],
+  },
 ];
 
 // HR Core items (Payroll OR HRMS add-on) - Employee Directory
@@ -525,31 +555,33 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Settings
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {settingsNavItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={location === item.url || location.startsWith(item.url + "/")}
-                      >
-                        <Link 
-                          href={item.url} 
-                          data-testid={`link-settings-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+            {settingsSections.map((section) => (
+              <SidebarGroup key={section.label}>
+                <SidebarGroupLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {section.label}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {section.items.map((item) => (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={location === item.url || location.startsWith(item.url + "/")}
                         >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+                          <Link 
+                            href={item.url} 
+                            data-testid={`link-settings-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                          >
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
           </>
         ) : (
           <>
