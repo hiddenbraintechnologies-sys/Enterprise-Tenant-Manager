@@ -1,0 +1,279 @@
+below is a production-safe, copy-paste-ready solution that fixes the exact bug you hit (blank dashboard after Pro plan) and prevents it forever.
+
+I’ll give you 3 things, all aligned with your current app structure:
+
+Safe post-plan-selection handler
+
+Zustand auth flow (race-condition proof)
+
+Permission-based sidebar config (single JSON → UI)
+
+No fluff, no theory.
+
+1️⃣ Safe post-plan-selection handler (FIXES your bug)
+❌ What’s wrong now (likely)
+
+Redirect happens before session/JWT is ready
+
+Redirect goes to a module route (/dashboard/service)
+
+Auth state still null → blank page
+
+✅ Correct, SAFE handler
+// client/billing/postPlanSelection.ts
+import { getDefaultDashboardRoute } from "@/shared/defaultRoute";
+import { useAuthStore } from "@/stores/authStore";
+
+export async function handlePlanSelectionSuccess(router: any) {
+  const auth = useAuthStore.getState();
+
+  try {
+    // 1️⃣ Force session finalization (VERY IMPORTANT)
+    await fetch("/api/auth/finalize-session", {
+      method: "POST",
+      credentials: "include",
+    });
+
+    // 2️⃣ HARD refresh user + permissions
+    await auth.refreshUser();
+
+    // 3️⃣ Guard: user must exist now
+    const user = useAuthStore.getState().user;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+
+    // 4️⃣ Smart RBAC-based landing
+    const target = getDefaultDashboardRoute(user);
+
+    // 5️⃣ Replace (not push) to avoid back-button chaos
+    router.replace(target);
+
+  } catch (err) {
+    console.error("Post-plan redirect failed", err);
+    router.replace("/dashboard");
+  }
+}
+
+🛑 RULE (write this in code comments)
+
+❌ Never redirect to /dashboard/service or any module after payment
+✅ Always go through getDefaultDashboardRoute(user)
+
+2️⃣ Zustand auth flow (NO race conditions)
+
+This is the most important part.
+It guarantees:
+
+no blank pages
+
+no /api/auth/user → 401 loops
+
+no half-loaded dashboard
+
+stores/authStore.ts
+import { create } from "zustand";
+import type { Permission, Role } from "@/shared/rbac";
+
+type User = {
+  id: string;
+  role: Role;
+  businessType: "CLINIC" | "GENERIC";
+  permissions: Permission[];
+  onboardingCompleted?: boolean;
+};
+
+type AuthState = {
+  user: User | null;
+  status: "idle" | "loading" | "authenticated" | "unauthenticated";
+  refreshUser: () => Promise<void>;
+  logout: () => Promise<void>;
+};
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  status: "idle",
+
+  refreshUser: async () => {
+    set({ status: "loading" });
+
+    try {
+      const res = await fetch("/api/auth/user", {
+        credentials: "include",
+      });
+
+      if (!res.ok) throw new Error("Unauthorized");
+
+      const user = await res.json();
+
+      set({
+        user,
+        status: "authenticated",
+      });
+    } catch {
+      set({
+        user: null,
+        status: "unauthenticated",
+      });
+    }
+  },
+
+  logout: async () => {
+    await fetch("/api/auth/logout", { credentials: "include" });
+    set({ user: null, status: "unauthenticated" });
+  },
+}));
+
+🔐 Protected layout (CRITICAL)
+// client/layouts/DashboardLayout.tsx
+import { useAuthStore } from "@/stores/authStore";
+
+export function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { status } = useAuthStore();
+
+  if (status === "idle" || status === "loading") {
+    return <div className="p-6">Loading dashboard…</div>;
+  }
+
+  if (status === "unauthenticated") {
+    window.location.href = "/login";
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
+
+🛑 This alone prevents all blank pages.
+
+3️⃣ Permission-based sidebar (single JSON → UI)
+
+This replaces hard-coded menus and keeps frontend + backend aligned.
+
+config/sidebar.config.ts
+import type { Permission } from "@/shared/rbac";
+
+export type SidebarItem = {
+  label: string;
+  route: string;
+  icon: string;
+  permission?: Permission;
+  children?: SidebarItem[];
+};
+
+export const SIDEBAR_CONFIG: SidebarItem[] = [
+  {
+    label: "Dashboard",
+    route: "/dashboard/overview",
+    icon: "home",
+    permission: "DASHBOARD_OVERVIEW_VIEW",
+  },
+  {
+    label: "Appointments",
+    route: "/dashboard/appointments",
+    icon: "calendar",
+    permission: "APPOINTMENTS_VIEW",
+  },
+  {
+    label: "Clients",
+    route: "/dashboard/clients",
+    icon: "users",
+    permission: "CLIENTS_VIEW",
+  },
+  {
+    label: "Services",
+    route: "/dashboard/services",
+    icon: "briefcase",
+    permission: "SERVICES_VIEW",
+  },
+  {
+    label: "Settings",
+    route: "/settings",
+    icon: "settings",
+    children: [
+      {
+        label: "Organization",
+        route: "/settings/organization",
+        permission: "SETTINGS_ORG_VIEW",
+        icon: "building",
+      },
+      {
+        label: "Team & Roles",
+        route: "/settings/team",
+        permission: "SETTINGS_TEAM_VIEW",
+        icon: "shield",
+      },
+      {
+        label: "Security",
+        route: "/settings/security",
+        permission: "SETTINGS_SECURITY_VIEW",
+        icon: "lock",
+      },
+      {
+        label: "Billing",
+        route: "/settings/billing",
+        permission: "SETTINGS_BILLING_VIEW",
+        icon: "credit-card",
+      },
+    ],
+  },
+];
+
+Sidebar renderer (clean + safe)
+// client/components/Sidebar.tsx
+import { SIDEBAR_CONFIG } from "@/config/sidebar.config";
+import { useAuthStore } from "@/stores/authStore";
+
+export function Sidebar() {
+  const user = useAuthStore((s) => s.user);
+  if (!user) return null;
+
+  const can = (p?: string) => !p || user.permissions.includes(p as any);
+
+  return (
+    <nav>
+      {SIDEBAR_CONFIG.map((item) => {
+        if (!can(item.permission)) return null;
+
+        if (item.children) {
+          const visibleChildren = item.children.filter(c => can(c.permission));
+          if (!visibleChildren.length) return null;
+
+          return (
+            <div key={item.label}>
+              <span>{item.label}</span>
+              {visibleChildren.map((child) => (
+                <a key={child.route} href={child.route}>
+                  {child.label}
+                </a>
+              ))}
+            </div>
+          );
+        }
+
+        return (
+          <a key={item.route} href={item.route}>
+            {item.label}
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+
+✅ One config
+✅ No dead links
+✅ No role leakage
+✅ No blank screens
+
+🔒 Final non-negotiable rules (pin this)
+
+Never redirect to a module route after login/payment
+
+Always await refreshUser() before dashboard render
+
+Sidebar must be permission-driven, not role-string checks
+
+If user lacks permission → hide menu + block route

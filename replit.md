@@ -89,6 +89,11 @@ Five predefined roles with hierarchical access:
 - `postPlanSelection` should be called after payment success instead of direct redirects
 - Sidebar components should consume `SIDEBAR_CONFIG` and `SETTINGS_SIDEBAR_CONFIG` for permission-based rendering
 
+**Current Implementation Status:**
+- Settings sidebar (`app-sidebar.tsx`) already uses permission-based filtering via `settingsSections` with `viewPermission`/`editPermission`
+- Existing `useAuth()` hook (`hooks/use-auth.ts`) uses TanStack Query; Zustand store is available as alternative/complement
+- `useCan()` hook (`rbac/useCan.ts`) provides permission checks with backend-first priority, role-fallback
+
 #### Smart Dashboard Routing
 After login, users are routed based on role, permissions, and business type:
 
