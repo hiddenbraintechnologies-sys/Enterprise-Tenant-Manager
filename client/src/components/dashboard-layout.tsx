@@ -38,15 +38,22 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, title, breadcrumbs = [] }: DashboardLayoutProps) {
   const { startTour, completedTours, state } = useTour();
   const hasCompletedDashboardTour = completedTours.includes(dashboardTour.id);
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [, setLocation] = useLocation();
   
   // Redirect to login if not authenticated after auth check completes
   useEffect(() => {
+    console.log("[Dashboard] Auth state check:", { 
+      isAuthLoading, 
+      isAuthenticated, 
+      hasUser: !!user,
+      hasLocalStorageToken: !!localStorage.getItem("accessToken")
+    });
     if (!isAuthLoading && !isAuthenticated) {
+      console.log("[Dashboard] Not authenticated, redirecting to login");
       setLocation("/login");
     }
-  }, [isAuthLoading, isAuthenticated, setLocation]);
+  }, [isAuthLoading, isAuthenticated, user, setLocation]);
 
   // Auto-start tour for new users after a short delay
   useEffect(() => {

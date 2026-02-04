@@ -62,7 +62,8 @@ async function fetchUser(): Promise<AuthUser | null> {
   console.log("[useAuth] fetchUser called", { 
     hasAccessToken: !!accessToken, 
     hasRefreshToken: !!refreshToken,
-    accessTokenPrefix: accessToken ? accessToken.substring(0, 20) + "..." : null 
+    accessTokenPrefix: accessToken ? accessToken.substring(0, 20) + "..." : null,
+    calledFrom: new Error().stack?.split('\n')[2]?.trim() || 'unknown'
   });
   
   // JWT Authentication path - primary for registered users

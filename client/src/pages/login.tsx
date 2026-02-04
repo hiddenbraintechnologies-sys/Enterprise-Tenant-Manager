@@ -166,7 +166,18 @@ export default function Login() {
         } : null,
         dashboardRoute,
       };
+      
+      console.log("[Login] Setting auth cache with user:", authUser.email);
+      console.log("[Login] Tokens stored in localStorage:", {
+        hasAccessToken: !!localStorage.getItem("accessToken"),
+        hasRefreshToken: !!localStorage.getItem("refreshToken"),
+      });
+      
       queryClient.setQueryData(AUTH_QUERY_KEY, authUser);
+      
+      // Verify cache was set
+      const cachedUser = queryClient.getQueryData(AUTH_QUERY_KEY);
+      console.log("[Login] Auth cache after setQueryData:", cachedUser ? "user set" : "null/undefined");
       
       toast({
         title: "Welcome back!",
