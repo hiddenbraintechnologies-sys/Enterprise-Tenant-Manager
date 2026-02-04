@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db } from "../../db";
-import { auditLogs, userSessions, stepUpChallenges, tenantStaffLoginHistory } from "@shared/schema";
+import { auditLogs, userSessions, stepUpChallenges, tenantStaffLoginHistory, refreshTokens } from "@shared/schema";
 import { and, eq, gte, lte, desc } from "drizzle-orm";
 import { requirePermission } from "../../rbac/requirePermission";
 import { requireStepUp } from "../../middleware/requireStepUp";
@@ -440,6 +440,150 @@ router.get(
         securityEventCount: securityEvents.length,
       },
     });
+  }
+);
+
+/**
+ * Export refresh tokens (redacted - no tokenHash).
+ * GET /api/compliance/export/refresh-tokens
+ */
+router.get(
+  "/refresh-tokens",
+  requirePermission("SETTINGS_SECURITY_VIEW"),
+  requireStepUp("data_export"),
+  async (req: Request, res: Response) => {
+    const { tenantId, userId } = req.tokenPayload!;
+    const { from, to } = req.query as { from?: string; to?: string };
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context required" });
+    }
+
+    const { fromDate, toDate } = parseDateRange(from, to);
+
+    const rows = await db
+      .select({
+        id: refreshTokens.id,
+        userId: refreshTokens.userId,
+        tenantId: refreshTokens.tenantId,
+        staffId: refreshTokens.staffId,
+        familyId: refreshTokens.familyId,
+        parentId: refreshTokens.parentId,
+        replacedByTokenId: refreshTokens.replacedByTokenId,
+        ipAddress: refreshTokens.ipAddress,
+        deviceFingerprint: refreshTokens.deviceFingerprint,
+        issuedAt: refreshTokens.issuedAt,
+        expiresAt: refreshTokens.expiresAt,
+        isRevoked: refreshTokens.isRevoked,
+        revokedAt: refreshTokens.revokedAt,
+        revokeReason: refreshTokens.revokeReason,
+        suspiciousReuseAt: refreshTokens.suspiciousReuseAt,
+        createdAt: refreshTokens.createdAt,
+      })
+      .from(refreshTokens)
+      .where(
+        and(
+          eq(refreshTokens.tenantId, tenantId),
+          gte(refreshTokens.createdAt, fromDate),
+          lte(refreshTokens.createdAt, toDate)
+        )
+      )
+      .orderBy(desc(refreshTokens.createdAt))
+      .limit(MAX_EXPORT_ROWS);
+
+    await logAudit({
+      tenantId,
+      userId,
+      action: "access",
+      resource: "refresh_tokens_export",
+      metadata: { 
+        event: "DATA_EXPORT_COMPLETED",
+        format: "json",
+        rowCount: rows.length,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({ 
+      rows,
+      metadata: {
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+        count: rows.length,
+        truncated: rows.length >= MAX_EXPORT_ROWS,
+        note: "tokenHash redacted for security",
+      },
+    });
+  }
+);
+
+/**
+ * Export refresh tokens (CSV format, redacted).
+ * GET /api/compliance/export/refresh-tokens.csv
+ */
+router.get(
+  "/refresh-tokens.csv",
+  requirePermission("SETTINGS_SECURITY_VIEW"),
+  requireStepUp("data_export"),
+  async (req: Request, res: Response) => {
+    const { tenantId, userId } = req.tokenPayload!;
+    const { from, to } = req.query as { from?: string; to?: string };
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context required" });
+    }
+
+    const { fromDate, toDate } = parseDateRange(from, to);
+
+    const rows = await db
+      .select({
+        id: refreshTokens.id,
+        userId: refreshTokens.userId,
+        staffId: refreshTokens.staffId,
+        familyId: refreshTokens.familyId,
+        parentId: refreshTokens.parentId,
+        replacedByTokenId: refreshTokens.replacedByTokenId,
+        ipAddress: refreshTokens.ipAddress,
+        deviceFingerprint: refreshTokens.deviceFingerprint,
+        issuedAt: refreshTokens.issuedAt,
+        expiresAt: refreshTokens.expiresAt,
+        isRevoked: refreshTokens.isRevoked,
+        revokedAt: refreshTokens.revokedAt,
+        revokeReason: refreshTokens.revokeReason,
+        suspiciousReuseAt: refreshTokens.suspiciousReuseAt,
+      })
+      .from(refreshTokens)
+      .where(
+        and(
+          eq(refreshTokens.tenantId, tenantId),
+          gte(refreshTokens.createdAt, fromDate),
+          lte(refreshTokens.createdAt, toDate)
+        )
+      )
+      .orderBy(desc(refreshTokens.createdAt))
+      .limit(MAX_EXPORT_ROWS);
+
+    const csv = toCsv(rows as Record<string, unknown>[]);
+
+    await logAudit({
+      tenantId,
+      userId,
+      action: "access",
+      resource: "refresh_tokens_export",
+      metadata: { 
+        event: "DATA_EXPORT_COMPLETED",
+        format: "csv",
+        rowCount: rows.length,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    const filename = `refresh_tokens_${fromDate.toISOString().split("T")[0]}_${toDate.toISOString().split("T")[0]}.csv`;
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 );
 

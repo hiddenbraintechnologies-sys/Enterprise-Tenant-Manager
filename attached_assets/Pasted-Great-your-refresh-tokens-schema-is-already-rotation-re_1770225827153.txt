@@ -1,0 +1,455 @@
+Great — your refresh_tokens schema is already rotation-ready. Below is the exact implementation for:
+
+Refresh-token rotation + reuse detection (using your columns + enums)
+
+Session anomaly scoring (hooked into login + refresh, using your user_sessions)
+
+SOC2 evidence exports (CSV/JSON) (using your audit_logs, user_sessions, refresh_tokens, step_up_challenges)
+
+Everything uses:
+
+Authorization: Bearer <accessToken>
+
+refresh token lookup by tokenHash
+
+Drizzle queries aligned to your column names
+
+1) Refresh-token rotation + reuse detection (your schema)
+1.1 Core rules
+
+Always rotate refresh tokens on /auth/refresh
+
+If refresh token is revoked → reuse detected
+
+On reuse detected:
+
+revoke all tokens in the family
+
+force-logout (bump tenant_staff.sessionVersion for that staff or user)
+
+audit + optional security alert
+
+1.2 Implementation
+server/auth/refresh/rotateRefreshToken.ts
+import crypto from "crypto";
+import { db } from "@/server/db";
+import { refreshTokens } from "@/server/db/schema/refreshTokens";
+import { tenantStaff } from "@/server/db/schema/tenantStaff";
+import { users } from "@/server/db/schema/users";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { logAudit } from "@/server/audit/logAudit";
+
+// IMPORTANT: store only hashes in DB, never raw tokens
+export function hashRefreshToken(raw: string) {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+// Use base64url so it’s URL/cookie friendly
+export function generateRefreshTokenRaw() {
+  return crypto.randomBytes(48).toString("base64url");
+}
+
+type RotateContext = {
+  rawRefreshToken: string;
+  ipAddress?: string;
+  userAgent?: string;
+  deviceFingerprint?: string;
+  deviceInfo?: Record<string, any>;
+};
+
+export async function rotateRefreshToken(ctx: RotateContext) {
+  const tokenHash = hashRefreshToken(ctx.rawRefreshToken);
+
+  const existing = await db.query.refreshTokens.findFirst({
+    where: eq(refreshTokens.tokenHash, tokenHash),
+  });
+
+  // Not found => treat as suspected reuse/forgery
+  if (!existing) {
+    throw Object.assign(new Error("REFRESH_TOKEN_NOT_FOUND"), { code: "REUSE_SUSPECTED" });
+  }
+
+  // Expired => revoke it (optional) and reject
+  if (existing.expiresAt && existing.expiresAt < new Date()) {
+    await db.update(refreshTokens).set({
+      isRevoked: true,
+      revokedAt: new Date(),
+      revokeReason: "session_expired",
+    }).where(eq(refreshTokens.id, existing.id));
+
+    await logAudit({
+      tenantId: existing.tenantId ?? undefined,
+      userId: existing.userId,
+      action: "AUTH_LOGIN_FAILED", // or a dedicated AUTH_REFRESH_FAILED if you add enum
+      resource: "refresh_token",
+      resourceId: existing.id,
+      metadata: { reason: "expired" },
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+
+    throw Object.assign(new Error("REFRESH_TOKEN_EXPIRED"), { code: "REFRESH_EXPIRED" });
+  }
+
+  // Reuse detected: token already revoked (rotation/logout/etc)
+  if (existing.isRevoked || existing.revokedAt) {
+    await handleRefreshReuseDetected(existing, ctx);
+    throw Object.assign(new Error("REFRESH_TOKEN_REUSED"), { code: "REUSE_DETECTED" });
+  }
+
+  // ✅ Normal rotation
+  const now = new Date();
+
+  // revoke current
+  await db.update(refreshTokens).set({
+    isRevoked: true,
+    revokedAt: now,
+    revokeReason: "rotation",
+  }).where(eq(refreshTokens.id, existing.id));
+
+  // create next token
+  const newRaw = generateRefreshTokenRaw();
+  const newHash = hashRefreshToken(newRaw);
+
+  const familyId = existing.familyId ?? existing.id;
+
+  const [newRow] = await db.insert(refreshTokens).values({
+    userId: existing.userId,
+    tenantId: existing.tenantId,
+    staffId: existing.staffId,
+
+    tokenHash: newHash,
+    familyId,
+    parentId: existing.id,
+
+    deviceInfo: ctx.deviceInfo ?? existing.deviceInfo ?? {},
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+    deviceFingerprint: ctx.deviceFingerprint,
+
+    issuedAt: now,
+    // keep your policy: e.g. 30 days from now
+    expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+  }).returning({ id: refreshTokens.id });
+
+  // link current -> next
+  await db.update(refreshTokens).set({
+    replacedByTokenId: newRow.id,
+  }).where(eq(refreshTokens.id, existing.id));
+
+  await logAudit({
+    tenantId: existing.tenantId ?? undefined,
+    userId: existing.userId,
+    action: "AUTH_TOKEN_REFRESH",
+    resource: "refresh_token",
+    resourceId: existing.id,
+    metadata: {
+      familyId,
+      rotatedTo: newRow.id,
+      staffId: existing.staffId ?? null,
+    },
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+  });
+
+  return {
+    userId: existing.userId,
+    tenantId: existing.tenantId,
+    staffId: existing.staffId,
+    familyId,
+    newRefreshToken: newRaw,
+    // useful for policy checks
+    priorRefreshTokenId: existing.id,
+    newRefreshTokenId: newRow.id,
+  };
+}
+
+async function handleRefreshReuseDetected(existing: any, ctx: RotateContext) {
+  const now = new Date();
+  const familyId = existing.familyId ?? existing.id;
+
+  // revoke entire family
+  await db.update(refreshTokens).set({
+    isRevoked: true,
+    revokedAt: now,
+    revokeReason: "reuse_detected",
+    suspiciousReuseAt: now,
+  }).where(eq(refreshTokens.familyId, familyId));
+
+  // invalidate sessions (staff-first)
+  if (existing.staffId) {
+    // bump staff sessionVersion to force logout (your model)
+    await db.update(tenantStaff)
+      .set({ sessionVersion: crypto.randomInt(1000000) }) // OR +1 if you fetch current
+      .where(eq(tenantStaff.id, existing.staffId));
+  } else {
+    // if you have users.sessionVersion, bump it; otherwise bump all tenantStaff for this user in tenant
+    // (depends on your user<->tenant model)
+  }
+
+  await logAudit({
+    tenantId: existing.tenantId ?? undefined,
+    userId: existing.userId,
+    action: "SUSPICIOUS_LOGIN_DETECTED",
+    resource: "refresh_token_family",
+    resourceId: String(familyId),
+    oldValue: { tokenId: existing.id, revoked: true },
+    newValue: { reuseDetectedAt: now.toISOString() },
+    metadata: {
+      reason: "reuse_detected",
+      staffId: existing.staffId ?? null,
+      ipAddress: ctx.ipAddress,
+      deviceFingerprint: ctx.deviceFingerprint,
+    },
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+  });
+}
+
+
+Note: I used a randomInt for staff sessionVersion to avoid needing a read; if you prefer strict +1, fetch current first.
+
+1.3 /api/auth/refresh endpoint (how to wire it)
+// server/routes/authRefresh.ts
+router.post("/auth/refresh", async (req, res) => {
+  const rawRefreshToken = req.body.refreshToken; // or cookie
+  const ctx = {
+    rawRefreshToken,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+    deviceFingerprint: req.body.deviceFingerprint,
+    deviceInfo: req.body.deviceInfo,
+  };
+
+  const rotated = await rotateRefreshToken(ctx);
+
+  // issue new access token (include sessionId/sessionVersion as you already do)
+  // IMPORTANT: keep sessionId stable per login session OR create per refresh (your choice)
+  const accessToken = await jwtAuthService.signAccessToken({
+    userId: rotated.userId,
+    tenantId: rotated.tenantId,
+    staffId: rotated.staffId,
+    // sessionId/sessionVersion should come from user_sessions model
+  });
+
+  res.json({
+    accessToken,
+    refreshToken: rotated.newRefreshToken,
+  });
+});
+
+2) Session anomaly scoring (hooked into login + refresh)
+2.1 Scoring policy (recommended)
+
+Score >= 60 → require step-up (428 STEP_UP_REQUIRED, purpose: security_settings or force_logout equivalent)
+
+Score >= 90 → force logout + alert
+
+2.2 Compute score using your user_sessions
+server/security/anomalyScore.ts
+import { db } from "@/server/db";
+import { userSessions } from "@/server/db/schema/userSessions";
+import { and, eq, desc, isNull } from "drizzle-orm";
+
+export async function computeSessionAnomalyScore({
+  tenantId,
+  userId,
+  staffId,
+  deviceFingerprint,
+  country,
+  city,
+}: {
+  tenantId: string;
+  userId: string;
+  staffId?: string;
+  deviceFingerprint?: string;
+  country?: string;
+  city?: string;
+}) {
+  const recent = await db.query.userSessions.findMany({
+    where: and(
+      eq(userSessions.tenantId, tenantId),
+      eq(userSessions.userId, userId),
+    ),
+    orderBy: (s, { desc }) => [desc(s.lastSeenAt)],
+    limit: 12,
+  });
+
+  let score = 0;
+  const reasons: string[] = [];
+
+  const knownDevices = new Set(recent.map(r => r.deviceFingerprint).filter(Boolean));
+  const knownCountries = new Set(recent.map(r => r.country).filter(Boolean));
+  const knownCities = new Set(recent.map(r => r.city).filter(Boolean));
+
+  if (deviceFingerprint && knownDevices.size && !knownDevices.has(deviceFingerprint)) {
+    score += 30; reasons.push("NEW_DEVICE");
+  }
+  if (country && knownCountries.size && !knownCountries.has(country)) {
+    score += 25; reasons.push("NEW_COUNTRY");
+  }
+  if (city && knownCities.size && !knownCities.has(city)) {
+    score += 10; reasons.push("NEW_CITY");
+  }
+
+  const activeCount = recent.filter(r => !r.revokedAt).length;
+  if (activeCount >= 5) {
+    score += 20; reasons.push("MANY_ACTIVE_SESSIONS");
+  }
+
+  return { score, reasons, activeCount };
+}
+
+2.3 Enforce on login and refresh
+
+On login: compute score and either:
+
+allow login
+
+or return STEP_UP_REQUIRED before issuing tokens (best)
+
+On refresh: compute score; if high, require step-up and rotate token anyway, but refuse new access token until step-up.
+
+Auditing
+Log SUSPICIOUS_LOGIN_DETECTED with {score, reasons}.
+
+3) SOC2 evidence exports (CSV/JSON) — using your exact schemas
+3.1 Export endpoints (secure)
+
+Require permission: SETTINGS_SECURITY_VIEW
+
+Require step-up: data_export
+
+Record export in audit logs:
+
+DATA_EXPORT_STARTED
+
+DATA_EXPORT_COMPLETED
+
+Exports to offer
+
+audit_logs
+
+user_sessions
+
+refresh_tokens (redacted: never export tokenHash unless auditor requires; export id/family/revoke info)
+
+step_up_challenges (purpose, verifiedAt, expiresAt)
+
+“security events” (filtered audit actions)
+
+3.2 JSON export (audit logs)
+router.get(
+  "/compliance/export/audit-logs",
+  requirePermission("SETTINGS_SECURITY_VIEW"),
+  requireStepUp("data_export"),
+  async (req, res) => {
+    const { tenantId, userId } = req.tokenPayload;
+    const from = new Date(String(req.query.from));
+    const to = new Date(String(req.query.to));
+
+    await logAudit({
+      tenantId,
+      userId,
+      action: "DATA_EXPORT_STARTED",
+      resource: "audit_logs",
+      metadata: { from, to, format: "json" },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    const rows = await db.query.auditLogs.findMany({
+      where: (a, { and, eq, gte, lte }) =>
+        and(eq(a.tenantId, tenantId), gte(a.createdAt, from), lte(a.createdAt, to)),
+      orderBy: (a, { desc }) => [desc(a.createdAt)],
+      limit: 50000,
+    });
+
+    await logAudit({
+      tenantId,
+      userId,
+      action: "DATA_EXPORT_COMPLETED",
+      resource: "audit_logs",
+      metadata: { rowCount: rows.length, format: "json" },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({ rows });
+  }
+);
+
+3.3 CSV export helper (safe escaping)
+function toCsv(rows: any[]) {
+  const headers = Object.keys(rows[0] ?? {});
+  const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+  return [headers.join(","), ...rows.map(r => headers.map(h => esc(r[h])).join(","))].join("\n");
+}
+
+3.4 CSV export (sessions)
+router.get(
+  "/compliance/export/user-sessions.csv",
+  requirePermission("SETTINGS_SECURITY_VIEW"),
+  requireStepUp("data_export"),
+  async (req, res) => {
+    const { tenantId, userId } = req.tokenPayload;
+    const from = new Date(String(req.query.from));
+    const to = new Date(String(req.query.to));
+
+    const rows = await db.query.userSessions.findMany({
+      where: (s, { and, eq, gte, lte }) =>
+        and(eq(s.tenantId, tenantId), gte(s.createdAt, from), lte(s.createdAt, to)),
+      orderBy: (s, { desc }) => [desc(s.createdAt)],
+      limit: 50000,
+    });
+
+    const csv = toCsv(rows);
+
+    await logAudit({
+      tenantId,
+      userId,
+      action: "DATA_EXPORT_COMPLETED",
+      resource: "user_sessions",
+      metadata: { rowCount: rows.length, format: "csv" },
+    });
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="user_sessions_${req.query.from}_${req.query.to}.csv"`);
+    res.send(csv);
+  }
+);
+
+3.5 Redacted refresh token export (SOC2-safe)
+
+Do NOT export tokenHash by default. Export lifecycle only.
+
+Fields to export:
+
+id, userId, tenantId, staffId
+
+familyId, parentId, replacedByTokenId
+
+issuedAt, expiresAt
+
+isRevoked, revokedAt, revokeReason, suspiciousReuseAt
+
+ipAddress, deviceFingerprint (optional, can be sensitive)
+
+Wiring notes (so it actually works in your app)
+Access token payload MUST include
+
+sessionId
+
+sessionVersion
+
+tenantId, userId, staffId
+
+When you force logout (sessionVersion bump):
+
+old access tokens become invalid immediately (middleware checks mismatch)
+
+When refresh token reuse detected
+
+revoke family + bump sessionVersion (staff)
+
+user gets logged out on next API call, even if access token still “looks valid”
