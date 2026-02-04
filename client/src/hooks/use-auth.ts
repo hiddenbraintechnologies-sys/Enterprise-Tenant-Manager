@@ -3,7 +3,7 @@ import type { User } from "@shared/models/auth";
 
 export type BusinessType = "clinic" | "clinic_healthcare" | "salon" | "salon_spa" | "pg" | "pg_hostel" | "coworking" | "service" | "real_estate" | "tourism" | "education" | "education_institute" | "logistics" | "logistics_fleet" | "legal" | "furniture_manufacturing" | "software_services" | "consulting" | "digital_agency" | "retail_store";
 
-const DASHBOARD_ROUTES: Record<string, string> = {
+export const DASHBOARD_ROUTES: Record<string, string> = {
   clinic: "/dashboard/clinic",
   clinic_healthcare: "/dashboard/clinic",
   salon: "/dashboard/salon",

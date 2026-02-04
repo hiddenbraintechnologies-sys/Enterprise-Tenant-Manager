@@ -1437,11 +1437,17 @@ export async function registerRoutes(
           email: existingUser.email,
           firstName: existingUser.firstName,
           lastName: existingUser.lastName,
+          profileImageUrl: existingUser.profileImageUrl || null,
         },
         tenant: tenantData ? {
           id: tenantData.id,
           name: tenantData.name,
           businessType: tenantData.businessType,
+          onboardingCompleted: tenantData.onboardingCompleted || false,
+          country: tenantData.country || null,
+          region: tenantData.region || null,
+          currency: tenantData.currency || "INR",
+          timezone: tenantData.timezone || "Asia/Kolkata",
         } : null,
       });
     } catch (error) {

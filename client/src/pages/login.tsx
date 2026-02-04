@@ -20,6 +20,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Building2, ArrowLeft, Loader2, Mail, Lock, Check, ChevronRight, ArrowRight } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import { queryClient } from "@/lib/queryClient";
+import { AUTH_QUERY_KEY, DASHBOARD_ROUTES } from "@/hooks/use-auth";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -142,34 +143,8 @@ export default function Login() {
         localStorage.setItem("lastTenantId", data.tenant.id);
       }
       
-      // Dashboard route mapping (same as used below for redirect)
-      const dashboardRoutes: Record<string, string> = {
-        clinic: "/dashboard/clinic",
-        clinic_healthcare: "/dashboard/clinic",
-        salon: "/dashboard/salon",
-        salon_spa: "/dashboard/salon",
-        pg: "/dashboard/pg",
-        pg_hostel: "/dashboard/pg",
-        coworking: "/dashboard/coworking",
-        service: "/dashboard/service",
-        real_estate: "/dashboard/real-estate",
-        realestate: "/dashboard/realestate",
-        tourism: "/dashboard/tourism",
-        education: "/dashboard/education",
-        education_institute: "/dashboard/education",
-        logistics: "/dashboard/logistics",
-        logistics_fleet: "/dashboard/logistics",
-        legal: "/dashboard/legal",
-        furniture: "/dashboard/furniture",
-        furniture_manufacturing: "/dashboard/furniture",
-        consulting: "/dashboard/consulting",
-        software_services: "/dashboard/software-services",
-        digital_agency: "/dashboard/digital-agency",
-        retail_store: "/dashboard/retail",
-      };
-      
       const businessType = data.tenant?.businessType || "service";
-      const dashboardRoute = dashboardRoutes[businessType] || "/dashboard/service";
+      const dashboardRoute = DASHBOARD_ROUTES[businessType] || "/dashboard/service";
       
       // Immediately update the auth cache with the logged-in user data
       // This prevents the redirect loop where the dashboard sees cached null
@@ -178,14 +153,20 @@ export default function Login() {
         email: data.user.email,
         firstName: data.user.firstName,
         lastName: data.user.lastName,
+        profileImageUrl: data.user.profileImageUrl || null,
         tenant: data.tenant ? {
           id: data.tenant.id,
           name: data.tenant.name,
           businessType: data.tenant.businessType,
+          onboardingCompleted: data.tenant.onboardingCompleted || false,
+          country: data.tenant.country || null,
+          region: data.tenant.region || null,
+          currency: data.tenant.currency || "INR",
+          timezone: data.tenant.timezone || "Asia/Kolkata",
         } : null,
         dashboardRoute,
       };
-      queryClient.setQueryData(["/api/auth"], authUser);
+      queryClient.setQueryData(AUTH_QUERY_KEY, authUser);
       
       toast({
         title: "Welcome back!",
