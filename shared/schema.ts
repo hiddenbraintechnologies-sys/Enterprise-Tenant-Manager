@@ -9580,3 +9580,175 @@ export type UserDeleteSummary = {
   tables: DeleteSummary[];
   totalRecords: number;
 };
+
+// ==================== USER SESSIONS (Active Session Tracking) ====================
+
+export const sessionRevokeReasonEnum = pgEnum("session_revoke_reason", [
+  "user_requested",
+  "admin_forced",
+  "session_version_bump",
+  "security_alert",
+  "expired",
+]);
+
+export const userSessions = pgTable("user_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  staffId: varchar("staff_id").references(() => tenantStaff.id, { onDelete: "cascade" }),
+  sessionVersion: integer("session_version").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  country: varchar("country", { length: 100 }),
+  city: varchar("city", { length: 100 }),
+  userAgent: text("user_agent"),
+  deviceFingerprint: varchar("device_fingerprint", { length: 64 }),
+  isCurrent: boolean("is_current").notNull().default(false),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: sessionRevokeReasonEnum("revoke_reason"),
+  revokedBy: varchar("revoked_by").references(() => users.id),
+}, (table) => [
+  index("idx_user_sessions_tenant_user").on(table.tenantId, table.userId),
+  index("idx_user_sessions_last_seen").on(table.lastSeenAt),
+  index("idx_user_sessions_staff").on(table.staffId),
+]);
+
+export const insertUserSessionSchema = createInsertSchema(userSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type UserSession = typeof userSessions.$inferSelect;
+export type InsertUserSession = z.infer<typeof insertUserSessionSchema>;
+
+// ==================== STEP-UP AUTHENTICATION (OTP) ====================
+
+export const stepUpPurposeEnum = pgEnum("step_up_purpose", [
+  "force_logout",
+  "revoke_session",
+  "change_role",
+  "change_permissions",
+  "impersonate",
+  "ip_rule_change",
+  "sso_config",
+  "billing_change",
+  "data_export",
+  "security_settings",
+]);
+
+export const stepUpChallenges = pgTable("step_up_challenges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  purpose: stepUpPurposeEnum("purpose").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+}, (table) => [
+  index("idx_step_up_tenant_user").on(table.tenantId, table.userId),
+  index("idx_step_up_expires").on(table.expiresAt),
+]);
+
+export const insertStepUpChallengeSchema = createInsertSchema(stepUpChallenges).omit({
+  id: true,
+  createdAt: true,
+  verifiedAt: true,
+});
+
+export type StepUpChallenge = typeof stepUpChallenges.$inferSelect;
+export type InsertStepUpChallenge = z.infer<typeof insertStepUpChallengeSchema>;
+
+// ==================== TOTP (Two-Factor Authentication) ====================
+
+export const staffTotpConfig = pgTable("staff_totp_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffId: varchar("staff_id").notNull().references(() => tenantStaff.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  totpSecret: text("totp_secret").notNull(),
+  totpEnabled: boolean("totp_enabled").notNull().default(false),
+  backupCodes: text("backup_codes"), // JSON array of hashed codes
+  enabledAt: timestamp("enabled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_staff_totp_unique").on(table.staffId),
+  index("idx_staff_totp_tenant").on(table.tenantId),
+]);
+
+export const insertStaffTotpConfigSchema = createInsertSchema(staffTotpConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  enabledAt: true,
+});
+
+export type StaffTotpConfig = typeof staffTotpConfig.$inferSelect;
+export type InsertStaffTotpConfig = z.infer<typeof insertStaffTotpConfigSchema>;
+
+// ==================== SOC2-STYLE AUDIT EVENT TAXONOMY ====================
+
+export const soc2AuditOutcomeEnum = pgEnum("soc2_audit_outcome", ["success", "fail"]);
+
+export const soc2AuditTargetTypeEnum = pgEnum("soc2_audit_target_type", [
+  "user",
+  "role",
+  "session",
+  "ip_rule",
+  "sso_config",
+  "subscription",
+  "addon",
+  "tenant",
+  "permission",
+  "data_export",
+]);
+
+export const soc2AuditLogs = pgTable("soc2_audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  // Actor information
+  actorUserId: varchar("actor_user_id").notNull(),
+  actorRole: varchar("actor_role", { length: 50 }),
+  isImpersonating: boolean("is_impersonating").default(false),
+  realUserId: varchar("real_user_id"),
+  
+  // Action details
+  action: varchar("action", { length: 100 }).notNull(),
+  outcome: soc2AuditOutcomeEnum("outcome").notNull().default("success"),
+  failureReason: text("failure_reason"),
+  
+  // Target information
+  targetType: soc2AuditTargetTypeEnum("target_type"),
+  targetId: varchar("target_id", { length: 100 }),
+  
+  // Request context
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  country: varchar("country", { length: 100 }),
+  city: varchar("city", { length: 100 }),
+  
+  // Change tracking (sanitized diffs)
+  beforeValue: jsonb("before_value"),
+  afterValue: jsonb("after_value"),
+  metadata: jsonb("metadata").default({}),
+  
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_soc2_audit_tenant").on(table.tenantId),
+  index("idx_soc2_audit_actor").on(table.actorUserId),
+  index("idx_soc2_audit_action").on(table.action),
+  index("idx_soc2_audit_target").on(table.targetType, table.targetId),
+  index("idx_soc2_audit_created").on(table.createdAt),
+  index("idx_soc2_audit_outcome").on(table.outcome),
+]);
+
+export const insertSoc2AuditLogSchema = createInsertSchema(soc2AuditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Soc2AuditLog = typeof soc2AuditLogs.$inferSelect;
+export type InsertSoc2AuditLog = z.infer<typeof insertSoc2AuditLogSchema>;

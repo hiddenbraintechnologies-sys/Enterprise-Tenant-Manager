@@ -1,0 +1,344 @@
+1) Active sessions viewer (per-tenant, per-user)
+Data model
+
+Use a sessions table (recommended even if you also keep server sessions), so you can list/revoke reliably.
+
+CREATE TABLE user_sessions (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  session_version INT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  ip TEXT,
+  country TEXT,
+  city TEXT,
+  user_agent TEXT,
+  device_fingerprint TEXT,
+  is_current BOOLEAN NOT NULL DEFAULT FALSE,
+  revoked_at TIMESTAMP NULL,
+  revoke_reason TEXT NULL
+);
+
+CREATE INDEX idx_user_sessions_tenant_user ON user_sessions(tenant_id, user_id);
+CREATE INDEX idx_user_sessions_last_seen ON user_sessions(last_seen_at);
+
+When to create/update a session
+
+On login: insert new user_sessions row, mark is_current=true for that session id.
+
+On every authenticated request: update last_seen_at (throttle to once per 2–5 minutes to reduce writes).
+
+Store session_version from the user at login time.
+
+Backend endpoints
+
+List sessions (admin/owner + self)
+
+// GET /api/security/sessions?userId=...
+// Permissions:
+// - Owner/Admin with SETTINGS_SECURITY_VIEW can view any user’s sessions in tenant
+// - Any user can view their own sessions
+
+
+Revoke one session
+
+// POST /api/security/sessions/:sessionId/revoke
+// Requires step-up OTP (see section 2) + SETTINGS_SECURITY_EDIT for other users
+// Self-revoke allowed with step-up too (prevents account takeovers from revoking controls)
+
+
+Revoke all sessions for a user
+
+Prefer your existing session_version++ method: it kills everything fast.
+
+Also mark rows revoked_at for UI truth.
+
+UI behavior (Security & Access → Active Sessions)
+
+For each session show:
+
+Device (parsed from user agent) e.g., “Chrome on macOS”
+
+Location (Country/City) + IP
+
+Last seen
+
+“Current” badge
+Actions:
+
+Revoke session (per row)
+
+Revoke all other sessions
+
+Force logout user (session_version++)
+
+Guardrails
+
+Never allow revoking the only Owner session without step-up (OTP).
+
+Warn if user is about to revoke their current session.
+
+2) Step-up auth (OTP) for sensitive actions
+What it is
+
+Even if the user is logged in, for high-risk actions require a fresh OTP verification (“recently verified” within 5–10 minutes).
+
+Sensitive actions list (recommended)
+
+Start/exit impersonation
+
+Force logout user / revoke sessions
+
+Change roles/permissions
+
+Change SSO settings
+
+Add/edit IP allow/deny rules
+
+Billing changes (plan cancel, payment method)
+
+Export sensitive data (if any)
+
+Implementation option A (fast + solid): TOTP (Authenticator app)
+
+DB
+
+ALTER TABLE users
+  ADD COLUMN totp_secret TEXT NULL,
+  ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE stepup_challenges (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  verified_at TIMESTAMP NULL,
+  expires_at TIMESTAMP NOT NULL,
+  purpose TEXT NOT NULL
+);
+
+Flow
+
+User clicks “Revoke session” / “Change role” etc.
+
+Backend returns STEP_UP_REQUIRED with challengeId
+
+UI opens OTP modal
+
+User enters 6-digit OTP
+
+Backend verifies TOTP → marks challenge verified_at
+
+Action endpoint checks “recent verified challenge exists” → proceeds
+
+Backend helpers (core idea)
+
+Require step-up middleware
+
+// server/middleware/requireStepUp.ts
+export function requireStepUp(purpose: string, windowSeconds = 600) {
+  return async (req: any, res: any, next: any) => {
+    const ok = await hasRecentStepUp(req.user.tenantId, req.user.id, purpose, windowSeconds);
+    if (!ok) return res.status(428).json({ error: "STEP_UP_REQUIRED", purpose });
+    next();
+  };
+}
+
+
+Verify OTP
+
+// POST /api/security/stepup/verify  { code, purpose }
+router.post("/security/stepup/verify", async (req, res) => {
+  const { code, purpose } = req.body;
+
+  const secret = await getTotpSecret(req.user.id);
+  if (!secret) return res.status(400).json({ error: "TOTP_NOT_ENABLED" });
+
+  const valid = verifyTotpCode(secret, code); // using otplib or speakeasy
+  if (!valid) return res.status(400).json({ error: "INVALID_OTP" });
+
+  await markStepUpVerified(req.user.tenantId, req.user.id, purpose);
+  await logAudit({
+    tenantId: req.user.tenantId,
+    actorUserId: req.user.id,
+    action: "STEP_UP_VERIFIED",
+    metadata: { purpose },
+  });
+
+  res.json({ success: true });
+});
+
+
+Protect sensitive endpoints
+
+router.post(
+  "/users/:id/force-logout",
+  requirePermission("SETTINGS_SECURITY_EDIT"),
+  requireStepUp("FORCE_LOGOUT"),
+  async (req, res) => { /* ... */ }
+);
+
+Frontend UX (simple)
+
+On 428 STEP_UP_REQUIRED: open OTP modal
+
+After verify success: retry the original action automatically
+
+3) SOC2-style audit event taxonomy (practical, not bloated)
+
+A SOC2-friendly audit log is:
+
+Who (actor user id, role, impersonation realUserId)
+
+What (action enum)
+
+When (timestamp)
+
+Where (ip, user agent, location)
+
+Which tenant (tenant_id)
+
+Target (resource type + id)
+
+Outcome (success/failure + reason)
+
+Before/After (diff for key settings)
+
+Recommended event categories + action enums
+Authentication & Session
+
+AUTH_LOGIN_SUCCESS
+
+AUTH_LOGIN_FAILED
+
+AUTH_LOGOUT
+
+AUTH_TOKEN_REFRESH
+
+SESSION_CREATED
+
+SESSION_REVOKED
+
+SESSION_REVOKE_ALL
+
+SESSION_INVALIDATED (session_version bump)
+
+MFA_ENROLLED
+
+MFA_DISABLED
+
+STEP_UP_REQUIRED
+
+STEP_UP_VERIFIED
+
+SUSPICIOUS_LOGIN_DETECTED
+
+Identity & Access Management (IAM)
+
+USER_INVITED
+
+USER_INVITE_RESENT
+
+USER_INVITE_REVOKED
+
+USER_DEACTIVATED
+
+USER_REACTIVATED
+
+USER_ROLE_UPDATED
+
+USER_PERMISSIONS_UPDATED
+
+ROLE_CREATED
+
+ROLE_UPDATED
+
+ROLE_DELETED
+
+Impersonation
+
+IMPERSONATION_STARTED
+
+IMPERSONATION_ENDED
+
+Security Configuration
+
+SSO_ENABLED
+
+SSO_DISABLED
+
+SSO_CONFIG_UPDATED
+
+IP_RULE_CREATED
+
+IP_RULE_UPDATED
+
+IP_RULE_DELETED
+
+SECURITY_ALERTS_UPDATED
+
+Billing & Subscription
+
+PLAN_CHANGED
+
+ADDON_ENABLED
+
+ADDON_DISABLED
+
+PAYMENT_METHOD_UPDATED
+
+INVOICE_PAID
+
+INVOICE_PAYMENT_FAILED
+
+SUBSCRIPTION_CANCELED
+
+Data Access & Export (if applicable)
+
+DATA_EXPORT_STARTED
+
+DATA_EXPORT_COMPLETED
+
+DATA_EXPORT_DENIED
+
+Audit record shape (JSON)
+type AuditLog = {
+  id: string;
+  tenantId: string;
+
+  actorUserId: string;
+  actorRole?: string;
+
+  // If impersonating
+  isImpersonating?: boolean;
+  realUserId?: string;
+
+  action: string;              // enum above
+  outcome: "SUCCESS" | "FAIL";
+  failureReason?: string;
+
+  targetType?: "USER" | "ROLE" | "SESSION" | "IP_RULE" | "SSO" | "SUBSCRIPTION";
+  targetId?: string;
+
+  ip?: string;
+  userAgent?: string;
+  country?: string;
+  city?: string;
+
+  before?: any;                // sanitized diff
+  after?: any;                 // sanitized diff
+  metadata?: any;
+
+  createdAt: string;
+};
+
+Redaction rules (SOC2-friendly)
+
+Never store raw secrets (TOTP secret, API keys)
+
+For IP rules store CIDR, not full request logs
+
+For user agents ok
+
+For “before/after” store only changed fields (diff), not entire objects

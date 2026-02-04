@@ -60,6 +60,7 @@ import { aiRouter } from "./core/ai-routes";
 import staffRolesRoutes from "./routes/settings/staff-roles";
 import impersonationRoutes from "./routes/settings/impersonation";
 import securityRoutes from "./routes/settings/security";
+import securitySessionsRoutes from "./routes/security";
 import { blockImpersonationOnSensitiveRoutes } from "./middleware/require-permission";
 import {
   adminIpRestriction,
@@ -508,6 +509,9 @@ export async function registerRoutes(
   
   // Security routes (force logout, IP rules, alerts)
   app.use('/api/settings/security', authenticateHybrid({ required: true }), enforceTenantBoundary(), sessionVersionMiddleware, securityRoutes);
+  
+  // Security sessions, step-up auth, and audit routes
+  app.use('/api/security', authenticateHybrid({ required: true }), enforceTenantBoundary(), sessionVersionMiddleware, securitySessionsRoutes);
   
   // Block impersonation on sensitive routes
   app.use(blockImpersonationOnSensitiveRoutes);
