@@ -408,13 +408,17 @@ interface LockedModalState {
 export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const [location] = useLocation();
   const { t } = useTranslation();
-  const { user, logout, isLoggingOut, businessType: authBusinessType, tenant, role: userRole } = useAuth();
+  const { user, logout, isLoggingOut, businessType: authBusinessType, tenant, role: userRole, permissions: backendPermissions } = useAuth();
   
   const userPermissions = useMemo<readonly Permission[]>(() => {
+    const typedBackendPermissions = backendPermissions as readonly Permission[] | undefined;
+    if (typedBackendPermissions && typedBackendPermissions.length > 0) {
+      return typedBackendPermissions;
+    }
     const normalizedRole = normalizeRole(userRole);
     if (!normalizedRole) return [];
     return buildPermissionsFromRole(normalizedRole);
-  }, [userRole]);
+  }, [userRole, backendPermissions]);
   
   const { canAccessModule, getModuleAccessInfo, isFreePlan } = useModuleAccess();
   const { hasPayrollAccess, isPayrollTrialing, countryCode, isLoading: isPayrollLoading } = usePayrollAddon();

@@ -21,7 +21,7 @@ import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { useCountry } from "@/contexts/country-context";
 import { useAuth } from "@/hooks/use-auth";
 import { getDefaultDashboardRoute, type UserLike } from "@shared/defaultRoute";
-import { normalizeRole, buildPermissionsFromRole, type Role } from "@shared/rbac";
+import { normalizeRole, buildPermissionsFromRole, type Permission } from "@shared/rbac";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -107,10 +107,11 @@ function formatBookingDate(dateStr: string) {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { formatCurrency } = useCountry();
-  const { user, tenant, role, isLoading: authLoading } = useAuth();
+  const { user, tenant, role, permissions, isLoading: authLoading } = useAuth();
   
   // Smart routing using getDefaultDashboardRoute
   // Routes based on role + permissions + business type
+  // Uses backend permissions when available, falls back to role-derived permissions
   useEffect(() => {
     if (authLoading) return;
     if (!user || !tenant) return;
@@ -118,10 +119,15 @@ export default function Dashboard() {
     const userRole = normalizeRole(role);
     if (!userRole) return;
     
+    const backendPermissions = permissions as readonly Permission[] | undefined;
+    const effectivePermissions = (backendPermissions && backendPermissions.length > 0)
+      ? [...backendPermissions]
+      : buildPermissionsFromRole(userRole);
+    
     const userForRouting: UserLike = {
       role: userRole,
       businessType: tenant.businessType || "service",
-      permissions: buildPermissionsFromRole(userRole),
+      permissions: effectivePermissions,
       onboardingCompleted: tenant.onboardingCompleted,
     };
     
@@ -130,7 +136,7 @@ export default function Dashboard() {
     if (targetRoute !== "/dashboard" && targetRoute !== window.location.pathname) {
       setLocation(targetRoute);
     }
-  }, [authLoading, user, tenant, role, setLocation]);
+  }, [authLoading, user, tenant, role, permissions, setLocation]);
   
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
