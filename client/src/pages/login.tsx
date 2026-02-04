@@ -142,7 +142,50 @@ export default function Login() {
         localStorage.setItem("lastTenantId", data.tenant.id);
       }
       
-      queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
+      // Dashboard route mapping (same as used below for redirect)
+      const dashboardRoutes: Record<string, string> = {
+        clinic: "/dashboard/clinic",
+        clinic_healthcare: "/dashboard/clinic",
+        salon: "/dashboard/salon",
+        salon_spa: "/dashboard/salon",
+        pg: "/dashboard/pg",
+        pg_hostel: "/dashboard/pg",
+        coworking: "/dashboard/coworking",
+        service: "/dashboard/service",
+        real_estate: "/dashboard/real-estate",
+        realestate: "/dashboard/realestate",
+        tourism: "/dashboard/tourism",
+        education: "/dashboard/education",
+        education_institute: "/dashboard/education",
+        logistics: "/dashboard/logistics",
+        logistics_fleet: "/dashboard/logistics",
+        legal: "/dashboard/legal",
+        furniture: "/dashboard/furniture",
+        furniture_manufacturing: "/dashboard/furniture",
+        consulting: "/dashboard/consulting",
+        software_services: "/dashboard/software-services",
+        digital_agency: "/dashboard/digital-agency",
+        retail_store: "/dashboard/retail",
+      };
+      
+      const businessType = data.tenant?.businessType || "service";
+      const dashboardRoute = dashboardRoutes[businessType] || "/dashboard/service";
+      
+      // Immediately update the auth cache with the logged-in user data
+      // This prevents the redirect loop where the dashboard sees cached null
+      const authUser = {
+        id: data.user.id,
+        email: data.user.email,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        tenant: data.tenant ? {
+          id: data.tenant.id,
+          name: data.tenant.name,
+          businessType: data.tenant.businessType,
+        } : null,
+        dashboardRoute,
+      };
+      queryClient.setQueryData(["/api/auth"], authUser);
       
       toast({
         title: "Welcome back!",
@@ -166,32 +209,6 @@ export default function Login() {
           
           if (isActive || status === "active" || status === "trialing") {
             // Tenant has active subscription - go to dashboard
-            const businessType = data.tenant?.businessType || "service";
-            const dashboardRoutes: Record<string, string> = {
-              clinic: "/dashboard/clinic",
-              clinic_healthcare: "/dashboard/clinic",
-              salon: "/dashboard/salon",
-              salon_spa: "/dashboard/salon",
-              pg: "/dashboard/pg",
-              pg_hostel: "/dashboard/pg",
-              coworking: "/dashboard/coworking",
-              service: "/dashboard/service",
-              real_estate: "/dashboard/real-estate",
-              realestate: "/dashboard/realestate",
-              tourism: "/dashboard/tourism",
-              education: "/dashboard/education",
-              education_institute: "/dashboard/education",
-              logistics: "/dashboard/logistics",
-              logistics_fleet: "/dashboard/logistics",
-              legal: "/dashboard/legal",
-              furniture: "/dashboard/furniture",
-              furniture_manufacturing: "/dashboard/furniture",
-              consulting: "/dashboard/consulting",
-              software_services: "/dashboard/software-services",
-              digital_agency: "/dashboard/digital-agency",
-              retail_store: "/dashboard/retail",
-            };
-            const dashboardRoute = dashboardRoutes[businessType] || "/dashboard/service";
             setLocation(dashboardRoute);
             return;
           }
