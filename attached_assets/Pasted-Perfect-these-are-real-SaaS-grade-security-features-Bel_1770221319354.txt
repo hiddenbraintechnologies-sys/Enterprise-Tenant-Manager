@@ -1,0 +1,286 @@
+Perfect — these are real SaaS-grade security features. Below is a clean, production-ready implementation for all three, designed to plug straight into what you already built (RBAC, Zustand auth, permissions, audit logs).
+
+I’ll keep this opinionated and safe (no foot-guns).
+
+1️⃣ Impersonation (Admin → View as Staff)
+What impersonation IS
+
+Admin temporarily “acts as” another user
+
+No password sharing
+
+Auditable
+
+Read/write only what the impersonated user can do
+
+Easy to exit impersonation
+
+What it is NOT
+
+Role switching
+
+Permission escalation
+
+Silent / invisible access
+
+Backend design (secure)
+Session model
+
+You already have req.user. We extend it.
+
+type AuthContext = {
+  realUserId: string;       // the admin
+  actingUserId: string;     // the staff being impersonated
+  isImpersonating: boolean;
+};
+
+Start impersonation endpoint
+// server/routes/impersonation.ts
+router.post("/impersonate/:userId", requirePermission("SETTINGS_TEAM_VIEW"), async (req, res) => {
+  const targetUserId = req.params.userId;
+
+  // 🔒 Safety checks
+  if (req.user.id === targetUserId) {
+    return res.status(400).json({ error: "Cannot impersonate yourself" });
+  }
+
+  const targetUser = await getUserById(targetUserId);
+
+  // Cannot impersonate Owner
+  if (targetUser.role === "OWNER") {
+    return res.status(403).json({ error: "Cannot impersonate Owner" });
+  }
+
+  // Mark session as impersonated
+  req.session.auth = {
+    realUserId: req.user.id,
+    actingUserId: targetUserId,
+    isImpersonating: true,
+  };
+
+  await logAudit({
+    tenantId: req.user.tenantId,
+    actorUserId: req.user.id,
+    action: "IMPERSONATION_STARTED",
+    targetType: "USER",
+    targetId: targetUserId,
+  });
+
+  res.json({ success: true });
+});
+
+Stop impersonation
+router.post("/impersonate/exit", async (req, res) => {
+  if (!req.session.auth?.isImpersonating) {
+    return res.status(400).json({ error: "Not impersonating" });
+  }
+
+  const realUserId = req.session.auth.realUserId;
+
+  req.session.auth = {
+    realUserId,
+    actingUserId: realUserId,
+    isImpersonating: false,
+  };
+
+  await logAudit({
+    tenantId: req.user.tenantId,
+    actorUserId: realUserId,
+    action: "IMPERSONATION_ENDED",
+  });
+
+  res.json({ success: true });
+});
+
+Auth middleware (CRITICAL)
+// server/middleware/authContext.ts
+export async function authContext(req, res, next) {
+  const auth = req.session.auth;
+
+  const userId = auth?.actingUserId ?? req.session.userId;
+
+  const user = await getUserWithPermissions(userId);
+
+  req.user = {
+    ...user,
+    isImpersonating: !!auth?.isImpersonating,
+    realUserId: auth?.realUserId,
+  };
+
+  next();
+}
+
+
+👉 Permissions are always from the impersonated user, never the admin.
+
+Frontend UX (must-have)
+Banner (non-negotiable)
+{user.isImpersonating && (
+  <div className="bg-yellow-100 text-yellow-900 p-2 text-sm">
+    You are viewing as <b>{user.name}</b>
+    <button onClick={exitImpersonation}>Exit</button>
+  </div>
+)}
+
+2️⃣ Force Logout + Session Invalidation
+Use case
+
+Fired staff
+
+Credential leak
+
+Suspicious activity
+
+Password reset
+
+Backend: session versioning (best practice)
+DB
+ALTER TABLE users ADD COLUMN session_version INT DEFAULT 1;
+
+Session check middleware
+if (req.user.sessionVersion !== req.session.sessionVersion) {
+  return res.status(401).json({ error: "Session invalidated" });
+}
+
+Force logout endpoint
+router.post("/users/:id/force-logout", requirePermission("SETTINGS_SECURITY_EDIT"), async (req, res) => {
+  const userId = req.params.id;
+
+  await db.update("users")
+    .set({ session_version: db.raw("session_version + 1") })
+    .where({ id: userId });
+
+  await logAudit({
+    tenantId: req.user.tenantId,
+    actorUserId: req.user.id,
+    action: "FORCE_LOGOUT",
+    targetType: "USER",
+    targetId: userId,
+  });
+
+  res.json({ success: true });
+});
+
+Frontend behavior
+if (res.status === 401 && res.error === "Session invalidated") {
+  auth.logout();
+  router.replace("/login?reason=logged_out");
+}
+
+3️⃣ IP Allow / Deny + Suspicious Login Alerts
+Data model
+CREATE TABLE ip_rules (
+  id UUID PRIMARY KEY,
+  tenant_id UUID,
+  ip CIDR,
+  type TEXT CHECK (type IN ('ALLOW','DENY'))
+);
+
+IP enforcement middleware
+import ipaddr from "ipaddr.js";
+
+export async function ipRestriction(req, res, next) {
+  const rules = await getIpRules(req.user.tenantId);
+  const ip = ipaddr.parse(req.ip);
+
+  const denied = rules.some(r => r.type === "DENY" && ip.match(r.ip));
+  if (denied) return res.status(403).json({ error: "IP blocked" });
+
+  const allows = rules.filter(r => r.type === "ALLOW");
+  if (allows.length && !allows.some(r => ip.match(r.ip))) {
+    return res.status(403).json({ error: "IP not allowed" });
+  }
+
+  next();
+}
+
+Suspicious login detection
+What counts as suspicious
+
+New country
+
+New device
+
+IP outside usual range
+
+Login after force logout
+
+On login success
+const lastLogin = await getLastLogin(user.id);
+
+if (
+  lastLogin &&
+  (lastLogin.country !== currentCountry ||
+   lastLogin.device !== currentDevice)
+) {
+  await sendSecurityAlert(user.email, {
+    type: "SUSPICIOUS_LOGIN",
+    location: currentCountry,
+    device: currentDevice,
+  });
+
+  await logAudit({
+    tenantId: user.tenantId,
+    actorUserId: user.id,
+    action: "SUSPICIOUS_LOGIN_DETECTED",
+    metadata: { currentCountry, currentDevice },
+  });
+}
+
+Settings UI (what admins see)
+Security & Access
+
+✔ Enable impersonation
+
+✔ IP allow list / deny list
+
+✔ View active sessions
+
+✔ Force logout user
+
+✔ Suspicious login alerts toggle
+
+4️⃣ QA checklist (security features)
+Impersonation
+
+ Admin can impersonate Staff/Manager
+
+ Owner cannot be impersonated
+
+ Permissions match impersonated user
+
+ Banner always visible
+
+ Exit returns to Admin cleanly
+
+ Audit logs created
+
+Force logout
+
+ User is logged out immediately
+
+ Refreshing any tab redirects to login
+
+ Audit log created
+
+IP rules
+
+ Denied IP blocked
+
+ Allow-list enforces strict access
+
+ Admin cannot lock themselves out (warn UI)
+
+Suspicious login
+
+ Alert sent on new country/device
+
+ Audit log created
+
+ Optional forced logout works
+
+🔐 Final golden security rule (pin this)
+
+Admins can observe, not secretly act.
+All access is auditable.
+Security failures must fail closed, not silently.
