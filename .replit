@@ -46,3 +46,6 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_database:1.0.
 
 [userenv.development]
 SKIP_RATE_LIMIT = "true"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-467fb110-f804-4a02-abb6-256967d1bfca"

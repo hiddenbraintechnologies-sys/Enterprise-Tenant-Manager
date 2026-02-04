@@ -1,0 +1,246 @@
+Awesome — let’s finish this properly and make it enterprise-safe. Below are the 3 add-ons you said yes to, all wired to what you already have:
+
+Plan + Addon permission composition (HRMS/Payroll-style gating)
+
+Backend route guards that mirror the sidebar
+
+Audit logs for role & permission changes
+
+Everything is copy-paste ready and consistent with your RBAC + Zustand flow.
+
+1️⃣ Plan + Addon–based permission composition
+Goal
+
+Role gives base permissions
+
+Plan + addons unlock extra permissions
+
+Sidebar + backend both respect the same rules
+
+shared/plans.ts
+import type { Permission } from "./rbac";
+
+export type Plan = "FREE" | "BASIC" | "PRO";
+export type Addon = "HRMS" | "PAYROLL" | "SERVICES";
+
+export const PLAN_PERMISSIONS: Record<Plan, Permission[]> = {
+  FREE: [
+    "DASHBOARD_OVERVIEW_VIEW",
+  ],
+  BASIC: [
+    "DASHBOARD_OVERVIEW_VIEW",
+    "CLIENTS_VIEW",
+  ],
+  PRO: [
+    "DASHBOARD_OVERVIEW_VIEW",
+    "CLIENTS_VIEW",
+    "SERVICES_VIEW",
+    "APPOINTMENTS_VIEW",
+  ],
+};
+
+export const ADDON_PERMISSIONS: Record<Addon, Permission[]> = {
+  HRMS: [
+    "SETTINGS_TEAM_VIEW",
+    "SETTINGS_TEAM_INVITE",
+  ],
+  PAYROLL: [
+    "SETTINGS_BILLING_VIEW",
+  ],
+  SERVICES: [
+    "SERVICES_VIEW",
+  ],
+};
+
+Permission composer (🔥 important)
+// shared/composePermissions.ts
+import { ROLE_PERMISSIONS, Permission, Role } from "./rbac";
+import { PLAN_PERMISSIONS, ADDON_PERMISSIONS, Plan, Addon } from "./plans";
+
+export function composePermissions({
+  role,
+  plan,
+  addons,
+}: {
+  role: Role;
+  plan: Plan;
+  addons: Addon[];
+}): Permission[] {
+  const perms = new Set<Permission>();
+
+  ROLE_PERMISSIONS[role].forEach(p => perms.add(p));
+  PLAN_PERMISSIONS[plan]?.forEach(p => perms.add(p));
+  addons.forEach(a =>
+    ADDON_PERMISSIONS[a]?.forEach(p => perms.add(p))
+  );
+
+  return [...perms];
+}
+
+
+👉 Use this once during login/session refresh and store permissions on the user object.
+
+2️⃣ Backend route guards (mirror sidebar exactly)
+Express middleware (production-safe)
+// server/middleware/requirePermission.ts
+import type { Permission } from "@/shared/rbac";
+
+export function requirePermission(permission: Permission) {
+  return (req: any, res: any, next: any) => {
+    const perms: Permission[] = req.user?.permissions ?? [];
+
+    if (!perms.includes(permission)) {
+      return res.status(403).json({
+        error: "Forbidden",
+        requiredPermission: permission,
+      });
+    }
+    next();
+  };
+}
+
+Example usage (matches sidebar)
+// server/routes/services.ts
+import { requirePermission } from "../middleware/requirePermission";
+
+router.get(
+  "/services",
+  requirePermission("SERVICES_VIEW"),
+  getServicesHandler
+);
+
+router.post(
+  "/team/invite",
+  requirePermission("SETTINGS_TEAM_INVITE"),
+  inviteTeamMember
+);
+
+
+🛑 Rule
+If backend blocks it → frontend must hide it.
+Never rely on UI only.
+
+3️⃣ Audit logs (roles, permissions, security changes)
+
+This is non-negotiable for SaaS credibility.
+
+DB schema (example)
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  actor_user_id UUID NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id UUID,
+  metadata JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+Audit logger helper
+// server/audit/logAudit.ts
+import { v4 as uuid } from "uuid";
+
+export async function logAudit({
+  tenantId,
+  actorUserId,
+  action,
+  targetType,
+  targetId,
+  metadata,
+}: {
+  tenantId: string;
+  actorUserId: string;
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  metadata?: any;
+}) {
+  await db.insert("audit_logs").values({
+    id: uuid(),
+    tenant_id: tenantId,
+    actor_user_id: actorUserId,
+    action,
+    target_type: targetType,
+    target_id: targetId,
+    metadata,
+  });
+}
+
+Example: role change (🔥 important)
+// server/routes/team.ts
+await updateUserRole(userId, newRole);
+
+await logAudit({
+  tenantId: req.user.tenantId,
+  actorUserId: req.user.id,
+  action: "USER_ROLE_UPDATED",
+  targetType: "USER",
+  targetId: userId,
+  metadata: {
+    oldRole,
+    newRole,
+  },
+});
+
+Example: plan change
+await logAudit({
+  tenantId,
+  actorUserId: req.user.id,
+  action: "PLAN_CHANGED",
+  metadata: {
+    oldPlan,
+    newPlan,
+    addons,
+  },
+});
+
+4️⃣ Frontend: permissions refresh (important detail)
+
+Whenever plan / addon / role changes:
+
+await auth.refreshUser(); // recompose permissions
+router.replace(getDefaultDashboardRoute(auth.user));
+
+
+This avoids:
+
+stale sidebar
+
+hidden pages suddenly accessible
+
+blank dashboards
+
+5️⃣ Final QA checklist (expanded)
+Plan & addon
+
+ Free plan → Services hidden
+
+ Pro plan → Services visible
+
+ Remove addon → sidebar updates instantly
+
+ Direct URL to gated module → backend 403 + frontend redirect
+
+Audit
+
+ Role change creates audit log
+
+ Plan upgrade creates audit log
+
+ Security changes logged with actor
+
+Regression (your original bug)
+
+ Pro plan → Proceed → /dashboard/overview
+
+ Sidebar visible immediately
+
+ /api/auth/user returns 200
+
+ No blank /dashboard/service
+
+🧠 Final golden rule (pin this)
+
+Permissions = Role + Plan + Addons
+Navigation = Permissions only
+Redirects = Dashboard first, never modules
