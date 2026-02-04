@@ -85,7 +85,7 @@ export async function rotateRefreshToken(
   await db.update(refreshTokens).set({
     revokedAt: now,
     isRevoked: true,
-    revokeReason: "rotated",
+    revokeReason: "rotation",
   }).where(eq(refreshTokens.id, existing.id));
 
   const newRaw = generateToken();

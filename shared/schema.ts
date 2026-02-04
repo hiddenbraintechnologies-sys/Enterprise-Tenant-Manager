@@ -831,12 +831,13 @@ export const apiTokens = pgTable("api_tokens", {
 ]);
 
 export const refreshTokenRevokeReasonEnum = pgEnum("refresh_token_revoke_reason", [
-  "rotated",
+  "rotation",
   "logout",
   "force_logout",
   "reuse_detected",
   "expired",
   "admin_action",
+  "security_event",
 ]);
 
 export const refreshTokens = pgTable("refresh_tokens", {

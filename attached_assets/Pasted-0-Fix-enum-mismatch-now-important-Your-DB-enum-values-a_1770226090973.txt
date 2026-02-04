@@ -1,0 +1,232 @@
+0) Fix enum mismatch now (important)
+
+Your DB enum values are:
+
+manual | rotation | logout | force_logout | session_expired | reuse_detected | security_event
+
+But your summary says you set revokeReason: "rotated".
+
+That will break inserts/updates or silently mis-label events.
+
+✅ Change everywhere:
+
+"rotated" ➜ "rotation"
+
+Also ensure session revoke reason enum aligns (you used "manual" etc).
+
+1) Wire anomaly scoring into LOGIN (best place to stop suspicious sessions early)
+Desired behavior
+
+Compute score before creating sessions / issuing tokens
+
+If score ≥ 60 → return 428 STEP_UP_REQUIRED (purpose: security_settings or a dedicated security_settings)
+
+If score ≥ 90 → require step-up AND optionally block login until verified
+
+Suggested login flow (pseudocode with exact outputs)
+// POST /api/auth/login
+// 1) Validate credentials
+// 2) Compute anomaly score
+// 3) If needs step-up -> do NOT issue refresh/access tokens yet
+// 4) Else create session + issue tokens + create refresh token
+
+Concrete response contract
+
+Return one of these:
+
+A) Normal login
+
+{ "accessToken": "...", "refreshToken": "...", "requiresStepUp": false }
+
+
+B) Step-up required
+
+{
+  "requiresStepUp": true,
+  "purpose": "security_settings",
+  "score": 65,
+  "reasons": ["NEW_DEVICE","NEW_COUNTRY"]
+}
+
+
+Then UI shows OTP modal and calls your existing:
+POST /api/security/step-up/verify { code, purpose }
+
+After verify success, UI retries login (or calls a “complete-login” endpoint if you prefer).
+
+Audit
+
+Always log SUSPICIOUS_LOGIN_DETECTED when score ≥ 60
+
+Log STEP_UP_REQUIRED event too (optional but good evidence)
+
+2) Wire anomaly scoring into REFRESH (the important part)
+
+Refreshing is tricky because:
+
+you’re rotating refresh tokens
+
+you don’t want the attacker to keep rotating tokens endlessly
+
+you need clean UX for legit users on new device/country
+
+Recommended refresh policy
+
+Always rotate the refresh token first (unless reuse detected)
+
+Compute anomaly score
+
+If score ≥ 60:
+
+return 428 STEP_UP_REQUIRED
+
+but still return the new refresh token so the client doesn’t keep using the old one
+
+If score ≥ 90:
+
+revoke refresh family (you already do)
+
+bump sessionVersion (force logout)
+
+return 401 / security_event
+
+Refresh endpoint response shapes
+
+A) Normal
+
+{ "accessToken": "...", "refreshToken": "new...", "requiresStepUp": false }
+
+
+B) Step-up required (still returns rotated refresh token!)
+
+{
+  "error": "STEP_UP_REQUIRED",
+  "purpose": "security_settings",
+  "refreshToken": "new...",
+  "score": 70,
+  "reasons": ["NEW_DEVICE"]
+}
+
+
+C) Force logout
+
+{ "error": "FORCE_LOGOUT", "reason": "anomaly_score" }
+
+Why return the rotated refresh token even when step-up required?
+
+Because otherwise the client keeps retrying refresh with the “old” token → you’ll trigger reuse detection by accident.
+
+3) Exact refresh wiring (drop-in structure)
+
+In your /auth/refresh handler, order must be:
+
+rotateRefreshToken()
+
+compute anomaly score
+
+decide response
+
+issue access token only if allowed
+
+Pseudo-code
+
+const rotated = await rotateRefreshToken(...); // returns userId/tenantId/staffId + newRefreshToken
+const anomaly = await computeAnomalyScore(...);
+
+if (anomaly.requiresForceLogout) {
+  await revokeRefreshFamilyAndInvalidate(...); // or your existing call
+  return res.status(401).json({ error: "FORCE_LOGOUT" });
+}
+
+if (anomaly.requiresStepUp) {
+  // do NOT issue access token
+  return res.status(428).json({
+    error: "STEP_UP_REQUIRED",
+    purpose: "security_settings",
+    refreshToken: rotated.newRefreshToken,
+    score: anomaly.score,
+    reasons: anomaly.reasons,
+  });
+}
+
+// normal
+const accessToken = signAccessToken(...);
+return res.json({ accessToken, refreshToken: rotated.newRefreshToken, requiresStepUp: false });
+
+Audit expectations (SOC2)
+
+AUTH_TOKEN_REFRESH on every successful rotation
+
+SUSPICIOUS_LOGIN_DETECTED when score ≥ 60
+
+SESSION_INVALIDATED if you force logout via sessionVersion bump
+
+STEP_UP_VERIFIED already logged by your step-up endpoint
+
+4) Client behavior (important to avoid loops)
+Refresh handler in frontend
+
+If refresh returns 428 STEP_UP_REQUIRED:
+
+Store the returned refreshToken immediately (replace old)
+
+Prompt OTP
+
+After OTP verify: call refresh again (or call a “complete refresh” endpoint)
+
+If refresh returns 401 FORCE_LOGOUT:
+
+clear access + refresh tokens
+
+redirect to /login?reason=security
+
+This prevents “infinite refresh retry” and prevents “reuse detected” false positives.
+
+5) Consistency upgrades for SOC2 exports
+
+You already have exports. Two additions make audits happier:
+
+A) Add correlationId for every request
+
+You already have correlationId column in audit_logs.
+Implement a middleware:
+
+if x-correlation-id exists, use it
+
+else generate UUID
+
+attach to req.correlationId
+
+include in every logAudit(...)
+
+Now SOC2 evidence can trace a single action across multiple logs.
+
+B) Export “security-events” from audit logs (not separate source)
+
+Make /export/security-events a filtered view of audit_logs by action IN (...):
+
+suspicious login
+
+session invalidation
+
+impersonation started/ended
+
+ip rule create/update/delete
+
+step-up verified
+
+token refresh
+
+This creates one canonical evidence stream.
+
+6) Quick checklist (what to change right now)
+
+ Replace "rotated" with "rotation" everywhere
+
+ Login: anomaly scoring gate before issuing tokens
+
+ Refresh: rotate first, then anomaly gate; on 428 return rotated refresh token
+
+ Add correlationId middleware and pass it to auditLogs
+
+ Ensure reuse detection revokes full family even when familyId is null (use familyId ?? id)
