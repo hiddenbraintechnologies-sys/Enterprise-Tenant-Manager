@@ -123,4 +123,72 @@ router.get("/country-config", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/catalog/regions/:countryCode/business-types
+// Public API endpoint for fetching enabled business types by region/country
+// This is the preferred endpoint for onboarding flows
+router.get("/regions/:countryCode/business-types", async (req: Request, res: Response) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  
+  try {
+    const { countryCode } = req.params;
+    
+    if (!countryCode) {
+      return res.status(400).json({ 
+        error: "Country code is required",
+        code: "COUNTRY_REQUIRED" 
+      });
+    }
+
+    // Wait for bootstrap to complete country rollout seeding
+    if (!bootstrapStatus.isCountryRolloutReady) {
+      const ready = await bootstrapStatus.waitForCountryRollout(10000);
+      if (!ready) {
+        console.warn("[catalog] Bootstrap timeout - serving request without waiting");
+      }
+    }
+
+    const normalizedCode = countryCode.toUpperCase();
+    const config = await countryRolloutService.getCountryConfig(normalizedCode);
+
+    if (!config) {
+      return res.json({
+        countryCode: normalizedCode,
+        available: false,
+        businessTypes: [],
+        message: "This region is not configured.",
+      });
+    }
+
+    const enabledTypes = config.enabledBusinessTypes;
+    
+    // If no specific business types are enabled, return empty list
+    if (!enabledTypes || enabledTypes.length === 0) {
+      return res.json({
+        countryCode: normalizedCode,
+        countryName: config.countryName,
+        available: true,
+        businessTypes: [],
+        message: "No business types are currently enabled for this region.",
+      });
+    }
+
+    // Filter to only enabled business types
+    const filteredTypes = ALL_BUSINESS_TYPES.filter(
+      bt => enabledTypes.includes(bt.value)
+    );
+
+    res.json({
+      countryCode: normalizedCode,
+      countryName: config.countryName,
+      available: true,
+      businessTypes: filteredTypes,
+    });
+  } catch (error) {
+    console.error("[catalog] Error fetching business types by region:", error);
+    res.status(500).json({ error: "Failed to fetch business types" });
+  }
+});
+
 export default router;
