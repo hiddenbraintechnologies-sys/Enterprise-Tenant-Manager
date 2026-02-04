@@ -32,6 +32,7 @@ import {
   Brush,
   Bell,
   ChevronLeft,
+  AlertCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -50,6 +51,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useModuleAccess } from "@/hooks/use-module-access";
 import { usePayrollAddon } from "@/hooks/use-payroll-addon";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { LogOut } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureModal } from "@/components/gating/locked-feature";
@@ -64,6 +66,7 @@ interface NavItem {
   url: string;
   icon: React.ElementType;
   tourId?: string;
+  subtitle?: string;
 }
 
 // Map English titles to translation keys
@@ -323,35 +326,35 @@ const settingsSections: SettingsSection[] = [
   {
     label: "Account",
     items: [
-      { title: "My Profile", url: "/settings/profile", icon: User },
+      { title: "My Profile", url: "/settings/profile", icon: User, subtitle: "Name, email, avatar" },
     ],
   },
   {
     label: "Organization",
     items: [
-      { title: "Organization Details", url: "/settings/business", icon: Building2 },
-      { title: "Team & Roles", url: "/settings/users-roles", icon: Users },
-      { title: "Security & Access", url: "/settings/security", icon: Shield },
+      { title: "Organization Details", url: "/settings/business", icon: Building2, subtitle: "Company info, timezone, currency" },
+      { title: "Team & Roles", url: "/settings/users-roles", icon: Users, subtitle: "Invite users, assign permissions" },
+      { title: "Security & Access", url: "/settings/security", icon: Shield, subtitle: "SSO, sessions, IP rules, alerts" },
     ],
   },
   {
     label: "Subscription",
     items: [
-      { title: "Plans & Billing", url: "/settings/billing", icon: CreditCard },
+      { title: "Plans & Billing", url: "/settings/billing", icon: CreditCard, subtitle: "Plan, add-ons, invoices" },
     ],
   },
   {
     label: "Customer Experience",
     items: [
-      { title: "Client Portal", url: "/settings/portal", icon: Users },
-      { title: "Branding & Templates", url: "/settings/branding", icon: Brush },
+      { title: "Client Portal", url: "/settings/portal", icon: Users, subtitle: "Customer-facing settings" },
+      { title: "Branding & Templates", url: "/settings/branding", icon: Brush, subtitle: "Logo, colors, email templates" },
     ],
   },
   {
     label: "Preferences",
     items: [
-      { title: "Theme & Layout", url: "/settings/appearance", icon: Palette },
-      { title: "Notifications & Alerts", url: "/settings/notifications", icon: Bell },
+      { title: "Theme & Layout", url: "/settings/appearance", icon: Palette, subtitle: "Dark/light mode, UI density" },
+      { title: "Notifications & Alerts", url: "/settings/notifications", icon: Bell, subtitle: "Email, push, system alerts" },
     ],
   },
 ];
@@ -407,6 +410,13 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
   const { data: installedAddonsData } = useQuery<{ installedAddons: Array<{ addon: { slug: string } | null; installation: { status: string; subscriptionStatus: string } }> }>({
     queryKey: ["/api/addons/tenant", tenantId, "addons"],
     enabled: Boolean(user && tenantId),
+  });
+  
+  // Check billing status for settings badge
+  const { data: billingStatus } = useQuery<{ needsAttention: boolean; reason?: string }>({
+    queryKey: ["/api/billing/status", tenantId],
+    enabled: Boolean(user && tenantId),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
   
   // Separate checks for Payroll vs HRMS add-ons
@@ -562,22 +572,41 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {section.items.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={location === item.url || location.startsWith(item.url + "/")}
-                        >
-                          <Link 
-                            href={item.url} 
-                            data-testid={`link-settings-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                    {section.items.map((item) => {
+                      const isBillingItem = item.url === "/settings/billing";
+                      const showBillingAlert = isBillingItem && billingStatus?.needsAttention;
+                      
+                      return (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={location === item.url || location.startsWith(item.url + "/")}
+                            className="h-auto py-2"
                           >
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                            <Link 
+                              href={item.url} 
+                              data-testid={`link-settings-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                            >
+                              <item.icon className={`h-4 w-4 shrink-0 ${item.icon === Shield ? "text-blue-500" : ""}`} />
+                              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate">{item.title}</span>
+                                  {showBillingAlert && (
+                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                      <AlertCircle className="h-3 w-3 mr-0.5" />
+                                      Action needed
+                                    </Badge>
+                                  )}
+                                </div>
+                                {item.subtitle && (
+                                  <span className="text-[11px] text-muted-foreground truncate">{item.subtitle}</span>
+                                )}
+                              </div>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>

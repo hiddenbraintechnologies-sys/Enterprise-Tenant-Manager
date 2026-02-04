@@ -102,6 +102,51 @@ router.get("/addons/access", requiredAuth, async (req: Request, res: Response) =
   }
 });
 
+router.get("/status", requiredAuth, async (req: Request, res: Response) => {
+  try {
+    const resolution = await resolveTenantId(req);
+    if (resolution.error) {
+      return res.status(resolution.error.status).json({
+        code: resolution.error.code,
+        message: resolution.error.message,
+      });
+    }
+
+    const tenantId = resolution.tenantId!;
+    
+    const [subscription] = await db
+      .select()
+      .from(tenantSubscriptions)
+      .where(eq(tenantSubscriptions.tenantId, tenantId))
+      .orderBy(desc(tenantSubscriptions.createdAt))
+      .limit(1);
+    
+    let needsAttention = false;
+    let reason: string | undefined;
+    
+    if (subscription) {
+      const status = subscription.status?.toLowerCase() || "";
+      const failureCount = subscription.paymentFailureCount || 0;
+      
+      if (status === "past_due" || status === "cancelled" || status === "suspended") {
+        needsAttention = true;
+        reason = status === "past_due" ? "payment_overdue" : status;
+      } else if (failureCount > 0) {
+        needsAttention = true;
+        reason = "payment_failed";
+      } else if (subscription.currentPeriodEnd && new Date(subscription.currentPeriodEnd) < new Date()) {
+        needsAttention = true;
+        reason = "subscription_expired";
+      }
+    }
+
+    return res.json({ needsAttention, reason });
+  } catch (error) {
+    console.error("[billing] Error checking billing status:", error);
+    res.status(500).json({ code: "SERVER_ERROR", error: "Failed to check billing status" });
+  }
+});
+
 const selectPlanSchema = z.object({
   planCode: z.string().min(1),
 });
