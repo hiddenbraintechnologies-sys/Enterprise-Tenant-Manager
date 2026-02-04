@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { tenantStaffLoginHistory, tenantStaff } from "@shared/schema";
 import { eq, and, desc, lt, sql } from "drizzle-orm";
+import { createSession } from "./user-sessions";
 
 export async function findStaffByUserId(tenantId: string, userId: string): Promise<string | null> {
   const [staff] = await db
@@ -25,9 +26,31 @@ export interface RecordLoginParams {
   authProvider?: string;
   isImpersonated?: boolean;
   impersonatedByStaffId?: string;
+  sessionVersion?: number;
+  country?: string;
+  city?: string;
 }
 
+export interface RecordLoginResult {
+  loginHistoryId: string;
+  sessionId: string;
+}
+
+/**
+ * Record a login event and create an active session.
+ * Returns just the loginHistoryId for backwards compatibility.
+ * The sessionId can be retrieved from recordLoginWithSession.
+ */
 export async function recordLogin(params: RecordLoginParams): Promise<string> {
+  const result = await recordLoginWithSession(params);
+  return result.loginHistoryId;
+}
+
+/**
+ * Record a login event and create an active session.
+ * Returns both loginHistoryId and sessionId.
+ */
+export async function recordLoginWithSession(params: RecordLoginParams): Promise<RecordLoginResult> {
   const {
     tenantId,
     staffId,
@@ -37,6 +60,9 @@ export async function recordLogin(params: RecordLoginParams): Promise<string> {
     authProvider = "sso",
     isImpersonated = false,
     impersonatedByStaffId,
+    sessionVersion = 1,
+    country,
+    city,
   } = params;
 
   const [entry] = await db
@@ -58,7 +84,18 @@ export async function recordLogin(params: RecordLoginParams): Promise<string> {
     .set({ lastLoginAt: new Date() })
     .where(eq(tenantStaff.id, staffId));
 
-  return entry.id;
+  const sessionId = await createSession({
+    tenantId,
+    userId,
+    staffId,
+    sessionVersion,
+    ipAddress,
+    userAgent,
+    country,
+    city,
+  });
+
+  return { loginHistoryId: entry.id, sessionId };
 }
 
 export async function recordLogout(loginHistoryId: string): Promise<void> {

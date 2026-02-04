@@ -1,0 +1,745 @@
+Below is a full implementation blueprint you can paste into your repo with minimal adaptation. It’s structured exactly in the order you want:
+
+Sessions table + list UI + revoke one / revoke all
+
+Step-up OTP (TOTP) + protect force logout + IP rules + impersonation
+
+Audit taxonomy + consistent audit emission for sensitive endpoints
+
+I’m assuming your stack is Node/TS + Drizzle + React (shadcn) + Zustand, and your API is under /api/*.
+
+1) Sessions table + list UI + revoke one / revoke all
+1.1 Drizzle schema
+server/db/schema/userSessions.ts
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+
+export const userSessions = pgTable("user_sessions", {
+  id: uuid("id").primaryKey().notNull(),
+  tenantId: uuid("tenant_id").notNull(),
+  userId: uuid("user_id").notNull(),
+
+  // used for global invalidation (session_version++)
+  sessionVersion: integer("session_version").notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+
+  ip: text("ip"),
+  country: text("country"),
+  city: text("city"),
+  userAgent: text("user_agent"),
+  deviceFingerprint: text("device_fingerprint"),
+
+  isCurrent: boolean("is_current").notNull().default(false),
+
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: text("revoke_reason"),
+
+  // optional: extra metadata
+  metadata: jsonb("metadata"),
+});
+
+
+Add indexes in SQL migration if you prefer (tenantId+userId, lastSeenAt).
+
+1.2 Create/update session rows
+On login success
+
+Create a row and store sessionId in server session cookie.
+
+// server/auth/onLoginSuccess.ts
+import { userSessions } from "@/server/db/schema/userSessions";
+import { db } from "@/server/db";
+import { v4 as uuidv4 } from "uuid";
+
+export async function createLoginSessionRow(req: any, user: any) {
+  const sessionId = uuidv4();
+
+  await db.insert(userSessions).values({
+    id: sessionId,
+    tenantId: user.tenantId,
+    userId: user.id,
+    sessionVersion: user.sessionVersion ?? 1,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"] ?? null,
+    // country/city can be filled if you have geoip middleware
+    isCurrent: true,
+  });
+
+  // store on cookie-session / server session
+  req.session.sessionId = sessionId;
+  req.session.sessionVersion = user.sessionVersion ?? 1;
+
+  return sessionId;
+}
+
+On every authenticated request (throttled “last seen”)
+// server/middleware/touchSession.ts
+import { db } from "@/server/db";
+import { userSessions } from "@/server/db/schema/userSessions";
+import { eq } from "drizzle-orm";
+
+const TOUCH_MS = 2 * 60 * 1000;
+
+export async function touchSession(req: any, _res: any, next: any) {
+  const sessionId = req.session?.sessionId;
+  if (!sessionId) return next();
+
+  const now = Date.now();
+  const last = req.session._lastTouchAt ?? 0;
+
+  if (now - last < TOUCH_MS) return next();
+
+  req.session._lastTouchAt = now;
+  await db.update(userSessions)
+    .set({ lastSeenAt: new Date() })
+    .where(eq(userSessions.id, sessionId));
+
+  next();
+}
+
+1.3 Session validity check (revoked + version)
+// server/middleware/verifySession.ts
+import { db } from "@/server/db";
+import { userSessions } from "@/server/db/schema/userSessions";
+import { eq, and, isNull } from "drizzle-orm";
+
+export async function verifySession(req: any, res: any, next: any) {
+  const sessionId = req.session?.sessionId;
+  const sessionVersion = req.session?.sessionVersion;
+
+  if (!sessionId) return res.status(401).json({ error: "Unauthorized" });
+
+  const row = await db.query.userSessions.findFirst({
+    where: and(eq(userSessions.id, sessionId), isNull(userSessions.revokedAt)),
+  });
+
+  if (!row) return res.status(401).json({ error: "Session revoked" });
+
+  // If user session_version has changed, force logout (global invalidation)
+  if (row.sessionVersion !== sessionVersion) {
+    return res.status(401).json({ error: "Session invalidated" });
+  }
+
+  next();
+}
+
+1.4 Endpoints
+List sessions (self or admin)
+// server/routes/securitySessions.ts
+import { Router } from "express";
+import { db } from "@/server/db";
+import { userSessions } from "@/server/db/schema/userSessions";
+import { eq, and, desc, isNull } from "drizzle-orm";
+import { requirePermission } from "@/server/middleware/requirePermission";
+
+export const securitySessionsRouter = Router();
+
+securitySessionsRouter.get("/security/sessions", async (req: any, res) => {
+  const userId = (req.query.userId as string) || req.user.id;
+
+  const isSelf = userId === req.user.id;
+  const canViewOthers = req.user.permissions?.includes("SETTINGS_SECURITY_VIEW");
+
+  if (!isSelf && !canViewOthers) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const sessions = await db.select().from(userSessions).where(
+    and(
+      eq(userSessions.tenantId, req.user.tenantId),
+      eq(userSessions.userId, userId)
+    )
+  ).orderBy(desc(userSessions.lastSeenAt));
+
+  res.json({ sessions, currentSessionId: req.session.sessionId });
+});
+
+Revoke one session (step-up protected later)
+import { requireStepUp } from "@/server/middleware/requireStepUp";
+import { logAudit } from "@/server/audit/logAudit";
+
+securitySessionsRouter.post(
+  "/security/sessions/:sessionId/revoke",
+  requireStepUp("REVOKE_SESSION"),
+  async (req: any, res) => {
+    const { sessionId } = req.params;
+
+    // Only allow self revoke OR admin revoke
+    const sess = await db.query.userSessions.findFirst({
+      where: eq(userSessions.id, sessionId),
+    });
+    if (!sess || sess.tenantId !== req.user.tenantId) return res.status(404).json({ error: "Not found" });
+
+    const isSelf = sess.userId === req.user.id;
+    const canRevokeOthers = req.user.permissions?.includes("SETTINGS_SECURITY_EDIT");
+    if (!isSelf && !canRevokeOthers) return res.status(403).json({ error: "Forbidden" });
+
+    await db.update(userSessions).set({
+      revokedAt: new Date(),
+      revokeReason: "MANUAL_REVOKE",
+    }).where(eq(userSessions.id, sessionId));
+
+    await logAudit({
+      tenantId: req.user.tenantId,
+      actorUserId: req.user.id,
+      action: "SESSION_REVOKED",
+      targetType: "SESSION",
+      targetId: sessionId,
+      outcome: "SUCCESS",
+      metadata: { revokedUserId: sess.userId },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    // If revoking current session, also destroy cookie session
+    if (sessionId === req.session.sessionId) {
+      req.session.destroy?.(() => {});
+      return res.json({ success: true, currentRevoked: true });
+    }
+
+    res.json({ success: true });
+  }
+);
+
+Revoke all other sessions (step-up protected)
+securitySessionsRouter.post(
+  "/security/sessions/revoke-others",
+  requireStepUp("REVOKE_ALL_OTHER_SESSIONS"),
+  async (req: any, res) => {
+    const currentSessionId = req.session.sessionId;
+
+    await db.update(userSessions).set({
+      revokedAt: new Date(),
+      revokeReason: "REVOKE_OTHERS",
+    }).where(
+      and(
+        eq(userSessions.tenantId, req.user.tenantId),
+        eq(userSessions.userId, req.user.id),
+        // crude "not equals": drizzle approach varies; use raw if needed
+      )
+    );
+
+    // If drizzle needs raw SQL for !=, do it in your codebase style.
+
+    await logAudit({
+      tenantId: req.user.tenantId,
+      actorUserId: req.user.id,
+      action: "SESSION_REVOKE_ALL",
+      outcome: "SUCCESS",
+      metadata: { currentSessionId },
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.json({ success: true });
+  }
+);
+
+
+If your Drizzle setup doesn’t support != easily, use a db.execute(sql...) just for that update.
+
+1.5 UI: Active Sessions viewer (shadcn)
+client/pages/settings/security/sessions.tsx
+
+shows current session badge
+
+revoke one
+
+revoke all others
+
+handles step-up challenge (next section)
+
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useAuthStore } from "@/stores/authStore";
+import { StepUpModal } from "@/components/security/StepUpModal";
+
+type SessionRow = {
+  id: string;
+  createdAt: string;
+  lastSeenAt: string;
+  ip?: string;
+  country?: string;
+  city?: string;
+  userAgent?: string;
+  revokedAt?: string | null;
+};
+
+export default function ActiveSessions() {
+  const user = useAuthStore(s => s.user);
+  const refreshUser = useAuthStore(s => s.refreshUser);
+
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>("");
+  const [stepUp, setStepUp] = useState<{ purpose: string; onVerified: () => Promise<void> } | null>(null);
+
+  async function load() {
+    const res = await fetch("/api/security/sessions", { credentials: "include" });
+    const data = await res.json();
+    setSessions(data.sessions);
+    setCurrentSessionId(data.currentSessionId);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function revokeOne(sessionId: string) {
+    const attempt = async () => {
+      const res = await fetch(`/api/security/sessions/${sessionId}/revoke`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.status === 428) throw new Error("STEP_UP_REQUIRED");
+      if (!res.ok) throw new Error("Failed");
+      await load();
+      await refreshUser();
+    };
+
+    try { await attempt(); }
+    catch (e: any) {
+      if (String(e.message).includes("STEP_UP_REQUIRED")) {
+        setStepUp({ purpose: "REVOKE_SESSION", onVerified: attempt });
+      }
+    }
+  }
+
+  async function revokeOthers() {
+    const attempt = async () => {
+      const res = await fetch(`/api/security/sessions/revoke-others`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.status === 428) throw new Error("STEP_UP_REQUIRED");
+      if (!res.ok) throw new Error("Failed");
+      await load();
+    };
+
+    try { await attempt(); }
+    catch (e: any) {
+      if (String(e.message).includes("STEP_UP_REQUIRED")) {
+        setStepUp({ purpose: "REVOKE_ALL_OTHER_SESSIONS", onVerified: attempt });
+      }
+    }
+  }
+
+  if (!user) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Active Sessions</h1>
+        <Button variant="destructive" onClick={revokeOthers}>Revoke all other sessions</Button>
+      </div>
+
+      {sessions.map(s => (
+        <Card key={s.id} className="p-4 space-y-1">
+          <div className="flex items-center justify-between">
+            <div className="font-medium">
+              {s.id === currentSessionId ? "Current session" : "Session"}
+              {s.id === currentSessionId && <span className="ml-2 text-xs px-2 py-1 rounded bg-muted">Current</span>}
+            </div>
+            <Button variant="outline" onClick={() => revokeOne(s.id)}>Revoke</Button>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Last seen: {new Date(s.lastSeenAt).toLocaleString()}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {s.country ?? "-"} {s.city ? `• ${s.city}` : ""} {s.ip ? `• ${s.ip}` : ""}
+          </div>
+          <div className="text-xs text-muted-foreground break-all">
+            {s.userAgent ?? ""}
+          </div>
+        </Card>
+      ))}
+
+      {stepUp && (
+        <StepUpModal
+          purpose={stepUp.purpose}
+          onClose={() => setStepUp(null)}
+          onVerified={async () => {
+            await stepUp.onVerified();
+            setStepUp(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+2) Step-up OTP (TOTP) + protect force logout + IP rules + impersonation
+2.1 TOTP fields + step-up table
+Drizzle: users additions
+ALTER TABLE users ADD COLUMN totp_secret TEXT NULL;
+ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+Step-up challenges table
+// server/db/schema/stepUpChallenges.ts
+import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+
+export const stepUpChallenges = pgTable("stepup_challenges", {
+  id: uuid("id").primaryKey().notNull(),
+  tenantId: uuid("tenant_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  purpose: text("purpose").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+2.2 Step-up middleware
+// server/middleware/requireStepUp.ts
+import { db } from "@/server/db";
+import { stepUpChallenges } from "@/server/db/schema/stepUpChallenges";
+import { and, eq, isNotNull, gt } from "drizzle-orm";
+
+export function requireStepUp(purpose: string, windowSeconds = 10 * 60) {
+  return async (req: any, res: any, next: any) => {
+    const now = new Date();
+    const minVerifiedAt = new Date(now.getTime() - windowSeconds * 1000);
+
+    const ok = await db.query.stepUpChallenges.findFirst({
+      where: and(
+        eq(stepUpChallenges.tenantId, req.user.tenantId),
+        eq(stepUpChallenges.userId, req.user.id),
+        eq(stepUpChallenges.purpose, purpose),
+        isNotNull(stepUpChallenges.verifiedAt),
+        gt(stepUpChallenges.verifiedAt, minVerifiedAt),
+        gt(stepUpChallenges.expiresAt, now)
+      ),
+    });
+
+    if (!ok) return res.status(428).json({ error: "STEP_UP_REQUIRED", purpose });
+    next();
+  };
+}
+
+2.3 Verify OTP endpoint (use otplib)
+// server/routes/stepUp.ts
+import { Router } from "express";
+import { authenticator } from "otplib";
+import { v4 as uuidv4 } from "uuid";
+import { db } from "@/server/db";
+import { stepUpChallenges } from "@/server/db/schema/stepUpChallenges";
+import { users } from "@/server/db/schema/users";
+import { eq } from "drizzle-orm";
+import { logAudit } from "@/server/audit/logAudit";
+
+export const stepUpRouter = Router();
+
+stepUpRouter.post("/security/stepup/verify", async (req: any, res) => {
+  const { code, purpose } = req.body as { code: string; purpose: string };
+
+  const u = await db.query.users.findFirst({ where: eq(users.id, req.user.id) });
+  if (!u?.totp_enabled || !u.totp_secret) return res.status(400).json({ error: "TOTP_NOT_ENABLED" });
+
+  const valid = authenticator.check(code, u.totp_secret);
+  if (!valid) {
+    await logAudit({ tenantId: req.user.tenantId, actorUserId: req.user.id, action: "STEP_UP_VERIFIED", outcome: "FAIL", failureReason: "INVALID_OTP" });
+    return res.status(400).json({ error: "INVALID_OTP" });
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+
+  await db.insert(stepUpChallenges).values({
+    id: uuidv4(),
+    tenantId: req.user.tenantId,
+    userId: req.user.id,
+    purpose,
+    verifiedAt: now,
+    expiresAt,
+  });
+
+  await logAudit({ tenantId: req.user.tenantId, actorUserId: req.user.id, action: "STEP_UP_VERIFIED", outcome: "SUCCESS", metadata: { purpose } });
+
+  res.json({ success: true, expiresAt });
+});
+
+2.4 Frontend StepUpModal
+// client/components/security/StepUpModal.tsx
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+export function StepUpModal({
+  purpose,
+  onClose,
+  onVerified,
+}: {
+  purpose: string;
+  onClose: () => void;
+  onVerified: () => Promise<void>;
+}) {
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function verify() {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/security/stepup/verify", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, purpose }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      await onVerified();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Verify to continue</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            Enter the 6-digit code from your authenticator app.
+          </div>
+          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
+          {err && <div className="text-sm text-red-600">{err}</div>}
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={verify} disabled={loading || code.length < 6}>Verify</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+2.5 Protect your sensitive endpoints (exact list you asked)
+Force logout (session invalidation) — require step-up
+router.post(
+  "/users/:id/force-logout",
+  requirePermission("SETTINGS_SECURITY_EDIT"),
+  requireStepUp("FORCE_LOGOUT"),
+  async (req: any, res) => { /* session_version++ + audit */ }
+);
+
+IP allow/deny rules — require step-up
+router.post(
+  "/security/ip-rules",
+  requirePermission("SETTINGS_SECURITY_EDIT"),
+  requireStepUp("IP_RULE_CHANGE"),
+  async (req, res) => { /* create rule + audit */ }
+);
+router.delete(
+  "/security/ip-rules/:id",
+  requirePermission("SETTINGS_SECURITY_EDIT"),
+  requireStepUp("IP_RULE_CHANGE"),
+  async (req, res) => { /* delete rule + audit */ }
+);
+
+Impersonation — require step-up
+router.post(
+  "/impersonate/:userId",
+  requirePermission("SETTINGS_TEAM_VIEW"),
+  requireStepUp("IMPERSONATION"),
+  async (req, res) => { /* set actingUserId + audit */ }
+);
+
+router.post(
+  "/impersonate/exit",
+  requireStepUp("IMPERSONATION"),
+  async (req, res) => { /* exit + audit */ }
+);
+
+3) Audit taxonomy + consistent emission everywhere
+3.1 Audit event enums (single source)
+shared/auditEvents.ts
+export const AUDIT_ACTIONS = {
+  // Sessions
+  SESSION_CREATED: "SESSION_CREATED",
+  SESSION_REVOKED: "SESSION_REVOKED",
+  SESSION_REVOKE_ALL: "SESSION_REVOKE_ALL",
+  SESSION_INVALIDATED: "SESSION_INVALIDATED",
+
+  // Step-up / MFA
+  STEP_UP_VERIFIED: "STEP_UP_VERIFIED",
+  MFA_ENROLLED: "MFA_ENROLLED",
+  MFA_DISABLED: "MFA_DISABLED",
+
+  // Impersonation
+  IMPERSONATION_STARTED: "IMPERSONATION_STARTED",
+  IMPERSONATION_ENDED: "IMPERSONATION_ENDED",
+
+  // IP rules
+  IP_RULE_CREATED: "IP_RULE_CREATED",
+  IP_RULE_UPDATED: "IP_RULE_UPDATED",
+  IP_RULE_DELETED: "IP_RULE_DELETED",
+
+  // IAM
+  USER_ROLE_UPDATED: "USER_ROLE_UPDATED",
+  USER_PERMISSIONS_UPDATED: "USER_PERMISSIONS_UPDATED",
+
+  // Billing/security-high actions you already have
+  PLAN_CHANGED: "PLAN_CHANGED",
+} as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+export type AuditOutcome = "SUCCESS" | "FAIL";
+
+3.2 Audit log function (standard payload)
+server/audit/logAudit.ts
+import { db } from "@/server/db";
+import { auditLogs } from "@/server/db/schema/auditLogs"; // your table
+import type { AuditAction, AuditOutcome } from "@/shared/auditEvents";
+import { v4 as uuidv4 } from "uuid";
+
+export async function logAudit(args: {
+  tenantId: string;
+  actorUserId: string;
+  action: AuditAction;
+  outcome: AuditOutcome;
+
+  targetType?: string;
+  targetId?: string;
+
+  ip?: string;
+  userAgent?: string;
+  country?: string;
+  city?: string;
+
+  failureReason?: string;
+  before?: any;
+  after?: any;
+  metadata?: any;
+
+  // impersonation awareness
+  isImpersonating?: boolean;
+  realUserId?: string;
+}) {
+  await db.insert(auditLogs).values({
+    id: uuidv4(),
+    tenantId: args.tenantId,
+    actorUserId: args.actorUserId,
+    action: args.action,
+    outcome: args.outcome,
+    targetType: args.targetType ?? null,
+    targetId: args.targetId ?? null,
+    ip: args.ip ?? null,
+    userAgent: args.userAgent ?? null,
+    country: args.country ?? null,
+    city: args.city ?? null,
+    failureReason: args.failureReason ?? null,
+    before: args.before ?? null,
+    after: args.after ?? null,
+    metadata: args.metadata ?? null,
+    isImpersonating: args.isImpersonating ?? false,
+    realUserId: args.realUserId ?? null,
+  });
+}
+
+3.3 Make it “consistent” via a wrapper (no forgetting audits)
+server/audit/auditWrap.ts
+import { logAudit } from "./logAudit";
+
+export function withAudit(handler: Function, meta: {
+  action: any;
+  targetType?: string;
+  getTargetId?: (req: any) => string | undefined;
+}) {
+  return async (req: any, res: any, next: any) => {
+    try {
+      await handler(req, res, next);
+
+      // If handler already responded with error, skip success audit
+      if (res.headersSent && res.statusCode >= 400) return;
+
+      await logAudit({
+        tenantId: req.user.tenantId,
+        actorUserId: req.user.id,
+        action: meta.action,
+        outcome: "SUCCESS",
+        targetType: meta.targetType,
+        targetId: meta.getTargetId?.(req),
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+        isImpersonating: req.user.isImpersonating,
+        realUserId: req.user.realUserId,
+      });
+    } catch (e: any) {
+      await logAudit({
+        tenantId: req.user?.tenantId,
+        actorUserId: req.user?.id,
+        action: meta.action,
+        outcome: "FAIL",
+        targetType: meta.targetType,
+        targetId: meta.getTargetId?.(req),
+        failureReason: e?.message ?? "UNKNOWN",
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+        isImpersonating: req.user?.isImpersonating,
+        realUserId: req.user?.realUserId,
+      });
+      next(e);
+    }
+  };
+}
+
+
+Now every sensitive endpoint becomes:
+
+router.post(
+  "/security/sessions/:sessionId/revoke",
+  requireStepUp("REVOKE_SESSION"),
+  withAudit(async (req: any, res: any) => {
+    // ... revoke logic ...
+    res.json({ success: true });
+  }, { action: "SESSION_REVOKED", targetType: "SESSION", getTargetId: (req) => req.params.sessionId })
+);
+
+
+This is how you get SOC2-grade consistency without relying on dev memory.
+
+Deployment sequence (safe + minimal break risk)
+Phase 1 (Sessions)
+
+Add user_sessions schema + migrations
+
+Create session row on login + store sessionId in cookie session
+
+Add list + revoke endpoints
+
+Add Settings → Security → Active Sessions UI
+
+Phase 2 (Step-up)
+
+Add TOTP fields + enable flow (you can add enrollment later, but verification must exist)
+
+Add stepup_challenges
+
+Wrap sensitive endpoints with requireStepUp
+
+Phase 3 (Audit)
+
+Add AUDIT_ACTIONS
+
+Add withAudit wrapper
+
+Convert all sensitive endpoints to wrapper usage
+
+Must-have QA scenarios (quick)
+
+Revoke current session → user is forced to /login
+
+Revoke other session → only that tab dies on next API call
+
+Step-up required (428) → modal opens → verify → action retries automatically
+
+Impersonation start/exit requires step-up and is logged
+
+IP rule changes require step-up and are logged
+
+Audit logs show SUCCESS/FAIL for all sensitive actions

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { forceLogoutStaff, forceLogoutSelf, createSecurityAlert } from "../../services/session-security";
 import { logModuleAudit } from "../../services/audit";
 import { requireTenantPermission } from "../../middleware/tenant-permission";
+import { requireStepUp } from "../../middleware/requireStepUp";
 import { Permissions } from "@shared/rbac/permissions";
 import { storage } from "../../storage";
 
@@ -13,6 +14,7 @@ const router = Router();
 
 router.post("/staff/:id/force-logout",
   requireTenantPermission(Permissions.STAFF_EDIT),
+  requireStepUp("force_logout"),
   async (req: Request, res: Response) => {
     try {
       const tenantId = req.context?.tenant?.id;
@@ -113,6 +115,7 @@ router.get("/ip-rules",
 
 router.post("/ip-rules",
   requireTenantPermission(Permissions.SETTINGS_EDIT),
+  requireStepUp("ip_rule_change"),
   async (req: Request, res: Response) => {
     try {
       const tenantId = req.context?.tenant?.id;
@@ -160,6 +163,7 @@ router.post("/ip-rules",
 
 router.put("/ip-rules/:id",
   requireTenantPermission(Permissions.SETTINGS_EDIT),
+  requireStepUp("ip_rule_change"),
   async (req: Request, res: Response) => {
     try {
       const tenantId = req.context?.tenant?.id;
@@ -222,6 +226,7 @@ router.put("/ip-rules/:id",
 
 router.delete("/ip-rules/:id",
   requireTenantPermission(Permissions.SETTINGS_EDIT),
+  requireStepUp("ip_rule_change"),
   async (req: Request, res: Response) => {
     try {
       const tenantId = req.context?.tenant?.id;

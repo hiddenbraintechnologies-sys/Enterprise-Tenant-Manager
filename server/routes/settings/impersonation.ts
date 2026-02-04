@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../../middleware/tenant-auth";
 import { requireTenantContext } from "../../middleware/tenant-context";
+import { requireStepUp } from "../../middleware/requireStepUp";
 import { PermissionService } from "../../services/permission";
 import { logImpersonationEvent } from "../../services/audit";
 import { recordLogin } from "../../services/login-history";
@@ -9,7 +10,7 @@ import { Permissions } from "@shared/rbac/permissions";
 
 const router = Router();
 
-router.post("/start", requireAuth, requireTenantContext(), async (req: Request, res: Response) => {
+router.post("/start", requireAuth, requireTenantContext(), requireStepUp("impersonate"), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const tenant = (req as any).tenant;
