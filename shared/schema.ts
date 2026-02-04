@@ -28,6 +28,7 @@ export const businessTypeEnum = pgEnum("business_type", [
   "pg",
   "pg_hostel",
   "coworking",
+  "gym",
   "service",
   "real_estate",
   "tourism",

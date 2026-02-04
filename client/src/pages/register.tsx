@@ -60,7 +60,7 @@ const registrationSchema = z.object({
     "pg_hostel", "consulting", "software_services", "clinic_healthcare",
     "legal", "digital_agency", "retail_store", "salon_spa", 
     "furniture_manufacturing", "logistics_fleet", "education_institute",
-    "tourism", "real_estate"
+    "tourism", "real_estate", "gym", "coworking"
   ]),
   // Honeypot field - should always be empty
   companyWebsite: z.string().max(0).optional(),
@@ -103,6 +103,8 @@ const defaultBusinessTypeOptions: BusinessTypeOption[] = [
   { value: "digital_agency", label: "Digital Marketing Agency" },
   { value: "retail_store", label: "Retail Store / POS" },
   { value: "salon_spa", label: "Salon / Spa" },
+  { value: "gym", label: "Gym / Fitness Center" },
+  { value: "coworking", label: "Coworking Space" },
   { value: "furniture_manufacturing", label: "Furniture Manufacturing" },
   { value: "logistics_fleet", label: "Logistics & Fleet" },
   { value: "education_institute", label: "Coaching / Training Institute" },

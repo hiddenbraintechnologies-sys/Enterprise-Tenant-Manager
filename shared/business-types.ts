@@ -125,6 +125,12 @@ export const BUSINESS_TYPE_REGISTRY = {
     modules: ["memberships", "bookings", "invoicing"],
     phase: "later",
   },
+  gym: {
+    label: "Gym / Fitness Center",
+    category: "services",
+    modules: ["memberships", "bookings", "payments", "staff"],
+    phase: "later",
+  },
   service: {
     label: "Service Business",
     category: "services",

@@ -136,6 +136,8 @@ const BUSINESS_TYPES = [
   { key: "software_services", label: "Software Services" },
   { key: "clinic_healthcare", label: "Clinic / Healthcare" },
   { key: "salon_spa", label: "Salon / Spa" },
+  { key: "gym", label: "Gym / Fitness Center" },
+  { key: "coworking", label: "Coworking Space" },
   { key: "legal", label: "Legal Services" },
   { key: "digital_agency", label: "Digital Agency" },
   { key: "retail_store", label: "Retail Store" },
