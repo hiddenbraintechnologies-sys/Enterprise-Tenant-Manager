@@ -78,6 +78,16 @@ Five predefined roles with hierarchical access:
 - `shared/defaultRoute.ts`: Smart dashboard routing via `getDefaultDashboardRoute(user)` - routes based on role + permissions + business type
 - `server/rbac/requirePermission.ts`: Express middleware guards (`requirePermission`, `requireAnyPermission`, `requireAllPermissions`)
 - `client/src/rbac/useCan.ts`: React hook for permission-based UI visibility (`can`, `canAny`, `canAll`)
+- `client/src/stores/authStore.ts`: Zustand auth store with race-condition-proof flow (status: idle/loading/authenticated/unauthenticated)
+- `client/src/billing/postPlanSelection.ts`: Safe post-plan handler - never redirects to module routes, always uses `getDefaultDashboardRoute(user)`
+- `client/src/layouts/DashboardLayout.tsx`: Protected layout that prevents blank screens during auth loading
+- `client/src/config/sidebar.config.ts`: Permission-based sidebar configuration (single JSON → UI)
+
+**Integration Notes:**
+- `authStore` should be used as the single source of truth for auth state, replacing any existing auth context
+- `DashboardLayout` should wrap all `/dashboard/*` routes in the app router
+- `postPlanSelection` should be called after payment success instead of direct redirects
+- Sidebar components should consume `SIDEBAR_CONFIG` and `SETTINGS_SIDEBAR_CONFIG` for permission-based rendering
 
 #### Smart Dashboard Routing
 After login, users are routed based on role, permissions, and business type:
