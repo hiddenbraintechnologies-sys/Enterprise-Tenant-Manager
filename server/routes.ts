@@ -61,6 +61,7 @@ import staffRolesRoutes from "./routes/settings/staff-roles";
 import impersonationRoutes from "./routes/settings/impersonation";
 import securityRoutes from "./routes/settings/security";
 import securitySessionsRoutes from "./routes/security";
+import complianceExportsRoutes from "./routes/compliance/exports";
 import { blockImpersonationOnSensitiveRoutes } from "./middleware/require-permission";
 import {
   adminIpRestriction,
@@ -536,6 +537,9 @@ export async function registerRoutes(
 
   // Register Compliance routes
   app.use('/api/compliance', authenticateHybrid(), complianceRoutes);
+  
+  // Register SOC2 Compliance Export routes
+  app.use('/api/compliance/export', authenticateHybrid(), complianceExportsRoutes);
   
   // Register India Compliance routes (GST, DLT, Aadhaar, RBI)
   app.use('/api/india-compliance', indiaComplianceRoutes);

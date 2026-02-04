@@ -1,0 +1,409 @@
+1) Refresh-token rotation + reuse detection (JWT setup)
+1.1 Refresh token table requirements
+
+You said you already store refresh tokens. To support rotation + detection, your table needs (or should have) fields like:
+
+id
+
+tenantId, userId, staffId
+
+tokenHash (store hash, never raw token)
+
+familyId (ties a chain of rotations together)
+
+parentId (previous token in the chain)
+
+issuedAt, expiresAt
+
+revokedAt, revokeReason
+
+replacedByTokenId
+
+ipAddress, userAgent, deviceFingerprint (optional but useful)
+
+suspiciousReuseAt (optional)
+
+If you don’t have all fields, you can still do rotation with minimal fields (tokenHash, revokedAt, replacedByTokenId, familyId).
+
+1.2 Rotation flow (correct + secure)
+
+On refresh request:
+
+Receive refresh token (HTTP-only cookie recommended; if you must accept body, ok but more risk).
+
+Hash token → lookup row by tokenHash.
+
+If not found → suspicious (possible reuse).
+
+If found but revokedAt is set → reuse detected.
+
+If found and valid:
+
+Revoke current refresh token with reason ROTATED
+
+Create a new refresh token row with same familyId and parentId = current.id
+
+Set replacedByTokenId on current token
+
+Issue new access token + new refresh token
+
+If reuse detected (token used after rotation):
+
+Revoke the entire family
+
+Invalidate sessions (sessionVersion++) for affected user/staff
+
+Log audit + security alert
+
+1.3 Code: hashing + rotate
+// server/auth/refresh/refreshTokenRotation.ts
+import crypto from "crypto";
+import { db } from "@/server/db";
+import { refreshTokens } from "@/server/db/schema/refreshTokens";
+import { userSessions } from "@/server/db/schema/userSessions";
+import { tenantStaff } from "@/server/db/schema/tenantStaff";
+import { and, eq, isNull } from "drizzle-orm";
+import { logAudit } from "@/server/audit/logAudit";
+
+function hashToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+export async function rotateRefreshToken({
+  refreshToken,
+  ipAddress,
+  userAgent,
+  deviceFingerprint,
+}: {
+  refreshToken: string;
+  ipAddress?: string;
+  userAgent?: string;
+  deviceFingerprint?: string;
+}) {
+  const tokenHash = hashToken(refreshToken);
+
+  const existing = await db.query.refreshTokens.findFirst({
+    where: eq(refreshTokens.tokenHash, tokenHash),
+  });
+
+  // 1) Token not found => likely replay or forged
+  if (!existing) {
+    // log only; you may not know tenant/user
+    throw Object.assign(new Error("REFRESH_TOKEN_NOT_FOUND"), { code: "REUSE_SUSPECTED" });
+  }
+
+  // 2) If revoked, it is a reuse attempt (token already rotated/revoked)
+  if (existing.revokedAt) {
+    // Revoke whole family + invalidate sessions
+    await revokeRefreshFamilyAndInvalidate(existing, {
+      reason: "REUSE_DETECTED",
+      ipAddress,
+      userAgent,
+      deviceFingerprint,
+    });
+    throw Object.assign(new Error("REFRESH_TOKEN_REUSED"), { code: "REUSE_DETECTED" });
+  }
+
+  // 3) Token valid -> rotate
+  const now = new Date();
+
+  // revoke current token
+  await db.update(refreshTokens).set({
+    revokedAt: now,
+    revokeReason: "ROTATED",
+  }).where(eq(refreshTokens.id, existing.id));
+
+  // create new token + row
+  const newRaw = crypto.randomBytes(48).toString("base64url");
+  const newHash = hashToken(newRaw);
+
+  const [newRow] = await db.insert(refreshTokens).values({
+    tenantId: existing.tenantId,
+    userId: existing.userId,
+    staffId: existing.staffId,
+    tokenHash: newHash,
+    familyId: existing.familyId ?? existing.id,
+    parentId: existing.id,
+    issuedAt: now,
+    expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000), // example 30d
+    ipAddress,
+    userAgent,
+    deviceFingerprint,
+  }).returning({ id: refreshTokens.id });
+
+  await db.update(refreshTokens).set({
+    replacedByTokenId: newRow.id,
+  }).where(eq(refreshTokens.id, existing.id));
+
+  await logAudit({
+    tenantId: existing.tenantId,
+    userId: existing.userId,
+    action: "AUTH_TOKEN_REFRESH",
+    resource: "refresh_token",
+    resourceId: existing.id,
+    metadata: { rotatedTo: newRow.id },
+    ipAddress,
+    userAgent,
+  });
+
+  return {
+    tenantId: existing.tenantId,
+    userId: existing.userId,
+    staffId: existing.staffId,
+    newRefreshToken: newRaw,
+  };
+}
+
+async function revokeRefreshFamilyAndInvalidate(existing: any, ctx: any) {
+  const familyId = existing.familyId ?? existing.id;
+  const now = new Date();
+
+  await db.update(refreshTokens).set({
+    revokedAt: now,
+    revokeReason: ctx.reason,
+    suspiciousReuseAt: now,
+  }).where(eq(refreshTokens.familyId, familyId));
+
+  // Invalidate sessions for staff (preferred) else user
+  if (existing.staffId) {
+    await db.update(tenantStaff)
+      .set({ sessionVersion: existing.sessionVersion + 1 })
+      .where(eq(tenantStaff.id, existing.staffId));
+  } else {
+    // if you have users.sessionVersion too, bump it; otherwise bump via staff rows
+  }
+
+  await logAudit({
+    tenantId: existing.tenantId,
+    userId: existing.userId,
+    action: "SUSPICIOUS_LOGIN_DETECTED",
+    resource: "refresh_token_family",
+    resourceId: String(familyId),
+    metadata: { reason: ctx.reason },
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+  });
+}
+
+
+Where to call it
+
+Your /api/auth/refresh endpoint:
+
+const rotated = await rotateRefreshToken(...)
+
+issue new access token with current sessionId/sessionVersion
+
+return new refresh token (cookie or response)
+
+2) Session anomaly scoring (practical + low-noise)
+2.1 What to score (signals)
+
+Compute a score at login and refresh:
+
+Signals (typical scoring)
+
+New deviceFingerprint: +30
+
+New country: +25
+
+New city: +10
+
+IP ASN change (if you have it): +10
+
+High frequency logins (e.g., >5 in 10 min): +15
+
+Refresh token reuse detected: +100 (critical)
+
+Multiple concurrent sessions > expected threshold (e.g., >5): +20
+
+Threshold actions
+
+Score ≥ 60 → require step-up OTP
+
+Score ≥ 90 → force logout + alert
+
+2.2 Minimal implementation using your existing user_sessions
+
+You already store:
+
+ipAddress, country, city, deviceFingerprint, userAgent, lastSeenAt
+
+So you can compute baseline using last N sessions.
+
+// server/security/anomalyScore.ts
+import { db } from "@/server/db";
+import { userSessions } from "@/server/db/schema/userSessions";
+import { and, eq, desc } from "drizzle-orm";
+
+export async function computeAnomalyScore({
+  tenantId,
+  userId,
+  deviceFingerprint,
+  country,
+  city,
+  ipAddress,
+}: {
+  tenantId: string;
+  userId: string;
+  deviceFingerprint?: string;
+  country?: string;
+  city?: string;
+  ipAddress?: string;
+}) {
+  const recent = await db.query.userSessions.findMany({
+    where: and(eq(userSessions.tenantId, tenantId), eq(userSessions.userId, userId)),
+    orderBy: (s, { desc }) => [desc(s.lastSeenAt)],
+    limit: 10,
+  });
+
+  let score = 0;
+  const reasons: string[] = [];
+
+  const knownDevices = new Set(recent.map(r => r.deviceFingerprint).filter(Boolean));
+  const knownCountries = new Set(recent.map(r => r.country).filter(Boolean));
+  const knownCities = new Set(recent.map(r => r.city).filter(Boolean));
+
+  if (deviceFingerprint && knownDevices.size && !knownDevices.has(deviceFingerprint)) {
+    score += 30; reasons.push("NEW_DEVICE");
+  }
+  if (country && knownCountries.size && !knownCountries.has(country)) {
+    score += 25; reasons.push("NEW_COUNTRY");
+  }
+  if (city && knownCities.size && !knownCities.has(city)) {
+    score += 10; reasons.push("NEW_CITY");
+  }
+
+  // concurrent sessions count
+  const activeCount = recent.filter(r => !r.revokedAt).length;
+  if (activeCount >= 5) {
+    score += 20; reasons.push("MANY_ACTIVE_SESSIONS");
+  }
+
+  return { score, reasons };
+}
+
+2.3 Enforce policy
+
+At login/refresh:
+
+If score ≥ 60 → return STEP_UP_REQUIRED
+
+If score ≥ 90 → invalidate sessions + alert
+
+Audit every decision:
+
+SUSPICIOUS_LOGIN_DETECTED with metadata {score, reasons}
+
+3) SOC2 evidence exports (CSV/JSON)
+
+You want downloadable evidence for auditors:
+
+audit logs (by date range, tenant)
+
+sessions + session revocations
+
+step-up events
+
+impersonation events
+
+IP rule changes
+
+force logout events
+
+3.1 Export endpoints (admin-only + step-up)
+
+GET /api/compliance/export/audit-logs?from=...&to=...&format=json|csv
+
+GET /api/compliance/export/sessions?from=...&to=...&format=...
+
+GET /api/compliance/export/security-events?...
+
+All:
+
+require SETTINGS_SECURITY_VIEW
+
+and requireStepUp("data_export")
+
+3.2 JSON export (easy)
+router.get(
+  "/compliance/export/audit-logs",
+  requirePermission("SETTINGS_SECURITY_VIEW"),
+  requireStepUp("data_export"),
+  async (req, res) => {
+    const { tenantId } = req.tokenPayload;
+    const { from, to } = req.query;
+
+    const rows = await db.query.auditLogs.findMany({
+      where: (a, { and, eq, gte, lte }) => and(
+        eq(a.tenantId, tenantId),
+        gte(a.createdAt, new Date(String(from))),
+        lte(a.createdAt, new Date(String(to))),
+      ),
+      orderBy: (a, { desc }) => [desc(a.createdAt)],
+      limit: 50000, // guard
+    });
+
+    await logAudit({
+      tenantId,
+      userId: req.tokenPayload.userId,
+      action: "DATA_EXPORT_STARTED",
+      resource: "audit_logs",
+      metadata: { from, to, format: "json" },
+    });
+
+    res.json({ rows });
+  }
+);
+
+3.3 CSV export (no dependencies needed)
+function toCsv(rows: any[]) {
+  const headers = Object.keys(rows[0] ?? {});
+  const escape = (v: any) =>
+    `"${String(v ?? "").replace(/"/g, '""').replace(/\n/g, " ")}"`;
+
+  const lines = [
+    headers.join(","),
+    ...rows.map(r => headers.map(h => escape(r[h])).join(",")),
+  ];
+  return lines.join("\n");
+}
+
+router.get(
+  "/compliance/export/audit-logs.csv",
+  requirePermission("SETTINGS_SECURITY_VIEW"),
+  requireStepUp("data_export"),
+  async (req, res) => {
+    const { tenantId } = req.tokenPayload;
+    const { from, to } = req.query;
+
+    const rows = await db.query.auditLogs.findMany({ /* same filter */ });
+
+    const csv = toCsv(rows);
+
+    await logAudit({
+      tenantId,
+      userId: req.tokenPayload.userId,
+      action: "DATA_EXPORT_COMPLETED",
+      resource: "audit_logs",
+      metadata: { from, to, format: "csv", rowCount: rows.length },
+    });
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="audit_logs_${from}_${to}.csv"`);
+    res.send(csv);
+  }
+);
+
+3.4 Evidence bundle (recommended)
+
+A single endpoint producing:
+
+audit_logs.csv
+
+sessions.csv
+
+security_events.csv
+Zipped.
+
+If you want this, tell me if you already use archiver or similar; otherwise I’ll give you a dependency-free tar-like fallback.

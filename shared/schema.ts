@@ -830,18 +830,40 @@ export const apiTokens = pgTable("api_tokens", {
   index("idx_api_tokens_tenant").on(table.tenantId),
 ]);
 
+export const refreshTokenRevokeReasonEnum = pgEnum("refresh_token_revoke_reason", [
+  "rotated",
+  "logout",
+  "force_logout",
+  "reuse_detected",
+  "expired",
+  "admin_action",
+]);
+
 export const refreshTokens = pgTable("refresh_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  staffId: varchar("staff_id").references(() => tenantStaff.id, { onDelete: "cascade" }),
   tokenHash: varchar("token_hash", { length: 255 }).notNull(),
+  familyId: varchar("family_id", { length: 100 }),
+  parentId: varchar("parent_id", { length: 100 }),
+  replacedByTokenId: varchar("replaced_by_token_id", { length: 100 }),
   deviceInfo: jsonb("device_info").default({}),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  deviceFingerprint: varchar("device_fingerprint", { length: 64 }),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).defaultNow(),
   expiresAt: timestamp("expires_at").notNull(),
   isRevoked: boolean("is_revoked").default(false),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: refreshTokenRevokeReasonEnum("revoke_reason"),
+  suspiciousReuseAt: timestamp("suspicious_reuse_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_refresh_tokens_user").on(table.userId),
   index("idx_refresh_tokens_hash").on(table.tokenHash),
+  index("idx_refresh_tokens_family").on(table.familyId),
+  index("idx_refresh_tokens_tenant").on(table.tenantId),
 ]);
 
 // ============================================
