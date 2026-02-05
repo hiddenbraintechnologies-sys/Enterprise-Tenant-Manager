@@ -1,0 +1,323 @@
+Perfect — with that final column list, here’s the clean, ready-to-merge answer. I’ll do three things:
+
+Confirm the schema fixes you should apply (YES, do them)
+
+Give you a final, corrected refresh-token rotation + reuse detection implementation that exactly matches your columns
+
+Call out gotchas to avoid so this never bites you in prod
+
+No abstractions, no guessing.
+
+1️⃣ Should you add the fixes you noticed?
+
+Yes — all three are correct and important.
+Here’s the definitive list.
+
+✅ A) token_hash MUST be UNIQUE (non-negotiable)
+
+Rotation logic assumes one hash → one row.
+
+Add this constraint
+
+ALTER TABLE refresh_tokens
+ADD CONSTRAINT refresh_tokens_token_hash_unique UNIQUE (token_hash);
+
+
+Why this matters:
+
+Prevents duplicate active refresh tokens
+
+Makes reuse detection deterministic
+
+Avoids revoking the wrong token family
+
+✅ B) Add an index for active tokens
+
+Your code frequently runs:
+
+WHERE revoked_at IS NULL AND is_revoked = false
+
+
+Add partial index
+
+CREATE INDEX idx_refresh_tokens_active
+ON refresh_tokens (tenant_id, user_id, expires_at)
+WHERE revoked_at IS NULL AND is_revoked = false;
+
+
+This directly speeds up:
+
+refresh validation
+
+cleanup jobs
+
+anomaly checks
+
+✅ C) Add missing staff_id index (schema drift fix)
+
+You already have it in DB — reflect it in Drizzle to avoid confusion.
+
+index("idx_refresh_tokens_staff").on(table.staffId),
+
+2️⃣ Final refresh-token rotation + reuse detection (exact to your schema)
+
+This version:
+
+Uses your exact columns
+
+Handles familyId safely
+
+Revokes consistently (isRevoked + revokedAt)
+
+Invalidates sessions on reuse
+
+Emits SOC2-grade audit logs
+
+server/services/refresh-token-rotation.ts
+import crypto from "crypto";
+import { db } from "@/server/db";
+import { refreshTokens } from "@/shared/schema";
+import { tenantStaff } from "@/shared/schema";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { logAudit } from "@/server/audit/logAudit";
+
+/* ------------------ helpers ------------------ */
+
+function hashToken(raw: string) {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+function generateRawToken() {
+  return crypto.randomBytes(48).toString("base64url");
+}
+
+/* ------------------ rotate ------------------ */
+
+export async function rotateRefreshToken({
+  rawToken,
+  ipAddress,
+  userAgent,
+  deviceFingerprint,
+  deviceInfo,
+}: {
+  rawToken: string;
+  ipAddress?: string;
+  userAgent?: string;
+  deviceFingerprint?: string;
+  deviceInfo?: Record<string, any>;
+}) {
+  const tokenHash = hashToken(rawToken);
+
+  const existing = await db.query.refreshTokens.findFirst({
+    where: eq(refreshTokens.tokenHash, tokenHash),
+  });
+
+  // Token not found → suspected replay
+  if (!existing) {
+    throw Object.assign(new Error("REFRESH_TOKEN_NOT_FOUND"), {
+      code: "REUSE_SUSPECTED",
+    });
+  }
+
+  // Expired token
+  if (existing.expiresAt < new Date()) {
+    await revokeSingle(existing, "session_expired");
+    throw Object.assign(new Error("REFRESH_EXPIRED"), { code: "EXPIRED" });
+  }
+
+  // Reuse detected
+  if (existing.isRevoked || existing.revokedAt) {
+    await revokeFamilyAndInvalidate(existing, {
+      reason: "reuse_detected",
+      ipAddress,
+      userAgent,
+      deviceFingerprint,
+    });
+    throw Object.assign(new Error("REFRESH_REUSED"), {
+      code: "REUSE_DETECTED",
+    });
+  }
+
+  /* -------- normal rotation -------- */
+
+  const now = new Date();
+  const familyKey = existing.familyId ?? existing.id;
+
+  // revoke current token
+  await db.update(refreshTokens).set({
+    isRevoked: true,
+    revokedAt: now,
+    revokeReason: "rotation",
+  }).where(eq(refreshTokens.id, existing.id));
+
+  // create new token
+  const newRaw = generateRawToken();
+  const newHash = hashToken(newRaw);
+
+  const [newRow] = await db.insert(refreshTokens).values({
+    userId: existing.userId,
+    tenantId: existing.tenantId,
+    staffId: existing.staffId,
+
+    tokenHash: newHash,
+    familyId: familyKey,
+    parentId: existing.id,
+
+    ipAddress,
+    userAgent,
+    deviceFingerprint,
+    deviceInfo: deviceInfo ?? existing.deviceInfo,
+
+    issuedAt: now,
+    expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+    isRevoked: false,
+  }).returning({ id: refreshTokens.id });
+
+  await db.update(refreshTokens).set({
+    replacedByTokenId: newRow.id,
+  }).where(eq(refreshTokens.id, existing.id));
+
+  await logAudit({
+    tenantId: existing.tenantId,
+    userId: existing.userId,
+    action: "AUTH_TOKEN_REFRESH",
+    resource: "refresh_token",
+    resourceId: existing.id,
+    metadata: {
+      familyId: familyKey,
+      rotatedTo: newRow.id,
+      staffId: existing.staffId,
+    },
+    ipAddress,
+    userAgent,
+  });
+
+  return {
+    newRefreshToken: newRaw,
+    userId: existing.userId,
+    tenantId: existing.tenantId,
+    staffId: existing.staffId,
+  };
+}
+
+/* ------------------ helpers ------------------ */
+
+async function revokeSingle(token: any, reason: any) {
+  await db.update(refreshTokens).set({
+    isRevoked: true,
+    revokedAt: new Date(),
+    revokeReason: reason,
+  }).where(eq(refreshTokens.id, token.id));
+}
+
+async function revokeFamilyAndInvalidate(
+  token: any,
+  ctx: {
+    reason: any;
+    ipAddress?: string;
+    userAgent?: string;
+    deviceFingerprint?: string;
+  }
+) {
+  const now = new Date();
+  const familyKey = token.familyId ?? token.id;
+
+  // revoke entire family (covers old rows with null familyId)
+  await db.update(refreshTokens).set({
+    isRevoked: true,
+    revokedAt: now,
+    revokeReason: ctx.reason,
+    suspiciousReuseAt: now,
+  }).where(
+    or(
+      eq(refreshTokens.familyId, familyKey),
+      eq(refreshTokens.id, familyKey)
+    )
+  );
+
+  // force logout (staff-level preferred)
+  if (token.staffId) {
+    await db.update(tenantStaff)
+      .set({ sessionVersion: crypto.randomInt(1_000_000) })
+      .where(eq(tenantStaff.id, token.staffId));
+  }
+
+  await logAudit({
+    tenantId: token.tenantId,
+    userId: token.userId,
+    action: "SUSPICIOUS_LOGIN_DETECTED",
+    resource: "refresh_token_family",
+    resourceId: String(familyKey),
+    metadata: {
+      reason: ctx.reason,
+      staffId: token.staffId,
+      deviceFingerprint: ctx.deviceFingerprint,
+    },
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+  });
+}
+
+3️⃣ Critical rules (pin these in the file)
+🔒 Revocation consistency
+
+Whenever a refresh token is revoked:
+
+isRevoked = true
+
+revokedAt = NOW()
+
+revokeReason always set
+
+Never set only one of them.
+
+🔁 Family safety
+
+Always compute:
+
+const familyKey = token.familyId ?? token.id;
+
+
+Then revoke by:
+
+familyId = familyKey OR id = familyKey
+
+
+This handles:
+
+legacy rows
+
+first token in chain
+
+partial migrations
+
+🚨 Reuse detection = security incident
+
+On reuse_detected you must:
+
+revoke entire family
+
+bump tenant_staff.sessionVersion
+
+emit audit log
+
+optionally require step-up on next login
+
+You’re already doing all of this now 👍
+
+4️⃣ Final verdict
+
+Yes — add the fixes you listed.
+They are exactly right, and with the code above you now have:
+
+🔁 Proper refresh-token rotation
+
+🛑 Reliable reuse detection
+
+🔒 Forced logout on compromise
+
+📜 SOC2-ready audit trail
+
+⚡ Indexed hot paths
+
+🧠 No edge-case foot-guns
