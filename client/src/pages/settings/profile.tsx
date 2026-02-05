@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { SettingsLayout } from "@/components/settings-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,15 @@ export default function ProfileSettings() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [avatarVersion, setAvatarVersion] = useState<number>(0);
+
+  // Initialize avatarVersion from user data so page refresh shows correct image
+  useEffect(() => {
+    const userAvatarUrl = (user as any)?.avatarUrl;
+    const userUpdatedAt = (user as any)?.updatedAt;
+    if (userAvatarUrl && !avatarVersion) {
+      setAvatarVersion(userUpdatedAt ? new Date(userUpdatedAt).getTime() : Date.now());
+    }
+  }, [(user as any)?.avatarUrl, (user as any)?.updatedAt]);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -68,8 +77,19 @@ export default function ProfileSettings() {
       
       return confirmRes.json();
     },
-    onSuccess: () => {
-      setAvatarVersion(Date.now()); // Stable cache-bust token for this session
+    onSuccess: (data) => {
+      const nextVersion = Date.now();
+      setAvatarVersion(nextVersion);
+
+      // Optimistically update cached /api/auth/me immediately
+      queryClient.setQueryData(["/api/auth/me"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          avatarUrl: data.avatarUrl ?? old.avatarUrl,
+        };
+      });
+
       toast({
         title: "Avatar updated",
         description: "Your profile photo has been updated successfully.",
@@ -117,11 +137,11 @@ export default function ProfileSettings() {
   const authProvider = (user as any)?.authProvider as string | undefined;
   const isSSO = authProvider && authProvider !== "email" && authProvider !== "local";
   
-  // Cache-bust avatar URL to prevent stale images after upload (only changes after successful upload)
-  const avatarUrl = (user as any)?.avatarUrl;
-  const displayAvatar = avatarUrl
-    ? `${avatarUrl}${avatarUrl.includes("?") ? "&" : "?"}v=${avatarVersion || ""}`
-    : user?.profileImageUrl;
+  // Cache-bust avatar URL to prevent stale images after upload
+  const baseAvatar = (user as any)?.avatarUrl || user?.profileImageUrl;
+  const displayAvatar = baseAvatar && avatarVersion
+    ? `${baseAvatar}${baseAvatar.includes("?") ? "&" : "?"}v=${avatarVersion}`
+    : baseAvatar;
 
   return (
     <SettingsLayout title="Profile">

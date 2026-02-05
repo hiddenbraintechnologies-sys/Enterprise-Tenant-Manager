@@ -1,0 +1,91 @@
+Yes — you’re very close. The reason it still feels like “no update” is almost certainly browser/CDN caching + React AvatarImage not reloading because the URL string doesn’t change.
+
+Right now you invalidate /api/auth/me, but if the server returns the same avatarUrl path (e.g. public/avatars/<userId>.png), the browser happily keeps showing the cached image.
+
+The fix: make the rendered image URL change after upload
+
+You already created avatarVersion. Use it to append a query param to the src. That guarantees a re-fetch.
+
+✅ Patch 1: Use avatarVersion in displayAvatar
+
+In profile.tsx:
+
+const baseAvatar = (user as any)?.avatarUrl || user?.profileImageUrl;
+
+const displayAvatar =
+  baseAvatar && avatarVersion
+    ? `${baseAvatar}`
+        + `${baseAvatar.includes("?") ? "&" : "?"}`
+        + `v=${avatarVersion}`
+    : baseAvatar;
+
+
+Then your Avatar stays as-is:
+
+<AvatarImage src={displayAvatar || undefined} ... />
+
+Why this works
+
+Even if avatarUrl is unchanged, ?v=... changes the src
+
+Browser treats it as a new resource and fetches the updated file
+
+✅ Patch 2: Initialize avatarVersion from user data (so refresh keeps correct image)
+
+When page loads, you don’t want avatarVersion to be undefined forever until the next upload. Initialize it once when user changes:
+
+useEffect(() => {
+  if ((user as any)?.avatarUrl) {
+    setAvatarVersion(Date.now()); // or user.updatedAt if available
+  }
+}, [(user as any)?.avatarUrl]);
+
+
+If your /api/auth/me includes updatedAt, even better:
+
+setAvatarVersion(new Date(user.updatedAt).getTime());
+
+✅ Patch 3: Make confirm return the final public URL (best improvement)
+
+Right now your confirm returns confirmRes.json() but you’re not using it. Make it return { avatarUrl } and optimistically update the cache.
+
+In onSuccess
+onSuccess: (data) => {
+  const nextVersion = Date.now();
+  setAvatarVersion(nextVersion);
+
+  // Update cached /api/auth/me immediately
+  queryClient.setQueryData(["/api/auth/me"], (old: any) => {
+    if (!old) return old;
+    return {
+      ...old,
+      avatarUrl: data.avatarUrl ?? old.avatarUrl,
+    };
+  });
+
+  toast({ title: "Avatar updated" });
+  queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+}
+
+
+This avoids waiting for refetch before UI updates.
+
+✅ Patch 4: tiny but important — ensure confirm uses the same response key names
+
+Earlier you mentioned prepare returned { putUrl, avatarUrl }, but now it’s { uploadUrl, key }. That’s fine as long as server and client match.
+
+To reduce future confusion, standardize response shape:
+
+/prepare returns { uploadUrl, key, publicUrl }
+
+/confirm returns { avatarUrl } (final public URL)
+
+Quick checklist to confirm fix
+
+After implementing Patch 1:
+
+Upload new photo
+
+Observe <img src=".../avatars/user.png?v=123"> in Elements
+
+Avatar should change instantly without hard refresh
