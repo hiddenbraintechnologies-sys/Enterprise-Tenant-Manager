@@ -1,0 +1,189 @@
+Great — you already have almost everything. The remaining issues are purely UI/flow:
+
+Profile pic “no update/edit” even though you have prepare/confirm endpoints
+
+Role picking confusing because it’s a plain <Select> list
+
+Here’s the exact patch plan for both.
+
+1) Profile pic update/edit — why it still feels “not working”
+
+From your snippet, avatar display is:
+
+const displayAvatar = (user as any)?.avatarUrl || user?.profileImageUrl;
+
+
+You already upload + confirm, but users won’t see changes if any of these happens:
+
+you don’t re-fetch /api/me after confirm
+
+the <AvatarImage> is caching the previous URL
+
+your avatarUrl doesn’t change (same path), so browser keeps cached image
+
+✅ Fix (3 small changes)
+A) After confirm, refresh user + bust cache
+
+When confirm succeeds, update UI with a cache-busted URL:
+
+const cacheBusted = `${avatarUrl}?v=${Date.now()}`;
+setUser((u) => ({ ...u, avatarUrl: cacheBusted }));  // or refetch /api/me
+
+
+Best practice: do both:
+
+optimistic update with ?v=...
+
+then await queryClient.invalidateQueries(["/api/me"]);
+
+B) Always add cache busting when rendering user.avatarUrl
+const displayAvatar =
+  (user as any)?.avatarUrl
+    ? `${(user as any).avatarUrl}${(user as any).avatarUrl.includes("?") ? "&" : "?"}v=${user.updatedAt || Date.now()}`
+    : user?.profileImageUrl;
+
+
+If you don’t have updatedAt on the client user object, use Date.now() only immediately after upload.
+
+C) Add the missing UI controls (the “edit” part)
+
+Right now your snippet only renders the avatar, not an upload button.
+
+Add:
+
+“Upload photo” button (opens file picker)
+
+loading state “Uploading…”
+
+error toast
+
+optional “Remove photo” (sets avatarUrl null via new endpoint)
+
+This will directly solve “no profile pic update or edit”.
+
+2) Role picking redesign — replace <Select> with role cards (clear)
+
+Your current Change Role dialog:
+
+user opens dialog
+
+sees dropdown list of roles
+
+has to guess what each role means
+
+That’s what feels confusing.
+
+✅ New “Zoho-like” layout (drop-in)
+
+Replace the Select with a radio-card list, and show:
+
+role name
+
+role description
+
+tags: Default/System
+
+permission count (optional)
+
+A) Update roles API to return metadata (if not already)
+
+Make sure roles array includes:
+
+id
+
+name
+
+description
+
+isDefault
+
+isSystem
+
+permissionCount (optional)
+
+If you don’t have permissionCount, you can compute server-side quickly.
+
+B) UI component in dialog (no more Select)
+
+Inside the dialog content:
+
+Search input (optional but nice)
+
+Scroll area
+
+Card list with selection highlight
+
+Pseudo JSX:
+
+<div className="space-y-2">
+  {roles.map((role) => (
+    <button
+      key={role.id}
+      type="button"
+      onClick={() => setNewRoleId(role.id)}
+      className={cn(
+        "w-full text-left rounded-lg border p-3 hover:bg-muted/50",
+        newRoleId === role.id && "border-primary ring-1 ring-primary"
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-medium">{role.name}</div>
+          {role.description ? (
+            <div className="text-sm text-muted-foreground">{role.description}</div>
+          ) : null}
+        </div>
+
+        <div className="flex gap-2">
+          {role.isDefault ? <Badge variant="secondary">Default</Badge> : null}
+          {role.isSystem ? <Badge variant="outline">System</Badge> : null}
+        </div>
+      </div>
+
+      {"permissionCount" in role ? (
+        <div className="mt-2 text-xs text-muted-foreground">
+          Permissions: {role.permissionCount}
+        </div>
+      ) : null}
+    </button>
+  ))}
+</div>
+
+
+✅ Much clearer than a dropdown.
+
+C) Add Staff form: keep Select, but improve label
+
+For Add Staff form, you can keep Select (it’s fine), but show descriptions in the dropdown:
+
+Use two-line select items (name + description)
+
+Default role preselected: role with isDefault === true
+
+3) Default role selection (fix “no default roles” UX)
+
+Even if roles exist, the UI can still feel broken if nothing is selected.
+
+Add Staff form behavior
+
+If tenant has a role with isDefault=true, pre-fill tenantRoleId to it.
+
+If not, pick “Staff” as fallback.
+
+4) One more tiny improvement: “Change Role” dialog should show current role
+
+At the top add:
+
+Current role name
+
+and highlight it in the list
+
+This reduces mistakes.
+
+What to implement first (fastest impact)
+
+Avatar cache-bust + refetch after confirm (fixes “no update” instantly)
+
+Change Role dialog: swap Select → cards (fixes “confusing” instantly)
+
+Default preselect in Add Staff form

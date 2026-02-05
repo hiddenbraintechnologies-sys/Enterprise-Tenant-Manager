@@ -323,9 +323,35 @@ function UsersTab() {
   const handleOpenAdd = (invite: boolean = false) => {
     setEditingUser(null);
     setIsInviteMode(invite);
-    form.reset({ fullName: "", email: "", aliasName: null, phone: null, jobTitle: null, tenantRoleId: null });
+    // Preselect default role, or "Staff" fallback, or first role
+    const defaultRole = roles.find(r => r.isDefault) 
+      || roles.find(r => r.name === "Staff") 
+      || roles[0];
+    form.reset({ 
+      fullName: "", 
+      email: "", 
+      aliasName: null, 
+      phone: null, 
+      jobTitle: null, 
+      tenantRoleId: defaultRole?.id || null 
+    });
     setDialogOpen(true);
   };
+
+  // Effect: Set default role once roles load if dialog is open and no role selected
+  useEffect(() => {
+    if (dialogOpen && !editingUser && roles.length > 0) {
+      const currentRoleId = form.getValues("tenantRoleId");
+      if (!currentRoleId) {
+        const defaultRole = roles.find(r => r.isDefault) 
+          || roles.find(r => r.name === "Staff") 
+          || roles[0];
+        if (defaultRole) {
+          form.setValue("tenantRoleId", defaultRole.id);
+        }
+      }
+    }
+  }, [dialogOpen, editingUser, roles, form]);
 
   const handleOpenEdit = (user: TenantStaffMember) => {
     setEditingUser(user);
@@ -669,21 +695,57 @@ function UsersTab() {
       </Dialog>
 
       <Dialog open={changeRoleDialogOpen} onOpenChange={setChangeRoleDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Change Role</DialogTitle>
-            <DialogDescription>Select a new role for this user</DialogDescription>
+            <DialogDescription>
+              {(() => {
+                const currentRole = roles.find(r => r.id === staffList.find(s => s.id === selectedUserId)?.tenantRoleId);
+                return currentRole ? `Current role: ${currentRole.name}` : "Select a new role for this user";
+              })()}
+            </DialogDescription>
           </DialogHeader>
-          <Select value={newRoleId} onValueChange={setNewRoleId}>
-            <SelectTrigger data-testid="select-change-role">
-              <SelectValue placeholder="Select a role" />
-            </SelectTrigger>
-            <SelectContent>
-              {roles.map((role) => (
-                <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ScrollArea className="max-h-[400px] pr-2">
+            <div className="space-y-2">
+              {roles.map((role) => {
+                const isCurrentRole = staffList.find(s => s.id === selectedUserId)?.tenantRoleId === role.id;
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    onClick={() => setNewRoleId(role.id)}
+                    className={`w-full text-left rounded-lg border p-3 transition-colors hover-elevate ${
+                      newRoleId === role.id ? "border-primary ring-1 ring-primary" : ""
+                    } ${isCurrentRole ? "bg-muted/30" : ""}`}
+                    data-testid={`role-card-${role.name.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium flex items-center gap-2">
+                          {role.name}
+                          {isCurrentRole && (
+                            <span className="text-xs text-muted-foreground">(current)</span>
+                          )}
+                        </div>
+                        {role.description && (
+                          <div className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                            {role.description}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        {role.isDefault && <Badge variant="secondary">Default</Badge>}
+                        {role.isSystem && <Badge variant="outline">System</Badge>}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      {role.permissions?.length || 0} permissions
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollArea>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangeRoleDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveRoleChange} disabled={!newRoleId} data-testid="button-save-role-change">

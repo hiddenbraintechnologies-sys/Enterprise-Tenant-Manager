@@ -17,6 +17,7 @@ export default function ProfileSettings() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [avatarVersion, setAvatarVersion] = useState<number>(0);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -68,6 +69,7 @@ export default function ProfileSettings() {
       return confirmRes.json();
     },
     onSuccess: () => {
+      setAvatarVersion(Date.now()); // Stable cache-bust token for this session
       toast({
         title: "Avatar updated",
         description: "Your profile photo has been updated successfully.",
@@ -114,7 +116,12 @@ export default function ProfileSettings() {
 
   const authProvider = (user as any)?.authProvider as string | undefined;
   const isSSO = authProvider && authProvider !== "email" && authProvider !== "local";
-  const displayAvatar = (user as any)?.avatarUrl || user?.profileImageUrl;
+  
+  // Cache-bust avatar URL to prevent stale images after upload (only changes after successful upload)
+  const avatarUrl = (user as any)?.avatarUrl;
+  const displayAvatar = avatarUrl
+    ? `${avatarUrl}${avatarUrl.includes("?") ? "&" : "?"}v=${avatarVersion || ""}`
+    : user?.profileImageUrl;
 
   return (
     <SettingsLayout title="Profile">
