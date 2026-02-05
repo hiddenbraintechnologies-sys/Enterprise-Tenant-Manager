@@ -21,6 +21,7 @@ import { degradedModeMiddleware } from "./lib/degraded-mode";
 import { performReadinessCheck } from "./lib/health-ready";
 import { logger } from "./lib/structured-logging";
 import { securityHeaders } from "./middleware/security-headers";
+import { startCleanupScheduler } from "./jobs/cleanupExpiredRefreshTokens";
 
 // ============================================
 // PRODUCTION STARTUP VALIDATION
@@ -329,6 +330,9 @@ app.use((req, res, next) => {
   
   // Start background job for cleaning up old login history
   startLoginHistoryCleanup();
+  
+  // Start background job for cleaning up expired refresh tokens
+  startCleanupScheduler();
   
   // Server is already listening (started at the top of this async block)
   // This ensures platform health checks pass immediately

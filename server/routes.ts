@@ -69,6 +69,7 @@ import {
   createRefreshToken, 
   RefreshTokenReuseError, 
   RefreshTokenNotFoundError,
+  RefreshTokenExpiredError,
   revokeAllRefreshTokens 
 } from "./services/refresh-token-rotation";
 import { logAudit } from "./audit/logAudit";
@@ -1558,7 +1559,7 @@ export async function registerRoutes(
       let rotated;
       try {
         rotated = await rotateRefreshToken({
-          refreshToken,
+          rawToken: refreshToken,
           ipAddress: req.ip,
           userAgent: req.headers["user-agent"],
           deviceFingerprint,
@@ -1588,7 +1589,13 @@ export async function registerRoutes(
         if (error instanceof RefreshTokenNotFoundError) {
           return res.status(401).json({ 
             error: "INVALID_TOKEN", 
-            message: "Refresh token is invalid or expired",
+            message: "Refresh token is invalid",
+          });
+        }
+        if (error instanceof RefreshTokenExpiredError) {
+          return res.status(401).json({ 
+            error: "TOKEN_EXPIRED", 
+            message: "Refresh token has expired. Please log in again.",
           });
         }
         throw error;
