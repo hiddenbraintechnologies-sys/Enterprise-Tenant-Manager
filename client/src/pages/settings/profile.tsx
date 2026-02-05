@@ -249,20 +249,15 @@ export default function ProfileSettings() {
                   </Button>
                 )}
               </div>
-              {isSSO && (
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p className="flex items-center gap-1">
-                    <ExternalLink className="h-3 w-3" />
-                    Linked to {authProvider === "google" ? "Google" : authProvider === "microsoft" ? "Microsoft" : "SSO provider"}
-                  </p>
-                  <p>Upload a photo to override, or update via your provider and re-login.</p>
-                </div>
-              )}
-              {!isSSO && (
-                <p className="text-xs text-muted-foreground">
-                  Max 5MB. JPG, PNG, or GIF.
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                {(user as any)?.avatarUrl 
+                  ? "Custom photo" 
+                  : user?.profileImageUrl 
+                    ? `From ${authProvider === "google" ? "Google" : authProvider === "microsoft" ? "Microsoft" : "SSO"}`
+                    : "No photo set"
+                }
+                {" · Max 5MB · JPG, PNG, or GIF"}
+              </p>
             </div>
           </div>
         </section>
