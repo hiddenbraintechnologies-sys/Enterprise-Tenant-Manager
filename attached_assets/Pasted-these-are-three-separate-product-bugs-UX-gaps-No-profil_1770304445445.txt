@@ -1,0 +1,156 @@
+these are three separate product bugs/UX gaps:
+
+No profile pic update/edit
+
+No default roles created/assigned (so role pages look empty / confusing)
+
+Role picking layout is confusing (too many permission checkboxes shown like a raw list)
+
+Here’s exactly what to change.
+
+1) Profile picture: why you can’t edit
+
+In your Settings/Security screens you have “managed externally” (SSO). In most SSO setups your app treats profile fields as read-only.
+
+Fix options (pick one)
+Option A (fastest): keep SSO-managed, but make it clear
+
+Keep avatar read-only
+
+Show “Change your profile photo in Google/Microsoft → logout/login to sync”
+
+Add a “Refresh profile” button (calls /api/me)
+
+Option B (best UX): allow avatar override even with SSO
+
+This is what you want if you don’t want users to be stuck.
+
+Backend
+
+Add users.avatarUrl nullable
+
+Add endpoint: POST /api/me/avatar (multipart upload)
+
+Store file and set users.avatarUrl
+
+Frontend
+
+Show “Upload photo” always
+
+Display avatar as:
+user.avatarUrl ?? user.ssoPictureUrl ?? initials
+
+✅ This solves “no profile pic update” permanently.
+
+2) “No default roles” (root cause)
+
+This happens when tenant creation doesn’t seed any roles, or doesn’t auto-assign the creator to a role.
+
+Required behavior on tenant creation
+
+When a tenant is created (during register or first login):
+
+Seed default roles if none exist:
+
+Owner (all permissions)
+
+Admin
+
+Manager
+
+Staff (limited)
+
+(optional) Read-only
+
+Assign the creator to Owner automatically.
+
+Implementation rule
+
+Do it transactionally inside tenant creation so it never creates a tenant without roles.
+
+Minimum fix logic
+
+If roles.count == 0 → insert defaults
+
+Insert tenant_staff row for creator
+
+Insert tenant_staff_roles mapping (creator → Owner)
+
+That will also fix “settings menus empty” in many cases, because your Settings menu is likely permission-gated.
+
+3) Role picking layout redesign (why it’s confusing)
+
+Right now your UI is showing raw permission flags (STAFF_VIEW, STAFF_CREATE, etc.) in one long checklist. That’s confusing for 99% of users.
+
+Redesign (Zoho-style)
+Step 1: Pick a role template (simple)
+
+A page with cards:
+
+Owner
+
+Admin
+
+Manager
+
+Staff
+
+Custom
+
+Each card shows:
+
+short description
+
+“Includes: Staff, Customers, Billing…” (chips)
+
+Step 2: If “Custom”, then show permissions grouped
+
+Permissions grouped by modules:
+
+Staff & Roles
+
+View staff
+
+Create staff
+
+Edit staff
+
+Assign roles
+
+Customers
+
+View customers
+
+Create customers
+
+Edit customers
+
+Billing
+
+View billing
+
+Manage plans
+
+Payments
+
+…and so on.
+
+Add:
+
+Search box (“type ‘staff’”)
+
+“Select all in module”
+
+Summary panel on right (“You’re granting 18 permissions”)
+
+✅ This makes it obvious and removes confusion.
+
+What I need from you to pinpoint the exact files to patch
+
+Paste (or tell me paths) for these three parts:
+
+Profile page component where avatar is rendered (shows “managed externally” or no upload button)
+
+Tenant creation code path (where tenant + first user is created) so we add role seeding there
+
+Role picker component (the modal/page with permission checkboxes)

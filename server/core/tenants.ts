@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { 
-  tenants, tenantSettings, tenantDomains, userTenants, roles,
+  tenants, tenantSettings, tenantDomains, userTenants, roles, tenantRoles, tenantStaff,
   type Tenant, type InsertTenant, type TenantSettings, type InsertTenantSettings,
   type TenantDomain, type InsertTenantDomain, type UserTenant
 } from "@shared/schema";
@@ -222,7 +222,7 @@ export class TenantService {
     });
   }
 
-  async ensureUserHasTenant(userId: string): Promise<{ tenant: Tenant; roleId: string }> {
+  async ensureUserHasTenant(userId: string): Promise<{ tenant: Tenant; roleId: string; tenantRoleId?: string }> {
     const existingUserTenants = await this.getUserTenants(userId);
     
     if (existingUserTenants.length > 0) {
@@ -232,6 +232,20 @@ export class TenantService {
 
     const tenant = await this.getOrCreateDefaultTenant();
     
+    // Ensure default roles are seeded (including Owner)
+    await storage.seedDefaultRolesForTenant(tenant.id);
+    
+    // Get the Owner tenant role (highest level role)
+    let [ownerRole] = await db.select().from(tenantRoles)
+      .where(and(eq(tenantRoles.tenantId, tenant.id), eq(tenantRoles.name, "Owner")));
+    
+    // If no Owner role exists after seeding, try Admin role
+    if (!ownerRole) {
+      [ownerRole] = await db.select().from(tenantRoles)
+        .where(and(eq(tenantRoles.tenantId, tenant.id), eq(tenantRoles.name, "Admin")));
+    }
+    
+    // Also get/create the global admin role for backward compatibility
     let [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
     
     if (!adminRole) {
@@ -250,8 +264,27 @@ export class TenantService {
     const roleId = adminRole?.id || "role_admin";
 
     await this.addUserToTenant(userId, tenant.id, roleId);
+    
+    // Create tenantStaff record with Owner/Admin role
+    const assignedRole = ownerRole;
+    if (assignedRole) {
+      // Check if tenantStaff record already exists
+      const [existingStaff] = await db.select().from(tenantStaff)
+        .where(and(eq(tenantStaff.tenantId, tenant.id), eq(tenantStaff.userId, userId)));
+      
+      if (!existingStaff) {
+        await db.insert(tenantStaff).values({
+          tenantId: tenant.id,
+          userId,
+          email: "", // Will be updated on first login
+          fullName: "Owner",
+          tenantRoleId: assignedRole.id,
+          status: "active",
+        });
+      }
+    }
 
-    return { tenant, roleId };
+    return { tenant, roleId, tenantRoleId: ownerRole?.id };
   }
 }
 

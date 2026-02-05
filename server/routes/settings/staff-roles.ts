@@ -46,6 +46,27 @@ router.get("/roles/permission-groups", async (req: Request, res: Response) => {
   return res.json(PERMISSION_GROUPS);
 });
 
+router.get("/roles/templates", 
+  requireTenantPermission(Permissions.ROLES_VIEW),
+  async (req: Request, res: Response) => {
+    const { DEFAULT_TENANT_ROLES, ROLE_TEMPLATES } = await import("@shared/rbac/permissions");
+    
+    const templates = Object.entries(ROLE_TEMPLATES || {}).map(([key, meta]) => {
+      const roleDef = DEFAULT_TENANT_ROLES[key as keyof typeof DEFAULT_TENANT_ROLES];
+      return {
+        key,
+        name: meta.name,
+        description: meta.description,
+        highlights: meta.highlights,
+        color: meta.color,
+        permissions: roleDef?.permissions || [],
+      };
+    });
+    
+    return res.json(templates);
+  }
+);
+
 router.post("/roles", 
   requireTenantPermission(Permissions.ROLES_CREATE),
   async (req: Request, res: Response) => {

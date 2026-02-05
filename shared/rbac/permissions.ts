@@ -592,11 +592,50 @@ export const ISO_TO_TENANT_COUNTRY: Record<string, string> = {
 
 // ==================== DEFAULT TENANT ROLES ====================
 // These are seeded when a tenant is created
+// Order: Owner > Admin > Manager > Staff > Viewer
 
 export const DEFAULT_TENANT_ROLES = {
+  OWNER: {
+    name: "Owner",
+    description: "Full control including billing, subscription, and user management",
+    isDefault: false,
+    isSystem: true,
+    permissions: [
+      // All Staff & Roles
+      Permissions.STAFF_VIEW, Permissions.STAFF_CREATE, Permissions.STAFF_EDIT, Permissions.STAFF_DELETE, Permissions.STAFF_INVITE,
+      Permissions.ROLES_VIEW, Permissions.ROLES_CREATE, Permissions.ROLES_EDIT, Permissions.ROLES_DELETE,
+      // All Customers
+      Permissions.CUSTOMERS_VIEW, Permissions.CUSTOMERS_CREATE, Permissions.CUSTOMERS_EDIT, Permissions.CUSTOMERS_DELETE,
+      // All Services
+      Permissions.SERVICES_VIEW, Permissions.SERVICES_CREATE, Permissions.SERVICES_EDIT, Permissions.SERVICES_DELETE,
+      // All Bookings
+      Permissions.BOOKINGS_VIEW, Permissions.BOOKINGS_CREATE, Permissions.BOOKINGS_EDIT, Permissions.BOOKINGS_DELETE,
+      // All Invoices & Payments
+      Permissions.VIEW_INVOICES, Permissions.INVOICES_CREATE, Permissions.INVOICES_EDIT, Permissions.INVOICES_DELETE,
+      Permissions.PAYMENTS_CREATE, Permissions.RECORD_PAYMENTS,
+      // All Dashboard & Analytics
+      Permissions.VIEW_DASHBOARD, Permissions.VIEW_ANALYTICS,
+      // All Settings
+      Permissions.SETTINGS_VIEW, Permissions.SETTINGS_EDIT, Permissions.MANAGE_SETTINGS,
+      // All Subscription & Marketplace
+      Permissions.SUBSCRIPTION_VIEW, Permissions.SUBSCRIPTION_CHANGE,
+      Permissions.MARKETPLACE_BROWSE, Permissions.MARKETPLACE_PURCHASE, Permissions.MARKETPLACE_MANAGE_BILLING,
+      // Billing
+      Permissions.BILLING_VIEW, Permissions.BILLING_MANAGE, Permissions.BILLING_REPORTS,
+      // HRMS
+      Permissions.HRMS_VIEW, Permissions.HRMS_EMPLOYEES_VIEW, Permissions.HRMS_EMPLOYEES_CREATE, Permissions.HRMS_EMPLOYEES_EDIT, Permissions.HRMS_EMPLOYEES_DELETE,
+      Permissions.HRMS_ATTENDANCE_VIEW, Permissions.HRMS_ATTENDANCE_MANAGE, Permissions.HRMS_LEAVE_VIEW, Permissions.HRMS_LEAVE_APPROVE,
+      // Payroll
+      Permissions.PAYROLL_VIEW, Permissions.PAYROLL_RUN, Permissions.PAYROLL_SETTINGS, Permissions.PAYROLL_REPORTS,
+      // Projects
+      Permissions.PROJECTS_VIEW, Permissions.PROJECTS_CREATE, Permissions.PROJECTS_EDIT, Permissions.PROJECTS_DELETE, Permissions.PROJECTS_ASSIGN, Permissions.PROJECTS_TIMESHEETS,
+      // Impersonation
+      Permissions.IMPERSONATION_USE,
+    ],
+  },
   ADMIN: {
     name: "Admin",
-    description: "Full access to all features and settings",
+    description: "Full access to features and settings, no billing control",
     isDefault: true,
     isSystem: true,
     permissions: [
@@ -609,15 +648,38 @@ export const DEFAULT_TENANT_ROLES = {
       Permissions.PAYMENTS_CREATE, Permissions.RECORD_PAYMENTS,
       Permissions.VIEW_DASHBOARD, Permissions.VIEW_ANALYTICS,
       Permissions.SETTINGS_VIEW, Permissions.SETTINGS_EDIT, Permissions.MANAGE_SETTINGS,
-      Permissions.SUBSCRIPTION_VIEW, Permissions.SUBSCRIPTION_CHANGE,
-      Permissions.MARKETPLACE_BROWSE, Permissions.MARKETPLACE_PURCHASE, Permissions.MARKETPLACE_MANAGE_BILLING,
-      // Impersonation (Admin only)
+      Permissions.SUBSCRIPTION_VIEW,
+      Permissions.MARKETPLACE_BROWSE, Permissions.MARKETPLACE_PURCHASE,
+      Permissions.HRMS_VIEW, Permissions.HRMS_EMPLOYEES_VIEW, Permissions.HRMS_EMPLOYEES_CREATE, Permissions.HRMS_EMPLOYEES_EDIT, Permissions.HRMS_EMPLOYEES_DELETE,
+      Permissions.HRMS_ATTENDANCE_VIEW, Permissions.HRMS_ATTENDANCE_MANAGE, Permissions.HRMS_LEAVE_VIEW, Permissions.HRMS_LEAVE_APPROVE,
+      Permissions.PAYROLL_VIEW, Permissions.PAYROLL_RUN, Permissions.PAYROLL_SETTINGS, Permissions.PAYROLL_REPORTS,
+      Permissions.PROJECTS_VIEW, Permissions.PROJECTS_CREATE, Permissions.PROJECTS_EDIT, Permissions.PROJECTS_DELETE, Permissions.PROJECTS_ASSIGN, Permissions.PROJECTS_TIMESHEETS,
       Permissions.IMPERSONATION_USE,
+    ],
+  },
+  MANAGER: {
+    name: "Manager",
+    description: "Manage team operations and customer data",
+    isDefault: false,
+    isSystem: true,
+    permissions: [
+      Permissions.STAFF_VIEW, Permissions.STAFF_CREATE, Permissions.STAFF_EDIT, Permissions.STAFF_INVITE,
+      Permissions.ROLES_VIEW,
+      Permissions.CUSTOMERS_VIEW, Permissions.CUSTOMERS_CREATE, Permissions.CUSTOMERS_EDIT, Permissions.CUSTOMERS_DELETE,
+      Permissions.SERVICES_VIEW, Permissions.SERVICES_CREATE, Permissions.SERVICES_EDIT,
+      Permissions.BOOKINGS_VIEW, Permissions.BOOKINGS_CREATE, Permissions.BOOKINGS_EDIT, Permissions.BOOKINGS_DELETE,
+      Permissions.VIEW_INVOICES, Permissions.INVOICES_CREATE, Permissions.INVOICES_EDIT,
+      Permissions.PAYMENTS_CREATE, Permissions.RECORD_PAYMENTS,
+      Permissions.VIEW_DASHBOARD, Permissions.VIEW_ANALYTICS,
+      Permissions.SETTINGS_VIEW,
+      Permissions.HRMS_VIEW, Permissions.HRMS_EMPLOYEES_VIEW, Permissions.HRMS_EMPLOYEES_CREATE, Permissions.HRMS_EMPLOYEES_EDIT,
+      Permissions.HRMS_ATTENDANCE_VIEW, Permissions.HRMS_ATTENDANCE_MANAGE, Permissions.HRMS_LEAVE_VIEW, Permissions.HRMS_LEAVE_APPROVE,
+      Permissions.PROJECTS_VIEW, Permissions.PROJECTS_CREATE, Permissions.PROJECTS_EDIT, Permissions.PROJECTS_ASSIGN, Permissions.PROJECTS_TIMESHEETS,
     ],
   },
   STAFF: {
     name: "Staff",
-    description: "Standard access for day-to-day operations",
+    description: "Day-to-day operations access",
     isDefault: false,
     isSystem: true,
     permissions: [
@@ -628,6 +690,9 @@ export const DEFAULT_TENANT_ROLES = {
       Permissions.PAYMENTS_CREATE, Permissions.RECORD_PAYMENTS,
       Permissions.VIEW_DASHBOARD,
       Permissions.SETTINGS_VIEW,
+      Permissions.HRMS_VIEW, Permissions.HRMS_EMPLOYEES_VIEW,
+      Permissions.HRMS_ATTENDANCE_VIEW, Permissions.HRMS_LEAVE_VIEW,
+      Permissions.PROJECTS_VIEW, Permissions.PROJECTS_TIMESHEETS,
     ],
   },
   VIEWER: {
@@ -642,7 +707,54 @@ export const DEFAULT_TENANT_ROLES = {
       Permissions.VIEW_INVOICES,
       Permissions.VIEW_DASHBOARD,
       Permissions.SETTINGS_VIEW,
+      Permissions.HRMS_VIEW, Permissions.HRMS_EMPLOYEES_VIEW,
     ],
+  },
+} as const;
+
+// Role template metadata for UI card display
+export const ROLE_TEMPLATES = {
+  OWNER: {
+    key: "OWNER",
+    name: "Owner",
+    description: "Complete control over the organization",
+    highlights: ["All Features", "Billing", "Subscriptions", "User Management"],
+    color: "primary",
+  },
+  ADMIN: {
+    key: "ADMIN",
+    name: "Admin",
+    description: "Full access without billing controls",
+    highlights: ["All Features", "Settings", "User Management"],
+    color: "blue",
+  },
+  MANAGER: {
+    key: "MANAGER",
+    name: "Manager",
+    description: "Team and customer management",
+    highlights: ["Staff", "Customers", "Bookings", "Analytics"],
+    color: "green",
+  },
+  STAFF: {
+    key: "STAFF",
+    name: "Staff",
+    description: "Daily operations access",
+    highlights: ["Customers", "Bookings", "Payments"],
+    color: "orange",
+  },
+  VIEWER: {
+    key: "VIEWER",
+    name: "Viewer",
+    description: "Read-only access",
+    highlights: ["View Only"],
+    color: "gray",
+  },
+  CUSTOM: {
+    key: "CUSTOM",
+    name: "Custom",
+    description: "Create a custom role with specific permissions",
+    highlights: ["Pick & Choose"],
+    color: "purple",
   },
 } as const;
 
