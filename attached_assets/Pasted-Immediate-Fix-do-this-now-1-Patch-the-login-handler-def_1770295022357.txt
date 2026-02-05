@@ -1,0 +1,101 @@
+Immediate Fix (do this now)
+1️⃣ Patch the login handler defensively
+
+In your password login endpoint, wrap refresh-token creation like this:
+
+try {
+  const rawRefreshToken = generateRawToken();
+  const tokenHash = hashToken(rawRefreshToken);
+
+  const now = new Date();
+
+  const [refreshRow] = await db.insert(refreshTokens).values({
+    userId: user.id,
+    tenantId: tenant.id,
+    staffId: staff?.id ?? null,
+
+    tokenHash,
+    familyId: null, // TEMP, will set next
+    parentId: null,
+
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+    deviceFingerprint,
+
+    issuedAt: now,
+    expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+
+    isRevoked: false,
+    revokedAt: null,
+    revokeReason: null,
+  }).returning({ id: refreshTokens.id });
+
+  // IMPORTANT: set familyId = id for first token
+  await db.update(refreshTokens)
+    .set({ familyId: refreshRow.id })
+    .where(eq(refreshTokens.id, refreshRow.id));
+
+} catch (e) {
+  console.error("LOGIN_REFRESH_TOKEN_FAILED", e);
+  return res.status(500).json({
+    error: "LOGIN_REFRESH_TOKEN_FAILED",
+  });
+}
+
+
+⚠️ This single missing expiresAt or familyId step will cause exactly the 500 you see.
+
+2️⃣ If you recently added updatedAt → give it a default
+
+If your schema now has:
+
+updatedAt: timestamp("updated_at")
+
+
+but no default, inserts will fail.
+
+Add this migration:
+ALTER TABLE refresh_tokens
+ALTER COLUMN updated_at SET DEFAULT now();
+
+
+Or in Drizzle:
+
+updatedAt: timestamp("updated_at").defaultNow(),
+
+
+This alone has caused dozens of silent 500s in auth systems.
+
+3️⃣ user_sessions insert sanity check (second most common)
+
+If login also creates a user_sessions row, ensure:
+
+sessionVersion: staff.sessionVersion ?? 1,
+tenantId: tenant.id,        // NOT NULL
+userId: user.id,            // NOT NULL
+
+
+If any of these are undefined, Postgres throws → 500.
+
+Add this guard:
+
+if (!tenant?.id || !user?.id) {
+  throw new Error("LOGIN_CONTEXT_INVALID");
+}
+
+60-second Debug Confirmation (recommended)
+
+Add temporary logging in login:
+
+console.log("LOGIN_START", email);
+console.log("USER_OK", user.id);
+console.log("TENANT_OK", tenant.id);
+console.log("STAFF_OK", staff?.id);
+
+
+Then:
+
+console.log("CREATING_REFRESH_TOKEN");
+
+
+If logs stop there → refresh token insert is crashing (almost guaranteed).

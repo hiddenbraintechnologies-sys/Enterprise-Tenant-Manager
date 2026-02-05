@@ -83,9 +83,14 @@ export class JWTAuthService {
     tenantId: string | null,
     roleId: string | null,
     permissions: string[],
-    deviceInfo?: { userAgent?: string; ipAddress?: string },
+    deviceInfo?: { userAgent?: string; ipAddress?: string; deviceFingerprint?: string },
     sessionContext?: SessionContext
   ): Promise<TokenPair> {
+    // Defensive check: userId is required
+    if (!userId) {
+      throw new Error("LOGIN_CONTEXT_INVALID: userId is required");
+    }
+
     const accessJti = generateTokenId();
     const refreshJti = generateTokenId();
 
@@ -125,8 +130,8 @@ export class JWTAuthService {
       audience: "bizflow-api",
     } as SignOptions);
 
-    const refreshExpiresAt = new Date();
-    refreshExpiresAt.setDate(refreshExpiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
+    const now = new Date();
+    const refreshExpiresAt = new Date(now.getTime() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
     const refreshToken = jwt.sign(refreshPayload, JWT_SECRET, {
       expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
@@ -134,19 +139,33 @@ export class JWTAuthService {
       audience: "bizflow-api",
     } as SignOptions);
 
-    // Generate token ID upfront so we can set familyId = id on insert
-    const tokenId = randomUUID();
-    
-    await db.insert(refreshTokens).values({
-      id: tokenId,
-      userId,
-      tenantId,
-      tokenHash: hashToken(refreshJti),
-      familyId: tokenId, // Set familyId = id on initial insert
-      deviceInfo: deviceInfo || {},
-      expiresAt: refreshExpiresAt,
-      isRevoked: false,
-    });
+    // Defensive try-catch for refresh token insert
+    try {
+      // Generate token ID upfront so we can set familyId = id on insert
+      const tokenId = randomUUID();
+      
+      await db.insert(refreshTokens).values({
+        id: tokenId,
+        userId,
+        tenantId,
+        staffId: sessionContext?.staffId || null,
+        tokenHash: hashToken(refreshJti),
+        familyId: tokenId, // IMPORTANT: familyId = id for first token in family
+        parentId: null,
+        ipAddress: deviceInfo?.ipAddress || null,
+        userAgent: deviceInfo?.userAgent || null,
+        deviceFingerprint: deviceInfo?.deviceFingerprint || null,
+        deviceInfo: deviceInfo || {},
+        issuedAt: now,
+        expiresAt: refreshExpiresAt,
+        isRevoked: false,
+        revokedAt: null,
+        revokeReason: null,
+      });
+    } catch (error) {
+      console.error("LOGIN_REFRESH_TOKEN_FAILED", error);
+      throw new Error("LOGIN_REFRESH_TOKEN_FAILED");
+    }
 
     return {
       accessToken,

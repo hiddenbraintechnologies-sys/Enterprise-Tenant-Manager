@@ -1492,6 +1492,7 @@ export async function registerRoutes(
         {
           userAgent: req.headers["user-agent"],
           ipAddress: req.ip || undefined,
+          deviceFingerprint: deviceFingerprint || undefined,
         }
       );
 
