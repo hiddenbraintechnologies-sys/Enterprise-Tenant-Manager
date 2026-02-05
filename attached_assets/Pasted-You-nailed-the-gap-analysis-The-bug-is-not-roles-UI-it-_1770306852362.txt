@@ -1,0 +1,199 @@
+You nailed the gap analysis. The bug is not “roles UI” — it’s that phase3-onboarding creates a tenant in a parallel path that skips the canonical tenantService flow, so you end up with:
+
+tenant exists ✅
+
+user exists ✅
+
+userTenants exists ✅ (platform/global role)
+
+tenant_roles missing ❌
+
+tenant_staff missing ❌
+
+settings menus filtered by tenantStaff/tenantRole → blank ❌
+
+role picker looks confusing because it starts from “no roles seeded” ❌
+
+Below is the exact patch plan for your codebase.
+
+1) Fix phase3-onboarding /signup (critical)
+Goal
+
+Inside the existing db.transaction, after newTenant is created:
+
+seed tenant roles
+
+create tenantStaff for the admin user
+
+set admin as Owner (tenant role)
+
+keep your existing userTenants insert (platform role) if you still need it
+
+Add these imports in server/routes/phase3-onboarding.ts
+import { tenantRoles, tenantStaff } from "@/shared/schema";
+import { seedTenantRolesIfMissing } from "@/server/services/rbac/seed-tenant-roles"; // you’ll create if not already
+import { and, eq } from "drizzle-orm";
+
+Patch the transaction (drop-in)
+
+Replace your transaction body with this pattern:
+
+const result = await db.transaction(async (tx) => {
+  const [newTenant] = await tx.insert(tenants).values({
+    name: tenantName,
+    slug: subdomain?.toLowerCase(),
+    businessType,
+    country,
+    email: adminEmail,
+    phone,
+    status: "active",
+    subscriptionTier: "free",
+    onboardingCompleted: false,
+  }).returning();
+
+  const [newUser] = await tx.insert(users).values({
+    email: adminEmail.toLowerCase(),
+    firstName: adminFirstName,
+    lastName: adminLastName,
+    passwordHash,
+  }).returning();
+
+  // ✅ Seed tenant roles (Owner/Admin/Manager/Staff/Viewer)
+  await seedTenantRolesIfMissing(tx, newTenant.id);
+
+  // ✅ Fetch Owner role id
+  const ownerRole = await tx.query.tenantRoles.findFirst({
+    where: and(eq(tenantRoles.tenantId, newTenant.id), eq(tenantRoles.name, "Owner")),
+    columns: { id: true },
+  });
+  if (!ownerRole?.id) throw new Error("Owner role not found after seeding");
+
+  // ✅ Create tenantStaff for the admin user
+  await tx.insert(tenantStaff).values({
+    tenantId: newTenant.id,
+    userId: newUser.id,
+    email: newUser.email,
+    fullName: `${newUser.firstName} ${newUser.lastName}`.trim(),
+    tenantRoleId: ownerRole.id,
+    status: "active",
+  });
+
+  // Keep your platform/global role mapping (if you still use it)
+  await tx.insert(userTenants).values({
+    userId: newUser.id,
+    tenantId: newTenant.id,
+    roleId: adminRole.id, // platform/global role
+    isDefault: true,
+    isActive: true,
+  });
+
+  return { newTenant, newUser };
+});
+
+
+✅ This alone will fix:
+
+“no default roles”
+
+“settings menus blank”
+
+role picker starting from empty state
+
+2) Ensure tenantService.createTenant also creates tenantStaff (your own note says it doesn’t)
+
+You mentioned:
+
+tenantService.createTenant seeds roles ✅ but creates tenantStaff ❌
+
+That’s a time bomb. Fix it the same way:
+
+after tenant creation + role seeding → create tenantStaff for creator as Owner.
+
+This makes all creation paths consistent:
+
+SSO ✅
+
+phase3-onboarding ✅
+
+platform-admin create tenant ✅ (if it calls tenantService)
+
+3) Fix the TenantRole type conflict (must do to avoid UI confusion)
+
+You already identified the conflict:
+
+DB type: TenantRole row from schema
+
+Legacy union: "TENANT_ADMIN" | ...
+
+Do this refactor
+
+In shared/rbac/permissions.ts:
+
+rename old union to LegacyTenantRole
+
+stop exporting it as TenantRole
+
+This prevents your role picker from accidentally treating roles as enum strings instead of DB rows.
+
+4) Role Picker UX: make it DB-first, templates second
+
+Your UI currently imports ROLE_TEMPLATES from @shared/rbac/permissions and uses templates endpoint GET /api/settings/roles/templates.
+
+That’s fine, but the default view must show existing DB roles first.
+
+Make the page load do:
+
+GET /api/settings/roles → returns tenant_roles (with permission counts)
+
+and only use templates when clicking “Create role from template”
+
+UX rule
+
+If tenant has 0 roles: show “Fix: Seed default roles” button (admin only) calling POST /api/settings/roles/seed
+
+After your phase3 fix, this state should never happen, but it’s a great safety hatch.
+
+5) Profile picture update/edit (separate, but quick)
+
+This isn’t caused by RBAC. It’s caused by SSO “managed externally” logic.
+
+Implement local avatar override
+
+Add users.avatarUrl nullable
+
+Add endpoint POST /api/me/avatar
+
+On UI: “Upload photo” visible even for SSO
+
+Display priority: avatarUrl ?? providerPicture ?? initials
+
+This resolves the “no profile pic update” permanently without fighting SSO.
+
+6) Add 2 regression tests (so this never happens again)
+Test 1: phase3 signup seeds roles and staff
+
+Call phase3 endpoint
+
+Assert:
+
+tenant_roles count >= 5
+
+tenant_staff exists for user and has tenantRoleId
+
+owner role exists
+
+Test 2: settings menu not empty
+
+Simulate auth context for created tenant
+
+Call /api/settings/... (or render page) and assert menu items include Profile
+
+Minimal “ship it” order
+
+Patch phase3-onboarding transaction (seed roles + tenantStaff Owner) ✅
+
+Patch tenantService.createTenant to also create tenantStaff ✅
+
+Fix TenantRole naming conflict ✅
+
+Add avatar override (optional but recommended) ✅

@@ -4,7 +4,7 @@ import { db } from "../db";
 import { 
   tenants, users, userTenants, roles, tenantSubscriptions, 
   globalPricingPlans, countryPricingConfigs, planLocalPrices,
-  notificationLogs
+  notificationLogs, tenantRoles, tenantStaff
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -15,6 +15,7 @@ import {
 } from "../core";
 import { subscriptionService } from "../services/subscription";
 import { countryRolloutService } from "../services/country-rollout";
+import { seedTenantRolesIfMissing, getOwnerRoleId } from "../services/rbac/seed-tenant-roles";
 
 const router = Router();
 
@@ -134,6 +135,26 @@ router.post("/signup", rateLimit({ windowMs: 60 * 1000, maxRequests: 5 }), async
         passwordHash,
       }).returning();
 
+      // Seed tenant roles (Owner/Admin/Manager/Staff/Viewer)
+      await seedTenantRolesIfMissing(tx, newTenant.id);
+
+      // Fetch Owner role id
+      const ownerRoleId = await getOwnerRoleId(tx, newTenant.id);
+      if (!ownerRoleId) {
+        throw new Error("Owner role not found after seeding");
+      }
+
+      // Create tenantStaff for the admin user as Owner
+      await tx.insert(tenantStaff).values({
+        tenantId: newTenant.id,
+        userId: newUser.id,
+        email: newUser.email || adminEmail.toLowerCase(),
+        fullName: `${newUser.firstName || adminFirstName} ${newUser.lastName || adminLastName}`.trim(),
+        tenantRoleId: ownerRoleId,
+        status: "active",
+      });
+
+      // Keep platform/global role mapping for backward compatibility
       await tx.insert(userTenants).values({
         userId: newUser.id,
         tenantId: newTenant.id,

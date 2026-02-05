@@ -33,7 +33,10 @@ export class TenantService {
     return result?.tenant ?? undefined;
   }
 
-  async createTenant(data: InsertTenant): Promise<Tenant> {
+  async createTenant(
+    data: InsertTenant, 
+    options?: { creatorUserId?: string; creatorEmail?: string; creatorName?: string }
+  ): Promise<Tenant> {
     return await db.transaction(async (tx) => {
       const [tenant] = await tx.insert(tenants).values(data).returning();
 
@@ -50,7 +53,19 @@ export class TenantService {
         throw new Error("Failed to create Owner role for tenant");
       }
 
-      // Enable business-type specific modules (outside transaction for feature service)
+      // If creator info provided, create tenantStaff record with Owner role
+      if (options?.creatorUserId) {
+        await tx.insert(tenantStaff).values({
+          tenantId: tenant.id,
+          userId: options.creatorUserId,
+          email: options.creatorEmail || "",
+          fullName: options.creatorName || "Owner",
+          tenantRoleId: ownerRoleId,
+          status: "active",
+        });
+      }
+
+      // Enable business-type specific modules
       const businessType = (data.businessType || "service") as BusinessType;
       const modulesToEnable = BUSINESS_TYPE_MODULES[businessType] || BUSINESS_TYPE_MODULES.service;
 
