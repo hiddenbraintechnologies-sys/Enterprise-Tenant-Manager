@@ -1,0 +1,234 @@
+found the real blocker: you have two different “TenantRole” concepts with the same name, and the old union type is silently breaking seeding/UI/assignment.
+
+Here’s the exact patch plan (minimal, safe, and won’t ripple across your codebase).
+
+0) The root cause (in one line)
+
+shared/rbac/permissions.ts defines:
+
+export type TenantRole = "TENANT_ADMIN" | "TENANT_STAFF" | "TENANT_VIEWER";
+
+
+…but your system is now DB-driven roles (tenant_roles table), and DEFAULT_TENANT_ROLES is a 5-tier system with names like Owner/Admin/Manager/Staff/Viewer.
+
+So:
+
+Type-level role checks are using old enum-like values
+
+UI role picker + defaults don’t match DB
+
+Tenant creation doesn’t assign a real role ID properly (or doesn’t seed at all)
+
+1) Fix the naming conflict (do this first)
+✅ Change the old TenantRole type name to avoid collision
+
+In shared/rbac/permissions.ts:
+
+Replace
+export type TenantRole = "TENANT_ADMIN" | "TENANT_STAFF" | "TENANT_VIEWER";
+export type Role = PlatformRole | TenantRole;
+
+With
+// Legacy hard-coded tenant roles (deprecated)
+export type LegacyTenantRole = "TENANT_ADMIN" | "TENANT_STAFF" | "TENANT_VIEWER";
+
+// Keep Role union if platform roles still exist
+export type Role = PlatformRole | LegacyTenantRole;
+
+
+And add a comment:
+
+// NOTE: Tenant roles are DB-driven via tenant_roles. Do not use LegacyTenantRole for new code.
+
+
+✅ This removes the “TenantRole” name conflict with:
+
+shared/schema.ts export type TenantRole = typeof tenantRoles.$inferSelect;
+
+2) Create a correct “DB role model” type (shared)
+
+In shared/rbac/permissions.ts (or a new file shared/rbac/tenant-roles.ts), define:
+
+export type TenantRoleKey = keyof typeof DEFAULT_TENANT_ROLES;
+// "OWNER" | "ADMIN" | "MANAGER" | "STAFF" | "VIEWER"
+
+export type TenantRoleSeed = (typeof DEFAULT_TENANT_ROLES)[TenantRoleKey];
+
+
+This gives you a stable compile-time “seed shape” without pretending roles are an enum.
+
+3) Seed default roles on tenant creation (transactional)
+
+You already have tables:
+
+tenant_roles (id, tenant_id, name, is_default, is_system)
+
+tenant_role_permissions (tenant_role_id, permission)
+
+tenant_staff has tenantRoleId (FK)
+
+✅ Required behavior
+
+When a tenant is created:
+
+Insert the 5 default roles if none exist for that tenant
+
+Insert role permissions per role
+
+Create tenant_staff for the creator (or update existing)
+
+Set creator’s tenantRoleId = Owner role ID
+
+3.1 Add a “seedTenantRolesIfMissing(tenantId)” service
+
+Create server/services/rbac/seed-tenant-roles.ts:
+
+import { db } from "@/server/db";
+import { tenantRoles, tenantRolePermissions } from "@/shared/schema";
+import { DEFAULT_TENANT_ROLES } from "@/shared/rbac/permissions";
+import { eq } from "drizzle-orm";
+
+export async function seedTenantRolesIfMissing(tx: any, tenantId: string) {
+  const existing = await tx.query.tenantRoles.findFirst({
+    where: eq(tenantRoles.tenantId, tenantId),
+    columns: { id: true },
+  });
+
+  if (existing) return;
+
+  // Insert roles + permissions
+  for (const key of Object.keys(DEFAULT_TENANT_ROLES) as (keyof typeof DEFAULT_TENANT_ROLES)[]) {
+    const roleSeed = DEFAULT_TENANT_ROLES[key];
+
+    const [role] = await tx.insert(tenantRoles).values({
+      tenantId,
+      name: roleSeed.name,
+      description: roleSeed.description,
+      isDefault: roleSeed.isDefault,
+      isSystem: roleSeed.isSystem,
+    }).returning({ id: tenantRoles.id });
+
+    if (roleSeed.permissions?.length) {
+      await tx.insert(tenantRolePermissions).values(
+        roleSeed.permissions.map((p) => ({
+          tenantRoleId: role.id,
+          permission: p,
+        }))
+      );
+    }
+  }
+}
+
+3.2 Helper to fetch Owner role id
+
+Add:
+
+export async function getOwnerRoleId(tx: any, tenantId: string) {
+  const owner = await tx.query.tenantRoles.findFirst({
+    where: (r, { and, eq }) => and(eq(r.tenantId, tenantId), eq(r.name, "Owner")),
+    columns: { id: true },
+  });
+  return owner?.id;
+}
+
+4) Fix “no default roles” by wiring seeding into register + SSO first login
+
+Wherever you create tenant (your /api/auth/register or SSO onboarding):
+
+Inside the existing db.transaction:
+
+const result = await db.transaction(async (tx) => {
+  // create tenant
+  const [tenant] = await tx.insert(tenants).values(...).returning();
+
+  // ✅ seed default roles
+  await seedTenantRolesIfMissing(tx, tenant.id);
+
+  const ownerRoleId = await getOwnerRoleId(tx, tenant.id);
+  if (!ownerRoleId) throw new Error("Owner role not created");
+
+  // create user (or already created)
+  const [user] = await tx.insert(users).values(...).returning();
+
+  // create tenant_staff for creator
+  const [staff] = await tx.insert(tenantStaff).values({
+    tenantId: tenant.id,
+    userId: user.id,
+    email: user.email,
+    fullName: `${input.firstName} ${input.lastName}`,
+    tenantRoleId: ownerRoleId,
+    status: "active",
+  }).returning();
+
+  return { tenant, user, staff };
+});
+
+
+✅ This guarantees: every tenant has roles + the creator is Owner.
+
+5) Fix role picker UI confusion (new UX)
+
+Now that roles are DB-driven, the role picker should not show raw permissions first.
+
+Recommended UI flow
+
+Default view: role cards (Owner/Admin/Manager/Staff/Viewer) from DB
+
+show name + description
+
+show “Default” badge if isDefault
+
+show “System” badge if isSystem
+
+Customize button per role → opens permission editor:
+
+grouped by module (Staff, Customers, Billing, etc.)
+
+search
+
+select all in module
+
+Implementation detail
+
+Your role picker component should fetch:
+
+GET /api/tenant/roles returning roles + summary count
+Not the legacy TenantRole union.
+
+6) Profile picture edit (quick fix scope)
+
+Your earlier “Managed externally” indicates SSO photo lock.
+
+✅ Add a local override:
+
+users.avatarUrl nullable
+
+“Upload photo” in profile settings
+
+display avatarUrl ?? ssoPicture ?? initials
+
+This can be done independently from RBAC.
+
+7) Final cleanup (prevents relapse)
+
+Search repo for TenantRole type import and update usages:
+
+Anything expecting "TENANT_ADMIN" etc. should become permissions-based, not role-string based.
+
+Rename the DB type alias from schema to avoid confusion if needed:
+
+TenantRoleRow instead of TenantRole (optional, but reduces future confusion)
+
+Quick “done” checklist
+
+ shared/rbac/permissions.ts no longer exports TenantRole union
+
+ Tenant creation seeds default roles
+
+ Creator assigned to Owner role id
+
+ Settings menu no longer blank (because role/permissions exist)
+
+ Role picker shows role cards (not raw permission dump)
+
+ Avatar upload enabled via local override (optional but recommended)

@@ -6,7 +6,7 @@ import {
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { featureService, FEATURES, BUSINESS_TYPE_MODULES, type BusinessType } from "./features";
-import { storage } from "../storage";
+import { seedTenantRolesIfMissing, getOwnerRoleId } from "../services/rbac/seed-tenant-roles";
 
 export class TenantService {
   async getTenant(id: string): Promise<Tenant | undefined> {
@@ -34,23 +34,32 @@ export class TenantService {
   }
 
   async createTenant(data: InsertTenant): Promise<Tenant> {
-    const [tenant] = await db.insert(tenants).values(data).returning();
+    return await db.transaction(async (tx) => {
+      const [tenant] = await tx.insert(tenants).values(data).returning();
 
-    await db.insert(tenantSettings).values({
-      tenantId: tenant.id,
+      await tx.insert(tenantSettings).values({
+        tenantId: tenant.id,
+      });
+
+      // Seed default tenant roles (Owner, Admin, Manager, Staff, Viewer)
+      await seedTenantRolesIfMissing(tx, tenant.id);
+
+      // Verify Owner role was created
+      const ownerRoleId = await getOwnerRoleId(tx, tenant.id);
+      if (!ownerRoleId) {
+        throw new Error("Failed to create Owner role for tenant");
+      }
+
+      // Enable business-type specific modules (outside transaction for feature service)
+      const businessType = (data.businessType || "service") as BusinessType;
+      const modulesToEnable = BUSINESS_TYPE_MODULES[businessType] || BUSINESS_TYPE_MODULES.service;
+
+      for (const featureCode of modulesToEnable) {
+        await featureService.enableFeature(tenant.id, featureCode);
+      }
+
+      return tenant;
     });
-
-    const businessType = (data.businessType || "service") as BusinessType;
-    const modulesToEnable = BUSINESS_TYPE_MODULES[businessType] || BUSINESS_TYPE_MODULES.service;
-
-    for (const featureCode of modulesToEnable) {
-      await featureService.enableFeature(tenant.id, featureCode);
-    }
-
-    // Seed default tenant roles (Admin, Staff, Viewer)
-    await storage.seedDefaultRolesForTenant(tenant.id);
-
-    return tenant;
   }
 
   async updateTenant(id: string, data: Partial<InsertTenant>): Promise<Tenant | undefined> {
@@ -232,59 +241,66 @@ export class TenantService {
 
     const tenant = await this.getOrCreateDefaultTenant();
     
-    // Ensure default roles are seeded (including Owner)
-    await storage.seedDefaultRolesForTenant(tenant.id);
-    
-    // Get the Owner tenant role (highest level role)
-    let [ownerRole] = await db.select().from(tenantRoles)
-      .where(and(eq(tenantRoles.tenantId, tenant.id), eq(tenantRoles.name, "Owner")));
-    
-    // If no Owner role exists after seeding, try Admin role
-    if (!ownerRole) {
-      [ownerRole] = await db.select().from(tenantRoles)
-        .where(and(eq(tenantRoles.tenantId, tenant.id), eq(tenantRoles.name, "Admin")));
-    }
-    
-    // Also get/create the global admin role for backward compatibility
-    let [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
-    
-    if (!adminRole) {
-      [adminRole] = await db.insert(roles).values({
-        id: "role_admin",
-        name: "Admin",
-        description: "Full administrative access",
-        isSystem: true,
-      }).onConflictDoNothing().returning();
+    // Use transaction for atomic role seeding and assignment
+    const result = await db.transaction(async (tx) => {
+      // Seed default roles (Owner, Admin, Manager, Staff, Viewer)
+      await seedTenantRolesIfMissing(tx, tenant.id);
       
-      if (!adminRole) {
-        [adminRole] = await db.select().from(roles).where(eq(roles.id, "role_admin"));
-      }
-    }
-    
-    const roleId = adminRole?.id || "role_admin";
-
-    await this.addUserToTenant(userId, tenant.id, roleId);
-    
-    // Create tenantStaff record with Owner/Admin role
-    const assignedRole = ownerRole;
-    if (assignedRole) {
-      // Check if tenantStaff record already exists
-      const [existingStaff] = await db.select().from(tenantStaff)
-        .where(and(eq(tenantStaff.tenantId, tenant.id), eq(tenantStaff.userId, userId)));
+      // Get the Owner role (guaranteed to exist after seeding)
+      let ownerRoleId = await getOwnerRoleId(tx, tenant.id);
       
-      if (!existingStaff) {
-        await db.insert(tenantStaff).values({
-          tenantId: tenant.id,
-          userId,
-          email: "", // Will be updated on first login
-          fullName: "Owner",
-          tenantRoleId: assignedRole.id,
-          status: "active",
-        });
+      // Guard: Owner role must exist after seeding
+      if (!ownerRoleId) {
+        throw new Error("Failed to create Owner role for tenant - role seeding failed");
       }
-    }
+      
+      // Get/create the global admin role for backward compatibility (userTenants table)
+      let [globalAdminRole] = await tx.select().from(roles).where(eq(roles.id, "role_admin"));
+      
+      if (!globalAdminRole) {
+        [globalAdminRole] = await tx.insert(roles).values({
+          id: "role_admin",
+          name: "Admin",
+          description: "Full administrative access",
+          isSystem: true,
+        }).onConflictDoNothing().returning();
+        
+        if (!globalAdminRole) {
+          [globalAdminRole] = await tx.select().from(roles).where(eq(roles.id, "role_admin"));
+        }
+      }
+      
+      const globalRoleId = globalAdminRole?.id || "role_admin";
 
-    return { tenant, roleId, tenantRoleId: ownerRole?.id };
+      // Add user to tenant (userTenants table)
+      await tx.insert(userTenants).values({
+        userId,
+        tenantId: tenant.id,
+        roleId: globalRoleId,
+        isDefault: true,
+      }).onConflictDoNothing();
+      
+      // Create tenantStaff record with Owner role
+      if (ownerRoleId) {
+        const [existingStaff] = await tx.select().from(tenantStaff)
+          .where(and(eq(tenantStaff.tenantId, tenant.id), eq(tenantStaff.userId, userId)));
+        
+        if (!existingStaff) {
+          await tx.insert(tenantStaff).values({
+            tenantId: tenant.id,
+            userId,
+            email: "",
+            fullName: "Owner",
+            tenantRoleId: ownerRoleId,
+            status: "active",
+          });
+        }
+      }
+      
+      return { globalRoleId, ownerRoleId };
+    });
+
+    return { tenant, roleId: result.globalRoleId, tenantRoleId: result.ownerRoleId };
   }
 }
 

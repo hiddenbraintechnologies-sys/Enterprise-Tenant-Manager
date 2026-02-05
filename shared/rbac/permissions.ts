@@ -23,9 +23,12 @@ export type PlatformRole =
   | "MANAGER"
   | "SUPPORT_TEAM";
 
-export type TenantRole = "TENANT_ADMIN" | "TENANT_STAFF" | "TENANT_VIEWER";
+// Legacy hard-coded tenant roles (deprecated - use DB-driven tenant_roles table instead)
+// NOTE: Tenant roles are now DB-driven via tenant_roles table. Do not use LegacyTenantRole for new code.
+export type LegacyTenantRole = "TENANT_ADMIN" | "TENANT_STAFF" | "TENANT_VIEWER";
 
-export type Role = PlatformRole | TenantRole;
+// Keep Role union for platform roles + legacy tenant roles
+export type Role = PlatformRole | LegacyTenantRole;
 
 export const PLATFORM_ROLES = {
   SUPER_ADMIN: "PLATFORM_SUPER_ADMIN" as const,
@@ -35,6 +38,7 @@ export const PLATFORM_ROLES = {
   SUPPORT_TEAM: "SUPPORT_TEAM" as const,
 };
 
+// Legacy hard-coded tenant roles (deprecated)
 export const TENANT_ROLES = {
   ADMIN: "TENANT_ADMIN" as const,
   STAFF: "TENANT_STAFF" as const,
@@ -711,6 +715,12 @@ export const DEFAULT_TENANT_ROLES = {
     ],
   },
 } as const;
+
+// Compile-time types for DB-driven tenant roles
+export type TenantRoleKey = keyof typeof DEFAULT_TENANT_ROLES;
+// "OWNER" | "ADMIN" | "MANAGER" | "STAFF" | "VIEWER"
+
+export type TenantRoleSeed = (typeof DEFAULT_TENANT_ROLES)[TenantRoleKey];
 
 // Role template metadata for UI card display
 export const ROLE_TEMPLATES = {
