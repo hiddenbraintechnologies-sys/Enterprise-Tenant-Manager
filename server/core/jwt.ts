@@ -1,5 +1,5 @@
 import jwt, { SignOptions, JwtPayload } from "jsonwebtoken";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, createHash, randomUUID } from "crypto";
 import { db } from "../db";
 import { refreshTokens, apiTokens, users, platformAdmins, type User, type PlatformAdminRole } from "@shared/schema";
 import { eq, and, lt } from "drizzle-orm";
@@ -134,10 +134,15 @@ export class JWTAuthService {
       audience: "bizflow-api",
     } as SignOptions);
 
+    // Generate token ID upfront so we can set familyId = id on insert
+    const tokenId = randomUUID();
+    
     await db.insert(refreshTokens).values({
+      id: tokenId,
       userId,
       tenantId,
       tokenHash: hashToken(refreshJti),
+      familyId: tokenId, // Set familyId = id on initial insert
       deviceInfo: deviceInfo || {},
       expiresAt: refreshExpiresAt,
       isRevoked: false,

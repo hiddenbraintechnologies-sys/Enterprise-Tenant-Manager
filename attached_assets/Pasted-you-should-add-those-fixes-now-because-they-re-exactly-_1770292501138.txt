@@ -1,0 +1,155 @@
+you should add those fixes now, because they’re exactly the kind of “looks fine until prod” problems that break rotation/reuse detection under load.
+
+Below is what I’d implement in your codebase, with exact column names, plus the missing hardening in refresh-token-rotation.ts.
+
+✅ DB / Drizzle fixes to add
+1) Make token_hash UNIQUE (critical)
+
+Why: Rotation depends on “find by hash” being one row always. Without unique, rare collisions/duplicate inserts can cause:
+
+false reuse detection
+
+wrong family revocation
+
+inconsistent rotation chains
+
+Migration SQL
+-- 1) Ensure no duplicates exist first (pick newest, revoke others)
+-- Optional cleanup (recommended before adding unique constraint)
+WITH dups AS (
+  SELECT token_hash, array_agg(id ORDER BY created_at DESC) AS ids
+  FROM refresh_tokens
+  GROUP BY token_hash
+  HAVING COUNT(*) > 1
+)
+UPDATE refresh_tokens rt
+SET is_revoked = TRUE,
+    revoked_at = NOW(),
+    revoke_reason = 'security_event'
+FROM dups
+WHERE rt.token_hash = dups.token_hash
+  AND rt.id <> dups.ids[1];
+
+-- 2) Add unique constraint
+ALTER TABLE refresh_tokens
+ADD CONSTRAINT refresh_tokens_token_hash_unique UNIQUE (token_hash);
+
+Drizzle schema (index change)
+
+Drizzle doesn’t enforce uniqueness with a normal index(). Add a unique index in migration; optionally reflect in schema comments, but the migration is what matters.
+
+2) Add indexes for hot paths
+a) Active token queries: revoked_at IS NULL
+
+You already filter by isNull(revokedAt) in code. Add a partial index:
+
+CREATE INDEX idx_refresh_tokens_active
+ON refresh_tokens (tenant_id, user_id, expires_at)
+WHERE revoked_at IS NULL;
+
+b) Family revocation: family_id
+
+You already have idx_refresh_tokens_family ✅ good.
+
+c) Staff queries (your note)
+
+If you revoke/invalidate by staff often:
+
+CREATE INDEX idx_refresh_tokens_staff
+ON refresh_tokens (staff_id);
+
+
+And for sessions:
+
+CREATE INDEX idx_user_sessions_staff
+ON user_sessions (staff_id);
+
+3) Fix schema mismatch: staff_id index exists in DB but not Drizzle
+
+This doesn’t break runtime, but it causes drift/confusion. Add:
+
+index("idx_refresh_tokens_staff").on(table.staffId),
+
+
+in your Drizzle schema definition (the (table) => [...] part).
+
+✅ Code fixes in refresh-token-rotation.ts (important)
+
+You mentioned:
+
+Lookup by hash (line ~62)
+
+Family revocation (line ~163)
+
+Active tokens filter uses revokedAt IS NULL (line ~264)
+
+Fix 1: Family revocation must handle familyId null
+
+Right now you do .where(eq(refreshTokens.familyId, familyId)).
+But for the first token in a family, familyId might be null unless you set it on insert.
+
+Best practice: when creating the initial refresh token row, set:
+
+familyId = id (after insert) OR insert with generated id and set familyId same time.
+
+If you cannot do “set after insert” reliably, change revocation to:
+
+revoke where familyId = familyId OR id = familyId (for old rows)
+
+const familyKey = existing.familyId ?? existing.id;
+
+await db.update(refreshTokens).set({...}).where(
+  or(
+    eq(refreshTokens.familyId, familyKey),
+    eq(refreshTokens.id, familyKey)
+  )
+);
+
+Fix 2: Always set familyId on new tokens
+
+When rotating, you already do:
+
+familyId: existing.familyId ?? existing.id ✅
+Good. But ensure the first token ever created sets it too.
+
+Fix 3: “active token queries” should use isRevoked OR revokedAt
+
+You currently use revokedAt IS NULL. But your schema has both isRevoked and revokedAt.
+Those can drift if one is updated without the other.
+
+Rule: Treat token revoked if:
+
+isRevoked = true OR revokedAt is not null
+
+So “active” means:
+
+isRevoked = false AND revokedAt is null
+
+That lets you index properly too.
+
+✅ My recommendation: do these 3 changes (minimal but strong)
+A) Migration pack (do this in one PR)
+
+UNIQUE(token_hash)
+
+Partial index for active tokens
+
+Index for staff_id
+
+B) Refresh rotation hardening
+
+Family revocation uses familyId ?? id and revokes both familyId match + id match
+
+Ensure initial insert sets familyId
+
+C) Consistent revoke semantics
+
+Whenever you revoke a refresh token, set BOTH:
+
+isRevoked = true
+
+revokedAt = now
+
+revokeReason = ...
+
+And active filters should check both.

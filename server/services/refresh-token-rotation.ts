@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "../db";
 import { refreshTokens, tenantStaff } from "@shared/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, or } from "drizzle-orm";
 import { logAudit } from "../audit/logAudit";
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
@@ -151,26 +151,22 @@ async function revokeRefreshFamilyAndInvalidate(
     deviceFingerprint?: string;
   }
 ): Promise<void> {
-  const familyId = existing.familyId ?? existing.id;
+  const familyKey = existing.familyId ?? existing.id;
   const now = new Date();
 
   // Revoke all tokens in the family
+  // Uses OR condition to handle both familyId matches AND the original token (if familyId was null)
   await db.update(refreshTokens).set({
     revokedAt: now,
     isRevoked: true,
     revokeReason: ctx.reason,
     suspiciousReuseAt: ctx.reason === "reuse_detected" ? now : undefined,
-  }).where(eq(refreshTokens.familyId, familyId));
-
-  // Also revoke the original token if it wasn't part of a family (familyId was null)
-  if (!existing.familyId) {
-    await db.update(refreshTokens).set({
-      revokedAt: now,
-      isRevoked: true,
-      revokeReason: ctx.reason,
-      suspiciousReuseAt: ctx.reason === "reuse_detected" ? now : undefined,
-    }).where(eq(refreshTokens.id, existing.id));
-  }
+  }).where(
+    or(
+      eq(refreshTokens.familyId, familyKey),
+      eq(refreshTokens.id, familyKey)
+    )
+  );
 
   if (existing.staffId) {
     const [staff] = await db.select().from(tenantStaff).where(eq(tenantStaff.id, existing.staffId));
@@ -187,7 +183,7 @@ async function revokeRefreshFamilyAndInvalidate(
       userId: existing.userId,
       action: "update",
       resource: "refresh_token_family",
-      resourceId: String(familyId),
+      resourceId: String(familyKey),
       metadata: {
         event: "REFRESH_TOKEN_REUSE_DETECTED",
         reason: ctx.reason,
@@ -201,6 +197,7 @@ async function revokeRefreshFamilyAndInvalidate(
 
 /**
  * Create a new refresh token (for initial login).
+ * Sets familyId = id on insert to establish the token family.
  */
 export async function createRefreshToken(params: {
   tenantId: string | null;
@@ -216,12 +213,17 @@ export async function createRefreshToken(params: {
   const tokenHash = hashToken(rawToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  
+  // Generate ID upfront so we can set familyId = id on insert
+  const tokenId = crypto.randomUUID();
 
-  const [row] = await db.insert(refreshTokens).values({
+  await db.insert(refreshTokens).values({
+    id: tokenId,
     tenantId,
     userId,
     staffId: staffId || null,
     tokenHash,
+    familyId: tokenId, // Set familyId = id on initial insert
     issuedAt: now,
     expiresAt,
     ipAddress,
@@ -229,15 +231,11 @@ export async function createRefreshToken(params: {
     deviceFingerprint,
     deviceInfo: { userAgent, ipAddress },
     isRevoked: false,
-  }).returning({ id: refreshTokens.id });
-
-  await db.update(refreshTokens).set({
-    familyId: row.id,
-  }).where(eq(refreshTokens.id, row.id));
+  });
 
   return {
     token: rawToken,
-    tokenId: row.id,
+    tokenId,
     expiresAt,
   };
 }
@@ -254,14 +252,19 @@ export async function revokeAllRefreshTokens(params: {
   const { userId, tenantId, staffId, reason } = params;
   const now = new Date();
 
-  let whereClause = eq(refreshTokens.userId, userId);
+  // Build where clause for active tokens only
+  // Active = isRevoked = false AND revokedAt IS NULL (check both for consistency)
+  let whereClause = and(
+    eq(refreshTokens.userId, userId),
+    eq(refreshTokens.isRevoked, false),
+    isNull(refreshTokens.revokedAt)
+  )!;
   if (tenantId) {
     whereClause = and(whereClause, eq(refreshTokens.tenantId, tenantId))!;
   }
   if (staffId) {
     whereClause = and(whereClause, eq(refreshTokens.staffId, staffId))!;
   }
-  whereClause = and(whereClause, isNull(refreshTokens.revokedAt))!;
 
   const result = await db.update(refreshTokens).set({
     revokedAt: now,

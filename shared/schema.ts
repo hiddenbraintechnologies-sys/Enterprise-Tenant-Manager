@@ -865,6 +865,7 @@ export const refreshTokens = pgTable("refresh_tokens", {
   index("idx_refresh_tokens_hash").on(table.tokenHash),
   index("idx_refresh_tokens_family").on(table.familyId),
   index("idx_refresh_tokens_tenant").on(table.tenantId),
+  index("idx_refresh_tokens_staff").on(table.staffId),
 ]);
 
 // ============================================
