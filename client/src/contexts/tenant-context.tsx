@@ -46,8 +46,9 @@ const HRMS_MODULE: ModuleConfig = {
 
 const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
   clinic: [
-    { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
-    { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    { id: "customers", name: "Patients", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "services", name: "Services", enabled: true, routes: ["/clinic/services", "/clinic/services/new"] },
+    { id: "bookings", name: "Appointments", enabled: true, routes: ["/bookings", "/bookings/new"] },
     HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },
@@ -193,8 +194,9 @@ const BUSINESS_TYPE_MODULES: Record<BusinessType, ModuleConfig[]> = {
   ],
   // Alias entries (these map to the same modules as their base types)
   clinic_healthcare: [
-    { id: "customers", name: "Customers", enabled: true, routes: ["/customers", "/customers/new"] },
-    { id: "bookings", name: "Bookings", enabled: true, routes: ["/bookings", "/bookings/new"] },
+    { id: "customers", name: "Patients", enabled: true, routes: ["/customers", "/customers/new"] },
+    { id: "services", name: "Services", enabled: true, routes: ["/clinic/services", "/clinic/services/new"] },
+    { id: "bookings", name: "Appointments", enabled: true, routes: ["/bookings", "/bookings/new"] },
     HRMS_MODULE,
     { id: "analytics", name: "Analytics", enabled: true, routes: ["/analytics"] },
     { id: "settings", name: "Settings", enabled: true, routes: ["/settings"] },

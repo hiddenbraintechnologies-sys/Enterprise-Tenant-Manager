@@ -12,12 +12,16 @@ export interface ModuleAccessData {
 }
 
 // Core modules that are always accessible for each business type (even on Free)
+// Module IDs must match those in tenant-context.tsx BUSINESS_TYPE_MODULES
 const CORE_MODULES_BY_BUSINESS_TYPE: Record<string, Set<string>> = {
-  clinic: new Set(["patients", "services", "appointments", "customers"]),
-  clinic_healthcare: new Set(["patients", "services", "appointments", "customers"]),
-  salon: new Set(["clients", "services", "appointments", "customers"]),
-  salon_spa: new Set(["clients", "services", "appointments", "customers"]),
-  service: new Set(["customers", "services", "appointments"]),
+  clinic: new Set(["customers", "bookings", "services", "analytics", "settings"]),
+  clinic_healthcare: new Set(["customers", "bookings", "services", "analytics", "settings"]),
+  salon: new Set(["customers", "services", "bookings", "analytics", "settings"]),
+  salon_spa: new Set(["customers", "services", "bookings", "analytics", "settings"]),
+  service: new Set(["customers", "services", "bookings", "analytics", "settings"]),
+  pg: new Set(["customers", "bookings", "analytics", "settings"]),
+  pg_hostel: new Set(["customers", "bookings", "analytics", "settings"]),
+  coworking: new Set(["spaces", "desks", "bookings", "analytics", "settings"]),
 };
 
 export function useModuleAccess() {
