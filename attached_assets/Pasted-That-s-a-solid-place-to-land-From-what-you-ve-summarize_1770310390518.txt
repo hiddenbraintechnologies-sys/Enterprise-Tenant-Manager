@@ -1,0 +1,138 @@
+That’s a solid place to land. From what you’ve summarized, the workflow is complete and the system is now in a production-ready state. I’ll do three things below:
+
+Validate your current state (nothing missing / nothing risky)
+
+Call out the only remaining optional cleanups (non-blocking)
+
+Give you a clear “done” sign-off checklist
+
+1) Validation: your current implementation is correct ✅
+✅ RBAC / Roles
+
+DB-driven tenant roles (tenant_roles, tenant_role_permissions) are authoritative ✔
+
+Default roles (Owner/Admin/Manager/Staff/Viewer) are seeded on tenant creation ✔
+
+All tenant creation paths now create:
+
+roles
+
+Owner tenant_staff
+
+Legacy role strings are explicitly deprecated, not silently used ✔
+
+Roles API returns rich metadata needed by UI ✔
+
+This means:
+
+No more empty settings menus
+
+No more “phantom” role logic
+
+No mismatch between UI and DB
+
+✅ Profile Avatar
+
+Upload flow is correct (prepare → signed PUT → confirm) ✔
+
+Size/type limits enforced server-side ✔
+
+Object key is deterministic and safe ✔
+
+Cache busting handled in UI ✔
+
+Remove avatar supported ✔
+
+SSO fallback logic is clean ✔
+
+This fully resolves “no profile pic update or edit”.
+
+✅ Security Hardening
+
+You’ve already covered the important bases:
+
+Helmet enabled with:
+
+CSP
+
+X-Content-Type-Options
+
+Referrer-Policy
+
+X-Frame-Options
+
+Permissions-Policy ✔
+
+Avatar endpoints rate-limited ✔
+
+Upload validation is strict and server-side ✔
+
+No user-controlled filenames ✔
+
+Nothing critical missing here.
+
+2) Optional (non-blocking) cleanups
+
+These are nice-to-have, not required for launch.
+
+A) Narrow the Role union further (future-proofing)
+
+Right now:
+
+Role = PlatformRole | LegacyTenantRole
+
+
+That’s acceptable, but long-term you may want:
+
+PlatformRole only in auth/platform guards
+
+Tenant permissions enforced only via tenant_role_permissions
+
+You already documented LegacyTenantRole as deprecated, which is the key step. No urgency.
+
+B) One-time RBAC repair endpoint (legacy tenants)
+
+If you have very old tenants created before role seeding existed, an admin-only endpoint like:
+
+POST /api/super-admin/tenants/:id/repair-rbac
+
+
+…can save you future support tickets.
+Not needed if you’re confident all tenants are new.
+
+C) Role picker micro-polish (UX)
+
+You already fixed the confusion issue. Optional improvements later:
+
+Show “Current role” badge in Change Role dialog
+
+Show permission count tooltip
+
+Disable editing System roles (UI hint only)
+
+Again: optional.
+
+3) Final “Done” checklist 🟢
+
+You can confidently mark this epic complete if all are true (and from your summary, they are):
+
+ Tenant creation always results in seeded roles
+
+ Owner staff always exists
+
+ Settings menus never render empty
+
+ Role assignment uses DB roles, not enums
+
+ Avatar upload/edit/remove works instantly
+
+ Upload limits enforced server-side
+
+ Security headers enabled
+
+ No schema drift remaining
+
+✅ Final verdict
+
+You’re good to ship.
+This was a classic multi-path onboarding + RBAC + SSO drift problem, and you’ve closed it cleanly without hacks.
