@@ -1,0 +1,176 @@
+1) Remove the temporary logging (clean + keep useful diagnostics)
+Replace console.log(...) with structured error-only logging
+
+Do not keep “LOGIN_START/USER_OK” logs in prod. Keep only one error log with a correlation id.
+
+// server/utils/correlation.ts
+import crypto from "crypto";
+
+export function getCorrelationId(req: any) {
+  return req.headers["x-correlation-id"] ?? crypto.randomUUID();
+}
+
+// in login handler
+const correlationId = getCorrelationId(req);
+
+try {
+  // login flow
+} catch (e: any) {
+  console.error("LOGIN_FAILED", {
+    correlationId,
+    message: e?.message,
+    code: e?.code,
+  });
+  return res.status(500).json({ error: "LOGIN_FAILED", correlationId });
+}
+
+
+Also write correlationId into auditLogs.correlationId on any failure/success so you can trace incidents without noisy logs.
+
+2) Enforce UNIQUE(token_hash) safely (no downtime / no surprises)
+
+You’re right: token_hash must be unique. Do it in 2 steps.
+
+Step A — Cleanup duplicates first (revoke extras)
+
+This revokes duplicates safely without deleting evidence.
+
+-- Revoke all but newest row per token_hash
+WITH ranked AS (
+  SELECT
+    id,
+    token_hash,
+    row_number() OVER (PARTITION BY token_hash ORDER BY created_at DESC) AS rn
+  FROM refresh_tokens
+)
+UPDATE refresh_tokens rt
+SET is_revoked = TRUE,
+    revoked_at = NOW(),
+    revoke_reason = 'security_event'
+FROM ranked r
+WHERE rt.id = r.id
+  AND r.rn > 1;
+
+Step B — Add the unique constraint
+ALTER TABLE refresh_tokens
+ADD CONSTRAINT refresh_tokens_token_hash_unique UNIQUE (token_hash);
+
+Optional but recommended: enforce at app level too
+
+If insert throws unique violation, treat it as LOGIN_REFRESH_TOKEN_FAILED and trigger fallback (next section).
+
+3) Add a fallback so users don’t get hard-locked if refresh insert fails
+
+Right now: if refresh token creation fails, login returns 500 and user can’t access anything.
+
+Best-practice fallback (safe + user-friendly)
+
+If refresh token insert fails:
+
+Still issue an access token
+
+Mark session as refresh-disabled
+
+Force re-login when access token expires (short TTL like 10–15 min)
+
+Return 200 with a flag so UI can show a mild warning (optional)
+
+This avoids lockout but keeps security intact.
+
+Implementation pattern
+A) Extend access token payload (minimal)
+
+Add:
+
+refreshDisabled: true (only when fallback used)
+
+B) Login handler logic
+let refreshTokenRaw: string | null = null;
+
+try {
+  refreshTokenRaw = await createRefreshTokenRow(...); // returns raw token
+} catch (e: any) {
+  // Record audit + continue with access-only login
+  await logAudit({
+    tenantId: tenant.id,
+    userId: user.id,
+    action: "AUTH_LOGIN_SUCCESS",
+    resource: "auth",
+    metadata: {
+      refreshIssued: false,
+      refreshError: e?.message ?? "unknown",
+    },
+    correlationId,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  const accessToken = await jwtAuthService.signAccessToken({
+    userId: user.id,
+    tenantId: tenant.id,
+    staffId: staff?.id,
+    sessionId,
+    sessionVersion,
+    refreshDisabled: true,
+  });
+
+  return res.status(200).json({
+    accessToken,
+    refreshToken: null,
+    refreshDisabled: true,
+    message: "Signed in. Please re-login later if you can't stay signed in.",
+    correlationId,
+  });
+}
+
+// Normal path
+const accessToken = await jwtAuthService.signAccessToken({
+  userId: user.id,
+  tenantId: tenant.id,
+  staffId: staff?.id,
+  sessionId,
+  sessionVersion,
+  refreshDisabled: false,
+});
+
+return res.status(200).json({
+  accessToken,
+  refreshToken: refreshTokenRaw,
+  refreshDisabled: false,
+  correlationId,
+});
+
+C) Block refresh endpoint cleanly
+
+If refresh token is missing (fallback users), /auth/refresh returns:
+
+{ "error": "REFRESH_NOT_AVAILABLE" }
+
+
+Frontend then redirects to /login.
+
+UI change (small but important)
+
+If login response includes refreshDisabled: true:
+
+still proceed into app
+
+optionally show a toast:
+“Signed in, but session may expire soon. Please sign in again later.”
+
+This prevents “blank dashboard loops” caused by no refresh token.
+
+Extra hardening you should also do (quick wins)
+Ensure updatedAt has a default
+
+If your refresh_tokens now includes updatedAt but inserts don’t set it, add:
+
+updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+
+
+and update on modification in code if needed.
+
+Add an index for active tokens
+CREATE INDEX idx_refresh_tokens_active
+ON refresh_tokens (tenant_id, user_id, expires_at)
+WHERE revoked_at IS NULL AND is_revoked = false;
