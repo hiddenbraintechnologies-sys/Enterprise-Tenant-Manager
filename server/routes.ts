@@ -754,6 +754,8 @@ export async function registerRoutes(
   const { businessNameField } = await import("@shared/validation/business");
   const { validateEmailMx, isMxValidationEnabled, isMxValidationStrict } = await import("./utils/email-mx");
   
+  const { BUSINESS_TYPES } = await import("./constants/business");
+  
   const registrationSchema = z.object({
     firstName: nameField("First name"),
     lastName: nameField("Last name"),
@@ -765,12 +767,7 @@ export async function registerRoutes(
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
     businessName: businessNameField("Business name"),
-    businessType: z.enum([
-      "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
-      "coworking", "gym", "service", "real_estate", "tourism", "education", "education_institute",
-      "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
-      "software_services", "consulting", "digital_agency", "retail_store"
-    ]),
+    businessType: z.enum(BUSINESS_TYPES),
     countryCode: z.string().trim().min(2, "Country is required").max(5),
     // Honeypot field - should always be empty (bots often fill hidden fields)
     companyWebsite: z.string().max(0).optional(),
@@ -848,16 +845,16 @@ export async function registerRoutes(
       if (!selectedRegion) {
         console.log("[register] Error: Country not found in region configs");
         return res.status(400).json({ 
-          message: "Invalid country selected",
-          code: "COUNTRY_NOT_AVAILABLE"
+          error: "COUNTRY_NOT_AVAILABLE",
+          message: "Invalid country selected"
         });
       }
       console.log("[register] Step 6: Region found:", selectedRegion.countryCode);
       
       if (!selectedRegion.registrationEnabled) {
         return res.status(400).json({ 
-          message: "Registration is not available for this country",
-          code: "COUNTRY_SIGNUP_DISABLED"
+          error: "COUNTRY_SIGNUP_DISABLED",
+          message: "Registration is not available for this country"
         });
       }
 
@@ -867,8 +864,8 @@ export async function registerRoutes(
       console.log("[register] Step 8: Rollout validation:", rolloutValidation.allowed);
       if (!rolloutValidation.allowed) {
         return res.status(400).json({
-          message: rolloutValidation.message,
-          code: rolloutValidation.code
+          error: rolloutValidation.code || "BUSINESS_TYPE_NOT_ALLOWED_FOR_COUNTRY",
+          message: rolloutValidation.message || `Business type is not enabled for this country`
         });
       }
 
@@ -4368,15 +4365,11 @@ export async function registerRoutes(
   });
 
   // Create new tenant (Super Admin only)
+  const { BUSINESS_TYPES: CREATE_TENANT_BUSINESS_TYPES } = await import("./constants/business");
   const createTenantSchema = z.object({
     name: z.string().min(1, "Name is required").max(200),
     slug: z.string().min(1).max(100).optional(),
-    businessType: z.enum([
-      "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
-      "coworking", "gym", "service", "real_estate", "tourism", "education", "education_institute",
-      "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
-      "software_services", "consulting", "digital_agency", "retail_store"
-    ]),
+    businessType: z.enum(CREATE_TENANT_BUSINESS_TYPES),
     country: z.enum(["india", "uae", "uk", "malaysia", "singapore"]).default("india"),
     region: z.enum(["asia_pacific", "middle_east", "europe"]).default("asia_pacific"),
     email: z.string().email().optional(),
@@ -5798,13 +5791,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Name, business type, and country are required" });
       }
 
-      const validBusinessTypes = [
-        "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel",
-        "coworking", "gym", "service", "real_estate", "tourism", "education", "education_institute",
-        "logistics", "logistics_fleet", "legal", "furniture", "furniture_manufacturing", 
-        "software_services", "consulting", "digital_agency", "retail_store"
-      ];
-      if (!validBusinessTypes.includes(businessType)) {
+      const { isValidBusinessType } = await import("./constants/business");
+      if (!isValidBusinessType(businessType)) {
         return res.status(400).json({ 
           error: "INVALID_BUSINESS_TYPE",
           message: "Invalid business type" 
