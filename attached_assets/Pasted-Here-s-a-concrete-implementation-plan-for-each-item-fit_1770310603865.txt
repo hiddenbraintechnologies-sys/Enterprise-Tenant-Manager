@@ -1,0 +1,216 @@
+Here’s a concrete implementation plan for each item (fits your current DB-driven RBAC + tenant_staff + sessionVersion + auth).
+
+1) Audit logs for role changes
+What to log
+
+Log every change that affects access:
+
+create role / update role / delete role
+
+add/remove permission to role
+
+assign role to staff (tenantStaff.tenantRoleId change)
+
+staff status changes (active/suspended)
+
+force logout events (sessionVersion bump / forceLogoutAt)
+
+DB table
+
+Create audit_logs (tenant-scoped, append-only):
+
+id
+
+tenantId
+
+actorUserId (who did it)
+
+actorStaffId (optional)
+
+action (enum-ish string: ROLE_UPDATED, STAFF_ROLE_CHANGED, etc.)
+
+entityType (tenant_role, tenant_staff, tenant_role_permission)
+
+entityId
+
+before JSON
+
+after JSON
+
+ip, userAgent
+
+createdAt
+
+Where to write logs
+
+In the same transaction where you update:
+
+PUT /api/settings/roles/:id → log before/after role record + permission diff
+
+POST /api/settings/staff/:id/role → log before/after tenantRoleId
+
+POST /api/settings/roles create → log created role + permissions
+
+DELETE /api/settings/roles/:id → log deleted role
+
+Output UX
+
+Super Admin/Admin page:
+
+filter by action
+
+filter by actor
+
+filter by target (role/staff)
+
+“show diff” (pretty JSON)
+
+2) “View as staff” (impersonation)
+
+This is powerful—do it safely.
+
+Rules (non-negotiable)
+
+Only allowed for: SUPER_ADMIN and/or tenant permission IMPERSONATE_STAFF
+
+Cannot impersonate another admin if you want extra safety (optional)
+
+Impersonation must be obvious in UI (banner + exit button)
+
+Every impersonation start/stop must be audited
+
+Impersonation must be time-limited (e.g., 30 minutes)
+
+Implementation approach
+
+Don’t “log in as them” fully. Instead issue a separate impersonation session token that overlays authorization.
+
+Endpoints
+
+POST /api/admin/impersonate/start { staffId }
+
+validates permission
+
+creates impersonation_sessions row:
+
+id, tenantId, actorUserId, targetStaffId, expiresAt, createdAt
+
+returns impersonationToken (JWT or random id)
+
+POST /api/admin/impersonate/stop
+
+clears token client-side and/or revokes session row
+
+Auth middleware
+
+If x-impersonation-token header (or cookie) present:
+
+load session, check expiry
+
+set context.impersonation = { actorUserId, targetStaffId }
+
+set effective staff permissions to target’s role permissions
+
+BUT keep actor identity for auditing
+
+Auditing
+
+All actions while impersonating should log:
+
+actorUserId = real admin
+
+impersonatedStaffId = target
+
+plus action
+
+UI
+
+Sticky banner: “Viewing as: <Staff Name> — Exit”
+
+In nav/user menu show “Impersonating”
+
+3) Permission diff UI when editing roles
+Backend: return diff in update response
+
+When updating role permissions, compute:
+
+addedPermissions
+
+removedPermissions
+
+unchangedCount
+
+Return:
+
+{
+  "success": true,
+  "role": { ... },
+  "diff": {
+    "added": ["BILLING_VIEW"],
+    "removed": ["STAFF_DELETE"]
+  }
+}
+
+Frontend: diff modal before saving
+
+When admin edits a role and clicks Save:
+
+Compare previous permissions vs selected permissions
+
+Show confirmation modal:
+
+“You are adding 3 permissions, removing 1”
+
+Grouped by module (Staff, Billing, Clients)
+
+Require confirm
+
+Extra polish:
+
+Highlight “high-risk” permissions (impersonate, billing manage, role manage)
+
+Show “This will affect X staff members” (count staff assigned to that role)
+
+4) Tightening CSP after monitoring
+
+You already have Helmet + CSP. The safe way to tighten:
+
+Step 1: Enable CSP Report-Only first
+
+Set:
+
+Content-Security-Policy-Report-Only
+
+and add a report endpoint:
+
+/api/security/csp-report (store last N reports)
+
+Monitor what breaks (scripts, images, fonts).
+
+Step 2: Move to enforced CSP gradually
+
+Start restrictive on new surfaces:
+
+Disallow unsafe-inline if possible
+
+Use nonces for inline scripts if any
+
+Lock frame-ancestors 'none' (or exact allowlist if embedding is needed)
+
+Baseline CSP recommendations for SPA
+
+default-src 'self'
+
+script-src 'self' (+ analytics domains if any)
+
+style-src 'self' 'unsafe-inline' (Tailwind often ok; later remove unsafe-inline if you can)
+
+img-src 'self' data: https: (needed for avatars if served via public URL)
+
+connect-src 'self' (+ your storage sidecar domain if needed)
+
+font-src 'self' data:
+
+frame-ancestors 'none'
+
+Then tighten based on your actual asset and API domains.
