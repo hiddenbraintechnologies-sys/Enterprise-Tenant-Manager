@@ -22,6 +22,7 @@ import { performReadinessCheck } from "./lib/health-ready";
 import { logger } from "./lib/structured-logging";
 import { securityHeaders } from "./middleware/security-headers";
 import { startCleanupScheduler } from "./jobs/cleanupExpiredRefreshTokens";
+import { schemaHealthCheck } from "./bootstrap/schemaHealth";
 
 // ============================================
 // PRODUCTION STARTUP VALIDATION
@@ -194,6 +195,19 @@ app.use((req, res, next) => {
       await runMigrations();
     } catch (error) {
       console.error("[startup] Migration error (non-fatal):", error);
+    }
+    
+    // Schema health check - verify required tables exist
+    try {
+      const schemaHealth = await schemaHealthCheck();
+      if (!schemaHealth.ok) {
+        console.error("[schema-health] SCHEMA_MISSING_TABLES:", schemaHealth.missing);
+        console.error("[schema-health] Run 'npm run db:push' to create missing tables");
+      } else {
+        console.log("[schema-health] All required tables present");
+      }
+    } catch (error) {
+      console.error("[schema-health] Check failed:", error);
     }
     
     // Setup authentication (must be before routes)

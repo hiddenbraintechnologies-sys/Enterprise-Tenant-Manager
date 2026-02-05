@@ -30,23 +30,38 @@ const THRESHOLD_FORCE_LOGOUT = 90;
 /**
  * Compute an anomaly score for a login/refresh attempt.
  * Higher scores indicate more suspicious activity.
+ * 
+ * IMPORTANT: This function is non-fatal - if DB errors occur,
+ * it returns a safe default score with ANOMALY_CHECK_SKIPPED reason.
  */
 export async function computeAnomalyScore(
   params: AnomalyScoreParams
 ): Promise<AnomalyScoreResult> {
   const { tenantId, userId, deviceFingerprint, country, city, ipAddress } = params;
 
-  const recentSessions = await db
-    .select()
-    .from(userSessions)
-    .where(
-      and(
-        eq(userSessions.tenantId, tenantId),
-        eq(userSessions.userId, userId)
+  let recentSessions: typeof userSessions.$inferSelect[] = [];
+
+  try {
+    recentSessions = await db
+      .select()
+      .from(userSessions)
+      .where(
+        and(
+          eq(userSessions.tenantId, tenantId),
+          eq(userSessions.userId, userId)
+        )
       )
-    )
-    .orderBy(desc(userSessions.lastSeenAt))
-    .limit(10);
+      .orderBy(desc(userSessions.lastSeenAt))
+      .limit(10);
+  } catch (error) {
+    console.error("[anomaly-scoring] ANOMALY_SCORE_FAILED - database error, skipping check:", error);
+    return {
+      score: 0,
+      reasons: ["ANOMALY_CHECK_SKIPPED"],
+      requiresStepUp: false,
+      requiresForceLogout: false,
+    };
+  }
 
   let score = 0;
   const reasons: string[] = [];

@@ -1,0 +1,105 @@
+Nice — that root cause makes perfect sense: anomaly scoring hit user_sessions, DB didn’t have it yet, so login blew up. Since db:push created it and login now returns tokens, you’re back on track.
+
+To make sure this never regresses (and to tighten SOC2 posture), here are the last “production hardening” items you should apply.
+
+1) Prevent this class of outage again (startup schema guard)
+
+Add a one-time boot check that verifies required tables exist, and if not:
+
+disable anomaly scoring temporarily
+
+log a clear error + audit event (optional)
+
+// server/bootstrap/schemaHealth.ts
+import { db } from "@/server/db";
+import { sql } from "drizzle-orm";
+
+export async function schemaHealthCheck() {
+  const required = ["user_sessions", "refresh_tokens", "audit_logs", "step_up_challenges"];
+  const rows = await db.execute(sql`
+    SELECT tablename
+    FROM pg_tables
+    WHERE schemaname = 'public'
+  `);
+
+  const existing = new Set(rows.rows.map((r: any) => r.tablename));
+  const missing = required.filter(t => !existing.has(t));
+
+  return { ok: missing.length === 0, missing };
+}
+
+
+In server startup:
+
+const health = await schemaHealthCheck();
+if (!health.ok) {
+  console.error("SCHEMA_MISSING_TABLES", health.missing);
+  // optionally: set a flag to skip anomaly scoring until fixed
+}
+
+2) Make anomaly scoring “non-fatal”
+
+Even with schema synced, scoring should never break login again.
+
+Wrap scoring like this:
+
+let anomaly = { score: 0, reasons: [] as string[] };
+
+try {
+  anomaly = await computeAnomalyScore(...);
+} catch (e) {
+  console.error("ANOMALY_SCORE_FAILED", e);
+  anomaly = { score: 0, reasons: ["ANOMALY_CHECK_SKIPPED"] };
+}
+
+
+This is audit-friendly: you can still log that it was skipped.
+
+3) Enforce UNIQUE(token_hash) safely (now that login works)
+
+Do it in two migrations:
+
+A) Revoke duplicates
+WITH ranked AS (
+  SELECT id, token_hash,
+         row_number() OVER (PARTITION BY token_hash ORDER BY created_at DESC) rn
+  FROM refresh_tokens
+)
+UPDATE refresh_tokens rt
+SET is_revoked = TRUE,
+    revoked_at = NOW(),
+    revoke_reason = 'security_event'
+FROM ranked r
+WHERE rt.id = r.id AND r.rn > 1;
+
+B) Add unique constraint
+ALTER TABLE refresh_tokens
+ADD CONSTRAINT refresh_tokens_token_hash_unique UNIQUE (token_hash);
+
+4) Add indexes that match your real queries
+
+These will matter once you have real volume:
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_active
+ON refresh_tokens (tenant_id, user_id, expires_at)
+WHERE revoked_at IS NULL AND is_revoked = false;
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_tenant_user
+ON user_sessions (tenant_id, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_staff
+ON user_sessions (staff_id);
+
+5) QA checks to lock this down
+
+Run these as regression tests:
+
+✅ Login when user_sessions exists
+
+✅ Login when computeAnomalyScore throws (simulate DB error) → login still succeeds
+
+✅ Refresh token reuse detection revokes family + bumps tenant_staff.sessionVersion
+
+✅ Force logout invalidates existing access tokens on next request
+
+✅ Export endpoints require step-up (428) and write DATA_EXPORT_* logs

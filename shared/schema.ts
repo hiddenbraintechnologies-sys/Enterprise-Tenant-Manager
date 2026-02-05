@@ -845,7 +845,7 @@ export const refreshTokens = pgTable("refresh_tokens", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tenantId: varchar("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   staffId: varchar("staff_id").references(() => tenantStaff.id, { onDelete: "cascade" }),
-  tokenHash: varchar("token_hash", { length: 255 }).notNull(),
+  tokenHash: varchar("token_hash", { length: 255 }).notNull().unique(),
   familyId: varchar("family_id", { length: 100 }),
   parentId: varchar("parent_id", { length: 100 }),
   replacedByTokenId: varchar("replaced_by_token_id", { length: 100 }),
