@@ -1,0 +1,105 @@
+Two separate problems are happening:
+
+1) Settings menus look “empty / nothing visible”
+
+In the video, when you open Settings, the left sidebar shows Settings but the settings content area is basically blank/doesn’t show the expected sub-menus.
+
+Most common cause in your app
+
+Your Settings sub-menu items are being filtered out (by rollout/modules/permissions), so the array becomes [] and the UI renders nothing.
+
+Fix (recommended behavior)
+
+Always show at least “Profile” in Settings (no permission gating)
+
+If after filtering there are still 0 items, show an Empty State instead of a blank page.
+
+Patch idea (client)
+
+In client/src/.../settings-nav.ts (or wherever you build the settings menu):
+
+const baseItems = [
+  { id: "profile", label: "Profile", href: "/settings/profile", always: true },
+];
+
+const gatedItems = [
+  // business branding, billing, security, etc...
+].filter(item => item.always || canAccess(item));
+  
+const items = [...baseItems, ...gatedItems];
+
+// UI should render empty state if items.length === 0 (should never happen with baseItems)
+
+Also add UI fallback
+
+If items.length === 0 (shouldn’t happen), render:
+
+“No settings available for your role”
+
+“Contact admin to enable permissions/modules”
+
+Quick debug to confirm
+
+Open DevTools console on Settings page and log:
+
+the final settings menu array length
+
+the permissions/modules used for filtering
+
+If it’s 0, that’s exactly why you see “nothing”.
+
+2) Profile picture cannot be updated
+
+On your Profile screen, I can clearly see this line:
+
+“Managed externally”
+
+That means your user is authenticated via SSO/provider and your UI is intentionally locking avatar edits (likely using provider profile photo only).
+
+Two valid product options
+
+Option A (fastest): Keep external management
+
+Keep “Managed externally”
+
+Add a helper link text:
+“Change your profile photo in Google/Microsoft and re-login.”
+
+Option B (best UX): Allow local avatar override even for SSO
+This is what Zoho-like systems do.
+
+Backend
+
+Add users.avatarUrl column (nullable).
+
+Add endpoint:
+
+POST /api/me/avatar (multipart upload)
+
+store image (S3/R2/local) and set users.avatarUrl
+
+Frontend
+
+If avatarUrl exists → use it
+
+Else use provider picture
+
+Show “Upload photo” even for SSO, and label it “Overrides external photo”
+
+Pseudo:
+
+const displayAvatar = user.avatarUrl ?? user.providerPicture ?? fallback;
+
+What you should do now (exact next steps)
+
+Find where Settings menu items are filtered (modules/permissions)
+
+Make “Profile” always visible
+
+Add empty-state message if nothing else is available
+
+Decide avatar behavior:
+
+If you want Zoho-like → implement local override (Option B)
+
+If not → add “Change via provider” guidance + refresh behavior

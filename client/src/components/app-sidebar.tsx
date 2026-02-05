@@ -322,6 +322,7 @@ const systemItems: NavItem[] = [
 interface SettingsNavItem extends NavItem {
   viewPermission?: Permission;
   editPermission?: Permission;
+  alwaysVisible?: boolean;
 }
 
 interface SettingsSection {
@@ -333,7 +334,7 @@ const settingsSections: SettingsSection[] = [
   {
     label: "Account",
     items: [
-      { title: "My Profile", url: "/settings/profile", icon: User, subtitle: "Name, email, avatar", viewPermission: "SETTINGS_PROFILE_VIEW", editPermission: "SETTINGS_PROFILE_EDIT" },
+      { title: "My Profile", url: "/settings/profile", icon: User, subtitle: "Name, email, avatar", alwaysVisible: true },
     ],
   },
   {
@@ -367,6 +368,7 @@ const settingsSections: SettingsSection[] = [
 ];
 
 function canAccessSettingsItem(item: SettingsNavItem, userPermissions: readonly Permission[]): boolean {
+  if (item.alwaysVisible) return true;
   if (!item.viewPermission) return true;
   return userPermissions.includes(item.viewPermission);
 }
@@ -593,6 +595,22 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
+            {(() => {
+              const allVisibleItems = settingsSections.flatMap(s => s.items.filter(item => canAccessSettingsItem(item, userPermissions)));
+              if (allVisibleItems.length === 0) {
+                return (
+                  <SidebarGroup>
+                    <SidebarGroupContent>
+                      <div className="px-3 py-4 text-sm text-muted-foreground">
+                        <p className="font-medium">No settings available</p>
+                        <p className="text-xs mt-1">Contact your admin to enable permissions.</p>
+                      </div>
+                    </SidebarGroupContent>
+                  </SidebarGroup>
+                );
+              }
+              return null;
+            })()}
             {settingsSections.map((section) => {
               const visibleItems = section.items.filter(item => canAccessSettingsItem(item, userPermissions));
               if (visibleItems.length === 0) return null;

@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { SettingsLayout } from "@/components/settings-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -5,15 +6,115 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Upload, ExternalLink, Loader2 } from "lucide-react";
 
 export default function ProfileSettings() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
     const last = lastName?.charAt(0) || "";
     return (first + last).toUpperCase() || "U";
   };
+
+  const uploadAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const prepareRes = await fetch("/api/me/avatar/prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          contentType: file.type,
+          size: file.size,
+        }),
+      });
+      
+      if (!prepareRes.ok) {
+        const error = await prepareRes.json();
+        throw new Error(error.message || "Failed to prepare upload");
+      }
+      
+      const { putUrl, avatarUrl } = await prepareRes.json();
+
+      const uploadRes = await fetch(putUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      
+      if (!uploadRes.ok) {
+        throw new Error("Failed to upload file");
+      }
+
+      const confirmRes = await fetch("/api/me/avatar/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ avatarUrl }),
+      });
+      
+      if (!confirmRes.ok) {
+        const error = await confirmRes.json();
+        throw new Error(error.message || "Failed to save avatar");
+      }
+      
+      return confirmRes.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Avatar updated",
+        description: "Your profile photo has been updated successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setIsUploading(false);
+    },
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image under 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    uploadAvatarMutation.mutate(file);
+  };
+
+  const authProvider = (user as any)?.authProvider as string | undefined;
+  const isSSO = authProvider && authProvider !== "email" && authProvider !== "local";
+  const displayAvatar = (user as any)?.avatarUrl || user?.profileImageUrl;
 
   return (
     <SettingsLayout title="Profile">
@@ -32,13 +133,53 @@ export default function ProfileSettings() {
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Photo</h2>
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+              <AvatarImage src={displayAvatar || undefined} alt={user?.firstName || "User"} />
               <AvatarFallback className="text-lg">
                 {getInitials(user?.firstName, user?.lastName)}
               </AvatarFallback>
             </Avatar>
-            <div className="text-sm text-muted-foreground">
-              Managed externally
+            <div className="space-y-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept="image/*"
+                className="hidden"
+                data-testid="input-avatar-upload"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                data-testid="button-upload-avatar"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload photo
+                  </>
+                )}
+              </Button>
+              {isSSO && (
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p className="flex items-center gap-1">
+                    <ExternalLink className="h-3 w-3" />
+                    Linked to {authProvider === "google" ? "Google" : authProvider === "microsoft" ? "Microsoft" : "SSO provider"}
+                  </p>
+                  <p>Upload a photo to override, or update via your provider and re-login.</p>
+                </div>
+              )}
+              {!isSSO && (
+                <p className="text-xs text-muted-foreground">
+                  Max 5MB. JPG, PNG, or GIF.
+                </p>
+              )}
             </div>
           </div>
         </section>

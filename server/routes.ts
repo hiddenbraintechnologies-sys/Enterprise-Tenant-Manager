@@ -1903,6 +1903,107 @@ export async function registerRoutes(
     }
   });
 
+  // Avatar upload - Step 1: Get presigned upload URL
+  app.post("/api/me/avatar/prepare", authenticateJWT(), async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!user?.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { contentType, size } = req.body;
+
+      if (!contentType || typeof contentType !== "string") {
+        return res.status(400).json({ message: "Missing contentType" });
+      }
+
+      if (!contentType.startsWith("image/")) {
+        return res.status(400).json({ message: "Invalid file type. Must be an image." });
+      }
+
+      const MAX_SIZE = 5 * 1024 * 1024;
+      if (!size || typeof size !== "number" || size > MAX_SIZE) {
+        return res.status(400).json({ message: "File too large. Maximum 5MB." });
+      }
+
+      const ext = contentType === "image/png" ? "png" : 
+                  contentType === "image/gif" ? "gif" : "jpg";
+      const objectKey = `public/avatars/${user.id}.${ext}`;
+      
+      const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
+      const publicDir = publicPaths.split(",")[0]?.trim() || "";
+      
+      if (!publicDir) {
+        return res.status(500).json({ message: "Object storage not configured" });
+      }
+
+      const bucketName = publicDir.split("/")[1];
+      const objectName = `public/avatars/${user.id}.${ext}`;
+      
+      const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+      
+      const signResponse = await fetch(
+        `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bucket_name: bucketName,
+            object_name: objectName,
+            method: "PUT",
+            expires_at: new Date(Date.now() + 900 * 1000).toISOString(),
+          }),
+        }
+      );
+
+      if (!signResponse.ok) {
+        console.error("[avatar] Failed to get signed URL:", await signResponse.text());
+        return res.status(500).json({ message: "Failed to prepare upload" });
+      }
+
+      const { signed_url: signedURL } = await signResponse.json();
+      const avatarUrl = `/objects/avatars/${user.id}.${ext}`;
+
+      res.json({ 
+        putUrl: signedURL, 
+        avatarUrl,
+        objectKey,
+      });
+    } catch (error) {
+      console.error("[avatar] Error preparing avatar upload:", error);
+      res.status(500).json({ message: "Failed to prepare upload" });
+    }
+  });
+
+  // Avatar upload - Step 2: Confirm upload and update database
+  app.post("/api/me/avatar/confirm", authenticateJWT(), async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!user?.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { avatarUrl } = req.body;
+
+      if (!avatarUrl || typeof avatarUrl !== "string") {
+        return res.status(400).json({ message: "Missing avatarUrl" });
+      }
+
+      if (!avatarUrl.includes(`/avatars/${user.id}`)) {
+        return res.status(403).json({ message: "Invalid avatar path" });
+      }
+
+      await db.update(users)
+        .set({ avatarUrl, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+
+      res.json({ success: true, avatarUrl });
+    } catch (error) {
+      console.error("[avatar] Error confirming avatar:", error);
+      res.status(500).json({ message: "Failed to save avatar" });
+    }
+  });
+
   // Get all tenants for the current user (for tenant bootstrap after login)
   app.get("/api/tenants/my", authenticateJWT(), async (req, res) => {
     try {
