@@ -1,0 +1,159 @@
+Alright — here are (1) the regression test, (2) the SOC2 export smoke test, and (3) a security diagram snapshot you can paste into your repo/docs right now.
+
+1) Regression test: login must succeed even if user_sessions is unavailable
+Goal
+
+If computeAnomalyScore() can’t query user_sessions (missing table / DB error), login still returns 200 and issues tokens.
+
+Jest test (mock DB failure from anomaly scorer)
+
+Assuming your login route calls computeAnomalyScoreOptimized(...), mock it to throw.
+
+// tests/auth/login.anomaly-nonfatal.test.ts
+import request from "supertest";
+import { app } from "@/server/app";
+
+// IMPORTANT: mock the scorer used by login handler
+jest.mock("@/server/security/computeAnomalyScore", () => ({
+  computeAnomalyScoreOptimized: jest.fn(async () => {
+    throw new Error("relation \"user_sessions\" does not exist");
+  }),
+}));
+
+describe("Auth Login - anomaly scoring must be non-fatal", () => {
+  it("returns 200 and issues tokens even if anomaly scoring fails", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "test@example.com", password: "Password123!" })
+      .expect(200);
+
+    expect(res.body).toHaveProperty("accessToken");
+    expect(res.body).toHaveProperty("refreshToken");
+    expect(typeof res.body.accessToken).toBe("string");
+    expect(typeof res.body.refreshToken).toBe("string");
+  });
+});
+
+
+✅ This test will catch exactly the outage you had.
+
+If your scorer module path differs, update the jest.mock() import path to match your login handler import.
+
+2) SOC2 export smoke test (CI-safe)
+Goal
+
+Ensure export endpoints:
+
+require auth
+
+require step-up
+
+return data when step-up is satisfied
+
+Because step-up requires OTP, the CI-friendly approach is:
+
+in test env, allow a bypass using a server-only header or feature flag (safe if locked to NODE_ENV=test).
+
+2.1 Add a test-only bypass (server-side)
+// server/middleware/requireStepUp.ts
+export function requireStepUp(purpose: string, windowSec = 600) {
+  return async (req: any, res: any, next: any) => {
+    if (process.env.NODE_ENV === "test" && req.headers["x-stepup-test-bypass"] === "1") {
+      return next();
+    }
+    // ... existing real step-up logic ...
+  };
+}
+
+2.2 Smoke test
+// tests/compliance/soc2-export-bundle.smoke.test.ts
+import request from "supertest";
+import { app } from "@/server/app";
+import { seedTestUserAndToken } from "../helpers/seedAuth"; // your helper
+
+describe("SOC2 export bundle smoke test", () => {
+  it("returns 401 without auth", async () => {
+    await request(app)
+      .post("/api/compliance/export/bundle")
+      .send({ from: "2026-01-01", to: "2026-01-31", format: "csv" })
+      .expect(401);
+  });
+
+  it("returns ZIP when authenticated + step-up bypass in test", async () => {
+    const { accessToken } = await seedTestUserAndToken({
+      permissions: ["SETTINGS_SECURITY_VIEW"],
+    });
+
+    const res = await request(app)
+      .post("/api/compliance/export/bundle")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .set("x-stepup-test-bypass", "1")
+      .send({ from: "2026-01-01", to: "2026-01-31", format: "csv" })
+      .expect(200);
+
+    expect(res.headers["content-type"]).toMatch(/zip|octet-stream/);
+    expect(res.headers["content-disposition"]).toMatch(/attachment/i);
+    expect(res.body.length).toBeGreaterThan(100); // sanity
+  });
+});
+
+
+✅ This ensures exports don’t silently break and your security gates behave.
+
+3) Security diagram snapshot (auth/session/token lifecycle)
+
+Paste this into replit.md or docs/security.md as a static “snapshot” for SOC2 walkthroughs.
+
+Mermaid (best for repos)
+flowchart TD
+  A[Client] --> B[POST /api/auth/login]
+  B --> C[Tenant discovery + credential validation]
+  C --> D[Compute anomaly score\n(cached + indexed + non-fatal)]
+  D -->|score < 60| E[Create user_session row]
+  E --> F[Issue Access JWT (short TTL)\n+ Refresh Token (hashed)]
+  D -->|60-89| G[Return 428 STEP_UP_REQUIRED]
+  D -->|>=90| H[Block + invalidate sessionVersion]
+
+  A --> I[API Requests with Authorization: Bearer]
+  I --> J[Auth middleware verifies JWT]
+  J --> K[Validate user_sessions\n(sessionId + sessionVersion)\nTouch lastSeenAt]
+  K --> L[Allow request]
+
+  A --> M[POST /api/auth/refresh]
+  M --> N[Lookup refresh_tokens by token_hash (UNIQUE)]
+  N --> O{Revoked?}
+  O -->|Yes| P[Reuse detected\nRevoke token family\nBump sessionVersion\nClear anomaly cache]
+  O -->|No| Q[Rotate refresh token\nRevoke old, issue new]
+  Q --> R[Compute anomaly score]
+  R -->|score < 60| S[Return new Access JWT + Refresh Token]
+  R -->|60-89| T[Return 428 STEP_UP_REQUIRED]
+  R -->|>=90| U[Block + invalidate sessionVersion]
+
+Plain ASCII fallback (if Mermaid not supported)
+Client -> POST /login
+  -> validate tenant + password/SSO
+  -> anomaly score (cached/indexed/non-fatal)
+    - score < 60: create user_session, issue access+refresh
+    - 60-89: step-up required
+    - >=90: block + invalidate
+
+Client -> API (Bearer JWT)
+  -> verify JWT
+  -> verify user_session (sessionId + sessionVersion)
+  -> touch lastSeenAt
+
+Client -> POST /auth/refresh
+  -> lookup refresh token hash (UNIQUE)
+  -> if revoked: reuse detected -> revoke family + bump sessionVersion + clear cache
+  -> else rotate -> issue new refresh + access
+  -> anomaly score gate (step-up / block if needed)
+
+Quick placement suggestion
+
+Put Mermaid under replit.md > Security Hardening
+
+Put the tests under:
+
+tests/auth/login.anomaly-nonfatal.test.ts
+
+tests/compliance/soc2-export-bundle.smoke.test.ts
