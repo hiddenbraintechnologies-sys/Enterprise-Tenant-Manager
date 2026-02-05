@@ -1,0 +1,149 @@
+Nice — if those three are already in, then the only way you’re still seeing the problems in real usage is that one of the following is still wrong at runtime:
+
+Settings route changes, but sidebar doesn’t re-render open state (mobile/overlay sidebar or “sheet” closes immediately)
+
+/api/tenant is returning India/INR because tenant data is wrong or cached server-side
+
+Clinic modules/nav look right, but actions are blocked by permissions/API routing (so “can’t add” is not a menu issue)
+
+Here’s a comprehensive “find any remaining issue” checklist with exact places to inspect and the likely remaining root causes, based on your current implementation.
+
+A) Settings needs two clicks — even after route-based submenu
+Most likely remaining cause
+
+Your sidebar is a Sheet/Drawer on mobile, and the first click closes the drawer (on navigation) before the submenu becomes visible. Second click (when drawer reopens) shows it.
+
+Fix rule
+
+On mobile: Settings should navigate (fine), and submenu doesn’t matter inside the closed drawer.
+
+But user expects “submenu open” in the drawer. If drawer closes immediately, they think “nothing opened”.
+
+What to check in app-sidebar.tsx
+
+Look for:
+
+onSelect={() => setOpen(false)} or onClick={() => closeSheet()} on any nav item
+
+SheetClose wrapping Links
+
+If your Settings item is inside <SheetClose asChild>, the drawer closes on click and submenu never appears. That feels like “didn’t open”.
+
+✅ Fix option (best UX)
+
+Make Settings parent item always navigate to /settings/profile (you already do)
+
+In the Settings page itself, show an internal left rail or tabs (Profile/Business/Staff) so user doesn’t rely on sidebar submenu on mobile.
+
+✅ Fix option (sidebar-only)
+
+Don’t render Settings as collapsible on mobile at all.
+
+Render Settings as a single link.
+
+B) Business location still showing India/INR (after /api/tenant)
+
+If your UI now calls /api/tenant, then the bug is not the settings page—it’s one of these:
+
+1) Tenant record itself is wrong (country/currency stored as IN/INR)
+
+Check DB for a Malaysia tenant:
+
+tenants.country
+
+tenants.currency
+
+tenants.timezone
+
+If country is “MY” but currency still “INR”, you need a backfill migration.
+
+✅ Fix
+
+On tenant creation, set currency/timezone from country defaults.
+
+For existing tenants, run one-time update script.
+
+2) /api/tenant returns defaults instead of tenant fields
+
+Search in the server handler:
+
+any fallback like country ?? "IN" or currency ?? "INR"
+
+any use of rollout config over tenant record
+
+✅ Fix rule
+/api/tenant must return the tenant row fields as source of truth.
+
+3) Stale tenant context cached in server middleware
+
+If you store req.tenant in context from JWT claims or an old userTenants join and don’t refresh from DB, you can return stale values.
+
+✅ Fix
+In /api/tenant, query DB fresh by tenantId.
+
+C) Clinic: cannot add Services / Patients
+
+Since your nav + modules are correct, “cannot add” usually means:
+
+1) API endpoints are still gated by wrong permissions
+
+Example:
+
+/api/patients requires CLIENT_CREATE instead of PATIENT_CREATE
+
+Or clinic roles don’t include those permissions
+
+✅ Check
+
+What permission does “Create Patient” call require?
+
+Does Owner/Admin seeded permissions include it?
+
+2) Route exists but is still behind module key mismatch
+
+You listed modules as lowercase: ['appointments','patients','services','billing'].
+If the UI checks uppercase keys (“PATIENTS”), it could show the menu but block actions.
+
+✅ Fix
+Standardize module keys (all lowercase or all uppercase) across:
+
+BUSINESS_TYPE_MODULES
+
+nav items module field
+
+guards
+
+3) “Add service” UI posts wrong payload / tenantId missing
+
+Often clinic is the first business type to hit a different schema and the endpoint rejects.
+
+✅ Check quickly
+Try create service/patient and look at Network:
+
+status code
+
+error message
+
+If it’s 403 → permission
+If it’s 404 → route missing
+If it’s 400/500 → DTO/schema mismatch
+
+The fastest way to confirm what’s still broken (no guessing)
+
+Do these 3 “truth checks”:
+
+1) What route happens on first Settings click?
+
+Open DevTools Console and log:
+
+window.location.pathname after first click
+If it changes to /settings/profile then navigation works—issue is drawer UX.
+
+2) What does /api/tenant return?
+
+Hit it directly in browser.
+If it returns India/INR → server/DB issue, not UI.
+
+3) What error do you get when adding patient/service?
+
+Check the Network response JSON.
