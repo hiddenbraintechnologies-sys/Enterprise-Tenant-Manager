@@ -1,0 +1,196 @@
+Here’s an optimized computeAnomalyScore() that keeps your behavior but fixes the big inefficiencies:
+
+✅ Active session count computed in SQL (no JS filtering)
+
+✅ DB load reduced via throttled cache (per user+tenant+fingerprint)
+
+✅ Uses partial indexes cleanly
+
+✅ Returns safe defaults (non-fatal) exactly like you want
+
+✅ Designed for login + refresh usage
+
+I’m giving you:
+
+recommended DB indexes
+
+the optimized function (drop-in)
+
+optional “recent check” persistence if you want cross-instance throttling
+
+1) Indexes to add (match your queries)
+A) Active sessions partial index (critical)
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active_tenant_user
+ON user_sessions (tenant_id, user_id, last_seen_at)
+WHERE revoked_at IS NULL;
+
+B) Device/location lookup index (optional but helps)
+CREATE INDEX IF NOT EXISTS idx_user_sessions_fingerprint
+ON user_sessions (tenant_id, user_id, device_fingerprint)
+WHERE revoked_at IS NULL;
+
+2) Optimized implementation (drop-in)
+server/security/computeAnomalyScore.ts
+import { db } from "@/server/db";
+import { userSessions } from "@/shared/schema";
+import { and, eq, desc, isNull, sql } from "drizzle-orm";
+
+type AnomalyInput = {
+  tenantId: string;
+  userId: string;
+  staffId?: string | null;
+
+  deviceFingerprint?: string | null;
+  country?: string | null;
+  city?: string | null;
+
+  // tuning
+  activeSessionThreshold?: number; // default 5
+  lookbackLimit?: number;          // default 12
+  cacheTtlMs?: number;             // default 60s
+};
+
+type AnomalyResult = {
+  score: number;
+  reasons: string[];
+  activeSessionCount: number;
+  lookedBack: number;
+  cached?: boolean;
+};
+
+const memCache = new Map<string, { at: number; value: AnomalyResult }>();
+
+function cacheKey(i: AnomalyInput) {
+  // fingerprint included so new device re-checks immediately
+  return [
+    i.tenantId,
+    i.userId,
+    i.staffId ?? "-",
+    i.deviceFingerprint ?? "-",
+    i.country ?? "-",
+    i.city ?? "-",
+  ].join("|");
+}
+
+export async function computeAnomalyScoreOptimized(input: AnomalyInput): Promise<AnomalyResult> {
+  const activeSessionThreshold = input.activeSessionThreshold ?? 5;
+  const lookbackLimit = input.lookbackLimit ?? 12;
+  const cacheTtlMs = input.cacheTtlMs ?? 60_000;
+
+  // ---- cheap throttle (per process) ----
+  const key = cacheKey(input);
+  const cached = memCache.get(key);
+  if (cached && Date.now() - cached.at < cacheTtlMs) {
+    return { ...cached.value, cached: true };
+  }
+
+  // ---- Query 1: active session count in SQL (fast + indexed) ----
+  // Only counts non-revoked
+  const activeCountRows = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(userSessions)
+    .where(
+      and(
+        eq(userSessions.tenantId, input.tenantId),
+        eq(userSessions.userId, input.userId),
+        isNull(userSessions.revokedAt)
+      )
+    );
+
+  const activeSessionCount = Number(activeCountRows?.[0]?.count ?? 0);
+
+  // ---- Query 2: recent sessions snapshot (small, ordered) ----
+  // Use this for "known devices/countries/cities"
+  const recent = await db.query.userSessions.findMany({
+    where: and(
+      eq(userSessions.tenantId, input.tenantId),
+      eq(userSessions.userId, input.userId)
+      // NOTE: we intentionally include revoked too, because it’s still “known history”
+    ),
+    orderBy: (s, { desc }) => [desc(s.lastSeenAt)],
+    limit: lookbackLimit,
+    columns: {
+      deviceFingerprint: true,
+      country: true,
+      city: true,
+      revokedAt: true,
+      lastSeenAt: true,
+    },
+  });
+
+  // ---- scoring ----
+  let score = 0;
+  const reasons: string[] = [];
+
+  const knownDevices = new Set(recent.map(r => r.deviceFingerprint).filter(Boolean) as string[]);
+  const knownCountries = new Set(recent.map(r => r.country).filter(Boolean) as string[]);
+  const knownCities = new Set(recent.map(r => r.city).filter(Boolean) as string[]);
+
+  if (input.deviceFingerprint && knownDevices.size && !knownDevices.has(input.deviceFingerprint)) {
+    score += 30; reasons.push("NEW_DEVICE");
+  }
+  if (input.country && knownCountries.size && !knownCountries.has(input.country)) {
+    score += 25; reasons.push("NEW_COUNTRY");
+  }
+  if (input.city && knownCities.size && !knownCities.has(input.city)) {
+    score += 10; reasons.push("NEW_CITY");
+  }
+
+  if (activeSessionCount >= activeSessionThreshold) {
+    score += 20; reasons.push("MANY_ACTIVE_SESSIONS");
+  }
+
+  const result: AnomalyResult = {
+    score,
+    reasons,
+    activeSessionCount,
+    lookedBack: recent.length,
+  };
+
+  memCache.set(key, { at: Date.now(), value: result });
+  return result;
+}
+
+Why this is better
+
+Active sessions: 1 indexed COUNT query instead of fetching then filtering
+
+Recent history: limited to lookbackLimit (default 12)
+
+Cache: prevents repeated DB hits if UI does login retries or refresh loops
+
+3) Optional: cross-instance throttling (recommended for multi-server)
+
+If you run multiple instances, in-memory cache won’t help across nodes.
+You can store “last checked at” in DB (or Redis).
+
+Simple DB approach (no new table)
+
+Use tenant_staff.lastLoginAt as a coarse gate (if that’s acceptable), or add a dedicated column like lastAnomalyCheckAt.
+
+If you want the clean version, add:
+
+ALTER TABLE tenant_staff ADD COLUMN last_anomaly_check_at TIMESTAMP NULL;
+
+
+Then skip scoring if checked within 60s.
+
+4) Minimal change inside your login/refresh flow
+
+Replace your existing function call with:
+
+const anomaly = await computeAnomalyScoreOptimized({
+  tenantId,
+  userId,
+  staffId,
+  deviceFingerprint,
+  country,
+  city,
+});
+
+
+And keep your step-up thresholds exactly as you already planned.
+
+5) One more improvement (tiny but high value)
+
+When you update user_sessions.lastSeenAt, throttle it (every 2–5 mins) to reduce write pressure.

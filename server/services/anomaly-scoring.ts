@@ -1,14 +1,18 @@
 import { db } from "../db";
 import { userSessions } from "@shared/schema";
-import { and, eq, desc, isNull } from "drizzle-orm";
+import { and, eq, desc, isNull, sql } from "drizzle-orm";
 
 export interface AnomalyScoreParams {
   tenantId: string;
   userId: string;
-  deviceFingerprint?: string;
-  country?: string;
-  city?: string;
-  ipAddress?: string;
+  staffId?: string | null;
+  deviceFingerprint?: string | null;
+  country?: string | null;
+  city?: string | null;
+  ipAddress?: string | null;
+  activeSessionThreshold?: number;
+  lookbackLimit?: number;
+  cacheTtlMs?: number;
 }
 
 export interface AnomalyScoreResult {
@@ -16,6 +20,9 @@ export interface AnomalyScoreResult {
   reasons: string[];
   requiresStepUp: boolean;
   requiresForceLogout: boolean;
+  activeSessionCount: number;
+  lookedBack: number;
+  cached?: boolean;
 }
 
 const SCORE_NEW_DEVICE = 30;
@@ -27,32 +34,119 @@ const SCORE_REUSE_DETECTED = 100;
 const THRESHOLD_STEP_UP = 60;
 const THRESHOLD_FORCE_LOGOUT = 90;
 
+const memCache = new Map<string, { at: number; value: AnomalyScoreResult }>();
+
+function cacheKey(params: AnomalyScoreParams): string {
+  return [
+    params.tenantId,
+    params.userId,
+    params.staffId ?? "-",
+    params.deviceFingerprint ?? "-",
+    params.country ?? "-",
+    params.city ?? "-",
+  ].join("|");
+}
+
 /**
  * Compute an anomaly score for a login/refresh attempt.
  * Higher scores indicate more suspicious activity.
  * 
- * IMPORTANT: This function is non-fatal - if DB errors occur,
- * it returns a safe default score with ANOMALY_CHECK_SKIPPED reason.
+ * OPTIMIZED VERSION:
+ * - Active session count via indexed SQL COUNT (not JS filtering)
+ * - Per-user throttled cache (60s default) to reduce DB load
+ * - Uses partial indexes on revoked_at IS NULL
+ * - Non-fatal: returns safe defaults on DB errors
  */
 export async function computeAnomalyScore(
   params: AnomalyScoreParams
 ): Promise<AnomalyScoreResult> {
-  const { tenantId, userId, deviceFingerprint, country, city, ipAddress } = params;
+  const activeSessionThreshold = params.activeSessionThreshold ?? 5;
+  const lookbackLimit = params.lookbackLimit ?? 12;
+  const cacheTtlMs = params.cacheTtlMs ?? 60_000;
 
-  let recentSessions: typeof userSessions.$inferSelect[] = [];
+  const key = cacheKey(params);
+  const cached = memCache.get(key);
+  if (cached && Date.now() - cached.at < cacheTtlMs) {
+    return { ...cached.value, cached: true };
+  }
 
   try {
-    recentSessions = await db
-      .select()
-      .from(userSessions)
-      .where(
-        and(
-          eq(userSessions.tenantId, tenantId),
-          eq(userSessions.userId, userId)
+    const [activeCountResult, recentSessions] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(userSessions)
+        .where(
+          and(
+            eq(userSessions.tenantId, params.tenantId),
+            eq(userSessions.userId, params.userId),
+            isNull(userSessions.revokedAt)
+          )
+        ),
+      db
+        .select({
+          deviceFingerprint: userSessions.deviceFingerprint,
+          country: userSessions.country,
+          city: userSessions.city,
+          revokedAt: userSessions.revokedAt,
+          lastSeenAt: userSessions.lastSeenAt,
+        })
+        .from(userSessions)
+        .where(
+          and(
+            eq(userSessions.tenantId, params.tenantId),
+            eq(userSessions.userId, params.userId)
+          )
         )
-      )
-      .orderBy(desc(userSessions.lastSeenAt))
-      .limit(10);
+        .orderBy(desc(userSessions.lastSeenAt))
+        .limit(lookbackLimit),
+    ]);
+
+    const activeSessionCount = Number(activeCountResult?.[0]?.count ?? 0);
+
+    let score = 0;
+    const reasons: string[] = [];
+
+    const knownDevices = new Set(
+      recentSessions.map(r => r.deviceFingerprint).filter(Boolean) as string[]
+    );
+    const knownCountries = new Set(
+      recentSessions.map(r => r.country).filter(Boolean) as string[]
+    );
+    const knownCities = new Set(
+      recentSessions.map(r => r.city).filter(Boolean) as string[]
+    );
+
+    if (params.deviceFingerprint && knownDevices.size > 0 && !knownDevices.has(params.deviceFingerprint)) {
+      score += SCORE_NEW_DEVICE;
+      reasons.push("NEW_DEVICE");
+    }
+
+    if (params.country && knownCountries.size > 0 && !knownCountries.has(params.country)) {
+      score += SCORE_NEW_COUNTRY;
+      reasons.push("NEW_COUNTRY");
+    }
+
+    if (params.city && knownCities.size > 0 && !knownCities.has(params.city)) {
+      score += SCORE_NEW_CITY;
+      reasons.push("NEW_CITY");
+    }
+
+    if (activeSessionCount >= activeSessionThreshold) {
+      score += SCORE_MANY_ACTIVE_SESSIONS;
+      reasons.push("MANY_ACTIVE_SESSIONS");
+    }
+
+    const result: AnomalyScoreResult = {
+      score,
+      reasons,
+      requiresStepUp: score >= THRESHOLD_STEP_UP,
+      requiresForceLogout: score >= THRESHOLD_FORCE_LOGOUT,
+      activeSessionCount,
+      lookedBack: recentSessions.length,
+    };
+
+    memCache.set(key, { at: Date.now(), value: result });
+    return result;
   } catch (error) {
     console.error("[anomaly-scoring] ANOMALY_SCORE_FAILED - database error, skipping check:", error);
     return {
@@ -60,52 +154,10 @@ export async function computeAnomalyScore(
       reasons: ["ANOMALY_CHECK_SKIPPED"],
       requiresStepUp: false,
       requiresForceLogout: false,
+      activeSessionCount: 0,
+      lookedBack: 0,
     };
   }
-
-  let score = 0;
-  const reasons: string[] = [];
-
-  const knownDevices = new Set(
-    recentSessions.map(r => r.deviceFingerprint).filter(Boolean)
-  );
-  const knownCountries = new Set(
-    recentSessions.map(r => r.country).filter(Boolean)
-  );
-  const knownCities = new Set(
-    recentSessions.map(r => r.city).filter(Boolean)
-  );
-  const knownIps = new Set(
-    recentSessions.map(r => r.ipAddress).filter(Boolean)
-  );
-
-  if (deviceFingerprint && knownDevices.size > 0 && !knownDevices.has(deviceFingerprint)) {
-    score += SCORE_NEW_DEVICE;
-    reasons.push("NEW_DEVICE");
-  }
-
-  if (country && knownCountries.size > 0 && !knownCountries.has(country)) {
-    score += SCORE_NEW_COUNTRY;
-    reasons.push("NEW_COUNTRY");
-  }
-
-  if (city && knownCities.size > 0 && !knownCities.has(city)) {
-    score += SCORE_NEW_CITY;
-    reasons.push("NEW_CITY");
-  }
-
-  const activeSessions = recentSessions.filter(r => !r.revokedAt);
-  if (activeSessions.length >= 5) {
-    score += SCORE_MANY_ACTIVE_SESSIONS;
-    reasons.push("MANY_ACTIVE_SESSIONS");
-  }
-
-  return {
-    score,
-    reasons,
-    requiresStepUp: score >= THRESHOLD_STEP_UP,
-    requiresForceLogout: score >= THRESHOLD_FORCE_LOGOUT,
-  };
 }
 
 /**
@@ -113,6 +165,7 @@ export async function computeAnomalyScore(
  */
 export function addReuseDetectionScore(result: AnomalyScoreResult): AnomalyScoreResult {
   return {
+    ...result,
     score: result.score + SCORE_REUSE_DETECTED,
     reasons: [...result.reasons, "TOKEN_REUSE_DETECTED"],
     requiresStepUp: true,
@@ -143,4 +196,19 @@ export function getAnomalySummary(result: AnomalyScoreResult): string {
     return `Minor anomalies detected: ${result.reasons.join(", ")}`;
   }
   return "No anomalies detected";
+}
+
+/**
+ * Clear the anomaly cache (useful for testing or after force logout).
+ */
+export function clearAnomalyCache(tenantId?: string, userId?: string): void {
+  if (tenantId && userId) {
+    for (const key of memCache.keys()) {
+      if (key.startsWith(`${tenantId}|${userId}|`)) {
+        memCache.delete(key);
+      }
+    }
+  } else {
+    memCache.clear();
+  }
 }
