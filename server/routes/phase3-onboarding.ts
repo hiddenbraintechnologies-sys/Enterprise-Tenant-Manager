@@ -19,6 +19,16 @@ import { seedTenantRolesIfMissing, getOwnerRoleId } from "../services/rbac/seed-
 
 const router = Router();
 
+// Country to timezone/currency mapping
+const COUNTRY_DEFAULTS: Record<string, { timezone: string; currency: string }> = {
+  india: { timezone: "Asia/Kolkata", currency: "INR" },
+  malaysia: { timezone: "Asia/Kuala_Lumpur", currency: "MYR" },
+  uk: { timezone: "Europe/London", currency: "GBP" },
+  uae: { timezone: "Asia/Dubai", currency: "AED" },
+  singapore: { timezone: "Asia/Singapore", currency: "SGD" },
+  other: { timezone: "UTC", currency: "USD" },
+};
+
 const tenantSignupSchema = z.object({
   tenantName: z.string().min(1, "Business name is required").max(200),
   domain: z.string().min(1).max(100).optional(),
@@ -115,12 +125,17 @@ router.post("/signup", rateLimit({ windowMs: 60 * 1000, maxRequests: 5 }), async
 
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
+    // Get timezone/currency defaults for the country
+    const countryDefaults = COUNTRY_DEFAULTS[country] || COUNTRY_DEFAULTS.other;
+
     const result = await db.transaction(async (tx) => {
       const [newTenant] = await tx.insert(tenants).values({
         name: tenantName,
         slug: subdomain?.toLowerCase(),
         businessType: businessType,
         country: country,
+        timezone: countryDefaults.timezone,
+        currency: countryDefaults.currency,
         email: adminEmail,
         phone: phone,
         status: "active",
