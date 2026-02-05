@@ -1,0 +1,149 @@
+Here’s a tight, practical plan for all three (with copy-pasteable patterns). You can do them in this order.
+
+1) Clean up LegacyTenantRole references (so nothing re-breaks)
+A. Find all remaining usage
+
+Search repo for:
+
+TENANT_ADMIN
+
+TENANT_STAFF
+
+TENANT_VIEWER
+
+LegacyTenantRole
+
+Role === "TENANT_ (comparisons)
+
+B. Replace role-string checks with permission checks
+
+Bad (legacy):
+
+if (role === "TENANT_ADMIN") { ... }
+
+
+Good (RBAC):
+
+if (hasPermission(ctx, "STAFF_MANAGE")) { ... }
+
+
+Create a single helper if you don’t already have it:
+
+export function hasPermission(ctx: { permissions?: string[] }, perm: string) {
+  return (ctx.permissions ?? []).includes(perm);
+}
+
+C. Replace “default role logic” from legacy → DB role
+
+Anywhere you do “if viewer/staff/admin then …”:
+
+map it to tenant role name or permission set.
+
+Example:
+
+const isAdminLike = hasPermission(ctx, "RBAC_ROLE_MANAGE") || hasPermission(ctx, "SETTINGS_MANAGE");
+
+D. Stop exporting Role = PlatformRole | LegacyTenantRole if possible
+
+If tenant roles are now DB-driven, ideally:
+
+PlatformRole stays as union (SUPER_ADMIN etc.)
+
+Tenant side uses tenantRoleId + permission list
+
+If you must keep Role, confine it to platform-only code.
+
+2) Polish role picker UI (make it “Zoho-clear”)
+
+You currently use a dropdown <Select> for role assignment. Replace it with role cards + search, while keeping the save logic unchanged.
+
+A. Change Role dialog UX spec
+
+Search input
+
+List of role cards (name, description, Default/System badges)
+
+Highlight selected
+
+Show “Current role” at top
+
+B. Role card fields needed from API
+
+Return for each role:
+
+id, name, description, isDefault, isSystem
+
+permissionCount (optional but nice)
+
+C. Default selection
+
+Preselect current role
+
+If adding staff: preselect isDefault === true, else Staff fallback
+
+D. Permission editor only for “Customize role”
+
+Don’t show raw permissions in the “Change role” dialog. Keep that inside Create/Edit role flow only.
+
+3) Security headers & image upload limits (before launch)
+A. Security headers (Express)
+
+Add a middleware early (or use helmet if you already have it). Minimal set:
+
+Content-Security-Policy (start relaxed, tighten later)
+
+X-Content-Type-Options: nosniff
+
+Referrer-Policy: strict-origin-when-cross-origin
+
+X-Frame-Options: DENY (or CSP frame-ancestors 'none')
+
+Permissions-Policy (disable camera/mic unless needed)
+
+If you use helmet, ensure CSP won’t break your app assets (start with report-only if worried).
+
+B. Upload limits (critical)
+
+You already pass { contentType, size } to /prepare. Enforce:
+
+Server-side validation on /prepare
+
+Max size: e.g. 2MB (or 5MB)
+
+Allowed types: image/jpeg, image/png, image/webp
+
+Reject everything else
+
+Example rules:
+
+size <= 2_000_000
+
+contentType in allowlist
+
+C. Filename/key safety
+
+Your storage key pattern should not include user input:
+
+✅ public/avatars/${user.id}.${ext}
+
+Ensure ext is derived from allowlist only (not from filename)
+
+D. Cache control for avatars
+
+If avatars are served with long cache headers, rely on your ?v= query param (you already do). Even better:
+
+set cache headers on avatar objects to moderate TTL (e.g. 1 day)
+
+keep query param busting
+
+E. Rate limit avatar endpoints
+
+Add light rate limiting to:
+
+/api/me/avatar/prepare
+
+/api/me/avatar/confirm
+
+/api/me/avatar/remove
+
+This prevents abuse.
