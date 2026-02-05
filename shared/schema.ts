@@ -1023,6 +1023,58 @@ export type TenantIpRule = typeof tenantIpRules.$inferSelect;
 export type InsertTenantIpRule = z.infer<typeof insertTenantIpRuleSchema>;
 
 // ============================================
+// SECURITY: IMPERSONATION SESSIONS
+// ============================================
+
+export const impersonationSessions = pgTable("impersonation_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  
+  actorUserId: varchar("actor_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  targetStaffId: varchar("target_staff_id").notNull().references(() => tenantStaff.id, { onDelete: "cascade" }),
+  
+  // TTL
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: text("revoke_reason"),
+  
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_imp_sessions_tenant").on(table.tenantId, table.createdAt),
+  index("idx_imp_sessions_actor").on(table.actorUserId),
+  index("idx_imp_sessions_target").on(table.targetStaffId),
+]);
+
+export const insertImpersonationSessionSchema = createInsertSchema(impersonationSessions).omit({ id: true, createdAt: true });
+export type ImpersonationSession = typeof impersonationSessions.$inferSelect;
+export type InsertImpersonationSession = z.infer<typeof insertImpersonationSessionSchema>;
+
+// ============================================
+// SECURITY: CSP REPORTS
+// ============================================
+
+export const cspReports = pgTable("csp_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentUri: text("document_uri"),
+  blockedUri: text("blocked_uri"),
+  violatedDirective: varchar("violated_directive", { length: 100 }),
+  effectiveDirective: varchar("effective_directive", { length: 100 }),
+  originalPolicy: text("original_policy"),
+  disposition: varchar("disposition", { length: 20 }),
+  referrer: text("referrer"),
+  sourceFile: text("source_file"),
+  lineNumber: integer("line_number"),
+  columnNumber: integer("column_number"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => [
+  index("idx_csp_reports_created").on(table.createdAt),
+  index("idx_csp_reports_directive").on(table.violatedDirective),
+]);
+
+export type CspReport = typeof cspReports.$inferSelect;
+
+// ============================================
 // SECURITY: KNOWN DEVICES
 // ============================================
 

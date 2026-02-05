@@ -32,6 +32,8 @@ export const securityHeadersMiddleware = helmet({
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      reportUri: ["/api/security/csp-report"],
       upgradeInsecureRequests: isProduction ? [] : null,
     },
   },

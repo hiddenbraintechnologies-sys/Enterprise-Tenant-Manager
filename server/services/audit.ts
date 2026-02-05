@@ -31,13 +31,18 @@ function eventToAction(event: AuditEvent): AuditAction {
   return "access";
 }
 
-function diffPermissions(before: string[], after: string[]): { added: string[]; removed: string[] } {
+function diffPermissions(before: string[], after: string[]): { added: string[]; removed: string[]; unchanged: number } {
   const beforeSet = new Set(before);
   const afterSet = new Set(after);
   return {
     added: after.filter(p => !beforeSet.has(p)),
     removed: before.filter(p => !afterSet.has(p)),
+    unchanged: after.filter(p => beforeSet.has(p)).length,
   };
+}
+
+export function computePermissionDiff(prev: string[], next: string[]) {
+  return diffPermissions(prev, next);
 }
 
 export async function logRoleEvent(

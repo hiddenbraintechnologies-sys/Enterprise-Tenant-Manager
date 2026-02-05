@@ -5,7 +5,7 @@ import { storage } from "../../storage";
 import { requireTenantPermission } from "../../middleware/tenant-permission";
 import { Permissions, PERMISSION_GROUPS, DEFAULT_TENANT_ROLES } from "@shared/rbac/permissions";
 import { insertTenantRoleSchema, insertTenantStaffSchema } from "@shared/schema";
-import { logRoleEvent, logStaffEvent } from "../../services/audit";
+import { logRoleEvent, logStaffEvent, computePermissionDiff } from "../../services/audit";
 import { getLoginHistory } from "../../services/login-history";
 import { seedTenantRolesIfMissing, getOwnerRoleId } from "../../services/rbac/seed-tenant-roles";
 
@@ -176,20 +176,32 @@ router.put("/roles/:id",
 
       const updatedPermissions = await storage.getTenantRolePermissions(req.params.id);
 
+      const oldPermList = oldPermissions.map(p => p.permission);
+      const newPermList = updatedPermissions.map(p => p.permission);
+      const diff = computePermissionDiff(oldPermList, newPermList);
+
       if (role) {
         await logRoleEvent("ROLE_UPDATED", {
           tenantId: context.tenantId,
           actorUserId: context.userId,
           roleId: role.id,
           roleName: role.name,
-          oldPermissions: oldPermissions.map(p => p.permission),
-          newPermissions: updatedPermissions.map(p => p.permission),
+          oldPermissions: oldPermList,
+          newPermissions: newPermList,
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
         });
       }
 
-      return res.json({ ...role, permissions: updatedPermissions.map(p => p.permission) });
+      return res.json({ 
+        ...role, 
+        permissions: newPermList,
+        diff: {
+          added: diff.added,
+          removed: diff.removed,
+          unchanged: diff.unchanged,
+        },
+      });
     } catch (error) {
       console.error("[settings/roles] Error updating role:", error);
       return res.status(500).json({ error: "Failed to update role" });
@@ -229,20 +241,29 @@ router.put("/roles/:id/permissions",
       
       const updatedPermissions = await storage.getTenantRolePermissions(req.params.id);
 
+      const oldPermList = oldPermissions.map(p => p.permission);
+      const newPermList = updatedPermissions.map(p => p.permission);
+      const diff = computePermissionDiff(oldPermList, newPermList);
+
       await logRoleEvent("ROLE_PERMISSIONS_UPDATED", {
         tenantId: context.tenantId,
         actorUserId: context.userId,
         roleId: existingRole.id,
         roleName: existingRole.name,
-        oldPermissions: oldPermissions.map(p => p.permission),
-        newPermissions: updatedPermissions.map(p => p.permission),
+        oldPermissions: oldPermList,
+        newPermissions: newPermList,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent"),
       });
 
       return res.json({ 
         ...existingRole, 
-        permissions: updatedPermissions.map(p => p.permission) 
+        permissions: newPermList,
+        diff: {
+          added: diff.added,
+          removed: diff.removed,
+          unchanged: diff.unchanged,
+        },
       });
     } catch (error) {
       console.error("[settings/roles] Error updating permissions:", error);

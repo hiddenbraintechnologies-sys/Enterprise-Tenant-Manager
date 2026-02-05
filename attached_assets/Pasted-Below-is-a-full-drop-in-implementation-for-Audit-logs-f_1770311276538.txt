@@ -1,0 +1,549 @@
+Below is a full, drop-in implementation for:
+
+Audit logs for role changes
+
+“View as staff” impersonation
+
+Permission diff UI when editing roles
+
+CSP tightening with report-only monitoring
+
+I’m matching your patterns:
+
+Express routes in server/routes.ts
+
+authenticateJWT() middleware
+
+DB-driven roles: tenant_roles, tenant_role_permissions, tenant_staff
+
+React Query + shadcn UI on the client
+
+1) Audit Logs for Role Changes
+1.1 Drizzle schema (shared/schema.ts)
+import { pgTable, varchar, text, timestamp, jsonb, index, integer } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { tenants, users, tenantStaff } from "./schema"; // adjust import to your file structure
+
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+
+  // who performed the action
+  actorUserId: varchar("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  actorStaffId: varchar("actor_staff_id").references(() => tenantStaff.id, { onDelete: "set null" }),
+
+  // impersonation context (optional)
+  impersonatedStaffId: varchar("impersonated_staff_id").references(() => tenantStaff.id, { onDelete: "set null" }),
+
+  action: varchar("action", { length: 80 }).notNull(),        // e.g. ROLE_UPDATED, STAFF_ROLE_CHANGED
+  entityType: varchar("entity_type", { length: 80 }).notNull(),// tenant_role, tenant_staff, tenant_role_permission
+  entityId: varchar("entity_id").notNull(),
+
+  // before/after snapshots (small JSON)
+  before: jsonb("before"),
+  after: jsonb("after"),
+
+  // request metadata
+  ip: varchar("ip", { length: 64 }),
+  userAgent: text("user_agent"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index("idx_audit_logs_tenant_created").on(t.tenantId, t.createdAt),
+  index("idx_audit_logs_entity").on(t.tenantId, t.entityType, t.entityId),
+  index("idx_audit_logs_actor").on(t.tenantId, t.actorUserId),
+]);
+
+1.2 Audit helper (server/services/audit.ts)
+import { auditLogs } from "@/shared/schema";
+import type { Request } from "express";
+
+type AuditContext = {
+  tenantId: string;
+  actorUserId?: string | null;
+  actorStaffId?: string | null;
+  impersonatedStaffId?: string | null;
+};
+
+export async function writeAuditLog(tx: any, req: Request, ctx: AuditContext, params: {
+  action: string;
+  entityType: string;
+  entityId: string;
+  before?: any;
+  after?: any;
+}) {
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    req.socket.remoteAddress ||
+    null;
+
+  const userAgent = (req.headers["user-agent"] as string) || null;
+
+  await tx.insert(auditLogs).values({
+    tenantId: ctx.tenantId,
+    actorUserId: ctx.actorUserId ?? null,
+    actorStaffId: ctx.actorStaffId ?? null,
+    impersonatedStaffId: ctx.impersonatedStaffId ?? null,
+
+    action: params.action,
+    entityType: params.entityType,
+    entityId: params.entityId,
+
+    before: params.before ?? null,
+    after: params.after ?? null,
+
+    ip,
+    userAgent,
+  });
+}
+
+1.3 Audit actions you should log
+
+Use these string constants consistently:
+
+ROLE_CREATED
+
+ROLE_UPDATED
+
+ROLE_DELETED
+
+ROLE_PERMISSIONS_UPDATED
+
+STAFF_ROLE_CHANGED
+
+IMPERSONATION_STARTED
+
+IMPERSONATION_STOPPED
+
+2) “View as staff” (Impersonation) for Admins
+2.1 DB table (shared/schema.ts)
+import { pgTable, varchar, timestamp, index, text } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { tenants, users, tenantStaff } from "./schema";
+
+export const impersonationSessions = pgTable("impersonation_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+
+  actorUserId: varchar("actor_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  targetStaffId: varchar("target_staff_id").notNull().references(() => tenantStaff.id, { onDelete: "cascade" }),
+
+  // TTL
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: text("revoke_reason"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index("idx_imp_sessions_tenant").on(t.tenantId, t.createdAt),
+  index("idx_imp_sessions_actor").on(t.actorUserId),
+  index("idx_imp_sessions_target").on(t.targetStaffId),
+]);
+
+2.2 Middleware: load impersonation (server/middleware/impersonation.ts)
+
+This uses an HTTP header: x-impersonation-token (session id).
+
+import { impersonationSessions, tenantStaff, tenantRoles, tenantRolePermissions } from "@/shared/schema";
+import { and, eq, isNull, gt } from "drizzle-orm";
+
+export async function applyImpersonationContext(db: any) {
+  return async (req: any, res: any, next: any) => {
+    const token = req.headers["x-impersonation-token"] as string | undefined;
+    if (!token) return next();
+
+    // Must already have tenant context + authenticated user
+    const user = req.user;
+    const tenantId = req.tenant?.id || req.context?.tenant?.id;
+    if (!user || !tenantId) return next();
+
+    const now = new Date();
+
+    const session = await db.query.impersonationSessions.findFirst({
+      where: and(
+        eq(impersonationSessions.id, token),
+        eq(impersonationSessions.tenantId, tenantId),
+        isNull(impersonationSessions.revokedAt),
+        gt(impersonationSessions.expiresAt, now)
+      ),
+      columns: { id: true, actorUserId: true, targetStaffId: true, expiresAt: true },
+    });
+
+    if (!session) return next();
+
+    // Ensure actor matches current user (prevents token reuse by other users)
+    if (session.actorUserId !== user.id) return next();
+
+    // Load target staff + role + permissions
+    const target = await db.query.tenantStaff.findFirst({
+      where: and(eq(tenantStaff.id, session.targetStaffId), eq(tenantStaff.tenantId, tenantId)),
+      columns: { id: true, tenantRoleId: true, fullName: true, email: true, status: true },
+    });
+
+    if (!target || target.status !== "active") return next();
+
+    const roleId = target.tenantRoleId;
+    let permissions: string[] = [];
+
+    if (roleId) {
+      const perms = await db.select({ permission: tenantRolePermissions.permission })
+        .from(tenantRolePermissions)
+        .where(eq(tenantRolePermissions.tenantRoleId, roleId));
+      permissions = perms.map(p => p.permission);
+    }
+
+    // Attach impersonation context for downstream permission checks + audit logs
+    req.impersonation = {
+      sessionId: session.id,
+      actorUserId: session.actorUserId,
+      targetStaffId: target.id,
+      target: { fullName: target.fullName, email: target.email },
+      expiresAt: session.expiresAt,
+    };
+
+    // IMPORTANT: effective permissions become target's permissions
+    req.effectivePermissions = permissions;
+
+    return next();
+  };
+}
+
+2.3 Permission guard pattern (server/middleware/requirePermission.ts)
+
+Your app likely already has this, but here’s the standard approach:
+
+export function requirePermission(permission: string) {
+  return (req: any, res: any, next: any) => {
+    const perms: string[] =
+      req.effectivePermissions || req.context?.permissions || req.permissions || [];
+
+    if (!perms.includes(permission)) {
+      return res.status(403).json({ error: "FORBIDDEN", message: "Insufficient permissions" });
+    }
+    next();
+  };
+}
+
+2.4 Start/Stop endpoints (server/routes.ts)
+Start impersonation
+
+Requires a permission like IMPERSONATE_STAFF (add it to Owner/Admin defaults)
+
+import { impersonationSessions, tenantStaff } from "@/shared/schema";
+import { writeAuditLog } from "@/server/services/audit";
+import { and, eq } from "drizzle-orm";
+
+app.post(
+  "/api/admin/impersonate/start",
+  authenticateJWT(),
+  requirePermission("IMPERSONATE_STAFF"),
+  async (req: any, res) => {
+    const user = req.user;
+    const tenantId = req.tenant.id;
+
+    const { staffId } = req.body as { staffId: string };
+    if (!staffId) return res.status(400).json({ error: "VALIDATION_ERROR", message: "staffId required" });
+
+    const target = await db.query.tenantStaff.findFirst({
+      where: and(eq(tenantStaff.id, staffId), eq(tenantStaff.tenantId, tenantId)),
+      columns: { id: true, fullName: true, email: true, status: true },
+    });
+    if (!target) return res.status(404).json({ error: "NOT_FOUND", message: "Staff not found" });
+    if (target.status !== "active") return res.status(400).json({ error: "INVALID_STATE", message: "Staff not active" });
+
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min
+
+    const result = await db.transaction(async (tx: any) => {
+      const [session] = await tx.insert(impersonationSessions).values({
+        tenantId,
+        actorUserId: user.id,
+        targetStaffId: target.id,
+        expiresAt,
+      }).returning({ id: impersonationSessions.id, expiresAt: impersonationSessions.expiresAt });
+
+      await writeAuditLog(tx, req, {
+        tenantId,
+        actorUserId: user.id,
+        actorStaffId: req.staff?.id ?? null,
+        impersonatedStaffId: target.id,
+      }, {
+        action: "IMPERSONATION_STARTED",
+        entityType: "impersonation_session",
+        entityId: session.id,
+        before: null,
+        after: { targetStaffId: target.id, expiresAt: session.expiresAt },
+      });
+
+      return session;
+    });
+
+    return res.json({ success: true, impersonationToken: result.id, expiresAt: result.expiresAt, target });
+  }
+);
+
+Stop impersonation
+import { impersonationSessions } from "@/shared/schema";
+import { writeAuditLog } from "@/server/services/audit";
+import { eq, and } from "drizzle-orm";
+
+app.post("/api/admin/impersonate/stop", authenticateJWT(), async (req: any, res) => {
+  const user = req.user;
+  const tenantId = req.tenant.id;
+
+  const { token } = req.body as { token: string };
+  if (!token) return res.status(400).json({ error: "VALIDATION_ERROR", message: "token required" });
+
+  await db.transaction(async (tx: any) => {
+    await tx.update(impersonationSessions).set({
+      revokedAt: new Date(),
+      revokeReason: "stopped",
+    }).where(and(
+      eq(impersonationSessions.id, token),
+      eq(impersonationSessions.tenantId, tenantId),
+      eq(impersonationSessions.actorUserId, user.id)
+    ));
+
+    await writeAuditLog(tx, req, {
+      tenantId,
+      actorUserId: user.id,
+      actorStaffId: req.staff?.id ?? null,
+      impersonatedStaffId: req.impersonation?.targetStaffId ?? null,
+    }, {
+      action: "IMPERSONATION_STOPPED",
+      entityType: "impersonation_session",
+      entityId: token,
+      before: null,
+      after: { revokedAt: new Date().toISOString(), reason: "stopped" },
+    });
+  });
+
+  res.json({ success: true });
+});
+
+2.5 Client UI (banner + exit)
+
+Store impersonationToken in memory (or localStorage) and attach it as a header in your fetcher
+
+Show a top banner while token exists:
+
+“Viewing as <name> — Exit”
+
+Exit calls stop endpoint then clears token
+
+3) Permission Diff UI When Editing Roles
+3.1 Backend: update role permissions endpoint returns diff
+
+When saving a role’s permissions:
+
+load current permissions
+
+compute added/removed
+
+apply changes
+
+return diff
+
+write audit with before/after and diff
+
+Example endpoint:
+
+import { tenantRoles, tenantRolePermissions } from "@/shared/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import { writeAuditLog } from "@/server/services/audit";
+
+function computeDiff(prev: string[], next: string[]) {
+  const prevSet = new Set(prev);
+  const nextSet = new Set(next);
+  const added = next.filter(p => !prevSet.has(p));
+  const removed = prev.filter(p => !nextSet.has(p));
+  return { added, removed };
+}
+
+app.put(
+  "/api/settings/staff-roles/roles/:roleId",
+  authenticateJWT(),
+  requirePermission("RBAC_ROLE_MANAGE"),
+  async (req: any, res) => {
+    const tenantId = req.tenant.id;
+    const roleId = req.params.roleId;
+    const { name, description, permissions } = req.body as {
+      name?: string;
+      description?: string;
+      permissions?: string[];
+    };
+
+    if (!Array.isArray(permissions)) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "permissions array required" });
+    }
+
+    const role = await db.query.tenantRoles.findFirst({
+      where: and(eq(tenantRoles.id, roleId), eq(tenantRoles.tenantId, tenantId)),
+    });
+    if (!role) return res.status(404).json({ error: "NOT_FOUND", message: "Role not found" });
+
+    const prevPermRows = await db.select({ permission: tenantRolePermissions.permission })
+      .from(tenantRolePermissions)
+      .where(eq(tenantRolePermissions.tenantRoleId, roleId));
+
+    const prevPerms = prevPermRows.map(r => r.permission);
+    const diff = computeDiff(prevPerms, permissions);
+
+    const updated = await db.transaction(async (tx: any) => {
+      // Update role fields
+      const [updatedRole] = await tx.update(tenantRoles).set({
+        name: name ?? role.name,
+        description: description ?? role.description,
+        updatedAt: new Date(),
+      }).where(eq(tenantRoles.id, roleId)).returning();
+
+      // Apply permissions (simple replace strategy)
+      await tx.delete(tenantRolePermissions).where(eq(tenantRolePermissions.tenantRoleId, roleId));
+      if (permissions.length) {
+        await tx.insert(tenantRolePermissions).values(
+          permissions.map((p) => ({ tenantRoleId: roleId, permission: p }))
+        );
+      }
+
+      await writeAuditLog(tx, req, {
+        tenantId,
+        actorUserId: req.user.id,
+        actorStaffId: req.staff?.id ?? null,
+        impersonatedStaffId: req.impersonation?.targetStaffId ?? null,
+      }, {
+        action: "ROLE_PERMISSIONS_UPDATED",
+        entityType: "tenant_role",
+        entityId: roleId,
+        before: { role: { id: role.id, name: role.name, description: role.description }, permissions: prevPerms },
+        after: { role: { id: updatedRole.id, name: updatedRole.name, description: updatedRole.description }, permissions },
+      });
+
+      return updatedRole;
+    });
+
+    res.json({ success: true, role: updated, diff });
+  }
+);
+
+3.2 Client: pre-save “diff confirmation” modal
+
+In staff-roles.tsx, before calling save mutation:
+
+compare originalPermissions vs selectedPermissions
+
+show a modal listing added/removed grouped by module prefix
+
+Minimal logic:
+
+function diffPerms(prev: string[], next: string[]) {
+  const prevSet = new Set(prev);
+  const nextSet = new Set(next);
+  return {
+    added: next.filter(p => !prevSet.has(p)),
+    removed: prev.filter(p => !nextSet.has(p)),
+  };
+}
+
+
+Modal shows:
+
+Added (green list)
+
+Removed (red list)
+
+“Confirm Save” button
+
+4) Tighten CSP Safely After Monitoring
+4.1 Add CSP Report endpoint
+app.post("/api/security/csp-report", (req, res) => {
+  // Browser sends JSON report. Keep it lightweight; you can store in DB later.
+  // For now: log it (or store last N in memory).
+  console.warn("[CSP REPORT]", JSON.stringify(req.body).slice(0, 5000));
+  res.status(204).end();
+});
+
+4.2 Helmet config: start with Report-Only
+
+Example Helmet config (adjust domains):
+
+import helmet from "helmet";
+
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'"],
+  styleSrc: ["'self'", "'unsafe-inline'"], // tighten later
+  imgSrc: ["'self'", "data:", "https:"],
+  connectSrc: ["'self'"], // add your APIs/storage domain if needed
+  fontSrc: ["'self'", "data:"],
+  objectSrc: ["'none'"],
+  baseUri: ["'self'"],
+  frameAncestors: ["'none'"],
+  upgradeInsecureRequests: [],
+  reportUri: ["/api/security/csp-report"],
+};
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: cspDirectives,
+    reportOnly: true, // ✅ monitor first
+  },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  frameguard: { action: "deny" },
+  noSniff: true,
+}));
+
+
+After a week of monitoring (or once reports are clean), switch reportOnly: false and tighten:
+
+remove 'unsafe-inline' (use Tailwind OK, but some libs inject inline styles)
+
+add nonces if needed
+
+5) Wire impersonation + effective permissions into your app
+5.1 Server boot (server/index.ts or where you mount middleware)
+
+Ensure middleware order:
+
+authenticateJWT() populates req.user and req.tenant
+
+load staff + permissions normally (your existing RBAC resolver)
+
+applyImpersonationContext(db) overrides req.effectivePermissions when present
+
+Example:
+
+app.use(authenticateJWTOptional()); // if you have optional routes
+app.use(loadTenantContext());       // your existing
+app.use(loadStaffAndPermissions()); // your existing
+app.use(await applyImpersonationContext(db)); // ✅ overrides effective permissions
+
+
+Then all permission guards should read:
+
+req.effectivePermissions ?? req.permissions
+
+6) Minimal client changes for impersonation
+6.1 Store token
+
+store impersonationToken in a global store (zustand/context)
+
+in your fetch wrapper, attach header:
+
+headers: {
+  ...,
+  "x-impersonation-token": impersonationToken || "",
+}
+
+6.2 Banner
+
+Show if token exists:
+
+“Viewing as {staffName} — Exit”
+Exit calls /api/admin/impersonate/stop and clears token.
+
+7) Add 2 must-have audit log usages (role change + staff role change)
+Staff role change endpoint example
+
+When you change tenantStaff.tenantRoleId, write audit with before/after.
