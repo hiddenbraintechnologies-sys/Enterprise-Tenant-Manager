@@ -58,19 +58,28 @@ const PAYROLL_STATUS_COLORS: Record<string, string> = {
 };
 
 const BUSINESS_TYPES = [
-  { value: "clinic", label: "Clinic / Healthcare" },
-  { value: "salon", label: "Salon / Spa" },
-  { value: "pg", label: "PG / Hostel" },
+  { value: "clinic", label: "Clinic" },
+  { value: "clinic_healthcare", label: "Clinic / Healthcare" },
+  { value: "salon", label: "Salon" },
+  { value: "salon_spa", label: "Salon / Spa" },
+  { value: "pg", label: "PG" },
+  { value: "pg_hostel", label: "PG / Hostel" },
   { value: "coworking", label: "Coworking" },
+  { value: "gym", label: "Gym / Fitness" },
   { value: "service", label: "General Services" },
   { value: "real_estate", label: "Real Estate" },
   { value: "tourism", label: "Tourism" },
   { value: "education", label: "Education" },
+  { value: "education_institute", label: "Education Institute" },
   { value: "logistics", label: "Logistics" },
+  { value: "logistics_fleet", label: "Logistics & Fleet" },
   { value: "legal", label: "Legal Services" },
+  { value: "furniture", label: "Furniture" },
   { value: "furniture_manufacturing", label: "Furniture Manufacturing" },
   { value: "software_services", label: "Software Services" },
   { value: "consulting", label: "Consulting" },
+  { value: "digital_agency", label: "Digital Agency" },
+  { value: "retail_store", label: "Retail Store" },
 ];
 
 const STATUS_COLORS: Record<string, string> = {

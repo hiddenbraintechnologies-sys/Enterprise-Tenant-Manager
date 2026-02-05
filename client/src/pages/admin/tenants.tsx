@@ -116,17 +116,27 @@ const REGIONS = [
 
 const BUSINESS_TYPES = [
   { value: "clinic", label: "Clinic", icon: "medical" },
+  { value: "clinic_healthcare", label: "Healthcare / Clinic", icon: "medical" },
   { value: "salon", label: "Salon", icon: "scissors" },
+  { value: "salon_spa", label: "Salon & Spa", icon: "scissors" },
   { value: "pg", label: "PG/Hostel", icon: "home" },
+  { value: "pg_hostel", label: "PG / Hostel", icon: "home" },
   { value: "coworking", label: "Coworking", icon: "building" },
+  { value: "gym", label: "Gym / Fitness", icon: "dumbbell" },
   { value: "service", label: "Service", icon: "briefcase" },
   { value: "real_estate", label: "Real Estate", icon: "building2" },
   { value: "tourism", label: "Tourism", icon: "plane" },
   { value: "education", label: "Education", icon: "graduation" },
+  { value: "education_institute", label: "Education Institute", icon: "graduation" },
   { value: "logistics", label: "Logistics", icon: "truck" },
+  { value: "logistics_fleet", label: "Logistics & Fleet", icon: "truck" },
   { value: "legal", label: "Legal", icon: "scale" },
+  { value: "furniture", label: "Furniture", icon: "sofa" },
+  { value: "furniture_manufacturing", label: "Furniture Manufacturing", icon: "sofa" },
   { value: "software_services", label: "Software Services", icon: "code" },
   { value: "consulting", label: "Consulting", icon: "users" },
+  { value: "digital_agency", label: "Digital Agency", icon: "globe" },
+  { value: "retail_store", label: "Retail Store", icon: "store" },
 ];
 
 const STATUSES = [
