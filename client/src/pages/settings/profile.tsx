@@ -77,7 +77,7 @@ export default function ProfileSettings() {
       
       return confirmRes.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { success: boolean; avatarUrl: string }) => {
       const nextVersion = Date.now();
       setAvatarVersion(nextVersion);
 
