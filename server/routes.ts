@@ -62,6 +62,7 @@ import impersonationRoutes from "./routes/settings/impersonation";
 import securityRoutes from "./routes/settings/security";
 import securitySessionsRoutes from "./routes/security";
 import complianceExportsRoutes from "./routes/compliance/exports";
+import soc2ControlsRoutes from "./routes/compliance/soc2-controls";
 import { blockImpersonationOnSensitiveRoutes } from "./middleware/require-permission";
 import { computeAnomalyScore, shouldTriggerSecurityAlert } from "./services/anomaly-scoring";
 import { 
@@ -550,6 +551,7 @@ export async function registerRoutes(
   
   // Register SOC2 Compliance Export routes
   app.use('/api/compliance/export', authenticateHybrid(), complianceExportsRoutes);
+  app.use('/api/compliance', authenticateHybrid(), soc2ControlsRoutes);
   
   // Register India Compliance routes (GST, DLT, Aadhaar, RBI)
   app.use('/api/india-compliance', indiaComplianceRoutes);
