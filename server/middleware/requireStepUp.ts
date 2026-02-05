@@ -14,7 +14,12 @@ interface AuthUser {
  */
 export function requireStepUp(purpose: StepUpPurpose, windowSeconds: number = 600) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    if (process.env.NODE_ENV === "test" && req.headers["x-stepup-test-bypass"] === "1") {
+    const allowBypass =
+      process.env.NODE_ENV === "test" &&
+      process.env.CI === "true" &&
+      req.headers["x-stepup-test-bypass"] === "1";
+    
+    if (allowBypass) {
       return next();
     }
 
