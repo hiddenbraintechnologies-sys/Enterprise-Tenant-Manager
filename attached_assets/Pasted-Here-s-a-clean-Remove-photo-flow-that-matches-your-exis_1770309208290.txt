@@ -1,0 +1,101 @@
+Here’s a clean Remove photo flow that matches your existing prepare/confirm pattern and React Query setup.
+
+1) Backend: add POST /api/me/avatar/remove
+
+Add this near your other avatar routes in server/routes.ts:
+
+app.post("/api/me/avatar/remove", requireAuth, async (req, res) => {
+  const userId = req.user.id;
+
+  // Optional: if you store object key in DB, you can delete from storage too.
+  // For now: just unlink avatarUrl so UI falls back to SSO/default.
+  await db
+    .update(users)
+    .set({ avatarUrl: null, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+
+  return res.json({ success: true });
+});
+
+Optional (delete object from storage too)
+
+If you can derive the stored key (e.g., public/avatars/${userId}.png) and have a sidecar delete API, you can delete it. But unlinking is enough for UX.
+
+2) Frontend: Add a remove mutation in profile.tsx
+const removeAvatarMutation = useMutation({
+  mutationFn: async () => {
+    const res = await fetch("/api/me/avatar/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.message || "Failed to remove avatar");
+    }
+
+    return res.json();
+  },
+  onSuccess: () => {
+    const nextVersion = Date.now();
+    setAvatarVersion(nextVersion);
+
+    // Instant UI update
+    queryClient.setQueryData(["/api/auth/me"], (old: any) => {
+      if (!old) return old;
+      return { ...old, avatarUrl: null };
+    });
+
+    toast({ title: "Photo removed", description: "Your profile photo has been removed." });
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+  },
+});
+
+3) UI: Add a “Remove photo” button (only when user has a local avatar)
+
+Somewhere near the upload button:
+
+<div className="flex gap-2">
+  <Button
+    variant="outline"
+    onClick={() => fileInputRef.current?.click()}
+    disabled={uploadAvatarMutation.isPending}
+  >
+    {uploadAvatarMutation.isPending ? "Uploading..." : "Upload photo"}
+  </Button>
+
+  {(user as any)?.avatarUrl ? (
+    <Button
+      variant="destructive"
+      onClick={() => removeAvatarMutation.mutate()}
+      disabled={removeAvatarMutation.isPending}
+    >
+      {removeAvatarMutation.isPending ? "Removing..." : "Remove photo"}
+    </Button>
+  ) : null}
+</div>
+
+4) Make the avatar display fall back correctly
+
+You already have:
+
+const baseAvatar = (user as any)?.avatarUrl || user?.profileImageUrl;
+
+
+That’s perfect. When avatarUrl becomes null, it will show:
+
+SSO profileImageUrl, else
+
+initials
+
+Keep the cache-busting version logic too:
+
+const displayAvatar =
+  baseAvatar && avatarVersion
+    ? `${baseAvatar}${baseAvatar.includes("?") ? "&" : "?"}v=${avatarVersion}`
+    : baseAvatar;
+
+5) Recommended: confirmation dialog (prevents accidental deletes)
+
+Wrap the remove in an alert dialog if you want. Optional, but nice.

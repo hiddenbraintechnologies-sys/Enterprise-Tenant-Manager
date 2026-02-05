@@ -2004,6 +2004,25 @@ export async function registerRoutes(
     }
   });
 
+  // Remove avatar - unlinks avatarUrl so UI falls back to SSO/default
+  app.post("/api/me/avatar/remove", authenticateJWT(), async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!user?.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      await db.update(users)
+        .set({ avatarUrl: null, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[avatar] Error removing avatar:", error);
+      res.status(500).json({ message: "Failed to remove avatar" });
+    }
+  });
+
   // Get all tenants for the current user (for tenant bootstrap after login)
   app.get("/api/tenants/my", authenticateJWT(), async (req, res) => {
     try {

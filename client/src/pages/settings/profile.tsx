@@ -108,6 +108,42 @@ export default function ProfileSettings() {
     },
   });
 
+  const removeAvatarMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/me/avatar/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Failed to remove avatar");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      const nextVersion = Date.now();
+      setAvatarVersion(nextVersion);
+
+      queryClient.setQueryData(["/api/auth/me"], (old: any) => {
+        if (!old) return old;
+        return { ...old, avatarUrl: null };
+      });
+
+      toast({ title: "Photo removed", description: "Your profile photo has been removed." });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Remove failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -174,25 +210,45 @@ export default function ProfileSettings() {
                 className="hidden"
                 data-testid="input-avatar-upload"
               />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                data-testid="button-upload-avatar"
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload photo
-                  </>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || removeAvatarMutation.isPending}
+                  data-testid="button-upload-avatar"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload photo
+                    </>
+                  )}
+                </Button>
+                {(user as any)?.avatarUrl && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => removeAvatarMutation.mutate()}
+                    disabled={removeAvatarMutation.isPending || isUploading}
+                    data-testid="button-remove-avatar"
+                  >
+                    {removeAvatarMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Removing...
+                      </>
+                    ) : (
+                      "Remove photo"
+                    )}
+                  </Button>
                 )}
-              </Button>
+              </div>
               {isSSO && (
                 <div className="text-xs text-muted-foreground space-y-1">
                   <p className="flex items-center gap-1">
