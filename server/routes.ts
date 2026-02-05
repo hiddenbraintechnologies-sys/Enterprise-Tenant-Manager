@@ -11,7 +11,7 @@ import {
   insertInventoryTransactionSchema, insertMembershipPlanSchema, insertCustomerMembershipSchema,
   insertPatientSchema, insertDoctorSchema, insertAppointmentSchema, insertMedicalRecordSchema,
   insertSpaceSchema, insertDeskBookingSchema,
-  tenants, userTenants, users, roles, refreshTokens, customers, staff, tenantFeatures, auditLogs,
+  tenants, userTenants, users, roles, refreshTokens, customers, staff, tenantFeatures, auditLogs, tenantStaff,
   tenantSubscriptions, subscriptionInvoices, transactionLogs, countryPricingConfigs, invoiceTemplates, globalPricingPlans,
   services, bookings, invoices, payments, projects, deleteJobs, timesheets, patientDocuments, documentShareLinks,
   insertInvoiceTemplateSchema,
@@ -5983,6 +5983,129 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Super admin create tenant error:", error);
       res.status(500).json({ message: "Failed to create tenant" });
+    }
+  });
+
+  // Repair RBAC for legacy tenant - Super Admin only
+  app.post("/api/super-admin/tenants/:tenantId/repair-rbac", authenticateJWT(), requirePlatformAdmin("SUPER_ADMIN"), async (req, res) => {
+    try {
+      const { tenantId } = req.params;
+      
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const { seedTenantRolesIfMissing, getOwnerRoleId } = await import("./services/rbac/seed-tenant-roles");
+      
+      // Count roles before repair
+      const rolesBefore = await storage.getTenantRoles(tenantId);
+
+      // Run all repair operations in a single transaction for atomicity
+      const result = await db.transaction(async (tx) => {
+        // Seed missing roles
+        await seedTenantRolesIfMissing(tx, tenantId);
+
+        // Verify Owner role exists
+        const ownerRoleId = await getOwnerRoleId(tx, tenantId);
+        if (!ownerRoleId) {
+          throw new Error("Owner role not found after seeding");
+        }
+
+        // Check if any staff has Owner role
+        const [existingOwnerStaff] = await tx.select()
+          .from(tenantStaff)
+          .where(and(
+            eq(tenantStaff.tenantId, tenantId),
+            eq(tenantStaff.tenantRoleId, ownerRoleId)
+          ))
+          .limit(1);
+
+        let ownerStaffCreated = false;
+        let linkedUserId: string | null = null;
+        let newStaffId: string | null = null;
+        let newStaffEmail: string | null = null;
+
+        if (!existingOwnerStaff) {
+          // Try to find an existing admin user for this tenant
+          const tenantUserLinks = await tx.select({
+            userId: userTenants.userId,
+            roleId: userTenants.roleId,
+          }).from(userTenants).where(eq(userTenants.tenantId, tenantId));
+
+          let adminUser = null;
+          for (const tu of tenantUserLinks) {
+            const [role] = await tx.select().from(roles).where(eq(roles.id, tu.roleId));
+            if (role?.name?.toLowerCase() === "owner" || role?.name?.toLowerCase() === "admin") {
+              const [user] = await tx.select().from(users).where(and(eq(users.id, tu.userId), isNull(users.deletedAt)));
+              if (user) {
+                adminUser = user;
+                break;
+              }
+            }
+          }
+
+          // Create Owner staff (linked to admin user if found, else placeholder)
+          const [newStaff] = await tx.insert(tenantStaff).values({
+            tenantId,
+            userId: adminUser?.id || null,
+            email: adminUser?.email || tenant.email || `owner@${tenant.slug || 'tenant'}.local`,
+            fullName: adminUser ? `${adminUser.firstName || ''} ${adminUser.lastName || ''}`.trim() || "Owner" : (tenant.name || "Tenant") + " Owner",
+            tenantRoleId: ownerRoleId,
+            status: "active",
+          }).returning();
+
+          ownerStaffCreated = true;
+          linkedUserId = adminUser?.id || null;
+          newStaffId = newStaff.id;
+          newStaffEmail = newStaff.email;
+        }
+
+        return { ownerStaffCreated, linkedUserId, newStaffId, newStaffEmail };
+      });
+
+      const rolesAfter = await storage.getTenantRoles(tenantId);
+      const rolesSeeded = rolesAfter.length > rolesBefore.length;
+
+      // Audit logging (outside transaction, async)
+      if (result.ownerStaffCreated && result.newStaffId) {
+        auditService.logAsync({
+          tenantId,
+          userId: req.platformAdminContext?.platformAdmin.id,
+          action: "create",
+          resource: "RBAC_REPAIR_OWNER_STAFF",
+          resourceId: result.newStaffId,
+          newValue: { linkedUserId: result.linkedUserId, email: result.newStaffEmail },
+          metadata: { accessType: "super_admin" },
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+      }
+
+      auditService.logAsync({
+        tenantId,
+        userId: req.platformAdminContext?.platformAdmin.id,
+        action: "update",
+        resource: "RBAC_REPAIR",
+        resourceId: tenantId,
+        newValue: { rolesSeeded, ownerStaffCreated: result.ownerStaffCreated, rolesCount: rolesAfter.length },
+        metadata: { accessType: "super_admin" },
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      res.json({
+        success: true,
+        rolesSeeded,
+        rolesBefore: rolesBefore.length,
+        rolesAfter: rolesAfter.length,
+        ownerStaffCreated: result.ownerStaffCreated,
+        linkedUserId: result.linkedUserId,
+        message: rolesSeeded || result.ownerStaffCreated ? "RBAC repaired successfully" : "RBAC already valid",
+      });
+    } catch (error) {
+      console.error("Super admin repair RBAC error:", error);
+      res.status(500).json({ message: "Failed to repair RBAC" });
     }
   });
 

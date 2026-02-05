@@ -342,7 +342,7 @@ const settingsSections: SettingsSection[] = [
     items: [
       { title: "Organization Details", url: "/settings/organization", icon: Building2, subtitle: "Company info, timezone, currency", viewPermission: "SETTINGS_ORG_VIEW", editPermission: "SETTINGS_ORG_EDIT" },
       { title: "Team & Roles", url: "/settings/team", icon: Users, subtitle: "Invite users, assign permissions", viewPermission: "SETTINGS_TEAM_VIEW", editPermission: "SETTINGS_TEAM_INVITE" },
-      { title: "Security & Access", url: "/settings/security", icon: Shield, subtitle: "SSO, sessions, IP rules, alerts", viewPermission: "SETTINGS_SECURITY_VIEW", editPermission: "SETTINGS_SECURITY_EDIT" },
+      { title: "Security & Access", url: "/settings/security", icon: Shield, subtitle: "SSO, sessions, IP rules, alerts", viewPermission: "SETTINGS_SECURITY_VIEW", editPermission: "SETTINGS_SECURITY_EDIT", alwaysVisible: true },
     ],
   },
   {

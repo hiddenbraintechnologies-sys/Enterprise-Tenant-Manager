@@ -1,0 +1,130 @@
+Great — with that in place, the “no default roles / blank settings” root cause is essentially solved for new tenants and for platform-admin created tenants.
+
+What’s left is to clean up legacy tenants and fix the two UX complaints you raised:
+
+No profile pic update/edit
+
+Role picking layout is confusing
+
+Here’s the concrete “next patch” plan.
+
+1) Backfill old tenants (one-time repair)
+
+Even though new creation paths seed roles + staff, old tenants created before these fixes will still be broken.
+
+Add an idempotent repair command (safe to run multiple times)
+
+Create an admin-only endpoint or script:
+
+POST /api/super-admin/tenants/:tenantId/repair-rbac
+
+If tenant has 0 tenant_roles → seed 5 defaults
+
+If tenant has no tenant_staff “Owner” row:
+
+if you can find a tenant admin user → link and create
+
+else create placeholder staff (userId null) with email = tenant.email or owner@slug.local
+
+This makes the system stable without DB manual edits.
+
+2) Profile picture update/edit (why it still fails)
+
+Your RBAC seeding won’t fix this. The reason profile pic can’t be edited is almost always:
+
+Profile UI is showing SSO picture and disabling edits (“managed externally”)
+
+Or you have no endpoint/storage for avatar upload
+
+Best solution (Zoho-like): local override avatar
+
+Backend
+
+Add users.avatarUrl (nullable) if not already
+
+POST /api/me/avatar (multipart) → store image → set avatarUrl
+
+Optional DELETE /api/me/avatar → null avatarUrl
+
+Frontend
+
+Always show “Upload photo” (even for SSO)
+
+Avatar source priority:
+avatarUrl ?? providerPictureUrl ?? initials
+
+This resolves “no profile pic update” completely.
+
+If you want minimum change, you can keep SSO-managed only, but you must show a clear message + refresh/login instructions. Users will still complain, though.
+
+3) “Role picking layout is confusing” — redesign exactly
+
+You already have CreateRoleDialog with template cards + permission editor. The confusion usually comes from:
+
+Showing permissions too early
+
+Mixing “assign role” and “edit permissions” in one screen
+
+Not distinguishing “system roles” vs “custom roles”
+
+What to change (no backend changes needed)
+A) Role selection (Assign to staff) should be card-based
+
+When assigning a role to a staff member, show:
+
+Role cards (Owner/Admin/Manager/Staff/Viewer + custom roles)
+
+Each card: Name, description, tags (Default/System), “Permissions: 24”
+
+Clicking selects role and closes
+
+No permissions list here.
+
+B) Permission editing only inside “Create role” or “Customize role”
+
+Permissions list should appear only when:
+
+User clicks “Create custom role”
+
+or “Customize” on a role
+
+C) Permission editor improvements (makes it feel “not messy”)
+
+Group by module (Staff, Clients, Billing, Payroll, etc.)
+
+Add search input
+
+Add “Select all” per group
+
+Show live summary: “Selected 18 permissions”
+
+4) Fix the type conflict permanently (do this if not done yet)
+
+Even if things work, the conflict will keep causing bugs.
+
+Required:
+
+Rename legacy union to LegacyTenantRole
+
+Ensure all app code uses:
+
+tenantRoleId (DB id) for tenant roles
+
+and permission checks from tenant_role_permissions
+
+This prevents future “phantom roles” like TENANT_ADMIN from creeping back.
+
+5) Settings menu “nothing visible” safety rule
+
+Even with roles, don’t allow blank Settings pages.
+
+UI rule
+
+Always show:
+
+Profile
+
+Security (or Account)
+Even if permission-gated modules are hidden.
+
+If filtered list becomes empty → show empty-state message.
