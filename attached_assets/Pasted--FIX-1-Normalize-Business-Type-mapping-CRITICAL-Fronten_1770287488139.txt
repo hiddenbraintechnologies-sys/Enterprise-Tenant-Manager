@@ -1,0 +1,93 @@
+✅ FIX 1: Normalize Business Type mapping (CRITICAL)
+Frontend (DO NOT send UI labels)
+Create a strict mapping:
+Copy code
+Ts
+const BUSINESS_TYPE_MAP = {
+  "Gym / Fitness Center": "service",
+  "Consulting & Professional Services": "consulting",
+  "Clinic / Healthcare": "clinic",
+  "Salon & Spa": "salon",
+  "Education Institute": "education_institute",
+  "Retail Store": "retail_store",
+};
+Then send:
+Copy code
+Ts
+businessType: BUSINESS_TYPE_MAP[selectedLabel]
+🚫 Never send display text or raw values
+Backend (better long-term fix)
+Add missing enum if Gym is first-class:
+Copy code
+Ts
+export const BusinessTypeEnum = pgEnum("business_type", [
+  "clinic",
+  "clinic_healthcare",
+  "salon",
+  "salon_spa",
+  "pg",
+  "pg_hostel",
+  "coworking",
+  "service",
+  "gym", // ✅ ADD THIS
+  "real_estate",
+  "tourism",
+  "education",
+  "education_institute",
+  "logistics",
+  "logistics_fleet",
+  "legal",
+  "furniture_manufacturing",
+  "furniture",
+  "software_services",
+  "consulting",
+  "digital_agency",
+  "retail_store",
+]);
+Then migrate DB.
+👉 This is the cleanest fix since your product clearly supports gyms.
+✅ FIX 2: Country-specific business types must align
+Your console logs show:
+India → businessTypesCount: 15
+Malaysia → businessTypesCount: 2
+But Malaysia UI shows Consulting, yet backend still rejects.
+Ensure this is true:
+Malaysia business types ⟶ subset of enum
+No country returns a type not in enum
+Add a server-side guard:
+Copy code
+Ts
+if (!BusinessTypeEnum.includes(businessType)) {
+  throw new BadRequestError("Invalid business type");
+}
+✅ FIX 3: Handle 409 Conflict properly
+Right now, user sees:
+“Please fix highlighted fields”
+Which is misleading.
+Backend
+Return clear reason:
+Copy code
+Json
+{
+  "error": "EMAIL_ALREADY_EXISTS"
+}
+Frontend
+Map it to:
+“An account already exists with this email. Please sign in.”
+✅ FIX 4: Clean broken tenants (IMPORTANT)
+You likely already created orphan users.
+Run once in DB:
+Copy code
+Sql
+SELECT * FROM users
+WHERE email IN ('advithi.astore@gmail.com', 'jhon@gmail.com');
+If they exist without tenant:
+either delete
+or allow retry tenant creation
+Why this bug slipped through
+Classic SaaS issue:
+UI labels evolved
+Backend enum stayed strict
+No shared contract
+No integration test for /register
+This is not a user error or browser issue.

@@ -253,8 +253,23 @@ export default function Register() {
       setLocation("/packages");
     },
     onError: (error: Error & { apiError?: unknown }) => {
-      // Map API errors to form fields using the utility
       const apiError = extractApiError(error.apiError);
+      
+      // Handle 409 conflict (email already exists) with specific message
+      if (apiError?.error === "EMAIL_ALREADY_EXISTS") {
+        form.setError("email", {
+          type: "manual",
+          message: "An account already exists with this email. Please sign in.",
+        });
+        toast({
+          title: "Email already registered",
+          description: "Please sign in with your existing account or use a different email.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Map API errors to form fields using the utility
       const handled = applyApiErrorsToForm(apiError, form.setError);
       
       // Show short toast - detailed errors are shown inline on fields

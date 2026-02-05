@@ -767,7 +767,7 @@ export async function registerRoutes(
     businessName: businessNameField("Business name"),
     businessType: z.enum([
       "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
-      "coworking", "service", "real_estate", "tourism", "education", "education_institute",
+      "coworking", "gym", "service", "real_estate", "tourism", "education", "education_institute",
       "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
       "software_services", "consulting", "digital_agency", "retail_store"
     ]),
@@ -832,8 +832,11 @@ export async function registerRoutes(
       );
       console.log("[register] Step 3: Existing user check complete, found:", !!existingUser);
       if (existingUser) {
-        // User already exists - just return error (don't try to delete as they may have linked data)
-        return res.status(409).json({ message: "Email already registered. Please use a different email or login with your existing account." });
+        // User already exists - return clear error code for frontend to handle
+        return res.status(409).json({ 
+          error: "EMAIL_ALREADY_EXISTS",
+          message: "An account already exists with this email. Please sign in or use a different email." 
+        });
       }
 
       // Look up region config for the selected country
@@ -4370,7 +4373,7 @@ export async function registerRoutes(
     slug: z.string().min(1).max(100).optional(),
     businessType: z.enum([
       "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel", 
-      "coworking", "service", "real_estate", "tourism", "education", "education_institute",
+      "coworking", "gym", "service", "real_estate", "tourism", "education", "education_institute",
       "logistics", "logistics_fleet", "legal", "furniture_manufacturing", "furniture",
       "software_services", "consulting", "digital_agency", "retail_store"
     ]),
@@ -5795,9 +5798,17 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Name, business type, and country are required" });
       }
 
-      const validBusinessTypes = ["clinic", "salon", "pg", "coworking", "service", "real_estate", "tourism", "education", "logistics", "legal", "furniture", "furniture_manufacturing", "software_services", "consulting"];
+      const validBusinessTypes = [
+        "clinic", "clinic_healthcare", "salon", "salon_spa", "pg", "pg_hostel",
+        "coworking", "gym", "service", "real_estate", "tourism", "education", "education_institute",
+        "logistics", "logistics_fleet", "legal", "furniture", "furniture_manufacturing", 
+        "software_services", "consulting", "digital_agency", "retail_store"
+      ];
       if (!validBusinessTypes.includes(businessType)) {
-        return res.status(400).json({ message: "Invalid business type" });
+        return res.status(400).json({ 
+          error: "INVALID_BUSINESS_TYPE",
+          message: "Invalid business type" 
+        });
       }
 
       const validCountries = ["india", "uae", "uk", "malaysia", "singapore", "us"];
