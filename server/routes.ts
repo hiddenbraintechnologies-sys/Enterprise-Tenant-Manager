@@ -756,15 +756,17 @@ export async function registerRoutes(
   
   const { BUSINESS_TYPES } = await import("./constants/business");
   
-  // Debug endpoint to verify server is using correct BUSINESS_TYPES
-  app.get("/api/debug/business-types", (_req, res) => {
-    res.json({ 
-      BUSINESS_TYPES,
-      count: BUSINESS_TYPES.length,
-      hasGym: BUSINESS_TYPES.includes("gym"),
-      source: "server/constants/business.ts"
+  // Debug endpoint to verify server is using correct BUSINESS_TYPES (dev only)
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/api/debug/business-types", (_req, res) => {
+      res.json({ 
+        BUSINESS_TYPES,
+        count: BUSINESS_TYPES.length,
+        hasGym: BUSINESS_TYPES.includes("gym"),
+        source: "server/constants/business.ts"
+      });
     });
-  });
+  }
   
   const registrationSchema = z.object({
     firstName: nameField("First name"),
