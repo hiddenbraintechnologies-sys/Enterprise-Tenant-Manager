@@ -1,0 +1,208 @@
+No — don’t switch to a DB-backed module system right now. You can fix all 3 issues cleanly using your existing architecture (businessType → modules + nav config). A DB-backed system is a later enhancement, not needed to unblock production.
+
+Below are exact patches using:
+
+client/src/components/app-sidebar.tsx
+
+server/core/business-modules.ts (BUSINESS_TYPE_MODULES)
+
+shared/business-type-config.ts (NAV_ITEMS_BY_BUSINESS_TYPE)
+
+1) Settings menu requires double-click
+Root cause
+
+Your Settings parent click likely triggers navigation + collapse state update, and route change causes sidebar to re-render, resetting the “open” state. First click navigates but submenu stays closed; second click opens.
+
+Fix
+
+Make Settings open state derived from route, not click timing.
+
+Patch: client/src/components/app-sidebar.tsx
+
+Find your Settings nav group and implement:
+
+import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+
+export function AppSidebar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isSettingsRoute = useMemo(
+    () => location.pathname === "/settings" || location.pathname.startsWith("/settings/"),
+    [location.pathname]
+  );
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // ✅ Always open settings submenu when we're on settings routes
+  useEffect(() => {
+    if (isSettingsRoute) setSettingsOpen(true);
+  }, [isSettingsRoute]);
+
+  const onSettingsParentClick = () => {
+    // If already in settings, allow manual collapse/expand
+    if (isSettingsRoute) {
+      setSettingsOpen((v) => !v);
+      return;
+    }
+    // If not in settings, navigate to a default settings page.
+    // DO NOT toggle open here—route effect will open it reliably.
+    navigate("/settings/profile");
+  };
+
+  return (
+    <nav>
+      {/* Settings parent item */}
+      <button type="button" onClick={onSettingsParentClick} className="w-full">
+        Settings
+      </button>
+
+      {settingsOpen && (
+        <div className="ml-4">
+          {/* your settings items */}
+        </div>
+      )}
+
+      {/* rest of sidebar */}
+    </nav>
+  );
+}
+
+
+✅ Result: One click always works.
+
+2) Business location stuck at India/INR
+Root cause
+
+That settings page is reading from catalog/rollout defaults or hardcoded “IN” instead of tenant record.
+
+Fix rule
+
+Settings must read from tenant (server context), not catalog.
+
+Server endpoint (preferred): GET /api/settings/business/location
+
+If you already have a settings endpoint that returns tenant info, use it. Otherwise add:
+
+app.get("/api/settings/business/location", authenticateJWT(), async (req: any, res) => {
+  const tenantId = req.tenant.id;
+
+  const tenant = await db.query.tenants.findFirst({
+    where: eq(tenants.id, tenantId),
+    columns: { country: true, currency: true, timezone: true, businessType: true },
+  });
+
+  if (!tenant) return res.status(404).json({ error: "NOT_FOUND", message: "Tenant not found" });
+
+  res.json({ success: true, location: tenant });
+});
+
+Client settings page
+
+Replace any usage of catalog defaults:
+
+✅ Use:
+
+const { data } = useQuery({
+  queryKey: ["/api/settings/business/location"],
+  queryFn: async () => (await fetch("/api/settings/business/location", { credentials: "include" })).json(),
+});
+
+const country = data?.location?.country;
+const currency = data?.location?.currency;
+
+
+Important: If tenant.currency isn’t populated, fix it at tenant creation time (one-liner).
+
+3) Clinic cannot add Services / Patients
+
+You said you currently gate access using:
+
+BUSINESS_TYPE_MODULES in server/core/business-modules.ts
+
+NAV_ITEMS_BY_BUSINESS_TYPE in shared/business-type-config.ts
+
+That means the clinic issue is almost certainly:
+
+clinic business type is missing "SERVICES" / "PATIENTS" in one of those maps
+
+OR the nav config uses different keys (e.g. clinic uses “clients” instead of “patients”)
+
+Fix: Align clinic mapping in both places
+A) server/core/business-modules.ts
+
+Make sure clinic includes the right modules:
+
+export const BUSINESS_TYPE_MODULES: Record<string, string[]> = {
+  clinic: ["PATIENTS", "SERVICES", "APPOINTMENTS", "INVOICES"],
+  clinic_healthcare: ["PATIENTS", "SERVICES", "APPOINTMENTS", "INVOICES"],
+
+  // ... others
+};
+
+B) shared/business-type-config.ts
+
+Ensure clinic nav contains Patients + Services entries:
+
+export const NAV_ITEMS_BY_BUSINESS_TYPE: Record<string, NavItem[]> = {
+  clinic: [
+    { key: "patients", label: "Patients", href: "/patients", module: "PATIENTS" },
+    { key: "services", label: "Services", href: "/services", module: "SERVICES" },
+    { key: "appointments", label: "Appointments", href: "/appointments", module: "APPOINTMENTS" },
+    // ...
+  ],
+  clinic_healthcare: [
+    { key: "patients", label: "Patients", href: "/patients", module: "PATIENTS" },
+    { key: "services", label: "Services", href: "/services", module: "SERVICES" },
+    { key: "appointments", label: "Appointments", href: "/appointments", module: "APPOINTMENTS" },
+  ],
+};
+
+C) Guard: nav should be filtered by BUSINESS_TYPE_MODULES
+
+Where you build nav items, filter:
+
+const enabledModules = new Set(BUSINESS_TYPE_MODULES[tenant.businessType] ?? []);
+const navItems = (NAV_ITEMS_BY_BUSINESS_TYPE[tenant.businessType] ?? []).filter(
+  (item) => !item.module || enabledModules.has(item.module)
+);
+
+
+✅ This ensures clinic sees the right pages.
+
+D) “Cannot add” might be permissions, not nav
+
+If pages exist but create buttons fail, ensure default roles include:
+
+PATIENT_CREATE
+
+SERVICE_MANAGE (or whatever your keys are)
+
+Since you already seed permissions from DEFAULT_TENANT_ROLES, just confirm the clinic modules’ permissions are included in Admin/Owner templates.
+
+Should you implement DB-backed module enablement?
+
+Not now. Do it later only if you need:
+
+per-tenant feature toggles
+
+paid add-ons gating modules dynamically
+
+admin enable/disable modules after creation
+
+For the current bugs, your in-memory config is enough and faster/safer.
+
+Quick verification checklist
+
+After these patches:
+
+Click Settings once → submenu opens + route goes to /settings/profile
+
+Malaysia tenant → Settings > Business location shows MY + MYR (not India/INR)
+
+Clinic tenant:
+
+sidebar shows Patients + Services
+
+can create service + add patient
