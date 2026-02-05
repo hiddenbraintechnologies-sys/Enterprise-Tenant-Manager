@@ -1,0 +1,121 @@
+What’s left now is to eliminate the remaining inconsistent call sites and fix the two UX items you raised: profile pic + role picker confusion.
+
+1) Make all tenant creation paths pass creator info (so Owner + tenantStaff always exists)
+
+Right now createTenant() only creates tenantStaff if options.creatorUserId is provided. That’s fine, but you must enforce it at call sites.
+
+Do a repo-wide search for createTenant(
+
+For every call that creates a real tenant (not tests), update to:
+
+await tenantService.createTenant(insertTenant, {
+  creatorUserId: user.id,
+  creatorEmail: user.email,
+  creatorName: `${user.firstName} ${user.lastName}`.trim(),
+});
+
+
+If you have platform-admin “create tenant” without a user yet, pass at least:
+
+creatorEmail + creatorName, and still create a tenantStaff row with userId: null (your schema supports it).
+That way menus/roles won’t be blank.
+
+✅ Recommendation: inside createTenant, allow creating tenantStaff even when creatorUserId is missing, if creatorEmail is provided.
+
+2) Add a safety net endpoint: seed roles + owner staff (admin-only)
+
+Even after fixes, you’ll have old tenants in DB with missing roles/staff.
+
+Add:
+
+POST /api/settings/roles/seed-defaults
+
+Behavior:
+
+if roles missing → seed
+
+if creator staff missing → create a staff record and assign Owner (or Admin)
+
+This prevents you from needing DB manual fixes.
+
+3) Fix the “TenantRole” naming conflict (must be done to stop future confusion)
+
+Even if seeding works, your role UI will remain confusing/buggy if old union types are still used.
+
+Do this:
+
+In shared/rbac/permissions.ts rename legacy union to LegacyTenantRole
+
+Ensure the UI never uses TenantRole = "TENANT_ADMIN"... again
+
+Then, anywhere role selection expects a “role”, it should be:
+
+tenantRoleId (DB role id), not a string enum
+
+4) Role picker layout change (make it clearer)
+
+You said role picking is confusing. Here’s the concrete redesign that fits your existing staff-roles.tsx approach:
+
+Default state: Role cards (DB roles)
+
+Show cards for existing roles:
+
+Owner / Admin / Manager / Staff / Viewer
+
+Description
+
+“Default” tag (isDefault)
+
+“System” tag (isSystem)
+
+Button: Assign (selects role)
+
+Button: Customize (opens permission editor)
+
+Permission editor: grouped + searchable
+
+Group permissions by module prefix (e.g., STAFF_, BILLING_, CLIENTS_)
+
+Add search
+
+Add “Select all in group”
+
+Key UX fix: don’t show permissions until user clicks “Customize”.
+
+5) Profile picture edit (the real fix)
+
+If SSO is “managed externally”, you need a local override.
+
+Minimum implementation
+
+Add users.avatarUrl (nullable)
+
+Add POST /api/me/avatar upload
+
+Frontend shows Upload button always
+
+Display: avatarUrl ?? providerPicture ?? initials
+
+This is independent from roles and will solve “no profile pic update”.
+
+6) Quick regression checks (do these before deploy)
+
+Phase3 signup → tenant_roles created (5) + tenant_staff created (Owner)
+
+Platform admin create tenant → also gets tenant_staff row (even if userId null)
+
+Settings menu shows Profile always
+
+Staff Roles page shows role cards (not empty)
+
+Profile page allows upload (or clearly says SSO-managed + link)
+
+One thing I’d change in your createTenant contract (small but important)
+
+Instead of options?: { creatorUserId? ... } being optional, make it required in all production code paths:
+
+Either pass a real user (normal signup)
+
+Or pass an email/name for “unassigned owner” staff (admin-created tenant)
+
+This single rule prevents 90% of your “menus empty” issues forever.

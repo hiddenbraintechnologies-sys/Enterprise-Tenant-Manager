@@ -5942,7 +5942,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "A tenant with a similar name already exists" });
       }
 
-      const newTenant = await storage.createTenant({
+      const newTenant = await tenantService.createTenant({
         name,
         slug,
         businessType,
@@ -5954,6 +5954,10 @@ export async function registerRoutes(
         maxUsers: maxUsers ? parseInt(maxUsers, 10) : 5,
         status: "active",
         isActive: true,
+      }, {
+        // Admin-created tenant: no userId yet, but create placeholder Owner staff
+        creatorEmail: email || `owner@${slug}.local`,
+        creatorName: name + " Owner",
       });
 
       auditService.logAsync({

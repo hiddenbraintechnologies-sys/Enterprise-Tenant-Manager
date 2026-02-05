@@ -7,6 +7,7 @@ import { Permissions, PERMISSION_GROUPS, DEFAULT_TENANT_ROLES } from "@shared/rb
 import { insertTenantRoleSchema, insertTenantStaffSchema } from "@shared/schema";
 import { logRoleEvent, logStaffEvent } from "../../services/audit";
 import { getLoginHistory } from "../../services/login-history";
+import { seedTenantRolesIfMissing, getOwnerRoleId } from "../../services/rbac/seed-tenant-roles";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -596,6 +597,92 @@ router.get("/staff/:staffId/login-history",
     } catch (error) {
       console.error("[settings/staff/login-history] Error:", error);
       return res.status(500).json({ error: "Failed to fetch login history" });
+    }
+  }
+);
+
+// ==================== SEED DEFAULTS ENDPOINT ====================
+
+// Admin-only endpoint to seed missing roles and owner staff for existing tenants
+router.post("/roles/seed-defaults",
+  requireTenantPermission(Permissions.ROLES_EDIT),
+  async (req: Request, res: Response) => {
+    const context = (req as any).context;
+    if (!context?.tenantId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { db } = await import("../../db");
+      const { tenantStaff, tenants } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      // Always run idempotent seed (inserts only missing roles)
+      const rolesBefore = await storage.getTenantRoles(context.tenantId);
+      await seedTenantRolesIfMissing(db, context.tenantId);
+      const rolesAfter = await storage.getTenantRoles(context.tenantId);
+      const rolesSeeded = rolesAfter.length > rolesBefore.length;
+
+      // Verify Owner role exists after seeding
+      const ownerRoleId = await getOwnerRoleId(db, context.tenantId);
+      if (!ownerRoleId) {
+        return res.status(500).json({ 
+          error: "Failed to seed defaults: Owner role not found after seeding" 
+        });
+      }
+
+      let ownerStaffCreated = false;
+      let createdStaffId: string | null = null;
+
+      // Check if any staff has Owner role
+      const [existingOwnerStaff] = await db.select()
+        .from(tenantStaff)
+        .where(and(
+          eq(tenantStaff.tenantId, context.tenantId),
+          eq(tenantStaff.tenantRoleId, ownerRoleId)
+        ))
+        .limit(1);
+
+      if (!existingOwnerStaff) {
+        // Get tenant info to create placeholder owner (userId: null for admin-seeded)
+        const [tenant] = await db.select().from(tenants).where(eq(tenants.id, context.tenantId));
+        
+        if (tenant) {
+          const [newStaff] = await db.insert(tenantStaff).values({
+            tenantId: context.tenantId,
+            userId: null, // Placeholder owner - can be claimed later
+            email: tenant.email || `owner@${tenant.slug || 'tenant'}.local`,
+            fullName: (tenant.name || "Tenant") + " Owner",
+            tenantRoleId: ownerRoleId,
+            status: "active",
+          }).returning();
+          
+          ownerStaffCreated = true;
+          createdStaffId = newStaff.id;
+
+          // Log staff creation audit event with actual staff id
+          logStaffEvent("STAFF_ACTIVATED", {
+            tenantId: context.tenantId,
+            actorUserId: context.userId,
+            staffId: newStaff.id,
+            staffEmail: newStaff.email,
+            metadata: { action: "seed_owner_staff", roleName: "Owner" },
+          });
+        }
+      }
+
+      const updatedRoles = await storage.getTenantRoles(context.tenantId);
+
+      return res.json({
+        success: true,
+        rolesSeeded,
+        ownerStaffCreated,
+        createdStaffId,
+        rolesCount: updatedRoles.length,
+      });
+    } catch (error) {
+      console.error("[settings/roles/seed-defaults] Error:", error);
+      return res.status(500).json({ error: "Failed to seed defaults" });
     }
   }
 );

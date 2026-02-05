@@ -54,10 +54,11 @@ export class TenantService {
       }
 
       // If creator info provided, create tenantStaff record with Owner role
-      if (options?.creatorUserId) {
+      // Allow null userId for admin-created tenants (email is required)
+      if (options?.creatorUserId || options?.creatorEmail) {
         await tx.insert(tenantStaff).values({
           tenantId: tenant.id,
-          userId: options.creatorUserId,
+          userId: options.creatorUserId || null,
           email: options.creatorEmail || "",
           fullName: options.creatorName || "Owner",
           tenantRoleId: ownerRoleId,
