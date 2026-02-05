@@ -480,17 +480,9 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     return <>{children}</>;
   }
 
-  // Wait for subscription query to complete before making redirect decisions
-  if (isLoading || isFetching) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading subscription...</p>
-        </div>
-      </div>
-    );
-  }
+  // NOTE: Never block the entire app on subscription loading
+  // Allow navigation while subscription loads in background
+  // The subscription data will be available when needed via context
 
   // If query failed after retries, show error with retry option instead of blind redirect
   if (isError) {

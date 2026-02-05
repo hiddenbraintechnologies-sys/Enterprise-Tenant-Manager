@@ -1,0 +1,109 @@
+✅ Root cause (what’s actually happening on screen)
+
+Your app is showing a full-page blocking gate: “Loading subscription…” (spinner overlay).
+When that gate is active, clicks/navigation feel broken (or require repeating), and some clinic pages never reach the “create” UI state.
+
+So the fix is: stop blocking the entire app on subscription loading and stop using subscription as a hard requirement for clinic base modules (patients/services).
+
+1) Fix Settings “menu doesn’t open / need to navigate again”
+Why it happens
+
+You click Settings → route changes, but immediately the global gate takes over (Loading subscription) and the layout re-mounts. It feels like “nothing opened”, so you click again.
+
+✅ Solution
+
+Make subscription loading non-blocking at AppShell level.
+
+Patch: App layout / subscription provider
+
+Find where you do something like:
+
+if (isLoadingSubscription) return <FullScreenLoading />;
+
+
+Replace with:
+
+// ✅ Never block the entire app
+const subscription = data ?? { tier: "free", status: "active" }; // safe default
+
+return (
+  <SubscriptionContext.Provider value={{ subscription, isLoading, error }}>
+    {children}
+  </SubscriptionContext.Provider>
+);
+
+
+And move any “loading subscription…” UI to a small badge in header instead of a full-screen gate.
+
+✅ Result: Settings opens immediately (no second click feeling).
+
+2) Fix Clinic: cannot create Services / Patients
+Why it happens
+
+Even if Clinic has modules enabled in your config, create flows are often gated by “subscription ready” or “paid plan” checks.
+
+So clinic menu shows Patients/Services, but the page is stuck or buttons disabled because:
+
+subscription === null → treated as “not allowed”
+
+or “services require paid” logic incorrectly applied to clinic base module
+
+✅ Correct rules
+
+For clinics:
+
+Patients + Services are core, available on Free (with limits if needed)
+
+Subscription should only control add-ons (billing, payroll, marketplace, etc.)
+
+Patch A: Allow clinic core modules even if subscription is loading
+
+Wherever you check:
+
+if (!subscription) throw FORBIDDEN;
+
+
+Change to:
+
+// ✅ subscription unknown should not block core modules
+const sub = subscription ?? { tier: "free", status: "active" };
+
+Patch B: Fix plan gating logic
+
+Find your gating function (usually canAccessModule() / requirePlan() / isModuleEnabled()).
+
+Implement:
+
+const CORE_MODULES_BY_BIZ: Record<string, Set<string>> = {
+  clinic: new Set(["patients", "services", "appointments"]),
+  clinic_healthcare: new Set(["patients", "services", "appointments"]),
+};
+
+export function canAccessModule(businessType: string, moduleKey: string, subscription: any) {
+  // ✅ Always allow core modules for that business type
+  if (CORE_MODULES_BY_BIZ[businessType]?.has(moduleKey)) return true;
+
+  // then enforce subscription/addons for non-core
+  const sub = subscription ?? { tier: "free" };
+
+  // example: billing/payroll etc.
+  // return sub.tier !== "free";
+  return true;
+}
+
+
+Then in Patients/Services APIs (server routes), ensure they use canAccessModule() with this core bypass.
+
+✅ Result: Clinic can create patients/services regardless of subscription state.
+
+3) One more fix that usually blocks “Create Service”
+
+Even if access is allowed, creates fail if default role permissions don’t include service/patient create.
+
+Make sure your seeded roles include:
+
+PATIENT_CREATE / PATIENT_MANAGE
+
+SERVICE_CREATE / SERVICE_MANAGE
+
+If your permission names differ, align the API guard and seeded permissions to the same string.

@@ -11,9 +11,19 @@ export interface ModuleAccessData {
   planTier?: string;
 }
 
+// Core modules that are always accessible for each business type (even on Free)
+const CORE_MODULES_BY_BUSINESS_TYPE: Record<string, Set<string>> = {
+  clinic: new Set(["patients", "services", "appointments", "customers"]),
+  clinic_healthcare: new Set(["patients", "services", "appointments", "customers"]),
+  salon: new Set(["clients", "services", "appointments", "customers"]),
+  salon_spa: new Set(["clients", "services", "appointments", "customers"]),
+  service: new Set(["customers", "services", "appointments"]),
+};
+
 export function useModuleAccess() {
   const { isAuthenticated, tenant } = useAuth();
   const tenantId = tenant?.id;
+  const businessType = tenant?.businessType || "service";
 
   const { data, isLoading, error } = useQuery<{ moduleAccess: Record<string, ModuleAccessInfo>; planTier?: string }>({
     queryKey: ["/api/context"],
@@ -23,6 +33,13 @@ export function useModuleAccess() {
   });
 
   const canAccessModule = (moduleId: string): boolean => {
+    // Always allow core modules for the business type
+    const coreModules = CORE_MODULES_BY_BUSINESS_TYPE[businessType];
+    if (coreModules?.has(moduleId.toLowerCase())) {
+      return true;
+    }
+
+    // If module access data not yet loaded, allow access (non-blocking)
     if (!data?.moduleAccess) return true;
     const access = data.moduleAccess[moduleId];
     return access?.access === "included" || access?.access === "addon";
