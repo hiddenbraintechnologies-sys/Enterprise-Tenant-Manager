@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import archiver from "archiver";
 import { db } from "../../db";
 import { auditLogs, userSessions, stepUpChallenges, refreshTokens, tenantStaff, tenantIpRules } from "@shared/schema";
 import { and, eq, gte, lte, desc, inArray, sql } from "drizzle-orm";
@@ -717,6 +718,193 @@ router.get(
     });
 
     return res.json(summary);
+  }
+);
+
+/**
+ * One-Click SOC2 Evidence Bundle (ZIP)
+ * POST /api/compliance/export/bundle
+ * 
+ * Generates a ZIP file containing all SOC2 evidence grouped by control category.
+ * This is auditor-ready evidence for Type II audits.
+ */
+router.post(
+  "/export/bundle",
+  requirePermission("SETTINGS_SECURITY_VIEW"),
+  requireStepUp("data_export"),
+  async (req: Request, res: Response) => {
+    const { tenantId, userId } = req.tokenPayload!;
+    const { from, to } = req.body as { from?: string; to?: string };
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context required" });
+    }
+
+    const { fromDate, toDate } = parseDateRange(from, to);
+    const periodLabel = `${fromDate.toISOString().split("T")[0]}_to_${toDate.toISOString().split("T")[0]}`;
+
+    await logAudit({
+      tenantId,
+      userId,
+      action: "access",
+      resource: "soc2_bundle",
+      metadata: { 
+        event: "DATA_EXPORT_STARTED",
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    const allLogs = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.tenantId, tenantId),
+          gte(auditLogs.createdAt, fromDate),
+          lte(auditLogs.createdAt, toDate)
+        )
+      )
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(MAX_EXPORT_ROWS);
+
+    const filterByEvents = (events: string[]) => allLogs.filter(log => {
+      const metadata = log.metadata as Record<string, unknown> | null;
+      const event = metadata?.event as string | undefined;
+      return event && events.includes(event);
+    });
+
+    const cc6AccessLogs = filterByEvents(CC6_ACCESS_EVENTS);
+    const cc6RoleChanges = allLogs.filter(log => log.resource === "role");
+    const cc6Impersonation = filterByEvents(["IMPERSONATION_STARTED", "IMPERSONATION_ENDED"]);
+
+    const cc7SecurityEvents = filterByEvents(CC7_OPERATIONS_EVENTS);
+    const cc7IpRules = allLogs.filter(log => log.resource === "ip_rule");
+    const cc7Invalidations = filterByEvents(["SESSION_REVOKED", "SESSION_EXPIRED", "FORCE_LOGOUT"]);
+
+    const cc8Incidents = filterByEvents(CC8_INCIDENT_EVENTS);
+    const cc8ReuseTokens = await db
+      .select({
+        id: refreshTokens.id,
+        userId: refreshTokens.userId,
+        familyId: refreshTokens.familyId,
+        revokeReason: refreshTokens.revokeReason,
+        suspiciousReuseAt: refreshTokens.suspiciousReuseAt,
+        ipAddress: refreshTokens.ipAddress,
+        deviceFingerprint: refreshTokens.deviceFingerprint,
+      })
+      .from(refreshTokens)
+      .where(
+        and(
+          eq(refreshTokens.tenantId, tenantId),
+          eq(refreshTokens.revokeReason, "reuse_detected"),
+          gte(refreshTokens.suspiciousReuseAt, fromDate),
+          lte(refreshTokens.suspiciousReuseAt, toDate)
+        )
+      )
+      .orderBy(desc(refreshTokens.suspiciousReuseAt))
+      .limit(MAX_EXPORT_ROWS);
+
+    const cc9Anomaly = allLogs.filter(log => {
+      const metadata = log.metadata as Record<string, unknown> | null;
+      return metadata?.score !== undefined || metadata?.reasons !== undefined;
+    });
+
+    const stepUpEvents = await db
+      .select()
+      .from(stepUpChallenges)
+      .where(
+        and(
+          eq(stepUpChallenges.tenantId, tenantId),
+          gte(stepUpChallenges.createdAt, fromDate),
+          lte(stepUpChallenges.createdAt, toDate)
+        )
+      )
+      .orderBy(desc(stepUpChallenges.createdAt))
+      .limit(MAX_EXPORT_ROWS);
+
+    const readme = `SOC2 Type II Evidence Bundle
+============================
+
+Period: ${fromDate.toISOString()} to ${toDate.toISOString()}
+Generated: ${new Date().toISOString()}
+Tenant: ${tenantId}
+
+This archive contains SOC2 Type II evidence grouped by Trust Services Criteria.
+All data was generated automatically from immutable audit logs.
+Exports were performed by an authorized administrator with step-up authentication.
+
+Contents:
+---------
+CC6_Access_Control/
+  - access_logs.csv: Authentication events, logins, logouts
+  - role_changes.csv: Role and permission modifications
+  - impersonation_events.csv: Admin impersonation sessions
+
+CC7_Security_Operations/
+  - security_events.csv: Configuration and security changes
+  - ip_rule_changes.csv: IP allow/deny rule modifications
+  - session_invalidations.csv: Forced logouts and session revocations
+
+CC8_Incident_Response/
+  - security_incidents.csv: Suspicious login detections
+  - token_reuse_incidents.csv: Refresh token reuse detections
+
+CC9_Monitoring/
+  - anomaly_decisions.csv: Risk scoring and adaptive auth decisions
+  - step_up_challenges.csv: OTP verification challenges
+
+Evidence Integrity:
+-------------------
+- All records are append-only and immutable
+- Export actions are logged in the audit trail
+- Data can be verified against the source database
+
+For questions, contact your security administrator.
+`;
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="SOC2_Evidence_${periodLabel}.zip"`);
+    
+    archive.pipe(res);
+
+    archive.append(readme, { name: "README.txt" });
+
+    archive.append(toCsv(cc6AccessLogs as Record<string, unknown>[]), { name: "CC6_Access_Control/access_logs.csv" });
+    archive.append(toCsv(cc6RoleChanges as Record<string, unknown>[]), { name: "CC6_Access_Control/role_changes.csv" });
+    archive.append(toCsv(cc6Impersonation as Record<string, unknown>[]), { name: "CC6_Access_Control/impersonation_events.csv" });
+
+    archive.append(toCsv(cc7SecurityEvents as Record<string, unknown>[]), { name: "CC7_Security_Operations/security_events.csv" });
+    archive.append(toCsv(cc7IpRules as Record<string, unknown>[]), { name: "CC7_Security_Operations/ip_rule_changes.csv" });
+    archive.append(toCsv(cc7Invalidations as Record<string, unknown>[]), { name: "CC7_Security_Operations/session_invalidations.csv" });
+
+    archive.append(toCsv(cc8Incidents as Record<string, unknown>[]), { name: "CC8_Incident_Response/security_incidents.csv" });
+    archive.append(toCsv(cc8ReuseTokens as Record<string, unknown>[]), { name: "CC8_Incident_Response/token_reuse_incidents.csv" });
+
+    archive.append(toCsv(cc9Anomaly as Record<string, unknown>[]), { name: "CC9_Monitoring/anomaly_decisions.csv" });
+    archive.append(toCsv(stepUpEvents as Record<string, unknown>[]), { name: "CC9_Monitoring/step_up_challenges.csv" });
+
+    await logAudit({
+      tenantId,
+      userId,
+      action: "access",
+      resource: "soc2_bundle",
+      metadata: { 
+        event: "DATA_EXPORT_COMPLETED",
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+        files: 10,
+        totalRecords: allLogs.length + cc8ReuseTokens.length + stepUpEvents.length,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    await archive.finalize();
   }
 );
 

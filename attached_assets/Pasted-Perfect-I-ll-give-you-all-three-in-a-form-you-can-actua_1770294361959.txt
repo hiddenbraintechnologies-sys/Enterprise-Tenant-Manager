@@ -1,0 +1,313 @@
+Perfect — I’ll give you all three, in a form you can actually use during a SOC2 Type II audit, not fluffy docs.
+
+1️⃣ SOC2 Type II Evidence Calendar
+
+(What to collect, how often, and why auditors ask for it)
+
+Type II = controls over time. Auditors will sample evidence weekly/monthly.
+
+📅 Daily (automated, no human touch)
+
+You don’t “submit” these daily, but auditors verify they exist continuously.
+
+Automatically logged
+
+Authentication events (AUTH_LOGIN_SUCCESS, FAILED)
+
+Refresh token rotation + reuse detection
+
+Session invalidations
+
+Step-up challenges (OTP)
+
+Impersonation start/stop
+
+IP rule enforcement
+
+Stored in
+
+audit_logs
+
+user_sessions
+
+refresh_tokens
+
+step_up_challenges
+
+✅ Audit proof: Database retention + immutable logs
+
+📅 Weekly Evidence (mandatory)
+
+Auditors will sample these.
+
+CC6 – Access Controls
+
+Export:
+
+User role changes
+
+User invites / deactivations
+
+Impersonation events
+
+Endpoint:
+
+GET /api/compliance/cc6/access-logs?from=YYYY-MM-DD&to=YYYY-MM-DD
+
+
+Auditor question:
+
+“Show me who gained or lost access last week.”
+
+CC7 – Security Operations
+
+Export:
+
+Session invalidations
+
+Forced logouts
+
+IP rule changes
+
+Endpoint:
+
+GET /api/compliance/cc7/security-events?from=...&to=...
+
+
+Auditor wants to see:
+
+Timely response to security events
+
+No silent failures
+
+📅 Monthly Evidence (core Type II requirement)
+CC8 – Incident Response & Risk
+
+Export:
+
+Suspicious login detections
+
+Refresh token reuse incidents
+
+High anomaly score events
+
+Endpoint:
+
+GET /api/compliance/cc8/security-incidents?from=...&to=...
+
+
+Auditor checks:
+
+Were incidents detected?
+
+Were sessions invalidated?
+
+Was access blocked or stepped up?
+
+CC9 – Monitoring & Evidence Integrity
+
+Export:
+
+Audit log completeness
+
+Data export events
+
+Endpoint:
+
+GET /api/compliance/cc9/anomaly-decisions?from=...&to=...
+
+
+Auditor verifies:
+
+Monitoring is continuous
+
+Controls were enforced consistently
+
+📅 Quarterly (strongly recommended)
+
+Not always mandatory, but boosts confidence.
+
+Evidence bundle ZIP (see section 3)
+
+Review admin access list
+
+Verify cleanup jobs ran (expired tokens)
+
+2️⃣ Mock SOC2 Auditor Q&A (based on your system)
+
+These are real questions auditors ask, with answers that map directly to your implementation.
+
+❓ Q1: How do you prevent stolen refresh tokens from being reused?
+
+Answer
+
+Refresh tokens are single-use and rotated on every use.
+Tokens are stored as SHA-256 hashes.
+If a revoked token is reused, the entire token family is revoked and all sessions are invalidated.
+
+Evidence
+
+refresh_tokens.revoke_reason = reuse_detected
+
+Audit event: SUSPICIOUS_LOGIN_DETECTED
+
+❓ Q2: Can an admin secretly access another user’s account?
+
+Answer
+
+No. Impersonation must be explicitly initiated, is clearly indicated in the UI, and is fully logged.
+Owners cannot be impersonated.
+
+Evidence
+
+Audit actions:
+
+IMPERSONATION_STARTED
+
+IMPERSONATION_ENDED
+
+❓ Q3: How do you ensure access is removed promptly when a user leaves?
+
+Answer
+
+We use session versioning.
+Incrementing tenant_staff.sessionVersion invalidates all active JWT sessions immediately.
+
+Evidence
+
+SESSION_INVALIDATED
+
+Forced logout audit entries
+
+❓ Q4: What happens if a login looks suspicious?
+
+Answer
+
+We compute a session anomaly score based on device, location, and concurrency.
+Medium risk requires OTP verification.
+High risk blocks access and forces logout.
+
+Evidence
+
+STEP_UP_REQUIRED
+
+STEP_UP_VERIFIED
+
+SESSION_BLOCKED
+
+❓ Q5: How do you ensure audit logs aren’t tampered with?
+
+Answer
+
+Audit logs are append-only, immutable, and stored centrally.
+All exports are logged and require step-up authentication.
+
+Evidence
+
+DATA_EXPORT_STARTED
+
+DATA_EXPORT_COMPLETED
+
+❓ Q6: Do you delete security data?
+
+Answer
+
+Expired tokens are revoked first, not deleted.
+Security-related revocations (e.g., reuse detection) are retained for extended periods.
+
+Evidence
+
+Cleanup job logs
+
+Retention policy
+
+3️⃣ One-Click SOC2 Evidence Bundle (ZIP)
+
+This is auditor heaven. One ZIP per audit period.
+
+📦 What the ZIP contains
+SOC2_Evidence_2024_Q4.zip
+│
+├── CC6_Access_Control/
+│   ├── access_logs.csv
+│   ├── role_changes.csv
+│   └── impersonation_events.csv
+│
+├── CC7_Security_Operations/
+│   ├── session_invalidations.csv
+│   ├── ip_rule_changes.csv
+│
+├── CC8_Incident_Response/
+│   ├── suspicious_logins.csv
+│   ├── refresh_token_reuse.csv
+│
+├── CC9_Monitoring/
+│   ├── anomaly_decisions.csv
+│   ├── audit_log_integrity.csv
+│
+└── README.txt
+
+🔘 Endpoint design
+POST /api/compliance/export/bundle
+
+
+Request:
+
+{
+  "from": "2024-10-01",
+  "to": "2024-12-31",
+  "format": "csv"
+}
+
+
+Requires:
+
+SETTINGS_SECURITY_VIEW
+
+requireStepUp("data_export")
+
+🛠 Implementation outline (Node)
+import archiver from "archiver";
+
+router.post("/compliance/export/bundle", async (req, res) => {
+  const archive = archiver("zip");
+  res.attachment("SOC2_Evidence.zip");
+  archive.pipe(res);
+
+  archive.append(await exportCC6(), { name: "CC6_Access_Control/access_logs.csv" });
+  archive.append(await exportCC7(), { name: "CC7_Security_Operations/security_events.csv" });
+  archive.append(await exportCC8(), { name: "CC8_Incident_Response/incidents.csv" });
+  archive.append(await exportCC9(), { name: "CC9_Monitoring/anomaly.csv" });
+
+  await logAudit({
+    tenantId: req.tokenPayload.tenantId,
+    userId: req.tokenPayload.userId,
+    action: "DATA_EXPORT_COMPLETED",
+    resource: "soc2_bundle",
+    metadata: { from: req.body.from, to: req.body.to },
+  });
+
+  archive.finalize();
+});
+
+📄 README.txt (include this)
+This archive contains SOC2 Type II evidence grouped by Trust Services Criteria.
+All data was generated automatically from immutable audit logs.
+Exports were performed by an authorized administrator with step-up authentication.
+
+
+Auditors LOVE this.
+
+✅ Where you stand now
+
+You now have:
+
+A time-based evidence plan
+
+Auditor-ready answers tied to real code
+
+One-click evidence exports by control
+
+A system that demonstrates control effectiveness over time
+
+This is well beyond “startup SOC2” — this is mature SaaS security.
