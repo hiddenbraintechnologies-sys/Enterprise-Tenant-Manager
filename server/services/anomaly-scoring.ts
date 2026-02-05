@@ -35,6 +35,7 @@ const THRESHOLD_STEP_UP = 60;
 const THRESHOLD_FORCE_LOGOUT = 90;
 
 const memCache = new Map<string, { at: number; value: AnomalyScoreResult }>();
+const MAX_CACHE_ENTRIES = 10_000;
 
 function cacheKey(params: AnomalyScoreParams): string {
   return [
@@ -145,6 +146,9 @@ export async function computeAnomalyScore(
       lookedBack: recentSessions.length,
     };
 
+    if (memCache.size > MAX_CACHE_ENTRIES) {
+      memCache.clear();
+    }
     memCache.set(key, { at: Date.now(), value: result });
     return result;
   } catch (error) {

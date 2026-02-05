@@ -42,6 +42,8 @@ Security measures include:
 - **Suspicious Login Detection**: Device fingerprinting using SHA-256 hashes; automatic security alerts for new devices or IPs during SSO login.
 - **Security Alerts**: Categorized alerts (new_device, new_ip, new_country, force_logout, suspicious_activity) with severity levels and acknowledgment workflow.
 - **Session Version Middleware**: Applied to authenticated routes to enforce logout invalidation across the platform.
+- **Anomaly Scoring (SOC2)**: Session anomaly detection is performed using indexed queries against active session data. Results are cached per user for a short duration (60s) to reduce load and prevent denial-of-service risk. Anomaly checks are non-fatal and never block authentication due to internal errors. Risk factors include: new device (+30), new country (+25), new city (+10), many active sessions (+20). Scores above 60 trigger step-up authentication; scores above 90 trigger force logout.
+- **Refresh Token Rotation**: JWT refresh tokens implement automatic rotation with reuse detection. When a revoked token is replayed, the entire token family is invalidated and the user's sessionVersion is bumped to force logout across all devices. SOC2-compliant audit logs are generated for all security events.
 
 ### Role-Based Access Control (RBAC)
 

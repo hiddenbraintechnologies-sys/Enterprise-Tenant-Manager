@@ -3,6 +3,7 @@ import { db } from "../db";
 import { refreshTokens, tenantStaff } from "@shared/schema";
 import { eq, and, isNull, or } from "drizzle-orm";
 import { logAudit } from "../audit/logAudit";
+import { clearAnomalyCache } from "./anomaly-scoring";
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
@@ -223,6 +224,11 @@ export async function revokeFamilyAndInvalidate(
     await db.update(tenantStaff)
       .set({ sessionVersion: crypto.randomInt(1_000_000) })
       .where(eq(tenantStaff.id, token.staffId));
+  }
+
+  // Clear anomaly cache so next login re-evaluates risk
+  if (token.tenantId) {
+    clearAnomalyCache(token.tenantId, token.userId);
   }
 
   // SOC2-compliant audit log for security incident
