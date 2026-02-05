@@ -316,7 +316,7 @@ const DASHBOARD_ROUTES: Record<BusinessType, string> = {
 const systemItems: NavItem[] = [
   { title: "Marketplace", url: "/marketplace", icon: Package, tourId: "sidebar-marketplace" },
   { title: "AI Permissions", url: "/ai-permissions", icon: Bot },
-  { title: "Settings", url: "/settings", icon: Settings, tourId: "sidebar-settings" },
+  { title: "Settings", url: "/settings/profile", icon: Settings, tourId: "sidebar-settings" },
 ];
 
 interface SettingsNavItem extends NavItem {
@@ -876,23 +876,31 @@ export function AppSidebar({ businessType }: { businessType?: string } = {}) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {systemItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                  >
-                    <Link 
-                      href={item.url} 
-                      data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                      data-tour={item.tourId || `sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+              {systemItems.map((item) => {
+                // Settings should be active on any /settings/* route
+                const isSettingsItem = item.title === "Settings";
+                const isActive = isSettingsItem 
+                  ? location.startsWith("/settings")
+                  : location === item.url;
+                
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
                     >
-                      <item.icon className="h-4 w-4" />
-                      <span>{t(TITLE_TO_KEY[item.title] || item.title, item.title)}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                      <Link 
+                        href={item.url} 
+                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        data-tour={item.tourId || `sidebar-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{t(TITLE_TO_KEY[item.title] || item.title, item.title)}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

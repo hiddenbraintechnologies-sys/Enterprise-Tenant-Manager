@@ -53,7 +53,7 @@ export const BUSINESS_TYPE_CONFIG: Record<string, BusinessTypeConfig> = {
   clinic_healthcare: {
     label: "Healthcare / Clinic Business",
     category: "healthcare",
-    modules: ["clinic", "appointments", "patients", "billing"],
+    modules: ["clinic", "appointments", "patients", "services", "billing"],
     terminology: "clinic",
     forbiddenTerms: ["member", "trainer", "host", "tenant", "room"],
   },
@@ -61,7 +61,7 @@ export const BUSINESS_TYPE_CONFIG: Record<string, BusinessTypeConfig> = {
   clinic: {
     label: "Healthcare / Clinic Business",
     category: "healthcare",
-    modules: ["clinic", "appointments", "patients", "billing"],
+    modules: ["clinic", "appointments", "patients", "services", "billing"],
     terminology: "clinic",
     forbiddenTerms: ["member", "trainer", "host", "tenant", "room"],
   },
@@ -233,4 +233,91 @@ export function getBusinessTypeConfigOptions() {
     modules: config.modules,
     terminology: config.terminology,
   }));
+}
+
+// Terminology mapping: generic term → terminology-specific term
+const TERMINOLOGY_MAP: Record<string, Record<string, string>> = {
+  core: {
+    customers: "Clients",
+    customer: "Client",
+    services: "Services",
+    service: "Service",
+    bookings: "Bookings",
+    booking: "Booking",
+  },
+  clinic: {
+    customers: "Patients",
+    customer: "Patient",
+    clients: "Patients",
+    client: "Patient",
+    services: "Services",
+    service: "Service",
+    bookings: "Appointments",
+    booking: "Appointment",
+  },
+  salon: {
+    customers: "Clients",
+    customer: "Client",
+    patients: "Clients",
+    patient: "Client",
+    bookings: "Appointments",
+    booking: "Appointment",
+  },
+  gym: {
+    customers: "Members",
+    customer: "Member",
+    clients: "Members",
+    client: "Member",
+    bookings: "Sessions",
+    booking: "Session",
+  },
+  coworking: {
+    customers: "Members",
+    customer: "Member",
+    clients: "Members",
+    client: "Member",
+    bookings: "Bookings",
+    booking: "Booking",
+  },
+  pg: {
+    customers: "Tenants",
+    customer: "Tenant",
+    clients: "Tenants",
+    client: "Tenant",
+    bookings: "Bookings",
+    booking: "Booking",
+  },
+  education: {
+    customers: "Students",
+    customer: "Student",
+    clients: "Students",
+    client: "Student",
+  },
+  legal: {
+    customers: "Clients",
+    customer: "Client",
+  },
+  logistics: {
+    customers: "Customers",
+    customer: "Customer",
+  },
+  tourism: {
+    customers: "Travelers",
+    customer: "Traveler",
+    clients: "Travelers",
+    client: "Traveler",
+  },
+  real_estate: {
+    customers: "Leads",
+    customer: "Lead",
+    clients: "Leads",
+    client: "Lead",
+  },
+};
+
+// Get translated term for a business type
+export function getTermForBusinessType(businessType: string, genericTerm: string): string {
+  const terminology = getBusinessTypeTerminology(businessType);
+  const termMap = TERMINOLOGY_MAP[terminology] || TERMINOLOGY_MAP.core;
+  return termMap[genericTerm.toLowerCase()] || genericTerm;
 }

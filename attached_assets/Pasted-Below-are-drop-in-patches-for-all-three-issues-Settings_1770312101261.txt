@@ -1,0 +1,243 @@
+Below are drop-in patches for all three issues (Settings double-click, Business location stuck India/INR, Clinic can’t add Services/Patients). I’m giving you code in a way you can paste with minimal edits.
+
+1) Settings menu opens only so you must click twice
+Patch goal
+
+Make the Settings submenu auto-open whenever the route is /settings/ and remove toggle/race conditions.
+
+Client patch (Sidebar)
+
+Wherever your sidebar renders Settings (often client/src/components/sidebar.tsx or client/src/components/app-sidebar.tsx):
+
+✅ Add derived open logic
+import { useLocation, Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+
+export function AppSidebar() {
+  const location = useLocation();
+
+  const isSettingsRoute = useMemo(
+    () => location.pathname === "/settings" || location.pathname.startsWith("/settings/"),
+    [location.pathname]
+  );
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // ✅ Auto-open when navigating into settings routes
+  useEffect(() => {
+    if (isSettingsRoute) setSettingsOpen(true);
+  }, [isSettingsRoute]);
+
+  // ✅ Only manual toggle when already on settings routes (optional)
+  const onSettingsClick = () => {
+    if (isSettingsRoute) setSettingsOpen((v) => !v);
+    // If not in settings route, do NOT toggle—route change will open it.
+  };
+
+  return (
+    <nav>
+      {/* Settings parent item */}
+      <button type="button" onClick={onSettingsClick} className="w-full">
+        Settings
+      </button>
+
+      {/* Submenu */}
+      {settingsOpen && (
+        <div className="ml-4">
+          <Link to="/settings/profile">Profile</Link>
+          <Link to="/settings/business">Business</Link>
+          <Link to="/settings/staff-roles">Staff & Roles</Link>
+          {/* ... */}
+        </div>
+      )}
+    </nav>
+  );
+}
+
+✅ Critical note
+
+If your Settings parent item is a <Link to="/settings">, change it to:
+
+either a button that navigates
+
+or a link that doesn’t toggle
+
+If you want it clickable to go to /settings, do this:
+
+import { useNavigate } from "react-router-dom";
+const navigate = useNavigate();
+
+const onSettingsClick = () => {
+  if (!isSettingsRoute) navigate("/settings/profile"); // or "/settings"
+  else setSettingsOpen(v => !v);
+};
+
+
+✅ This removes “first click navigates and collapsible resets”.
+
+2) Business location always shows India/INR
+Patch goal
+
+Settings must read country/currency from tenant record (not defaults / rollout / catalog).
+
+✅ Server: Add a proper endpoint (or fix existing)
+
+Add/ensure this returns tenant values:
+
+GET /api/settings/business/location
+
+app.get("/api/settings/business/location", authenticateJWT(), async (req: any, res) => {
+  const tenantId = req.tenant.id;
+
+  const tenant = await db.query.tenants.findFirst({
+    where: eq(tenants.id, tenantId),
+    columns: {
+      id: true,
+      country: true,
+      currency: true,
+      timezone: true,
+      name: true,
+    },
+  });
+
+  if (!tenant) return res.status(404).json({ error: "NOT_FOUND", message: "Tenant not found" });
+
+  res.json({
+    success: true,
+    location: {
+      country: tenant.country,
+      currency: tenant.currency,
+      timezone: tenant.timezone,
+    },
+  });
+});
+
+✅ Client: use this endpoint and REMOVE fallback to India
+
+In your settings business location page:
+
+const { data } = useQuery({
+  queryKey: ["/api/settings/business/location"],
+  queryFn: async () => {
+    const res = await fetch("/api/settings/business/location", { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to load business location");
+    return res.json();
+  },
+});
+
+const country = data?.location?.country ?? "—";
+const currency = data?.location?.currency ?? "—";
+
+
+❌ Do not use catalog defaults here.
+
+If tenant.currency doesn’t exist yet
+
+Derive from country server-side with a map until you backfill:
+
+const COUNTRY_TO_CURRENCY: Record<string, string> = { IN: "INR", MY: "MYR" };
+
+3) Clinics cannot add Services and Patients
+Patch goal
+
+For businessType = clinic/clinic_healthcare:
+
+enable PATIENTS + SERVICES modules automatically
+
+ensure menus are visible
+
+ensure roles have permissions
+
+You need two pieces: module enablement + permissions.
+
+3A) Module enablement (recommended minimal structure)
+Add a table if you don’t have one
+
+If you already have module enablement, skip schema and just patch seeding.
+
+Schema (if missing): tenant_modules
+
+export const tenantModules = pgTable("tenant_modules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  moduleKey: varchar("module_key", { length: 80 }).notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("idx_tenant_modules_unique").on(t.tenantId, t.moduleKey),
+  index("idx_tenant_modules_tenant").on(t.tenantId),
+]);
+
+Business type → default modules map
+
+Create server/constants/business-modules.ts:
+
+export const BUSINESS_TYPE_DEFAULT_MODULES: Record<string, string[]> = {
+  clinic: ["PATIENTS", "SERVICES", "APPOINTMENTS"],
+  clinic_healthcare: ["PATIENTS", "SERVICES", "APPOINTMENTS"],
+
+  salon: ["CLIENTS", "SERVICES", "BOOKINGS"],
+  coworking: ["MEMBERS", "BOOKINGS"],
+  gym: ["MEMBERS", "SERVICES", "BOOKINGS"],
+};
+
+Seed modules during tenant creation
+
+In your tenant creation transaction (phase3 + tenantService.createTenant), after tenant insert:
+
+import { tenantModules } from "@/shared/schema";
+import { BUSINESS_TYPE_DEFAULT_MODULES } from "@/server/constants/business-modules";
+
+const modules = BUSINESS_TYPE_DEFAULT_MODULES[newTenant.businessType] ?? [];
+if (modules.length) {
+  await tx.insert(tenantModules).values(
+    modules.map((m) => ({ tenantId: newTenant.id, moduleKey: m, isEnabled: true }))
+  ).onConflictDoNothing();
+}
+
+Client menu visibility
+
+When rendering menu, check module enabled:
+
+clinic should show Patients + Services pages if module enabled
+
+3B) Permissions (make sure default roles can manage patients/services)
+
+In DEFAULT_TENANT_ROLES add permissions (or ensure they exist):
+
+PATIENT_VIEW, PATIENT_CREATE, PATIENT_EDIT
+
+SERVICE_VIEW, SERVICE_MANAGE
+
+For example:
+
+Owner/Admin: all
+
+Manager: view + create/edit
+
+Staff: view + create (optional)
+
+Viewer: view only
+
+If your permission names differ, use your existing naming scheme.
+
+✅ Quick verification steps (after patches)
+Settings nav
+
+Click Settings once → submenu opens + route loads
+
+Business location
+
+Malaysia tenant → shows MY + MYR
+
+India tenant → shows IN + INR
+
+Clinic
+
+Clinic tenant dashboard/menu includes:
+
+Patients
+
+Services
+
+Able to create patient + create service

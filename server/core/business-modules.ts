@@ -1,5 +1,5 @@
 export const BUSINESS_MODULES = {
-  clinic: ['appointments', 'patients', 'billing'],
+  clinic: ['appointments', 'patients', 'services', 'billing'],
   salon: ['appointments', 'services', 'staff'],
   pg: ['rooms', 'tenants', 'billing'],
   coworking: ['desks', 'bookings', 'memberships'],
