@@ -751,6 +751,8 @@ export async function registerRoutes(
   const authRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
   // Stricter rate limit for registration: 10 per 15 minutes per IP
   const registrationRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, maxRequests: 10 });
+  // Rate limit for avatar uploads: 10 per minute per user
+  const avatarRateLimit = rateLimit({ windowMs: 60 * 1000, maxRequests: 10 });
 
   // Use shared validation from @shared/validation
   const { nameField } = await import("@shared/validation/name");
@@ -1904,7 +1906,7 @@ export async function registerRoutes(
   });
 
   // Avatar upload - Step 1: Get presigned upload URL
-  app.post("/api/me/avatar/prepare", authenticateJWT(), async (req, res) => {
+  app.post("/api/me/avatar/prepare", authenticateJWT(), avatarRateLimit, async (req, res) => {
     try {
       const user = (req as any).user;
       if (!user?.id) {
@@ -1917,8 +1919,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Missing contentType" });
       }
 
-      if (!contentType.startsWith("image/")) {
-        return res.status(400).json({ message: "Invalid file type. Must be an image." });
+      // Strict allowlist for image types
+      const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+      if (!ALLOWED_TYPES.includes(contentType)) {
+        return res.status(400).json({ message: "Invalid file type. Only JPEG, PNG, GIF, or WebP allowed." });
       }
 
       const MAX_SIZE = 5 * 1024 * 1024;
@@ -1926,8 +1930,14 @@ export async function registerRoutes(
         return res.status(400).json({ message: "File too large. Maximum 5MB." });
       }
 
-      const ext = contentType === "image/png" ? "png" : 
-                  contentType === "image/gif" ? "gif" : "jpg";
+      // Derive extension from allowlist (not user input)
+      const EXT_MAP: Record<string, string> = {
+        "image/jpeg": "jpg",
+        "image/png": "png", 
+        "image/gif": "gif",
+        "image/webp": "webp"
+      };
+      const ext = EXT_MAP[contentType] || "jpg";
       const objectKey = `public/avatars/${user.id}.${ext}`;
       
       const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
@@ -1976,7 +1986,7 @@ export async function registerRoutes(
   });
 
   // Avatar upload - Step 2: Confirm upload and update database
-  app.post("/api/me/avatar/confirm", authenticateJWT(), async (req, res) => {
+  app.post("/api/me/avatar/confirm", authenticateJWT(), avatarRateLimit, async (req, res) => {
     try {
       const user = (req as any).user;
       if (!user?.id) {
@@ -2005,7 +2015,7 @@ export async function registerRoutes(
   });
 
   // Remove avatar - unlinks avatarUrl so UI falls back to SSO/default
-  app.post("/api/me/avatar/remove", authenticateJWT(), async (req, res) => {
+  app.post("/api/me/avatar/remove", authenticateJWT(), avatarRateLimit, async (req, res) => {
     try {
       const user = (req as any).user;
       if (!user?.id) {

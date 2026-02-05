@@ -27,6 +27,9 @@ export type PlatformRole =
 // NOTE: Tenant roles are now DB-driven via tenant_roles table. Do not use LegacyTenantRole for new code.
 export type LegacyTenantRole = "TENANT_ADMIN" | "TENANT_STAFF" | "TENANT_VIEWER";
 
+// Alias for backwards compatibility with guards.ts
+export type TenantRole = LegacyTenantRole;
+
 // Keep Role union for platform roles + legacy tenant roles
 export type Role = PlatformRole | LegacyTenantRole;
 
