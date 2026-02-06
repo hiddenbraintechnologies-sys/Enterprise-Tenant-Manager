@@ -52,20 +52,24 @@ function logSlowQuery(sql: string, duration: number): void {
 function getPool(): pg.Pool {
   if (!_pool) {
     if (!process.env.DATABASE_URL) {
+      console.error("[db] DATABASE_URL is not set. Database operations will fail.");
       throw new Error(
         "DATABASE_URL must be set. Did you forget to provision a database?",
       );
     }
     
+    const isProduction = process.env.NODE_ENV === "production";
+    
     _pool = new Pool({ 
       connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: 30000, // 30 second timeout to prevent hanging
+      connectionTimeoutMillis: isProduction ? 10000 : 30000,
       idleTimeoutMillis: 30000,
-      max: 20,
+      max: isProduction ? 10 : 20,
       ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
     });
     
-    // Handle pool errors gracefully
+    console.log("[db] Database pool created successfully");
+    
     _pool.on('error', (err) => {
       console.error('[db] Unexpected pool error:', err.message);
     });

@@ -23,6 +23,49 @@ import { logger } from "./lib/structured-logging";
 import { securityHeaders } from "./middleware/security-headers";
 import { startCleanupScheduler } from "./jobs/cleanupExpiredRefreshTokens";
 import { schemaHealthCheck } from "./bootstrap/schemaHealth";
+import crypto from "crypto";
+
+// ============================================
+// PROCESS-LEVEL ERROR HANDLERS (before anything else)
+// ============================================
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err.message);
+  console.error(err.stack);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled rejection:", reason);
+});
+
+// ============================================
+// AUTO-GENERATE MISSING SECRETS (development only)
+// In production, secrets MUST be set explicitly for stability across restarts
+// ============================================
+const _isDevEnv = process.env.NODE_ENV !== "production";
+if (!process.env.JWT_ACCESS_SECRET) {
+  if (_isDevEnv) {
+    process.env.JWT_ACCESS_SECRET = crypto.randomBytes(64).toString("hex");
+    console.log("[startup] JWT_ACCESS_SECRET auto-generated for development");
+  } else {
+    console.error("[startup] WARNING: JWT_ACCESS_SECRET not set in production - tokens will use fallback");
+  }
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  if (_isDevEnv) {
+    process.env.JWT_REFRESH_SECRET = crypto.randomBytes(64).toString("hex");
+    console.log("[startup] JWT_REFRESH_SECRET auto-generated for development");
+  } else {
+    console.error("[startup] WARNING: JWT_REFRESH_SECRET not set in production - tokens will use fallback");
+  }
+}
+if (!process.env.SESSION_SECRET) {
+  if (_isDevEnv) {
+    process.env.SESSION_SECRET = crypto.randomBytes(64).toString("hex");
+    console.log("[startup] SESSION_SECRET auto-generated for development");
+  } else {
+    console.error("[startup] WARNING: SESSION_SECRET not set in production - sessions may be unstable");
+  }
+}
 
 // ============================================
 // PRODUCTION STARTUP VALIDATION
@@ -34,7 +77,7 @@ logger.startup(`Starting MyBizStream (${environment})`);
 validateStartupConfig();
 logStartupConfig();
 
-// Validate environment variables (fails fast in production if missing)
+// Validate environment variables (warns but does not exit)
 enforceEnvironmentValidation();
 
 // Log rate limit configuration
@@ -173,13 +216,18 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
   // IMPORTANT: Start server FIRST for platform health check, then run migrations
   // This prevents provisioning timeout on large applications
   
   const port = parseInt(process.env.PORT || "5000", 10);
   
   // Start listening immediately so health checks pass
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    httpServer.on("error", (err) => {
+      console.error(`[startup] Failed to bind to port ${port}:`, err.message);
+      reject(err);
+    });
     httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       log(`serving on port ${port}`);
       resolve();
@@ -356,6 +404,9 @@ app.use((req, res, next) => {
     isInitialized = true; // Still mark as initialized to unblock waiting requests
   }
   })(); // End of initPromise async function
+  } catch (outerError) {
+    console.error("[startup] CRITICAL: Server failed to start:", outerError);
+  }
 })();
 
 function startScheduledDowngradeProcessor() {

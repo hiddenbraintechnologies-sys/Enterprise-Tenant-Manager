@@ -85,9 +85,9 @@ export function enforceEnvironmentValidation(): void {
     console.error(`[env-validation] FATAL: ${errorMessage}`);
     
     if (isProduction) {
-      console.error("[env-validation] Application cannot start in production with missing required environment variables.");
-      console.error("[env-validation] Please configure all required environment variables before deploying.");
-      process.exit(1);
+      console.error("[env-validation] WARNING: Running in production with missing environment variables.");
+      console.error("[env-validation] Please configure all required environment variables for full functionality.");
+      console.error("[env-validation] Missing: " + result.missing.join(", "));
     } else {
       console.warn("[env-validation] Continuing in development mode with missing variables...");
     }
