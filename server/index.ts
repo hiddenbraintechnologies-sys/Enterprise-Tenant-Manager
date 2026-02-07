@@ -38,33 +38,44 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // ============================================
-// AUTO-GENERATE MISSING SECRETS (development only)
-// In production, secrets MUST be set explicitly for stability across restarts
+// SECRET MANAGEMENT
+// Dev: auto-generate ephemeral secrets
+// Production: secrets MUST be set explicitly - server starts in degraded mode without them
 // ============================================
 const _isDevEnv = process.env.NODE_ENV !== "production";
+const _missingProductionSecrets: string[] = [];
+
 if (!process.env.JWT_ACCESS_SECRET) {
   if (_isDevEnv) {
     process.env.JWT_ACCESS_SECRET = crypto.randomBytes(64).toString("hex");
-    console.log("[startup] JWT_ACCESS_SECRET auto-generated for development");
+    console.log("[startup] JWT_ACCESS_SECRET auto-generated (dev only)");
   } else {
-    console.error("[startup] WARNING: JWT_ACCESS_SECRET not set in production - tokens will use fallback");
+    _missingProductionSecrets.push("JWT_ACCESS_SECRET");
+    console.error("[CRITICAL] JWT_ACCESS_SECRET must be set in production");
   }
 }
 if (!process.env.JWT_REFRESH_SECRET) {
   if (_isDevEnv) {
     process.env.JWT_REFRESH_SECRET = crypto.randomBytes(64).toString("hex");
-    console.log("[startup] JWT_REFRESH_SECRET auto-generated for development");
+    console.log("[startup] JWT_REFRESH_SECRET auto-generated (dev only)");
   } else {
-    console.error("[startup] WARNING: JWT_REFRESH_SECRET not set in production - tokens will use fallback");
+    _missingProductionSecrets.push("JWT_REFRESH_SECRET");
+    console.error("[CRITICAL] JWT_REFRESH_SECRET must be set in production");
   }
 }
 if (!process.env.SESSION_SECRET) {
   if (_isDevEnv) {
     process.env.SESSION_SECRET = crypto.randomBytes(64).toString("hex");
-    console.log("[startup] SESSION_SECRET auto-generated for development");
+    console.log("[startup] SESSION_SECRET auto-generated (dev only)");
   } else {
-    console.error("[startup] WARNING: SESSION_SECRET not set in production - sessions may be unstable");
+    _missingProductionSecrets.push("SESSION_SECRET");
+    console.error("[CRITICAL] SESSION_SECRET must be set in production");
   }
+}
+
+export const hasMissingProductionSecrets = _missingProductionSecrets.length > 0;
+if (hasMissingProductionSecrets) {
+  console.error(`[CRITICAL] Missing production secrets: ${_missingProductionSecrets.join(", ")}. Auth endpoints will return 503.`);
 }
 
 // ============================================
@@ -135,9 +146,30 @@ export function log(message: string, source = "express") {
 // Legacy response logger removed - replaced by requestLoggerMiddleware
 // which provides correlation IDs and avoids logging response bodies (PII risk)
 
+// Block auth endpoints when production secrets are missing
+// Server stays up for health checks but refuses to handle auth without proper secrets
+if (hasMissingProductionSecrets) {
+  app.use('/api/auth', (_req, res) => {
+    res.status(503).json({
+      error: 'SERVICE_UNAVAILABLE',
+      message: 'Authentication unavailable - missing required secrets in production',
+    });
+  });
+  app.use('/api/admin/auth', (_req, res) => {
+    res.status(503).json({
+      error: 'SERVICE_UNAVAILABLE',
+      message: 'Authentication unavailable - missing required secrets in production',
+    });
+  });
+}
+
 // Health check endpoint - responds immediately for platform provisioning
 app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.status(200).json({ 
+    status: hasMissingProductionSecrets ? 'degraded' : 'ok', 
+    timestamp: new Date().toISOString(),
+    ...(hasMissingProductionSecrets && { warning: 'Missing production secrets - auth disabled' }),
+  });
 });
 
 // Database health check endpoint with timeout
