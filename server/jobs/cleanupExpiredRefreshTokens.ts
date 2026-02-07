@@ -133,14 +133,24 @@ export function getNextCleanupTime(): number {
 
 /**
  * Start the cleanup job scheduler.
- * Runs every 6 hours automatically.
+ * Runs every 6 hours automatically with consecutive failure tracking.
  */
 export function startCleanupScheduler(): void {
+  let consecutiveFailures = 0;
+  const ALERT_THRESHOLD = 3;
+
   const runAndScheduleNext = async () => {
     try {
       await cleanupExpiredRefreshTokens();
+      consecutiveFailures = 0;
     } catch (error) {
-      console.error("[CleanupJob] Scheduler error:", error);
+      consecutiveFailures++;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[CleanupJob] Scheduler error (${consecutiveFailures} consecutive):`, errMsg);
+      
+      if (consecutiveFailures >= ALERT_THRESHOLD) {
+        console.error(`[CleanupJob] ALERT: ${consecutiveFailures} consecutive failures - job may be broken`);
+      }
     }
     
     const nextRun = getNextCleanupTime();
@@ -148,6 +158,5 @@ export function startCleanupScheduler(): void {
     console.log(`[CleanupJob] Next run in ${Math.round(nextRun / 1000 / 60)} minutes`);
   };
 
-  // Run immediately on startup, then schedule recurring
-  setTimeout(runAndScheduleNext, 5000); // 5 second delay on startup
+  setTimeout(runAndScheduleNext, 5000);
 }

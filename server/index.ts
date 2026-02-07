@@ -441,82 +441,71 @@ app.use((req, res, next) => {
   }
 })();
 
-function startScheduledDowngradeProcessor() {
-  const INTERVAL_MS = 60 * 60 * 1000;
+const CONSECUTIVE_FAILURE_ALERT_THRESHOLD = 3;
+
+function createResilientJob(
+  name: string, 
+  jobFn: () => Promise<{ count: number } | void>,
+  intervalMs: number,
+  initialDelayMs: number = 0,
+) {
+  let consecutiveFailures = 0;
   
-  const runProcessor = async () => {
+  const run = async () => {
     try {
-      const { processScheduledDowngrades } = await import("./routes/billing");
-      const count = await processScheduledDowngrades();
-      if (count > 0) {
-        log(`Processed ${count} scheduled downgrades`, "billing-job");
+      const result = await jobFn();
+      consecutiveFailures = 0;
+      if (result && result.count > 0) {
+        log(`Processed ${result.count} items`, name);
       }
     } catch (error) {
-      console.error("[billing-job] Error processing scheduled downgrades:", error);
+      consecutiveFailures++;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[${name}] Failed (${consecutiveFailures} consecutive):`, errMsg);
+      
+      if (consecutiveFailures >= CONSECUTIVE_FAILURE_ALERT_THRESHOLD) {
+        console.error(`[${name}] ALERT: ${consecutiveFailures} consecutive failures - job may be broken. Last error: ${errMsg}`);
+      }
     }
   };
 
-  runProcessor();
-  setInterval(runProcessor, INTERVAL_MS);
-  log("Scheduled downgrade processor started (runs hourly)", "billing-job");
+  if (initialDelayMs > 0) {
+    setTimeout(() => run(), initialDelayMs);
+  } else {
+    run();
+  }
+  setInterval(run, intervalMs);
+  log(`${name} started (interval: ${Math.round(intervalMs / 1000 / 60)}m)`, name);
+}
+
+function startScheduledDowngradeProcessor() {
+  createResilientJob("billing-job", async () => {
+    const { processScheduledDowngrades } = await import("./routes/billing");
+    const count = await processScheduledDowngrades();
+    return { count };
+  }, 60 * 60 * 1000);
 }
 
 function startSubscriptionExpiryProcessor() {
-  const INTERVAL_MS = 60 * 60 * 1000;
-  
-  const runProcessor = async () => {
-    try {
-      const { processExpiredSubscriptions } = await import("./middleware/subscription-guard");
-      const result = await processExpiredSubscriptions();
-      if (result.processed > 0) {
-        log(`Processed ${result.processed} expired subscriptions`, "subscription-expiry-job");
-      }
-    } catch (error) {
-      console.error("[subscription-expiry-job] Error processing expired subscriptions:", error);
-    }
-  };
-
-  setTimeout(() => runProcessor(), 10000);
-  setInterval(runProcessor, INTERVAL_MS);
-  log("Subscription expiry processor started (runs hourly)", "subscription-expiry-job");
+  createResilientJob("subscription-expiry-job", async () => {
+    const { processExpiredSubscriptions } = await import("./middleware/subscription-guard");
+    const result = await processExpiredSubscriptions();
+    return { count: result.processed };
+  }, 60 * 60 * 1000, 10000);
 }
 
 function startAddonEntitlementSync() {
-  const INTERVAL_MS = 60 * 60 * 1000;
-  
-  const runSync = async () => {
-    try {
-      const { syncExpiredAddons } = await import("./services/entitlement");
-      const result = await syncExpiredAddons();
-      if (result.processed > 0) {
-        log(`Synced ${result.processed} addon entitlements`, "addon-entitlement-sync");
-      }
-    } catch (error) {
-      console.error("[addon-entitlement-sync] Error syncing addon entitlements:", error);
-    }
-  };
-
-  setTimeout(() => runSync(), 15000);
-  setInterval(runSync, INTERVAL_MS);
-  log("Addon entitlement sync started (runs hourly)", "addon-entitlement-sync");
+  createResilientJob("addon-entitlement-sync", async () => {
+    const { syncExpiredAddons } = await import("./services/entitlement");
+    const result = await syncExpiredAddons();
+    return { count: result.processed };
+  }, 60 * 60 * 1000, 15000);
 }
 
 function startLoginHistoryCleanup() {
-  const INTERVAL_MS = 24 * 60 * 60 * 1000; // Run once per day
-  
-  const runCleanup = async () => {
-    try {
-      const { cleanupOldLoginHistory } = await import("./services/login-history");
-      const count = await cleanupOldLoginHistory(90);
-      if (count > 0) {
-        log(`Cleaned up ${count} old login history entries`, "login-history-cleanup");
-      }
-    } catch (error) {
-      console.error("[login-history-cleanup] Error cleaning up login history:", error);
-    }
-  };
-
-  setTimeout(() => runCleanup(), 60000);
-  setInterval(runCleanup, INTERVAL_MS);
-  log("Login history cleanup started (runs daily)", "login-history-cleanup");
+  createResilientJob("login-history-cleanup", async () => {
+    const { cleanupOldLoginHistory } = await import("./services/login-history");
+    const count = await cleanupOldLoginHistory(90);
+    return { count };
+  }, 24 * 60 * 60 * 1000, 60000);
 }
