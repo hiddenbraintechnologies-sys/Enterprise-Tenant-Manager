@@ -294,9 +294,40 @@ app.use((req, res, next) => {
     await setupAuth(app);
     registerAuthRoutes(app);
   
+  // Tenant context cache - avoids 3-5 DB queries per authenticated request
+  const contextCache = new Map<string, { context: RequestContext; expiresAt: number }>();
+  const CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  const CONTEXT_CACHE_MAX_SIZE = 1000;
+
+  function getCachedContext(userId: string): RequestContext | null {
+    const entry = contextCache.get(userId);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      contextCache.delete(userId);
+      return null;
+    }
+    return entry.context;
+  }
+
+  function setCachedContext(userId: string, context: RequestContext): void {
+    if (contextCache.size >= CONTEXT_CACHE_MAX_SIZE) {
+      const firstKey = contextCache.keys().next().value;
+      if (firstKey) contextCache.delete(firstKey);
+    }
+    contextCache.set(userId, { context, expiresAt: Date.now() + CONTEXT_CACHE_TTL_MS });
+  }
+
+  // Expose cache invalidation for use after role/permission/feature changes
+  app.locals.invalidateContextCache = (userId?: string) => {
+    if (userId) {
+      contextCache.delete(userId);
+    } else {
+      contextCache.clear();
+    }
+  };
+
   // Unified tenant context middleware (after auth, before routes)
   app.use(async (req, res, next) => {
-    // Initialize empty context synchronously
     const context: RequestContext = {
       user: null,
       tenant: null,
@@ -306,13 +337,7 @@ app.use((req, res, next) => {
     };
     req.context = context;
     
-    // Skip async work for unauthenticated requests
     const user = req.user as any;
-    
-    // Debug logging for auth troubleshooting
-    if (req.path.includes('/marketplace') && req.method === 'POST') {
-      console.log(`[tenant-context] ${req.method} ${req.path} - hasUser=${!!user}, claims=${JSON.stringify(user?.claims || {})}, isAuth=${req.isAuthenticated?.()}`);
-    }
     
     if (!user?.claims?.sub) {
       return next();
@@ -321,7 +346,14 @@ app.use((req, res, next) => {
     try {
       const userId = user.claims.sub;
       
-      // Get user from DB
+      // Check cache first - avoids 3-5 DB queries per request
+      const cached = getCachedContext(userId);
+      if (cached) {
+        req.context = cached;
+        return next();
+      }
+      
+      // Cache miss - run DB queries
       const [dbUser] = await db.select().from(users).where(eq(users.id, userId));
       if (!dbUser) {
         return next();
@@ -334,7 +366,7 @@ app.use((req, res, next) => {
         lastName: dbUser.lastName,
       };
       
-      // Get user's tenant
+      // Get user's tenant + role in a single join query
       let [userTenant] = await db.select({
         userTenant: userTenants,
         tenant: tenants,
@@ -349,7 +381,6 @@ app.use((req, res, next) => {
       ))
       .limit(1);
       
-      // Auto-assign to default tenant if no tenant association
       if (!userTenant?.tenant) {
         const { tenant, roleId } = await tenantService.ensureUserHasTenant(userId);
         const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
@@ -360,33 +391,41 @@ app.use((req, res, next) => {
         context.role = userTenant.role;
       }
       
-      // Get permissions for role
-      if (context.role) {
-        const perms = await db.select({ code: permissions.code })
-          .from(rolePermissions)
-          .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-          .where(eq(rolePermissions.roleId, context.role.id));
-        context.permissions = perms.map(p => p.code).filter(Boolean) as string[];
-      }
+      // Fetch permissions + features in parallel
+      const [permResult, featureResult] = await Promise.all([
+        context.role
+          ? db.select({ code: permissions.code })
+              .from(rolePermissions)
+              .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+              .where(eq(rolePermissions.roleId, context.role.id))
+          : Promise.resolve([]),
+        context.tenant
+          ? Promise.all([
+              db.select({ code: tenantFeatures.featureCode })
+                .from(tenantFeatures)
+                .where(and(
+                  eq(tenantFeatures.tenantId, context.tenant.id),
+                  eq(tenantFeatures.isEnabled, true)
+                )),
+              db.select({ code: featureFlags.code })
+                .from(featureFlags)
+                .where(eq(featureFlags.defaultEnabled, true)),
+            ])
+          : Promise.resolve([[], []] as Array<{ code: string | null }[]>),
+      ]);
+
+      context.permissions = permResult.map(p => p.code).filter(Boolean) as string[];
       
-      // Get enabled features for tenant
       if (context.tenant) {
-        const [activeFeatures, defaultFeatures] = await Promise.all([
-          db.select({ code: tenantFeatures.featureCode })
-            .from(tenantFeatures)
-            .where(and(
-              eq(tenantFeatures.tenantId, context.tenant.id),
-              eq(tenantFeatures.isEnabled, true)
-            )),
-          db.select({ code: featureFlags.code })
-            .from(featureFlags)
-            .where(eq(featureFlags.defaultEnabled, true)),
-        ]);
+        const [activeFeatures, defaultFeatures] = featureResult as [{ code: string | null }[], { code: string | null }[]];
         const featureSet = new Set<string>();
-        defaultFeatures.forEach(f => featureSet.add(f.code));
-        activeFeatures.forEach(f => featureSet.add(f.code));
+        defaultFeatures.forEach(f => { if (f.code) featureSet.add(f.code); });
+        activeFeatures.forEach(f => { if (f.code) featureSet.add(f.code); });
         context.features = Array.from(featureSet);
       }
+      
+      // Cache the resolved context
+      setCachedContext(userId, context);
     } catch (error) {
       console.error("Error in tenant context middleware:", error);
     }
