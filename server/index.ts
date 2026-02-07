@@ -126,7 +126,9 @@ app.use(productionGuardMiddleware);
 // Performance middleware (early in the chain)
 app.use(responseTimeMiddleware({ threshold: 1000 }));
 app.use(metricsMiddleware);
-app.use(queryTrackerMiddleware);
+if (process.env.NODE_ENV !== "production") {
+  app.use(queryTrackerMiddleware);
+}
 
 // Metrics endpoints
 app.get('/metrics', metricsHandler);
