@@ -174,7 +174,7 @@ app.get('/health', (_req, res) => {
 
 // Database health check endpoint with timeout
 app.get('/health/db', async (_req, res) => {
-  const timeout = 5000;
+  const timeout = process.env.NODE_ENV === 'production' ? 10000 : 5000;
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Database connection timeout')), timeout);
   });
