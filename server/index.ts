@@ -548,3 +548,33 @@ function startLoginHistoryCleanup() {
     return { count };
   }, 24 * 60 * 60 * 1000, 60000);
 }
+
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
+const gracefulShutdown = async (signal: string) => {
+  console.log(`[shutdown] ${signal} received, starting graceful shutdown...`);
+
+  httpServer.close(() => {
+    console.log("[shutdown] HTTP server closed");
+  });
+
+  const forceTimeout = setTimeout(() => {
+    console.error("[shutdown] Forced shutdown after 10s timeout");
+    process.exit(1);
+  }, 10000);
+  forceTimeout.unref();
+
+  try {
+    const { pool } = await import("./db");
+    await pool.end();
+    console.log("[shutdown] Database connections closed");
+    process.exit(0);
+  } catch (error) {
+    console.error("[shutdown] Error during cleanup:", error);
+    process.exit(1);
+  }
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
