@@ -194,22 +194,22 @@ app.use(degradedModeMiddleware);
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
 
-// Early catch-all for frontend routes during initialization
-// This prevents "Cannot GET" errors when the server is still starting
 app.use((req, res, next) => {
-  // Skip if already initialized or if it's an API/metrics/health route
-  if (isInitialized || req.path.startsWith('/api') || req.path === '/health' || req.path === '/metrics' || req.path.startsWith('/metrics/')) {
+  if (isInitialized || req.path.startsWith('/api') || 
+      req.path === '/health' || req.path.startsWith('/health/') ||
+      req.path.startsWith('/metrics')) {
     return next();
   }
   
-  // For frontend routes during init, wait for initialization then retry
-  if (initPromise && !isInitialized) {
-    initPromise.then(() => {
-      // Initialization complete, let the request continue through the normal middleware
-      next();
-    }).catch(() => {
-      res.status(503).json({ message: 'Server is starting up, please retry' });
-    });
+  if (initPromise) {
+    initPromise
+      .then(() => next())
+      .catch(() => {
+        res.status(503).json({ 
+          message: 'Server initialization failed',
+          retry: true 
+        });
+      });
   } else {
     next();
   }
